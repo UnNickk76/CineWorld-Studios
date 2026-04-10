@@ -28,6 +28,15 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - Auto-transizione in `_auto_advance_broadcasts`
 - Backend endpoints: add-upcoming, get upcoming, remove-upcoming, available-upcoming
 
+#### Rifattorizzazione Sistema Infrastrutture (Apr 2026)
+- Creata /strutture (gestione cinema, film, prezzi, revenue)
+- Creata /agenzia (4 tab: Attori, Scuola, Scout, Sceneggiature)
+- Creata /strategico (divisioni PvP con stats e upgrade)
+- SideMenu con visibilità condizionale (API /infrastructure/owned-categories)
+- InfrastructurePage semplificata a solo Shop + Upgrade (1574→779 righe)
+- Rimosso tab Agenzia Casting da ProductionStudioPanel
+- Formula cinema migliorata: gradimento, durata, compatibilità genere, prezzi, food
+
 #### Rifinitura Prossimamente Gestionale (Apr 2026)
 - Click su locandina nel "Prossimamente" → apre popup dettaglio gestione (SeriesDetailModal/FilmDetailPopup) invece del cestino
 - Bottone "Elimina dalla programmazione" esplicito sotto ogni locandina
@@ -55,6 +64,15 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 |---|---|---|
 | Prossimamente Dashboard | Dashboard globale | Contenuti di TUTTI i giocatori in sviluppo |
 | Prossimamente Emittente TV | TVMenuModal → Contenuti | Contenuti programmati per la propria emittente con timer |
+
+#### UX Migliorata Strutture/Cinema (Apr 2026)
+- Badge performance film visuale (Ottimo verde / Medio giallo / Flop rosso) con icone
+- Box "Perché stai guadagnando così?" con fattori positivi/negativi/neutri
+- Differenziazione tipo struttura con label e bonus genere
+- Dettagli noleggio film (durata restante, % ricavi, costo pagato)
+- Barra gradimento pubblico animata con colori dinamici
+- Micro feedback toast contestuali su ogni azione (prezzi, aggiunta/rimozione film)
+- Statistiche griglia (Affluenza, Occupazione, Schermi)
 
 ## Backlog
 

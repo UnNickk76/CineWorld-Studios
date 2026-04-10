@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict
 import uuid
 import random
+import math
 import logging
 
 from database import db
@@ -30,6 +31,24 @@ class InfrastructurePurchaseRequest(BaseModel):
 
 class CinemaPricesUpdate(BaseModel):
     prices: Dict[str, float]
+
+@router.get("/infrastructure/owned-categories")
+async def get_owned_categories(user: dict = Depends(get_current_user)):
+    """Check which infra categories the player owns (for menu visibility)."""
+    infra_list = await db.infrastructure.find(
+        {'owner_id': user['id']}, {'_id': 0, 'type': 1}
+    ).to_list(100)
+    types_owned = set(i['type'] for i in infra_list)
+    strutture_types = {'cinema', 'drive_in', 'vip_cinema', 'multiplex_small', 'multiplex_medium', 'multiplex_large', 'cinema_museum', 'film_festival_venue', 'theme_park'}
+    agenzia_types = {'cinema_school', 'talent_scout_actors', 'talent_scout_screenwriters'}
+    strategico_types = {'pvp_investigative', 'pvp_operative', 'pvp_legal'}
+    return {
+        'has_strutture': bool(types_owned & strutture_types),
+        'has_agenzia': bool(types_owned & agenzia_types),
+        'has_strategico': bool(types_owned & strategico_types),
+        'types_owned': list(types_owned),
+    }
+
 
 @router.get("/infrastructure/types")
 async def get_infrastructure_types(user: dict = Depends(get_current_user)):
@@ -297,11 +316,12 @@ async def get_infrastructure_detail(infra_id: str, user: dict = Depends(get_curr
     daily_attendance = int(base_daily * screens * quality_mult * (1 + level * 0.15))
     daily_attendance = min(daily_attendance, total_capacity * 3)  # Max 3 showings/day
     
-    # Satisfaction index (based on prices, quality, level)
+    # Satisfaction index (based on gradimento, prices, quality, level)
+    gradimento = infra.get('gradimento', 70)
     prices = infra.get('prices', {})
     ticket_price = prices.get('ticket', prices.get('ticket_adult', 12))
     price_factor = max(0.4, 1.2 - (ticket_price / 30))
-    satisfaction = min(100, int(film_quality_avg * 0.6 + price_factor * 25 + level * 2))
+    satisfaction = min(100, int(gradimento * 0.5 + film_quality_avg * 0.3 + price_factor * 15 + level * 1.5))
     
     # Occupancy rate
     occupancy = min(100, int((daily_attendance / max(1, total_capacity)) * 100)) if total_capacity > 0 else 0
@@ -773,19 +793,19 @@ async def collect_infrastructure_revenue(infra_id: str, user: dict = Depends(get
     films_showing = infra.get('films_showing', [])
     
     if infra_type.get('screens', 0) > 0 and films_showing:
-        # Cinema type - revenue from ticket sales
-        prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
-        ticket_price = prices.get('ticket', 12)
+        # Cinema type - improved revenue formula
+        hourly_revenue, visitors, ticket_only = calculate_cinema_hourly_revenue(infra, infra_type)
         
-        for film in films_showing:
-            quality = film.get('quality_score', 50)
-            imdb = film.get('imdb_rating', 6.0)
-            revenue_share = film.get('revenue_share_owner', 100) / 100 if film.get('is_owned') else (film.get('revenue_share_renter', 70) / 100)
-            
-            # Base visitors per hour based on quality and rating
-            visitors_per_hour = int(10 + (quality * 0.5) + (imdb * 5))
-            film_revenue = visitors_per_hour * ticket_price * revenue_share
-            hourly_revenue += film_revenue
+        # Update gradimento based on film quality
+        film_quality_avg = sum(f.get('quality_score', 50) for f in films_showing) / max(1, len(films_showing))
+        current_gradimento = infra.get('gradimento', 70)
+        if film_quality_avg >= 65:
+            new_gradimento = min(100, current_gradimento + 0.5 * hours_passed)
+        elif film_quality_avg < 40:
+            new_gradimento = max(10, current_gradimento - 1.0 * hours_passed)
+        else:
+            new_gradimento = max(10, current_gradimento - 0.2 * hours_passed)
+        await db.infrastructure.update_one({'id': infra_id}, {'$set': {'gradimento': round(new_gradimento, 1)}})
     else:
         # Other infrastructure types - base passive income based on type
         passive_rates = {
@@ -797,7 +817,6 @@ async def collect_infrastructure_revenue(infra_id: str, user: dict = Depends(get
         base_income = passive_rates.get(infra_type_id, infra_type.get('passive_income', 500))
         level = infra.get('level', 1)
         # Logarithmic scaling: level^0.5 instead of linear
-        import math
         level_mult = max(1, math.sqrt(level))
         hourly_revenue = base_income * level_mult
         
@@ -866,6 +885,97 @@ async def collect_infrastructure_revenue(infra_id: str, user: dict = Depends(get
         'new_total_revenue': infra.get('total_revenue', 0) + accumulated_revenue
     }
 
+
+# ==================== CINEMA REVENUE HELPER ====================
+
+# Genre compatibility bonuses per structure type
+GENRE_COMPATIBILITY = {
+    'drive_in': {'horror': 1.25, 'action': 1.2, 'thriller': 1.15, 'sci_fi': 1.1, 'romance': 1.1},
+    'vip_cinema': {'drama': 1.3, 'historical': 1.25, 'romance': 1.2, 'thriller': 1.15},
+    'cinema_museum': {'historical': 1.3, 'drama': 1.2, 'documentary': 1.25},
+    'film_festival_venue': {'drama': 1.2, 'indie': 1.3, 'foreign': 1.25, 'historical': 1.15},
+    'theme_park': {'action': 1.3, 'adventure': 1.25, 'sci_fi': 1.2, 'comedy': 1.15, 'animation': 1.2},
+    'multiplex_large': {'action': 1.15, 'sci_fi': 1.1, 'adventure': 1.1},
+}
+
+DEFAULT_CINEMA_PRICES_V2 = {'ticket': 12, 'popcorn': 8, 'drinks': 5, 'combo': 18, 'nachos': 7, 'hot_dog': 6}
+
+def calculate_cinema_hourly_revenue(infra, infra_type):
+    """Calculate cinema hourly revenue with improved formula: quality, imdb, gradimento, duration, genre compatibility, prices."""
+    films_showing = infra.get('films_showing', [])
+    level = infra.get('level', 1)
+    now = datetime.now(timezone.utc)
+
+    if not films_showing or infra_type.get('screens', 0) == 0:
+        base_passive = {'cinema_museum': 1000, 'film_festival_venue': 1500, 'theme_park': 3000}.get(infra.get('type', ''), 500)
+        return base_passive * max(1, math.sqrt(level)), 0, 0
+
+    prices = infra.get('prices', DEFAULT_CINEMA_PRICES_V2)
+    ticket_price = prices.get('ticket', 12)
+    gradimento = infra.get('gradimento', 70)
+    city = infra.get('city', {})
+    city_mult = city.get('revenue_multiplier', 1.0)
+    infra_type_id = infra.get('type', 'cinema')
+
+    total_ticket_rev = 0
+    total_food_rev = 0
+    total_visitors = 0
+
+    for film in films_showing:
+        quality = film.get('quality_score', 50)
+        imdb = film.get('imdb_rating', 6.0)
+        genre = (film.get('genre') or '').lower().replace(' ', '_')
+        revenue_share = film.get('revenue_share_owner', 100) / 100 if film.get('is_owned') else (film.get('revenue_share_renter', 70) / 100)
+
+        # Base visitors per hour
+        base_visitors = 10 + (quality * 0.5) + (imdb * 5)
+
+        # Price effect: higher price = fewer visitors (sweet spot around $10-15)
+        price_factor = max(0.3, 1.3 - (ticket_price / 25))
+
+        # Duration decay: freshness matters
+        added_at_str = film.get('added_at')
+        decay = 1.0
+        if added_at_str:
+            try:
+                added_at = datetime.fromisoformat(added_at_str.replace('Z', '+00:00'))
+                days = (now - added_at).total_seconds() / 86400
+                if days <= 3:
+                    decay = 1.0
+                elif days <= 5:
+                    decay = 0.85
+                elif days <= 7:
+                    decay = 0.7
+                else:
+                    decay = max(0.3, 0.7 - (days - 7) * 0.05)
+            except Exception:
+                decay = 1.0
+
+        # Genre compatibility bonus
+        compat_table = GENRE_COMPATIBILITY.get(infra_type_id, {})
+        genre_bonus = compat_table.get(genre, 1.0)
+
+        # Gradimento factor (0.5 at gradimento=0, 1.0 at gradimento=100)
+        grad_factor = 0.5 + (gradimento / 200)
+
+        # Revenue multiplier from structure type
+        struct_mult = infra_type.get('revenue_multiplier', 1.0)
+
+        visitors = base_visitors * price_factor * decay * genre_bonus * grad_factor * (1 + level * 0.1)
+        ticket_rev = visitors * ticket_price * revenue_share * struct_mult * city_mult
+        
+        # Food revenue: more spectators = more food, blockbusters +50% food
+        avg_food_price = (prices.get('popcorn', 8) + prices.get('drinks', 5) + prices.get('combo', 18)) / 3
+        food_multiplier = 0.4 if quality >= 70 else 0.3  # Blockbusters sell more food
+        food_rev = visitors * avg_food_price * food_multiplier * city_mult
+
+        total_ticket_rev += ticket_rev
+        total_food_rev += food_rev
+        total_visitors += visitors
+
+    return total_ticket_rev + total_food_rev, total_visitors, total_ticket_rev
+
+
 @router.get("/infrastructure/{infra_id}/pending-revenue")
 async def get_pending_revenue(infra_id: str, user: dict = Depends(get_current_user)):
     """Get pending revenue that can be collected."""
@@ -886,15 +996,7 @@ async def get_pending_revenue(infra_id: str, user: dict = Depends(get_current_us
     films_showing = infra.get('films_showing', [])
     
     if infra_type.get('screens', 0) > 0 and films_showing:
-        prices = infra.get('prices', DEFAULT_CINEMA_PRICES)
-        ticket_price = prices.get('ticket', 12)
-        
-        for film in films_showing:
-            quality = film.get('quality_score', 50)
-            imdb = film.get('imdb_rating', 6.0)
-            revenue_share = film.get('revenue_share_owner', 100) / 100 if film.get('is_owned') else (film.get('revenue_share_renter', 70) / 100)
-            visitors_per_hour = int(10 + (quality * 0.5) + (imdb * 5))
-            hourly_revenue += visitors_per_hour * ticket_price * revenue_share
+        hourly_revenue, visitors, ticket_only = calculate_cinema_hourly_revenue(infra, infra_type)
     else:
         hourly_revenue = infra_type.get('passive_income', 500)
     

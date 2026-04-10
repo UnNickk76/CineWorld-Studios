@@ -116,7 +116,6 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
   const tabs = [
     { id: 'pre', icon: Clapperboard, label: 'Pre-Produzione', color: 'from-blue-500/20 to-indigo-500/10 border-blue-500/30', accent: 'text-blue-400' },
     { id: 'post', icon: Wand2, label: 'Post-Produzione', color: 'from-purple-500/20 to-pink-500/10 border-purple-500/30', accent: 'text-purple-400' },
-    { id: 'casting', icon: Users, label: 'Agenzia Casting', color: 'from-amber-500/20 to-orange-500/10 border-amber-500/30', accent: 'text-amber-400' }
   ];
 
   return (
@@ -310,160 +309,11 @@ const ProductionStudioPanel = ({ api, user, infraDetail, upgradeInfo, upgrading,
         </div>
       )}
 
-      {/* Casting Agency Panel */}
-      {activeTab === 'casting' && (
-        <div className="space-y-2" data-testid="casting-agency-panel">
-          <h4 className="text-sm font-semibold text-amber-400 flex items-center gap-1">
-            <Users className="w-4 h-4" /> Agenzia Casting
-          </h4>
-          <p className="text-[10px] text-gray-500">
-            Talenti esclusivi con sconto {castingData?.discount_percent || 0}%. Si rinnovano ogni settimana.
-            {castingData?.recruits && (() => {
-              const available = castingData.recruits.filter(r => !r.hired).length;
-              const total = castingData.recruits.length;
-              return available > 0 
-                ? ` (${available}/${total} disponibili)` 
-                : ` — Tutti ingaggiati! Nuovi talenti la prossima settimana.`;
-            })()}
-          </p>
-          
-          {loading ? (
-            <div className="text-center py-4"><Loader2 className="w-5 h-5 animate-spin mx-auto text-amber-400" /></div>
-          ) : castingData?.recruits?.length === 0 ? (
-            <p className="text-center text-gray-500 text-xs py-4">Nessun talento disponibile</p>
-          ) : (
-            <div className="space-y-1.5 max-h-[250px] overflow-y-auto">
-              {castingData?.recruits?.map(r => (
-                <div 
-                  key={r.id} 
-                  className={`flex items-center gap-2 p-2 rounded border transition-all ${
-                    r.hired 
-                      ? 'bg-black/20 border-white/5 opacity-50 cursor-default' 
-                      : r.is_legendary 
-                        ? 'bg-yellow-500/10 border-yellow-500/20 cursor-pointer hover:ring-1 hover:ring-amber-400/30' 
-                        : 'bg-black/30 border-white/5 cursor-pointer hover:ring-1 hover:ring-amber-400/30'
-                  }`}
-                  onClick={() => !r.hired && setSelectedRecruit(r)}
-                  data-testid={`recruit-${r.id}`}
-                >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${r.hired ? 'bg-gray-700 text-gray-500' : r.is_legendary ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-700 text-gray-300'}`}>
-                    {r.hired ? <Check className="w-4 h-4" /> : r.is_legendary ? <Crown className="w-4 h-4" /> : r.name?.[0]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <p className="text-xs font-semibold truncate">{r.name}</p>
-                      {r.is_legendary && <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
-                    </div>
-                    <p className="text-[10px] text-gray-500">
-                      {r.hired 
-                        ? (r.hire_action === 'school' ? 'Inviato alla Scuola' : 'Ingaggiato') 
-                        : `Abilità: ${r.skill} | ${r.nationality}`}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    {r.hired ? (
-                      <Badge className="bg-green-500/20 text-green-400 text-[9px]">
-                        {r.hire_action === 'school' ? 'A scuola' : 'Nel cast'}
-                      </Badge>
-                    ) : (
-                      <>
-                        <p className="text-[10px] text-gray-500 line-through">${r.original_cost?.toLocaleString()}</p>
-                        <p className="text-xs font-bold text-green-400">${r.discounted_cost?.toLocaleString()}</p>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Recruit Hire Popup */}
-      <Dialog open={!!selectedRecruit} onOpenChange={(open) => { if (!open) setSelectedRecruit(null); }}>
-        <DialogContent className="bg-[#1a1a1a] border-white/10 max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              {selectedRecruit?.is_legendary && <Crown className="w-5 h-5 text-yellow-400" />}
-              {selectedRecruit?.name}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedRecruit && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-black/30 rounded p-2">
-                  <p className="text-[10px] text-gray-400">Abilità</p>
-                  <p className="text-lg font-bold">{selectedRecruit.skill}</p>
-                </div>
-                <div className="bg-black/30 rounded p-2">
-                  <p className="text-[10px] text-gray-400">Nazionalità</p>
-                  <p className="text-sm font-medium">{selectedRecruit.nationality}</p>
-                </div>
-              </div>
-              <div className="bg-green-500/10 border border-green-500/20 rounded p-2 text-center">
-                <p className="text-[10px] text-gray-400">Costo scontato</p>
-                <p className="text-lg font-bold text-green-400">${selectedRecruit.discounted_cost?.toLocaleString()}</p>
-              </div>
-              <div className="space-y-2">
-                <Button
-                  className="w-full bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
-                  onClick={() => hireRecruit(selectedRecruit, 'hire')}
-                  disabled={!!hiringAction}
-                  data-testid="hire-recruit-btn"
-                >
-                  {hiringAction === 'hire' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
-                  Usa Subito (Cast Personale)
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10"
-                  onClick={() => hireRecruit(selectedRecruit, 'send_to_school')}
-                  disabled={!!hiringAction}
-                  data-testid="send-to-school-btn"
-                >
-                  {hiringAction === 'send_to_school' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <GraduationCap className="w-4 h-4 mr-2" />}
-                  Invia alla Scuola di Recitazione
-                </Button>
-                <p className="text-[9px] text-gray-500 text-center">
-                  La scuola migliora le skill nel tempo. L'ingaggio diretto è immediato.
-                </p>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
       </div>
-      {/* Upgrade Section */}
-      {upgradeInfo && (
-        <div className="space-y-2 p-3 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-lg border border-purple-500/20">
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
-              <ArrowUpCircle className="w-4 h-4 text-purple-400" />
-              {upgradeInfo.current_level >= upgradeInfo.max_level 
-                ? 'Livello Massimo!' 
-                : `Upgrade Lv.${upgradeInfo.current_level} → Lv.${upgradeInfo.next_level}`}
-            </h4>
-            <Badge className="bg-purple-500/20 text-purple-400 text-xs">Lv.{upgradeInfo.current_level}/{upgradeInfo.max_level}</Badge>
-          </div>
-          {upgradeInfo.current_level < upgradeInfo.max_level && (
-            <>
-              <div className="flex items-center justify-between text-xs pt-1">
-                <span className="text-gray-400">Costo: <span className={`font-bold ${(upgradeInfo.user_funds || 0) >= upgradeInfo.upgrade_cost ? 'text-green-400' : 'text-red-400'}`}>${upgradeInfo.upgrade_cost?.toLocaleString()}</span></span>
-                <span className="text-gray-400">Lv. richiesto: <span className={`font-bold ${upgradeInfo.player_level >= upgradeInfo.player_level_required ? 'text-green-400' : 'text-red-400'}`}>{upgradeInfo.player_level}/{upgradeInfo.player_level_required}</span></span>
-              </div>
-              {upgradeInfo.cinepass_cost > 0 && (
-                <div className="text-xs text-gray-400">CinePass: <span className={`font-bold ${(upgradeInfo.user_cinepass || 0) >= upgradeInfo.cinepass_cost ? 'text-green-400' : 'text-red-400'}`}>{upgradeInfo.cinepass_cost}</span></div>
-              )}
-              <Button onClick={handleUpgrade} disabled={!upgradeInfo.can_upgrade || upgrading} className={`w-full h-9 font-bold ${upgradeInfo.can_upgrade ? 'bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white' : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`} data-testid="upgrade-studio-btn">
-                {upgrading ? 'Miglioramento...' : upgradeInfo.can_upgrade ? `Migliora Studio a Lv.${upgradeInfo.next_level}` : upgradeInfo.reason}
-              </Button>
-            </>
-          )}
-        </div>
-      )}
+      {/* Pre/Post tabs remain active */}
     </div>
   );
 };
 
-export default ProductionStudioPanel;
+export { ProductionStudioPanel };
+

@@ -13,7 +13,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://tvmenu-upcomingfix.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://box-office-tracker-1.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "testmod99@test.com"

@@ -563,17 +563,38 @@ async def update_cinema_revenue():
                     # Film quality boost
                     films_showing = infra.get('films_showing', [])
                     film_quality_avg = 50
+                    film_hype_avg = 50
                     if films_showing:
                         film_ids = [f.get('film_id') for f in films_showing if f.get('film_id')]
                         if film_ids:
                             actual_films = await scheduler_db.films.find(
-                                {'id': {'$in': film_ids}}, {'quality_score': 1}
+                                {'id': {'$in': film_ids}}, {'quality_score': 1, 'hype': 1}
                             ).to_list(len(film_ids))
                             if actual_films:
                                 film_quality_avg = sum(f.get('quality_score', 50) for f in actual_films) / len(actual_films)
+                                film_hype_avg = sum(f.get('hype', 50) for f in actual_films) / len(actual_films)
                     
                     quality_multiplier = 0.5 + (film_quality_avg / 100)
-                    hourly_attendance = int((base_daily_attendance / 24) * screens * quality_multiplier)
+                    
+                    # Hype multiplier: hype influenza affluenza (max +20%)
+                    hype_multiplier = 0.9 + (film_hype_avg / 500)  # 0.9 a 1.1
+                    
+                    # City dynamics: impatto LEGGERO post-uscita (max +10%/-3%)
+                    city_dyn_mult = 1.0
+                    try:
+                        city_name = city.get('name', '')
+                        if city_name and films_showing:
+                            main_genre = films_showing[0].get('genre', 'drama')
+                            cd_entry = await scheduler_db.city_dynamics.find_one(
+                                {'city_name': city_name}, {'_id': 0, 'genre_values': 1}
+                            )
+                            if cd_entry:
+                                affinity = cd_entry.get('genre_values', {}).get(main_genre, 50) / 100.0
+                                city_dyn_mult = 0.97 + affinity * 0.13  # 0.97 a 1.10
+                    except Exception:
+                        pass
+                    
+                    hourly_attendance = int((base_daily_attendance / 24) * screens * quality_multiplier * hype_multiplier * city_dyn_mult)
                     hourly_attendance = min(hourly_attendance, screens * seats_per_screen)
                     
                     # Ticket price varies by type
@@ -585,7 +606,8 @@ async def update_cinema_revenue():
                     elif base_ticket < 8:
                         base_ticket = 12
                     
-                    food_per_person = 6
+                    # Food revenue influenzata da hype (piu hype = piu spesa food)
+                    food_per_person = 6 * (0.8 + film_hype_avg / 250)  # 4.8 a 8.4
                     hourly_revenue = hourly_attendance * (base_ticket + food_per_person * 0.4)
                     
                     # Even without films showing, cinemas earn a base from general operations
@@ -1231,6 +1253,107 @@ async def auto_cleanup_corrupted_projects():
             logger.warning(f"Auto-cleanup: film {f['id']} ({f.get('title')}) {f['status']} without cast -> proposed")
     
     logger.info("Auto-cleanup completed")
+
+
+
+# ==================== HYPE DECAY + EVENTI → HYPE ====================
+
+async def process_hype_and_events():
+    """
+    Ogni 30 min:
+    - Decadimento leggero hype di tutti i film attivi
+    - Eventi attivi modificano hype e gradimento cinema
+    """
+    try:
+        now = datetime.now(timezone.utc)
+
+        # 1) Decadimento hype: -1 ogni 6 ore (ogni tick = ~30min = -0.08)
+        active_films = await scheduler_db.films.find(
+            {'status': {'$in': ['in_theaters', 'released']}, 'hype': {'$gt': 10}},
+            {'_id': 0, 'id': 1, 'hype': 1, 'hype_last_update': 1}
+        ).to_list(2000)
+
+        decayed = 0
+        for film in active_films:
+            last_update = film.get('hype_last_update')
+            if last_update:
+                try:
+                    last = datetime.fromisoformat(str(last_update).replace('Z', '+00:00'))
+                    hours = (now - last).total_seconds() / 3600
+                    if hours < 4:
+                        continue  # Non aggiornare troppo spesso
+                except Exception:
+                    pass
+
+            current_hype = film.get('hype', 50)
+            new_hype = max(10, current_hype - 1)  # -1 ogni tick rilevante
+            await scheduler_db.films.update_one(
+                {'id': film['id']},
+                {'$set': {'hype': new_hype, 'hype_last_update': now.isoformat()}}
+            )
+            decayed += 1
+
+        # 2) Eventi → hype/gradimento cinema
+        try:
+            from game_systems import get_active_world_events
+            active_events = get_active_world_events()
+            if active_events:
+                # Trova cinema con film
+                cinemas_with_films = await scheduler_db.infrastructure.find(
+                    {'films_showing': {'$exists': True, '$ne': []},
+                     'type': {'$in': ['cinema', 'drive_in', 'vip_cinema', 'multiplex_small',
+                                      'multiplex_medium', 'multiplex_large']}},
+                    {'_id': 0, 'id': 1, 'films_showing': 1, 'gradimento': 1}
+                ).to_list(1000)
+
+                for cinema in cinemas_with_films:
+                    films = cinema.get('films_showing', [])
+                    if not films:
+                        continue
+
+                    for event in active_events:
+                        effects = event.get('effects', {})
+                        # Evento positivo (bonus cinema) → hype +2-4 ai film
+                        if effects.get('all_cinema_bonus', 1.0) > 1.0 or effects.get('all_cinema_revenue_bonus', 1.0) > 1.0:
+                            for f in films:
+                                fid = f.get('film_id')
+                                if fid:
+                                    await scheduler_db.films.update_one(
+                                        {'id': fid, 'hype': {'$lt': 95}},
+                                        {'$inc': {'hype': random.randint(1, 3)}}
+                                    )
+                            # Gradimento ↑
+                            cur_grad = cinema.get('gradimento', 70)
+                            new_grad = min(100, cur_grad + random.randint(1, 2))
+                            await scheduler_db.infrastructure.update_one(
+                                {'id': cinema['id']},
+                                {'$set': {'gradimento': new_grad}}
+                            )
+
+                        # Evento negativo (malus) → hype -1-2
+                        negative_keys = [k for k in effects if 'penalty' in k or effects.get(k, 1.0) < 1.0]
+                        if negative_keys:
+                            for f in films:
+                                fid = f.get('film_id')
+                                if fid:
+                                    await scheduler_db.films.update_one(
+                                        {'id': fid, 'hype': {'$gt': 5}},
+                                        {'$inc': {'hype': -random.randint(1, 2)}}
+                                    )
+                            cur_grad = cinema.get('gradimento', 70)
+                            new_grad = max(20, cur_grad - random.randint(0, 1))
+                            await scheduler_db.infrastructure.update_one(
+                                {'id': cinema['id']},
+                                {'$set': {'gradimento': new_grad}}
+                            )
+        except Exception as ev_err:
+            logger.warning(f"[HYPE] Evento→hype errore: {ev_err}")
+
+        if decayed > 0:
+            logger.info(f"[HYPE] Decadimento applicato a {decayed} film")
+
+    except Exception as e:
+        logger.error(f"[HYPE] Errore process_hype_and_events: {e}")
 
 
 # ==================== AUTO REVENUE + STAR + SKILL TICK ====================

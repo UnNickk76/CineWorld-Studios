@@ -590,67 +590,66 @@ const GlobalSideMenu = () => {
         data-testid="global-side-menu-overlay"
       />
       <div
-        className={`fixed top-0 left-0 h-full w-[24%] min-w-[82px] max-w-[110px] z-[48] transform transition-transform duration-300 overflow-hidden ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed top-0 left-0 h-full w-[24%] min-w-[82px] max-w-[110px] z-[48] transform transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
         data-testid="global-side-menu"
-        style={{ background: '#050505', overflowX: 'hidden' }}
+        style={{ background: '#050505', overflow: 'hidden' }}
       >
         {/* LAYER 1: Animated film strip background */}
         <div className="film-strip-bg" aria-hidden="true" />
+        {/* LAYER 2: Sprocket holes — z-5, always on top */}
         <div className="film-perfs film-perfs-left" aria-hidden="true" />
         <div className="film-perfs film-perfs-right" aria-hidden="true" />
 
-        {/* LAYER 2: Fixed content */}
-        <div className="relative z-10 flex flex-col h-full pt-13" style={{ paddingTop: '52px' }}>
+        {/* LAYER 3: Central content area — margin 16px from edges */}
+        <div className="film-content-area flex flex-col h-full" style={{ paddingTop: '48px' }}>
 
           {/* TOP FIXED: Funds + CinePass + Admin */}
-          <div className="flex-shrink-0 px-1.5 pb-1.5 space-y-1.5">
-            {/* Funds + CinePass row */}
-            <div className="flex gap-1">
-              <div className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded border border-yellow-500/25 bg-yellow-500/8" data-testid="menu-funds">
-                <DollarSign className="w-3 h-3 text-yellow-500" />
-                <span className="text-yellow-500 font-bold text-[9px]">
+          <div className="flex-shrink-0 pb-1 space-y-1">
+            <div className="flex gap-0.5">
+              <div className="flex-1 flex items-center justify-center gap-0.5 py-1 rounded border border-yellow-500/25 bg-yellow-500/8" data-testid="menu-funds">
+                <DollarSign className="w-2.5 h-2.5 text-yellow-500" />
+                <span className="text-yellow-500 font-bold text-[8px]">
                   {user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
                 </span>
               </div>
-              <div className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded border border-cyan-500/25 bg-cyan-500/8" data-testid="menu-cinepass">
-                <Ticket className="w-3 h-3 text-cyan-400" />
-                <span className="text-cyan-400 font-bold text-[9px]">{user?.cinepass ?? 100}</span>
+              <div className="flex-1 flex items-center justify-center gap-0.5 py-1 rounded border border-cyan-500/25 bg-cyan-500/8" data-testid="menu-cinepass">
+                <Ticket className="w-2.5 h-2.5 text-cyan-400" />
+                <span className="text-cyan-400 font-bold text-[8px]">{user?.cinepass ?? 100}</span>
               </div>
             </div>
-            {/* Admin Panel - only for admin/co-admin */}
             {(user?.nickname === 'NeoMorpheus' || user?.role === 'CO_ADMIN') && (
-              <button
-                onClick={() => { setOpen(false); navigate('/admin'); }}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded bg-red-600/80 hover:bg-red-600 text-white text-[10px] font-bold tracking-wide transition-colors"
-                data-testid="menu-admin-panel"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                <span>{user?.role === 'CO_ADMIN' ? 'CO-ADMIN' : 'ADMIN PANEL'}</span>
+              <button onClick={() => { setOpen(false); navigate('/admin'); }}
+                className="w-full flex items-center justify-center gap-1 py-1.5 rounded bg-red-600/80 hover:bg-red-600 text-white text-[9px] font-bold transition-colors"
+                data-testid="menu-admin-panel">
+                <Settings className="w-3 h-3" />
+                <span>ADMIN</span>
               </button>
             )}
           </div>
 
-          {/* MIDDLE: Scrollable menu items */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none', paddingBottom: 60 }}>
+          {/* MIDDLE: Scrollable frames */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none' }}>
             {menuItems.map(item => (
-              <button
-                key={item.label}
-                className="film-frame-btn w-full"
-                onClick={item.action}
-                data-testid={`global-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-              >
-                <item.icon className="mb-0.5 text-yellow-500/80 mx-auto" style={{ width: 17, height: 17 }} />
-                <span className="text-[9px] text-center leading-tight text-gray-300/80 block w-full">{item.label}</span>
+              <button key={item.label} className="film-frame-btn" onClick={item.action}
+                data-testid={`global-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                <item.icon className="mb-0.5 text-yellow-500/80 mx-auto" style={{ width: 16, height: 16 }} />
+                <span className="text-[8.5px] text-center leading-tight text-gray-300/80 block w-full">{item.label}</span>
               </button>
             ))}
-            {/* Titoli di Coda (hamburger) */}
-            <button
-              onClick={() => { setOpen(false); window.dispatchEvent(new Event('open-titoli-di-coda')); }}
-              className="film-frame-btn w-full"
-              data-testid="menu-titoli-di-coda"
-            >
-              <Menu className="w-4 h-4 mb-0.5 text-gray-400 mx-auto" />
-              <span className="text-[9px] text-center leading-tight text-gray-400 block w-full">Titoli di Coda</span>
+            {/* Titoli di Coda */}
+            <button onClick={() => { setOpen(false); window.dispatchEvent(new Event('open-titoli-di-coda')); }}
+              className="film-frame-btn" data-testid="menu-titoli-di-coda">
+              <Menu className="w-3.5 h-3.5 mb-0.5 text-gray-400 mx-auto" />
+              <span className="text-[8px] text-center leading-tight text-gray-400 block w-full">Titoli di Coda</span>
+            </button>
+          </div>
+
+          {/* BOTTOM STICKY: Esci (rosso) */}
+          <div className="flex-shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            <button onClick={() => { setOpen(false); window.dispatchEvent(new Event('confirm-logout')); }}
+              className="film-exit-btn" data-testid="menu-esci">
+              <LogOut className="w-3 h-3" />
+              <span>Esci</span>
             </button>
           </div>
 

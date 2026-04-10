@@ -1,138 +1,145 @@
-<analysis>**original_problem_statement**: 
-Rifattorizzazione completa del sistema TV + Palinsesto + Gestione contenuti (Film / Serie TV / Anime). Separazione totale tra UI estetica e gestione. Rifattorizzazione della Dashboard mobile-first con inserimento SideMenu, Eventi WOW, e Glow CSS. Implementazione della sezione Prossimamente per le Emittenti TV.
+<analysis><handoff summary>
+**original_problem_statement**: 
+OBIETTIVO: 
+1) Nuova impaginazione della UI per la pagina dettaglio Film/Serie/Anime (), in ordine specifico (barra stato top, blocco locandina+trama breve, titolo, cast, barra dati con IMDb/durata, box giornali, box pubblico/eventi, sceneggiatura completa scrollabile internamente, placeholder trailer). 
+2) Aggiungere un nuovo Sistema Durata in pipeline *solo* per i nuovi contenuti (il player sceglie la categoria es: Cortometraggio/Kolossal, il backend calcola i minuti in base a genere/trama).
+REGOLE FONDAMENTALI: Retrocompatibilità assoluta. Nessuna rottura per i vecchi contenuti. Fallback sicuri. Mobile-first.
+VINCOLO DI PROCESSO: L'agente DEVE presentare il piano esatto dei file da toccare e attendere la conferma dell'utente prima di scrivere il codice.
 
 **User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
 
 **what currently exists?** 
-- La  è ora una vetrina puramente estetica in stile Netflix. Tutta la gestione è stata spostata nel  (4 sezioni).
-- La  principale è stata rifattorizzata per includere LaPrima, Eventi WOW, Prossimamente (Film/Serie/Anime).
-- Creato  laterale attivabile dal logo CIACK in alto a sinistra (con traslazione automatica delle navbar).
-- Creato il sistema backend per aggiungere contenuti al Prossimamente dell'emittente TV (inclusi contenuti in produzione) con timer a scaglioni (6h, 12h, 24h, 2d, 4d, 6d) gestito dal cron.
+CineWorld Studio's è un browser game gestionale cinematografico. In questa sessione sono stati implementati enormi aggiornamenti: 
+- Fase 3 completa (Dinamiche città nascoste, Hype dei film, sistema di suggerimento Velion per LaPrima, notifiche narrative senza numeri).
+- Un sofisticato Tutorial Manager nell'Admin Panel in grado di generare tutorial guidati tramite AI (Emergent LLM Key).
+- Le pagine Note di Rilascio e Note di Sistema sono state visivamente congelate/disattivate.
+- Bugfix per l'accumulo infinito delle notifiche fantasma.
+- Aggiunta funzione Azzera Palinsesto e UI per palinsesto vuoto nella gestione Emittente TV.
+- Aggiunto un tool nell'Admin Panel per migrare le vecchie Serie/Anime (V1) nel nuovo sistema Pipeline (V2) generando titoli e trame episodi tramite AI.
+- Sostituito il tasto Eventi con La Mia TV nella bottom nav mobile.
 
 **Last working item**: 
-    - Last item agent was working: Rifinire la sezione gestionale Prossimamente nel . L'utente ha richiesto che cliccando sulla locandina in questa sezione NON appaia il cestino (elimina), ma si apra il popup di gestione (il dettaglio serie/palinsesto), e che solo in questa sezione ci sia il tasto Elimina dalla programmazione. Inoltre, i titoli programmati col vecchio sistema devono apparire in questa lista.
-    - Status: IN PROGRESS
+    - Last item agent was working: Analisi del codice (, ,  e backend associato) per implementare il nuovo restyling della pagina di dettaglio e il sistema di durata.
+    - Status: USER VERIFICATION PENDING (L'agente ha raccolto il contesto ma deve ancora stampare il piano d'azione e chiedere conferma all'utente, come esplicitamente richiesto nell'ultimo prompt).
     - Agent Testing Done: N
-    - Which testing method agent to use? screenshot tool for frontend validation.
+    - Which testing method agent to use? Frontend testing agent (una volta implementato).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Rifinitura UI Gestionale Prossimamente in TVMenuModal (P0)
-     - Attempted fixes: L'agente ha visualizzato il file  ma non ha ancora apportato le modifiche.
-     - Next debug checklist: In , sezione Prossimamente: 1) Modificare l'onClick della locandina per aprire il modale di gestione ( o ) invece del cestino. 2) Aggiungere un pulsante dedicato Elimina dalla programmazione. 3) Assicurarsi che i contenuti schedulati col vecchio sistema appaiano nel tab gestionale Prossimamente.
-     - Why fix this issue and what will be achieved with the fix? Requisito esplicito dell'utente (Messaggio 349).
-     - Status: IN PROGRESS
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend (Screenshot)
-     - Blocked on other issue: Nessuno
-
-  Issue 2: Fix overlay FilmDetailPopup su TVStationPage (P1)
-     - Attempted fixes: Nessuno. Trovato dal testing_agent (Iterazione 157) ma non corretto.
-     - Next debug checklist:  linea 440. Il backdrop div del  blocca i click successivi. Sistemare l'handling del click outside o la gestione dello z-index.
-     - Why fix this issue and what will be achieved with the fix? Previene il blocco dell'interfaccia (l'utente non riesce a cliccare altri elementi dopo aver aperto il dettaglio film).
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend
-     - Blocked on other issue: Nessuno
+Nessun bug bloccante. L'unica issue è la task in corso (P0).
 
 **In progress Task List**: 
-  Nessun task separato dalle issues sopra elencate.
+  Task 1: Restyling UI Dettaglio Contenuti & Sistema Durata (P0)
+     - Where to resume: L'agente ha appena letto  e i file backend. Deve ORA usare l'output testuale (nessun tool) per rispondere all'utente con il piano esatto di implementazione (file che toccherà, dove inserirà la logica, come gestirà la retrocompatibilità), ed eventualmente usare  o attendere risposta.
+     - What will be achieved with this? Una UI molto più pulita, stile Netflix/IMDb per i dettagli film, senza popup invasivi per le locandine e con un sistema di durata generato proceduralmente per le nuove pipeline.
+     - Status: NOT STARTED (Analysis complete, waiting to present plan).
+     - Should Test frontend/backend/both after fix? Both (Frontend UI overhaul + Backend pipeline logic).
+     - Blocked on something: Approvazione del piano da parte dell'utente.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
     - (P1) Fase 3 Mercato: Possibilità di vendere le serie/anime e far gestire la distribuzione a chi acquista.
     - (P2) Sfida della Settimana (minigioco rotante con premi extra).
+    - Completare la migrazione delle restanti 5 serie V1 -> V2 dal pannello Admin (azione manuale dell'utente, ma il tool è pronto).
+    
     Future Tasks:
     - (P3) Previsioni Festival.
-    - (P3) Marketplace TV/Anime rights.
+    - (P3) Marketplace diritti TV/Anime.
     - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Livelli.
+    - (P3) Refactoring  (diventato molto grande).
 
 **Completed work in this session**
-- Integrazione , ,  per la TV Station (DONE)
-- Rifattorizzazione estetica  in puro stile Netflix (DONE)
-- Rifattorizzazione main  con inserimento Eventi WOW, card CSS Glow, e spostamento griglia azioni in basso (DONE)
-- Creazione  a scorrimento da sinistra, attivato da icona CIACK con traslazione sincronizzata delle Navbar (DONE)
-- Ottimizzazione  (icon ridotte 50%, icone univoche, header sticky) (DONE)
-- Backend e Frontend TV Prossimamente (Aggiunta rapida tramite card +, timer popup) (DONE)
+- Test e validazione  post-refactoring (DONE)
+- Sistema dinamico Città invisibili + Hype film + Velion LaPrima suggestion (DONE)
+- Sistema notifiche narrative text-based per performance città (DONE)
+- Tutorial Manager in Admin Panel con generazione AI (Emergent LLM Key) (DONE)
+- Freeze UI delle pagine Note Rilascio e Note Sistema (DONE)
+- Pulsanti manuali per avvio Tutorial Velion e Guest Pipeline (DONE)
+- Bugfix: risolto counter sessionStorage che accumulava notifiche fantasma (DONE)
+- Feature: Aggiunto Azzera Palinsesto in Gestione TV mantenendo le statistiche (DONE)
+- Feature: UI slot vuoti per palinsesto TV azzerato (DONE)
+- Feature: Tool di migrazione Admin per vecchie Serie TV / Anime verso Pipeline V2 con generazione AI di episodi e mini-plot (DONE)
+- UX: Bottom Nav mobile aggiornata (Eventi rimosso, aggiunto La Mia TV se sbloccata) (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-   - L'Issue 2 (overlay TVStationPage) riportata dal testing agent è l'unica non ancora processata dall'agente principale.
+  Nessuna.
 
 **Known issue recurrence from previous fork**
-  - Nessuno.
+  Nessuna ricorrenza.
 
 **Code Architecture**
-- Frontend: React
-  -  (Routing, Navbars, Hamburger Menu, SideMenu toggle).
-  -  (Main Game Dashboard).
-  -  (Netflix TV Dashboard).
-  -  (Management Hub Emittente).
-  -  (Left navigation menu).
-- Backend: FastAPI
-  -  (Real-time scheduling, upcoming programming, auto_advance cron job).
+- Frontend: 
+  -  (FILE CHIAVE per la task corrente: gestisce l'UI unificata per Dettaglio Film, Serie e Anime).
+  -  e  (Wrappers per ContentTemplate).
+  -  (Contiene ora il Tutorial Manager e il Migration Tool).
+- Backend:
+  -  (Nuovo router per generazione AI tutorial).
+  -  (Gestione emittenti, ora include reset palinsesto e tool di migrazione serie).
+  -  (Nuovo motore per calcolo città/hype).
 
 **Key Technical Concepts**
-- **Sidemenu Translate**: L'apertura del SideMenu applica l'attributo  al body. Le navbar top e bottom usano la classe css  per traslare a destra del 25%, permettendo all'utente di cliccare il toggle o chiudere.
-- **TV Scheduling**: Real time datetime based. I Prossimamente sfruttano logiche temporali (6h, 12h, 24h, 2d, ecc.) che vengono elaborate dal cron .
+- **Emergent LLM Key**: Usata pesantemente (tramite l'integrazione interna) per generare i testi dei tutorial dinamicamente e per generare i titoli/plot degli episodi durante la migrazione delle serie TV dal vecchio al nuovo formato.
+- **Retrocompatibilità**: È il concetto cardine della task corrente. I nuovi campi (duration_category, short_plot) non esisteranno sui documenti vecchi. Il frontend in  dovrà usare accessi sicuri ().
 
 **key DB schema**
-  - : Array  contiene dati del contenuto, timer, e stato (, , ).
+  -  / : 
+    (Nuovi campi da aggiungere):  (string),  (int),  (string).
+  -  / :
+    (Nuovi campi da aggiungere):  (string),  (int),  (int),  (string).
+  - : Nuova collection usata per salvare gli step generati dall'AI.
 
 **changes in tech stack**
-  - Nessuno
+  - Installata libreria  per l'uso dell'AI via Emergent LLM Key.
 
 **All files of reference** 
-  -  (File attualmente in uso, necessita modifiche UI immediate)
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
+  -  (Da modificare interamente per la UX della pagina di dettaglio).
+  -  /  (Dove inserire lo step di calcolo della durata).
+  -  (Modificato massivamente in questa sessione).
 
 **Areas that need refactoring**: 
-  -  sta superando le 600 linee. Nel prossimo futuro potrebbe essere necessario splittare le tab in componenti separati (es: , ).
+  -  (già segnalato in backlog).
+  -  (Sta per essere rifattorizzato nella task corrente. Attenzione a non romperlo!).
 
 **key api endpoints**
-  - 
-  - 
-  - 
+  -  (Generazione AI/Statica tutorial).
+  -  (Azzeramento palinsesto).
+  -  (Migrazione vecchie serie).
 
 **Critical Info for New Agent** 
-- **LINGUA**: Rispondi *sempre e solo* in Italiano.
-- L'utente ha chiesto un Lavoro di 2 minuti e costo totale di 2 crediti emergent per completare la modifica sul . Sii diretto ed efficiente. Non esplorare l'intero sistema se non necessario.
--  non deve mai essere usato nel frontend.
-- Per il task attuale su : nella sezione dei Prossimamente (tab gestionale), rimuovi l'azione del cestino quando si clicca la locandina; aprila invece col modale di dettaglio contenuto (usando i modali esistenti). Aggiungi un bottone separato esplicito per Elimina dalla programmazione.
+- **LINGUA:** Rispondi SEMPRE in Italiano.
+- **STATO CORRENTE:** L'utente ti ha inviato le specifiche lunghissime per il restyling di  e il Sistema Durata. L'ultima riga del suo prompt dice: *Prima di procedere... 1. dimmi esattamente quali file tocchi 2. dimmi dove inserisci la nuova fase durata 3. confermami come garantisci retrocompatibilità assoluta 4. solo dopo la mia conferma applichi il codice. Chiedi conferma prima di procedere.*
+- **TUA PRIMA AZIONE:** NON SCRIVERE CODICE. Rispondi all'utente (senza usare tool, se non  se necessario, ma un semplice messaggio diretto in risposta al prompt è meglio) fornendo esattamente i 3 punti richiesti. Mostragli che hai capito l'importanza dei fallback per la retrocompatibilità (es.  senza crashare se manca).
 
 **documents and test reports created in this job** 
-  - 
-  - 
+  -  (Costantemente aggiornato).
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - *User*: Ha richiesto l'implementazione del SideMenu, Dashboard Vetrina, Eventi WOW e CSS Glow.
- - *User*: Segnalato bug su CIACK, Bottom Menu e Emittente TV non visibile.
- - *User*: Segnalato problema di overlay tra SideMenu e Navbars (aggiunta traslazione e X).
- - *User*: Richiesta compattezza e icone univoche per Hamburger Menu.
- - *User*: Richiesto Prossimamente su TV Station con Card + a sx e timer (6h, 12h...).
- - *User*: Chiarimento che anche contenuti in produzione vanno nei Prossimamente.
- - *User*: **ULTIMO MESSAGGIO PENDENTE**: Nel menu gestionale TV, tab Prossimamente: rimuovere cestino dalla locandina (deve aprire il popup dettagli gestione), e inserire esplicitamente il tasto Elimina dalla programmazione. Assicurarsi che i vecchi schedulati appaiano. L'agente ha fatto , l'utente ha confermato di procedere.
+ - *User*: Richiesta di integrazione AI per i Tutorial nell'Admin panel.
+ - *User*: Richiesta bottoni Tutorial Velion e Pipeline Film nel menu.
+ - *User*: (Foto inviate) Bug 19 notifiche fantasma, richiesta tasto Azzera Palinsesto TV.
+ - *User*: (Foto inviate) Quando la TV è vuota, mostrare slot cliccabili pellicola.
+ - *User*: Creare tool di migrazione Serie/Anime (da V1 a V2) nell'Admin panel usando AI per trame/episodi ma tenendo invariato IMDb.
+ - *User*: Rimuovere Eventi e aggiungere La Mia TV nella nav bar in basso da mobile.
+ - *User*: **(PENDING)** Lunghissima specifica per (1) Nuova UI Pagina Dettaglio Film/Serie e (2) Sistema Durata in pipeline. Ha richiesto esplicitamente di leggere i file e poi proporre un piano prima di agire. (L'agente ha letto i file e si è fermato).
 
 **Project Health Check:**
-App funzionante. Nessun crash. Lint e backend puliti. Segnalato un bug UI minore sul popup dettagli film in .
+Molto stabile. Le pipeline V2 sono robuste, la migrazione V1->V2 funziona. Il codice frontend è complesso ma ben componentizzato.
 
 **3rd Party Integrations** 
  - Stripe (Payments) — requires User API Key
- - Gemini/OpenAI (Emergent Integrations) — uses Emergent LLM Key
+ - Emergent LLM Key — Usata attivamente in questa sessione per le feature di AI testuale ().
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Iteration 157)
+  - Testing agent used after significant changes: YES (usato all'inizio per Phase 3).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None
-  - Known regressions:  ha problemi di sovrapposizione in 
+  - Test files created: N/A recentemente.
+  - Known regressions: Nessuna nota.
 
 **Credentials to test flow:**
  - Email: fandrex1@gmail.com
  - Password: Fandrel2776
+ - Nickname: NeoMorpheus (Admin)
 
 **What agent forgot to execute**
-L'agente si è fermato a causa dei limiti di tempo/token subito dopo aver ricevuto l'approvazione finale dell'utente. Deve essere eseguita la modifica alla sezione Prossimamente nel . Inoltre, l'agente ha trascurato di correggere il bug sull'overlay z-index del  in  trovato dal testing agent nell'iterazione 157.</analysis>
+L'agente precedente ha fatto esattamente ciò che doveva: ha letto i file per l'ultima enorme task e si è fermato (fine contesto) prima di inviare il piano all'utente. Tocca a te inviare questo piano ora.
+</handoff summary></analysis>

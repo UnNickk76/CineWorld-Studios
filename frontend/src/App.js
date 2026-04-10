@@ -590,9 +590,9 @@ const GlobalSideMenu = () => {
         data-testid="global-side-menu-overlay"
       />
       <div
-        className={`fixed top-0 left-0 h-full w-[26%] min-w-[88px] max-w-[120px] z-[48] transform transition-transform duration-300 overflow-hidden ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed top-0 left-0 h-full w-[24%] min-w-[82px] max-w-[110px] z-[48] transform transition-transform duration-300 overflow-hidden ${open ? "translate-x-0" : "-translate-x-full"}`}
         data-testid="global-side-menu"
-        style={{ background: '#050505' }}
+        style={{ background: '#050505', overflowX: 'hidden' }}
       >
         {/* LAYER 1: Animated film strip background */}
         <div className="film-strip-bg" aria-hidden="true" />
@@ -630,8 +630,8 @@ const GlobalSideMenu = () => {
             )}
           </div>
 
-          {/* MIDDLE: Scrollable menu items — film frames flush with strip */}
-          <div className="flex-1 overflow-y-auto px-0 pb-16" style={{ scrollbarWidth: 'none' }}>
+          {/* MIDDLE: Scrollable menu items */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-0" style={{ scrollbarWidth: 'none', paddingBottom: 60 }}>
             {menuItems.map(item => (
               <button
                 key={item.label}
@@ -643,17 +643,29 @@ const GlobalSideMenu = () => {
                 <span className="text-[9.5px] text-center leading-tight text-gray-300/80">{item.label}</span>
               </button>
             ))}
-          </div>
-
-          {/* BOTTOM FIXED: Titoli di Coda */}
-          <div className="flex-shrink-0 px-0 pb-2 pt-0" style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))' }}>
+            {/* Titoli di Coda (hamburger) — inside scroll */}
             <button
               onClick={() => { setOpen(false); window.dispatchEvent(new Event('open-titoli-di-coda')); }}
-              className="film-frame-btn w-full !border-t-white/10"
+              className="film-frame-btn w-full"
               data-testid="menu-titoli-di-coda"
             >
-              <Menu className="w-4 h-4 mb-0.5 text-gray-500" />
-              <span className="text-[8.5px] text-center leading-tight text-gray-500">Titoli di Coda</span>
+              <Menu className="w-4 h-4 mb-0.5 text-gray-400" />
+              <span className="text-[9px] text-center leading-tight text-gray-400">Titoli di Coda</span>
+            </button>
+          </div>
+
+          {/* BOTTOM FIXED: Esci (rosso) */}
+          <div className="flex-shrink-0 px-1.5 pb-1" style={{ paddingBottom: 'calc(6px + env(safe-area-inset-bottom, 0px))' }}>
+            <button
+              onClick={() => {
+                setOpen(false);
+                window.dispatchEvent(new Event('confirm-logout'));
+              }}
+              className="w-full flex items-center justify-center gap-1 py-1.5 rounded bg-red-600/70 hover:bg-red-600 text-white text-[9px] font-bold transition-colors"
+              data-testid="menu-esci"
+            >
+              <LogOut className="w-3 h-3" />
+              <span>Esci</span>
             </button>
           </div>
 
@@ -1527,6 +1539,28 @@ const UrlManager = ({ children }) => {
   );
 };
 
+// Logout with custom confirm dialog
+const LogoutConfirmHandler = () => {
+  const confirm = useConfirm();
+  const { logout } = useContext(AuthContext);
+
+  useEffect(() => {
+    const handler = async () => {
+      const ok = await confirm({
+        title: 'Uscire dal gioco?',
+        subtitle: 'Sei sicuro di voler effettuare il logout?',
+        confirmLabel: 'Esci',
+        cancelLabel: 'Annulla',
+      });
+      if (ok) logout();
+    };
+    window.addEventListener('confirm-logout', handler);
+    return () => window.removeEventListener('confirm-logout', handler);
+  }, [confirm, logout]);
+
+  return null;
+};
+
 function App() {
   return (
     <div className="min-h-screen bg-[#0F0F10] relative">
@@ -1538,6 +1572,7 @@ function App() {
           <GameStoreProvider>
           <LanguageProvider>
             <ConfirmProvider>
+            <LogoutConfirmHandler />
             <NotificationProvider>
             <UrlManager>
               <Toaster position="top-center" theme="dark" toastOptions={{ style: { marginTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))' } }} />

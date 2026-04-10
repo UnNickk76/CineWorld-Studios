@@ -70,18 +70,32 @@ export function GuestTutorial() {
   const [converting, setConverting] = useState(false);
   const [targetRect, setTargetRect] = useState(null);
   const targetElRef = useRef(null);
+  const [demoMode, setDemoMode] = useState(false);
 
-  const isActive = user?.is_guest && !user?.tutorial_completed && visible;
+  const isActive = (user?.is_guest && !user?.tutorial_completed && visible) || demoMode;
   const msg = STEPS[step] || STEPS[0];
   const hasTarget = !!msg.target;
+
+  // Listen for replay event (registered users)
+  useEffect(() => {
+    const handler = () => { setDemoMode(true); setStep(0); setMinimized(false); setVisible(true); };
+    window.addEventListener('pipeline-tutorial-open', handler);
+    return () => window.removeEventListener('pipeline-tutorial-open', handler);
+  }, []);
 
   useEffect(() => { injectStyles(); return () => { const s = document.getElementById('tutorial-styles'); if (s) s.remove(); }; }, []);
   useEffect(() => { if (user?.tutorial_step !== undefined) setStep(user.tutorial_step); }, [user?.tutorial_step]);
 
   // ─── ADVANCE HELPER (memoized) ───
   const advanceStep = useCallback(async (newStep) => {
+    if (demoMode) {
+      // In demo: skip convert step, just close at end
+      if (newStep >= 11) { setDemoMode(false); setVisible(false); toast.success('Tutorial Pipeline completato!'); return; }
+      setStep(newStep);
+      return;
+    }
     try { await api.post('/auth/tutorial-step', { step: newStep }); setStep(newStep); if (newStep >= 12) setShowConvert(true); } catch {}
-  }, [api]);
+  }, [api, demoMode]);
 
   // ─── AUTO-ADVANCE: detect page changes and DOM elements ───
   useEffect(() => {
@@ -161,6 +175,7 @@ export function GuestTutorial() {
   const skipTutorial = async () => {
     document.querySelectorAll('.tut-target-active').forEach(el => el.classList.remove('tut-target-active'));
     document.querySelectorAll('.tut-parent-lifted').forEach(el => el.classList.remove('tut-parent-lifted'));
+    if (demoMode) { setDemoMode(false); setVisible(false); return; }
     try { await api.post('/auth/tutorial-skip'); refreshUser(); toast.success('Tutorial saltato. Buon gioco!'); } catch {}
   };
   const handleConvert = async () => {

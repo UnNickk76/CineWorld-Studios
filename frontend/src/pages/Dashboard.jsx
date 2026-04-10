@@ -1,5 +1,5 @@
 // CineWorld Studio's - Dashboard (Vetrina Mobile-First)
-// Sections: LaPrima, Eventi WOW, Prossimamente/Ultimi per tipo, SideMenu
+// Sections: LaPrima, Eventi WOW, Prossimamente/Ultimi per tipo
 
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -7,7 +7,6 @@ import { AuthContext, LanguageContext, useTranslations, useProductionMenu } from
 import { useSWR } from '../contexts/GameStore';
 import { LaPrimaSection } from '../components/LaPrimaSection';
 import { ComingSoonSection } from '../components/ComingSoonSection';
-import SideMenu from '../components/SideMenu';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { MasterpieceBadge } from '../components/PlayerBadge';
 import { Card, CardContent } from '../components/ui/card';
@@ -60,20 +59,27 @@ const Dashboard = () => {
   const [endingShootingEarly, setEndingShootingEarly] = useState(false);
   const [showShootingDialog, setShowShootingDialog] = useState(false);
 
-  // SideMenu
+  // SideMenu — now global, just track open state for translate
   const [menuOpen, setMenuOpen] = useState(false);
   // Cinematic event for Eventi WOW
   const [cinematicWow, setCinematicWow] = useState(null);
 
-  // Sync menu state to body for navbar translation
+  // Sync with global side menu
   useEffect(() => {
-    if (menuOpen) {
-      document.body.setAttribute('data-sidemenu', 'open');
-    } else {
-      document.body.removeAttribute('data-sidemenu');
-    }
-    return () => document.body.removeAttribute('data-sidemenu');
-  }, [menuOpen]);
+    const onOpen = () => setMenuOpen(true);
+    const onClose = () => setMenuOpen(false);
+    const onToggle = () => setMenuOpen(p => !p);
+    window.addEventListener('global-sidemenu-open', onOpen);
+    window.addEventListener('global-sidemenu-close', onClose);
+    window.addEventListener('global-sidemenu-toggle', onToggle);
+    window.addEventListener('dashboard-toggle-menu', onToggle);
+    return () => {
+      window.removeEventListener('global-sidemenu-open', onOpen);
+      window.removeEventListener('global-sidemenu-close', onClose);
+      window.removeEventListener('global-sidemenu-toggle', onToggle);
+      window.removeEventListener('dashboard-toggle-menu', onToggle);
+    };
+  }, []);
   // Old-style action grid
   const [showActionGrid, setShowActionGrid] = useState(false);
   const [tvStationCount, setTvStationCount] = useState(0);
@@ -141,12 +147,7 @@ const Dashboard = () => {
     return () => clearInterval(heartbeat);
   }, [api]);
 
-  // Listen for side menu toggle from bottom nav CIACK
-  useEffect(() => {
-    const handler = () => setMenuOpen(prev => !prev);
-    window.addEventListener('dashboard-toggle-menu', handler);
-    return () => window.removeEventListener('dashboard-toggle-menu', handler);
-  }, []);
+  // Listen for side menu toggle — handled by global listener above
 
   // Release handlers (kept for gameplay)
   const openReleasePopup = async (film) => {
@@ -241,7 +242,6 @@ const Dashboard = () => {
 
   return (
     <>
-      <SideMenu open={menuOpen} setOpen={setMenuOpen} />
       {cinematicWow && (
         <VelionCinematicEvent events={[cinematicWow]} onAllDone={() => setCinematicWow(null)} />
       )}

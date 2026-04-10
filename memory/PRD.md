@@ -126,6 +126,16 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - **Performance**: Query batch, no loop pesanti, aggiornamento ogni 6h
 - File: `scheduler_tasks.py`, `server.py`, `ContentTemplate.jsx`, `content-template.css`, `films.py`, `series_pipeline.py`
 
+#### Navigazione Mobile Gesture-Based (Apr 2026)
+- **TopNavbar riorganizzata**: CIACK (toggle side menu) → HOME (dashboard) → BACK (solo quando serve), rimosso `?` tutorial
+- **Side Menu Globale**: Spostato da Dashboard a AppLayout, funziona da qualsiasi pagina
+- **Swipe Navigator**: Gesture touch tra pagine bottom-nav (/films, /marketplace, /infrastructure, /pvp-arena, /my-tv)
+- **Dashboard swipe speciale**: Destra → apre menu, Sinistra → prima pagina di gioco
+- **Anti-conflitto scroll**: Ignora swipe se il touch parte dentro elementi con scrollWidth > clientWidth
+- **Vibrazione**: `navigator.vibrate()` su apertura/chiusura menu e cambio pagina
+- **z-index corretto**: Menu (z-40/z-48) sotto navbar (z-50), CIACK sempre cliccabile
+- File: `App.js`, `Dashboard.jsx`
+
 ## Backlog
 
 ### P1

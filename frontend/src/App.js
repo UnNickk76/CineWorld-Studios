@@ -394,6 +394,196 @@ const GuestRegisterBadge = ({ onRegister }) => {
   );
 };
 
+// ═══════════════════════════════════════════════════════════════
+//  GLOBAL SIDE MENU — Works on all pages
+// ═══════════════════════════════════════════════════════════════
+const GlobalSideMenu = () => {
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const { api } = useContext(AuthContext);
+  const { setIsOpen: openProductionMenu } = useProductionMenu();
+  const [categories, setCategories] = useState({ has_strutture: false, has_agenzia: false, has_strategico: false });
+
+  useEffect(() => {
+    if (open && api) {
+      api.get('/infrastructure/owned-categories').then(r => setCategories(r.data)).catch(() => {});
+    }
+  }, [open, api]);
+
+  // Listen for global toggle
+  useEffect(() => {
+    const toggle = () => setOpen(p => { const next = !p; if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} return next; });
+    const openEv = () => { setOpen(true); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} };
+    const closeEv = () => { setOpen(false); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(10); } catch {} };
+    window.addEventListener('global-sidemenu-toggle', toggle);
+    window.addEventListener('global-sidemenu-open', openEv);
+    window.addEventListener('global-sidemenu-close', closeEv);
+    // Legacy compat
+    window.addEventListener('dashboard-toggle-menu', toggle);
+    return () => {
+      window.removeEventListener('global-sidemenu-toggle', toggle);
+      window.removeEventListener('global-sidemenu-open', openEv);
+      window.removeEventListener('global-sidemenu-close', closeEv);
+      window.removeEventListener('dashboard-toggle-menu', toggle);
+    };
+  }, []);
+
+  // Expose state for SwipeNavigator
+  useEffect(() => {
+    window.__sideMenuOpen = open;
+  }, [open]);
+
+  const go = (path) => { setOpen(false); navigate(path); };
+  const goProduci = () => { setOpen(false); openProductionMenu(true); };
+
+  const menuItems = [
+    { icon: "\uD83C\uDFAC", label: "Produci", action: goProduci },
+    { icon: "\u270D\uFE0F", label: "Sceneggiature", action: () => go('/emerging-screenplays') },
+    { icon: "\uD83C\uDFEA", label: "Mercato", action: () => go('/marketplace') },
+    { icon: "\uD83D\uDCFA", label: "Le mie TV", action: () => go('/my-tv') },
+    { icon: "\uD83C\uDFD7\uFE0F", label: "Infrastrutture", action: () => go('/infrastructure') },
+    ...(categories.has_strutture ? [{ icon: "\uD83C\uDFE2", label: "Strutture", action: () => go('/strutture') }] : []),
+    ...(categories.has_agenzia ? [{ icon: "\uD83D\uDC64", label: "Agenzia", action: () => go('/agenzia') }] : []),
+    ...(categories.has_strategico ? [{ icon: "\uD83D\uDEE1\uFE0F", label: "Strategico", action: () => go('/strategico') }] : []),
+    { icon: "\uD83C\uDFAE", label: "Minigiochi", action: () => go('/minigiochi') },
+    { icon: "\uD83C\uDFC6", label: "Contest", action: () => go('/games') },
+    { icon: "\uD83C\uDFAF", label: "Arena", action: () => go('/pvp-arena') },
+    { icon: "\uD83C\uDF9F\uFE0F", label: "Festival", action: () => go('/festivals') },
+  ];
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 bg-black/40 z-[40] transition-opacity duration-300 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+        onClick={() => { setOpen(false); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(10); } catch {} }}
+        data-testid="global-side-menu-overlay"
+      />
+      <div
+        className={`fixed top-0 left-0 h-full w-[25%] min-w-[80px] max-w-[120px] bg-black/90 backdrop-blur-sm z-[48] transform transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        data-testid="global-side-menu"
+      >
+        <div className="flex flex-col h-full pt-16 px-1.5 gap-1.5 pb-20 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+          {menuItems.map(item => (
+            <button
+              key={item.label}
+              className="flex flex-col items-center justify-center min-h-[60px] rounded-lg border border-white/10 text-white text-[10px] active:scale-95 transition-all hover:bg-white/5 hover:border-white/20"
+              onClick={item.action}
+              data-testid={`global-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+            >
+              <span className="text-base leading-none mb-1">{item.icon}</span>
+              <span className="text-center leading-tight px-0.5">{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  SWIPE NAVIGATOR — Gesture-based page navigation
+// ═══════════════════════════════════════════════════════════════
+const SWIPE_PAGES = ['/films', '/marketplace', '/infrastructure', '/pvp-arena', '/my-tv'];
+
+const SwipeNavigator = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const touchRef = useRef(null);
+  const animatingRef = useRef(false);
+
+  const isHorizontalScrollable = useCallback((el) => {
+    let node = el;
+    while (node && node !== document.body) {
+      if (node.scrollWidth > node.clientWidth + 2) {
+        const style = window.getComputedStyle(node);
+        const ox = style.overflowX;
+        if (ox === 'auto' || ox === 'scroll') return true;
+      }
+      node = node.parentElement;
+    }
+    return false;
+  }, []);
+
+  useEffect(() => {
+    let startX = 0, startY = 0, startTarget = null;
+
+    const onTouchStart = (e) => {
+      if (animatingRef.current) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startTarget = e.target;
+    };
+
+    const onTouchEnd = (e) => {
+      if (animatingRef.current || !startTarget) return;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const deltaX = endX - startX;
+      const deltaY = endY - startY;
+
+      // Must be a deliberate horizontal swipe
+      if (Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY)) return;
+
+      // Anti-conflict: skip if touch started inside horizontal scrollable
+      if (isHorizontalScrollable(startTarget)) return;
+
+      // Check if menu is open
+      const menuOpen = !!window.__sideMenuOpen;
+      const isDashboard = location.pathname === '/dashboard';
+      const isSwipeRight = deltaX > 0;
+      const isSwipeLeft = deltaX < 0;
+
+      // Menu open → swipe left closes menu
+      if (menuOpen) {
+        if (isSwipeLeft) {
+          window.dispatchEvent(new Event('global-sidemenu-close'));
+        }
+        return;
+      }
+
+      // Dashboard special behavior
+      if (isDashboard) {
+        if (isSwipeRight) {
+          window.dispatchEvent(new Event('global-sidemenu-open'));
+          return;
+        }
+        if (isSwipeLeft) {
+          animatingRef.current = true;
+          if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(12); } catch {}
+          navigate(SWIPE_PAGES[0]);
+          setTimeout(() => { animatingRef.current = false; }, 400);
+          return;
+        }
+      }
+
+      // Normal page navigation
+      const currentIdx = SWIPE_PAGES.indexOf(location.pathname);
+      if (currentIdx === -1) return;
+
+      if (isSwipeRight && currentIdx > 0) {
+        animatingRef.current = true;
+        if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(12); } catch {}
+        navigate(SWIPE_PAGES[currentIdx - 1]);
+        setTimeout(() => { animatingRef.current = false; }, 400);
+      } else if (isSwipeLeft && currentIdx < SWIPE_PAGES.length - 1) {
+        animatingRef.current = true;
+        if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(12); } catch {}
+        navigate(SWIPE_PAGES[currentIdx + 1]);
+        setTimeout(() => { animatingRef.current = false; }, 400);
+      }
+    };
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [location.pathname, navigate, isHorizontalScrollable]);
+
+  return null; // No visual output
+};
+
 const TopNavbar = () => {
   const { user, logout, api } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
@@ -740,13 +930,37 @@ const TopNavbar = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 bg-[#0F0F10] border-b border-white/10 z-50 sidemenu-translate" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <div className="max-w-7xl mx-auto h-14 px-2 sm:px-3 flex items-center justify-between">
-        {/* Left section: Logo */}
-        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-          {/* Back Button - Always visible on non-Dashboard pages */}
+        {/* Left section: CIACK + HOME + BACK */}
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          {/* CIACK - Always visible, toggles side menu */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex h-8 w-8 p-0 text-yellow-500 hover:text-yellow-400"
+            onClick={() => { window.dispatchEvent(new Event('global-sidemenu-toggle')); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
+            data-testid="ciack-btn"
+            aria-label="Menu"
+          >
+            <Clapperboard className="w-5 h-5" />
+          </Button>
+
+          {/* HOME - Always visible, goes to dashboard */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`flex h-8 w-8 p-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}`}
+            onClick={() => navigate('/dashboard')}
+            data-testid="home-btn"
+            aria-label="Home"
+          >
+            <Home className="w-4 h-4" />
+          </Button>
+
+          {/* BACK - Only on non-dashboard pages */}
           {canGoBack && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="flex h-8 w-8 p-0 text-gray-400 hover:text-white"
               onClick={() => navigate(-1)}
               data-testid="back-btn"
@@ -754,11 +968,8 @@ const TopNavbar = () => {
               <ArrowLeft className="w-4 h-4" />
             </Button>
           )}
-          
-          <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => { if (location.pathname === '/dashboard') { window.dispatchEvent(new Event('dashboard-toggle-menu')); } else { navigate('/dashboard'); } }} data-testid="logo">
-            <Clapperboard className="w-6 h-6 sm:w-7 sm:h-7 text-yellow-500" />
-            <span className="font-['Bebas_Neue'] text-base sm:text-lg tracking-wide hidden sm:block">CineWorld</span>
-          </div>
+
+          <span className="font-['Bebas_Neue'] text-sm tracking-wide hidden sm:block text-gray-400 ml-1">CineWorld</span>
         </div>
 
         {/* Center: Desktop Navigation (limited items) - Hidden on mobile */}
@@ -983,17 +1194,7 @@ const TopNavbar = () => {
             )}
           </Button>
 
-          {/* Tutorial - Colore evidenziato */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 text-lime-400/70 hover:text-lime-400`}
-            onClick={() => setShowGameTutorial(true)}
-            data-testid="tutorial-nav-btn"
-            title="Tutorial"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </Button>
+          {/* Tutorial - Colore evidenziato — RIMOSSO: Tutorial integrato in Velion */}
 
           {/* Funds - Compact */}
           <div className="flex items-center gap-0.5 bg-yellow-500/10 px-1 sm:px-2 py-0.5 sm:py-1 rounded border border-yellow-500/20">
@@ -2283,10 +2484,13 @@ const ProtectedRoute = ({ children }) => {
   
   if (loading) return <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center"><Clapperboard className="w-10 h-10 text-yellow-500 animate-pulse" /></div>;
   if (!user) return <Navigate to="/auth" replace />;
+
   return (
     <ProductionMenuContext.Provider value={{ isOpen: productionMenuOpen, setIsOpen: setProductionMenuOpen }}>
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
+      <GlobalSideMenu />
+      <SwipeNavigator />
       <LoginRewardPopup />
       <AutoTickNotifications api={api} />
       <div style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>

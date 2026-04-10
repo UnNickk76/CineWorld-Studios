@@ -26,6 +26,7 @@ const TABS = [
   { id: 'contenuti', label: 'Contenuti', icon: Film },
   { id: 'palinsesto', label: 'Palinsesto', icon: Zap },
   { id: 'pubblicita', label: 'Pubblicità', icon: DollarSign },
+  { id: 'gestione', label: 'Gestione', icon: Settings },
   { id: 'statistiche', label: 'Statistiche', icon: BarChart3 },
 ];
 
@@ -457,6 +458,44 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
                 {savingSettings ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Check className="w-4 h-4 mr-1" />}
                 Salva Impostazioni
               </Button>
+            </div>
+          )}
+
+          {/* === GESTIONE === */}
+          {activeTab === 'gestione' && (
+            <div className="space-y-3" data-testid="tab-gestione-content">
+              <Card className="bg-[#111113] border-white/5">
+                <CardContent className="p-3">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Gestione Emittente</p>
+                  <div className="space-y-2">
+                    <div className="bg-red-500/5 border border-red-500/15 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-red-400 mb-1">Azzera Palinsesto</p>
+                      <p className="text-[10px] text-gray-500 mb-3">Rimuove tutti i contenuti dal palinsesto (film, serie, anime). Le statistiche verranno mantenute.</p>
+                      <Button
+                        size="sm"
+                        className="w-full h-8 text-xs bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/20"
+                        onClick={async () => {
+                          if (!await gameConfirm({
+                            title: 'Azzerare il palinsesto?',
+                            subtitle: 'Tutti i contenuti verranno rimossi dalla programmazione. Le statistiche saranno mantenute.',
+                            confirmLabel: 'Azzera tutto',
+                          })) return;
+                          try {
+                            await api.post('/tv-stations/clear-schedule', { station_id: station.id });
+                            toast.success('Palinsesto azzerato!');
+                            onRefresh?.();
+                          } catch (err) {
+                            toast.error(err.response?.data?.detail || 'Errore');
+                          }
+                        }}
+                        data-testid="clear-schedule-btn"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Azzera Palinsesto
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
 

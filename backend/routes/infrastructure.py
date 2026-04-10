@@ -1646,9 +1646,10 @@ async def get_parco_studio_backgrounds(user: dict = Depends(get_current_user)):
     """Get all generated backgrounds for the user's Parco Studio."""
     bg_doc = await db.parco_studio_backgrounds.find_one({'user_id': user['id']}, {'_id': 0})
     backgrounds = bg_doc.get('backgrounds', {}) if bg_doc else {}
+    base_map_url = bg_doc.get('base_map_url') if bg_doc else None
 
     # Get owned infrastructure types
-    owned = await db.infrastructures.find({'user_id': user['id']}, {'_id': 0, 'type': 1, 'id': 1, 'name': 1}).to_list(100)
+    owned = await db.infrastructure.find({'owner_id': user['id']}, {'_id': 0, 'type': 1, 'id': 1, 'name': 1}).to_list(100)
     owned_types = set()
     owned_map = {}
     for o in owned:
@@ -1665,7 +1666,69 @@ async def get_parco_studio_backgrounds(user: dict = Depends(get_current_user)):
             'infra_id': owned_map.get(infra_type, {}).get('id'),
         }
 
-    return {'backgrounds': result}
+    return {'backgrounds': result, 'base_map_url': base_map_url}
+
+
+@router.post("/infrastructure/parco-studio/generate-base-map")
+async def generate_parco_studio_base_map(user: dict = Depends(get_current_user)):
+    """Generate the base aerial map for user's Parco Studio (once)."""
+    bg_doc = await db.parco_studio_backgrounds.find_one({'user_id': user['id']}, {'_id': 0})
+    if bg_doc and bg_doc.get('base_map_url'):
+        return {'image_url': bg_doc['base_map_url'], 'cached': True}
+
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(500, "LLM key non configurata")
+
+        image_gen = OpenAIImageGeneration(api_key=api_key)
+        prompt = (
+            "High-angle aerial view of a film studio lot called CineWorld Studios, "
+            "photorealistic cinematic visualization. Central grand studio building with curved golden facade "
+            "and illuminated golden sign, surrounded by 6 large empty rectangular construction lots "
+            "arranged symmetrically. Dry golden-brown earth on empty lots, asphalt roads in radial pattern, "
+            "green trees between lots, distant city skyline. Golden hour warm lighting, no people, "
+            "architectural visualization, depth of field, clean composition"
+        )
+        images = await image_gen.generate_images(prompt=prompt, model='gpt-image-1', number_of_images=1)
+
+        if not images or len(images) == 0:
+            raise HTTPException(500, "Generazione fallita")
+
+        # Save compressed
+        filename = f"{user['id']}_base_map.jpg"
+        filepath = f"/app/backend/assets/backgrounds/{filename}"
+
+        # Convert to JPEG for small size
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(images[0]))
+        img = img.convert('RGB')
+        img.save(filepath, 'JPEG', quality=60, optimize=True)
+
+        image_url = f"/api/backgrounds/{filename}"
+
+        await db.parco_studio_backgrounds.update_one(
+            {'user_id': user['id']},
+            {'$set': {
+                'base_map_url': image_url,
+                'base_map_generated_at': datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True
+        )
+
+        return {'image_url': image_url, 'cached': False}
+
+    except ImportError as e:
+        raise HTTPException(500, f"Libreria non disponibile: {str(e)}")
+    except Exception as e:
+        logging.error(f"[PARCO-STUDIO] Base map error: {e}")
+        raise HTTPException(500, f"Errore: {str(e)}")
 
 
 @router.post("/infrastructure/parco-studio/generate-background")

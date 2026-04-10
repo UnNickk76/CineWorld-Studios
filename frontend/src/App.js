@@ -1201,9 +1201,9 @@ const TopNavbar = () => {
               {user?.cinepass ?? 100}
             </span>
           </div>
-          {/* Online Users */}
+          {/* Online Users — opens panel */}
           <Button variant="ghost" size="sm" className="flex h-7 w-7 p-0 text-green-400/70 hover:text-green-400 flex-shrink-0"
-            onClick={() => navigate('/online')} data-testid="top-nav-online" aria-label="Utenti Online">
+            onClick={() => setShowOnlineUsersPanel(!showOnlineUsersPanel)} data-testid="top-nav-online" aria-label="Utenti Online">
             <Users className="w-3.5 h-3.5" />
           </Button>
         </div>

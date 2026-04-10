@@ -555,7 +555,7 @@ const GlobalSideMenu = () => {
         data-testid="global-side-menu-overlay"
       />
       <div
-        className={`fixed top-0 left-0 h-full w-[28%] min-w-[90px] max-w-[130px] z-[48] transform transition-transform duration-300 overflow-hidden ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed top-0 left-0 h-full w-[30%] min-w-[100px] max-w-[140px] z-[48] transform transition-transform duration-300 overflow-hidden ${open ? "translate-x-0" : "-translate-x-full"}`}
         data-testid="global-side-menu"
         style={{ background: '#050505' }}
       >

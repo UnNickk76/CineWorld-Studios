@@ -496,7 +496,7 @@ const MobileBottomNav = () => {
 const GlobalSideMenu = () => {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const { api } = useContext(AuthContext);
+  const { api, user } = useContext(AuthContext);
   const { setIsOpen: openProductionMenu } = useProductionMenu();
   const [categories, setCategories] = useState({ has_strutture: false, has_agenzia: false, has_strategico: false });
 
@@ -561,24 +561,67 @@ const GlobalSideMenu = () => {
       >
         {/* LAYER 1: Animated film strip background */}
         <div className="film-strip-bg" aria-hidden="true" />
-        {/* Film perforations left */}
         <div className="film-perfs film-perfs-left" aria-hidden="true" />
-        {/* Film perforations right */}
         <div className="film-perfs film-perfs-right" aria-hidden="true" />
 
-        {/* LAYER 2: Fixed menu items (film frames) */}
-        <div className="relative z-10 flex flex-col h-full pt-14 px-1.5 gap-2 pb-20 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-          {menuItems.map(item => (
+        {/* LAYER 2: Fixed content */}
+        <div className="relative z-10 flex flex-col h-full pt-13" style={{ paddingTop: '52px' }}>
+
+          {/* TOP FIXED: Funds + CinePass + Admin */}
+          <div className="flex-shrink-0 px-1.5 pb-1.5 space-y-1.5">
+            {/* Funds + CinePass row */}
+            <div className="flex gap-1">
+              <div className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded border border-yellow-500/25 bg-yellow-500/8" data-testid="menu-funds">
+                <DollarSign className="w-3 h-3 text-yellow-500" />
+                <span className="text-yellow-500 font-bold text-[9px]">
+                  {user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
+                </span>
+              </div>
+              <div className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded border border-cyan-500/25 bg-cyan-500/8" data-testid="menu-cinepass">
+                <Ticket className="w-3 h-3 text-cyan-400" />
+                <span className="text-cyan-400 font-bold text-[9px]">{user?.cinepass ?? 100}</span>
+              </div>
+            </div>
+            {/* Admin Panel - only for admin/co-admin */}
+            {(user?.nickname === 'NeoMorpheus' || user?.role === 'CO_ADMIN') && (
+              <button
+                onClick={() => { setOpen(false); navigate('/admin'); }}
+                className="w-full flex items-center justify-center gap-1.5 py-2 rounded bg-red-600/80 hover:bg-red-600 text-white text-[10px] font-bold tracking-wide transition-colors"
+                data-testid="menu-admin-panel"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>{user?.role === 'CO_ADMIN' ? 'CO-ADMIN' : 'ADMIN PANEL'}</span>
+              </button>
+            )}
+          </div>
+
+          {/* MIDDLE: Scrollable menu items — film frames flush with strip */}
+          <div className="flex-1 overflow-y-auto px-0 pb-16" style={{ scrollbarWidth: 'none' }}>
+            {menuItems.map(item => (
+              <button
+                key={item.label}
+                className="film-frame-btn w-full"
+                onClick={item.action}
+                data-testid={`global-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <item.icon className="mb-0.5 text-yellow-500/80" style={{ width: 17, height: 17 }} />
+                <span className="text-[9.5px] text-center leading-tight text-gray-300/80">{item.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* BOTTOM FIXED: Titoli di Coda */}
+          <div className="flex-shrink-0 px-0 pb-2 pt-0" style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))' }}>
             <button
-              key={item.label}
-              className="film-frame-btn"
-              onClick={item.action}
-              data-testid={`global-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+              onClick={() => { setOpen(false); window.dispatchEvent(new Event('open-titoli-di-coda')); }}
+              className="film-frame-btn w-full !border-t-white/10"
+              data-testid="menu-titoli-di-coda"
             >
-              <item.icon className="w-4.5 h-4.5 mb-0.5 text-yellow-500/90" style={{ width: 18, height: 18 }} />
-              <span className="text-[10px] text-center leading-tight text-gray-200/90">{item.label}</span>
+              <Menu className="w-4 h-4 mb-0.5 text-gray-500" />
+              <span className="text-[8.5px] text-center leading-tight text-gray-500">Titoli di Coda</span>
             </button>
-          ))}
+          </div>
+
         </div>
       </div>
     </>
@@ -625,6 +668,83 @@ const SwipeNavigator = () => {
   }, [location.pathname]);
 
   return null;
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  TITOLI DI CODA — Full navigation grid (replaces hamburger)
+// ═══════════════════════════════════════════════════════════════
+const TitoliDiCoda = ({ open, setOpen, navItems, user, navigate, logout, language, t, levelInfo, setShowGameTutorial }) => {
+  // Listen for open event from side menu
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener('open-titoli-di-coda', handler);
+    return () => window.removeEventListener('open-titoli-di-coda', handler);
+  }, [setOpen]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center" data-testid="titoli-di-coda">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
+      <div className="relative w-full max-w-md bg-[#0F0F10] border-t border-white/10 rounded-t-2xl max-h-[85vh] overflow-y-auto" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        {/* Header */}
+        <div className="sticky top-0 bg-[#0F0F10]/95 backdrop-blur-md z-10 flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <Clapperboard className="w-5 h-5 text-yellow-500" />
+            <span className="font-['Bebas_Neue'] text-base tracking-widest text-gray-300">Titoli di Coda</span>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400" onClick={() => setOpen(false)}>
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* User info */}
+        <div className="px-4 py-3 border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
+              <User className="w-4 h-4 text-yellow-500" />
+            </div>
+            <div>
+              <p className="text-white text-xs font-bold">{user?.nickname || 'Player'}</p>
+              {levelInfo && <p className="text-[9px] text-gray-400">Lv.{levelInfo.level} {levelInfo.title}</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation grid */}
+        <div className="p-3">
+          <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold mb-2 px-1">Navigazione</p>
+          <div className="grid grid-cols-4 gap-1.5">
+            {navItems.filter(i => !i.locked).map(item => (
+              <button key={item.path}
+                className="flex flex-col items-center gap-1 py-2.5 rounded-lg border border-white/5 text-gray-400 text-[8px] hover:bg-white/5 hover:text-white transition-all"
+                onClick={() => { navigate(item.path); setOpen(false); }}
+              >
+                <item.icon className="w-4 h-4" />
+                <span className="truncate w-full text-center px-0.5">{typeof item.label === 'string' && item.label.length > 12 ? item.label.slice(0, 12) + '..' : item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="px-3 pb-3 space-y-1.5">
+          <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-gray-400 text-[10px] hover:bg-white/5 transition-colors"
+            onClick={() => { navigate('/profile'); setOpen(false); }}>
+            <User className="w-3.5 h-3.5" /> Profilo
+          </button>
+          <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-gray-400 text-[10px] hover:bg-white/5 transition-colors"
+            onClick={() => { setShowGameTutorial(true); setOpen(false); }}>
+            <HelpCircle className="w-3.5 h-3.5" /> Tutorial
+          </button>
+          <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-red-400/70 text-[10px] hover:bg-red-500/10 transition-colors"
+            onClick={() => { logout(); setOpen(false); }}>
+            <LogOut className="w-3.5 h-3.5" /> Esci
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const TopNavbar = () => {
@@ -1028,10 +1148,20 @@ const TopNavbar = () => {
               {user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
             </span>
           </div>
+          {/* CinePass compact */}
+          <div className="flex items-center gap-0.5 bg-cyan-500/10 px-1 py-0.5 rounded border border-cyan-500/20 flex-shrink-0">
+            <Ticket className="w-2.5 h-2.5 text-cyan-400" />
+            <span className="text-cyan-400 font-bold text-[8px]" data-testid="cinepass-balance">
+              {user?.cinepass ?? 100}
+            </span>
+          </div>
         </div>
       </div>
 
       {showGameTutorial && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
+
+      {/* TITOLI DI CODA — Full navigation grid (ex hamburger menu) */}
+      <TitoliDiCoda open={mobileMenuOpen} setOpen={setMobileMenuOpen} navItems={navItems} user={user} navigate={navigate} logout={logout} language={language} t={t} levelInfo={levelInfo} setShowGameTutorial={setShowGameTutorial} />
 
     </nav>
   );

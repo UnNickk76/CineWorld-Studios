@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════
-   Film Strip Side Menu — CSS Only Animation
+   Film Strip Side Menu — Realistic Film Reel
    ═══════════════════════════════════════════ */
 
 /* Animated film strip background */
@@ -24,33 +24,34 @@
   right: 0;
   height: 200%;
   will-change: transform;
-  animation: filmScroll 20s linear infinite;
+  animation: filmScroll 25s linear infinite;
   background:
-    /* Vertical dark bands simulating film frames */
+    /* Left sprocket band - dark */
+    linear-gradient(to right, #0a0a08 0px, #0a0a08 10px, transparent 10px),
+    /* Right sprocket band - dark */
+    linear-gradient(to left, #0a0a08 0px, #0a0a08 10px, transparent 10px),
+    /* Central darker strip where frames live */
+    linear-gradient(to right,
+      transparent 10px,
+      #0d0b06 10px,
+      #0d0b06 12px,
+      #100e08 12px,
+      #100e08 calc(100% - 12px),
+      #0d0b06 calc(100% - 12px),
+      #0d0b06 calc(100% - 10px),
+      transparent calc(100% - 10px)
+    ),
+    /* Very subtle golden vertical grain */
     repeating-linear-gradient(
       to bottom,
-      rgba(15, 12, 5, 0.9) 0px,
-      rgba(15, 12, 5, 0.9) 60px,
-      rgba(30, 25, 10, 0.5) 60px,
-      rgba(30, 25, 10, 0.5) 62px,
-      rgba(15, 12, 5, 0.9) 62px,
-      rgba(15, 12, 5, 0.9) 122px,
-      rgba(30, 25, 10, 0.5) 122px,
-      rgba(30, 25, 10, 0.5) 124px
-    ),
-    /* Soft golden gradient overlay */
-    linear-gradient(
-      180deg,
-      rgba(80, 60, 10, 0.08) 0%,
-      rgba(120, 90, 20, 0.05) 25%,
-      rgba(60, 45, 8, 0.08) 50%,
-      rgba(100, 75, 15, 0.06) 75%,
-      rgba(80, 60, 10, 0.08) 100%
+      rgba(120, 90, 20, 0.04) 0px,
+      rgba(80, 60, 10, 0.02) 2px,
+      rgba(120, 90, 20, 0.04) 4px
     );
-  background-color: #080604;
+  background-color: #080603;
 }
 
-/* Film perforations (sprocket holes) */
+/* ═══ SPROCKET HOLES (realistic perforations) ═══ */
 @keyframes perfScroll {
   0% { transform: translateY(0); }
   100% { transform: translateY(-50%); }
@@ -59,111 +60,116 @@
 .film-perfs {
   position: absolute;
   top: 0;
-  width: 8px;
+  width: 10px;
   height: 200%;
-  z-index: 2;
+  z-index: 3;
   pointer-events: none;
   will-change: transform;
-  animation: perfScroll 20s linear infinite;
+  animation: perfScroll 25s linear infinite;
+}
+
+/* Left perforations */
+.film-perfs-left {
+  left: 0;
   background:
     repeating-linear-gradient(
       to bottom,
       transparent 0px,
-      transparent 8px,
-      rgba(212, 175, 55, 0.12) 8px,
-      rgba(212, 175, 55, 0.12) 12px,
-      transparent 12px,
-      transparent 50px
+      transparent 10px,
+      rgba(180, 160, 100, 0.22) 10px,
+      rgba(180, 160, 100, 0.22) 16px,
+      transparent 16px,
+      transparent 52px
     );
 }
 
-.film-perfs::after {
+/* Actual holes drawn with pseudo-element */
+.film-perfs-left::after,
+.film-perfs-right::after {
   content: '';
   position: absolute;
   top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
+  width: 5px;
   height: 200%;
   background:
     repeating-linear-gradient(
       to bottom,
       transparent 0px,
       transparent 12px,
-      rgba(212, 175, 55, 0.18) 12px,
-      rgba(212, 175, 55, 0.18) 16px,
-      transparent 16px,
-      transparent 50px
+      rgba(200, 180, 110, 0.3) 12px,
+      rgba(200, 180, 110, 0.3) 14px,
+      transparent 14px,
+      transparent 52px
     );
-  border-radius: 1px;
+  border-radius: 0.5px;
 }
 
-.film-perfs-left {
-  left: 0;
+.film-perfs-left::after {
+  left: 3px;
 }
 
+/* Right perforations */
 .film-perfs-right {
   right: 0;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 10px,
+      rgba(180, 160, 100, 0.22) 10px,
+      rgba(180, 160, 100, 0.22) 16px,
+      transparent 16px,
+      transparent 52px
+    );
 }
 
-/* Film frame buttons */
+.film-perfs-right::after {
+  right: 3px;
+  left: auto;
+}
+
+/* ═══ FILM FRAME BUTTONS (embedded in the strip) ═══ */
 .film-frame-btn {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 58px;
-  padding: 6px 4px;
-  border-radius: 4px;
-  border: 1px solid rgba(212, 175, 55, 0.2);
-  background: rgba(8, 6, 3, 0.7);
-  backdrop-filter: blur(2px);
+  min-height: 56px;
+  padding: 8px 4px;
+  margin: 0 10px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease;
+
+  /* Photogram look: slightly different shade from strip, inset feel */
+  background: rgba(18, 15, 8, 0.6);
+  border: none;
+  border-top: 1px solid rgba(100, 80, 30, 0.12);
+  border-bottom: 1px solid rgba(100, 80, 30, 0.12);
   box-shadow:
-    0 0 4px rgba(212, 175, 55, 0.06),
-    inset 0 0 8px rgba(212, 175, 55, 0.03);
+    inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.4);
+  border-radius: 0;
 }
 
 .film-frame-btn:hover {
-  border-color: rgba(212, 175, 55, 0.35);
-  background: rgba(15, 12, 5, 0.8);
+  background: rgba(25, 20, 10, 0.8);
   box-shadow:
-    0 0 8px rgba(212, 175, 55, 0.12),
-    inset 0 0 12px rgba(212, 175, 55, 0.05);
+    inset 0 2px 8px rgba(0, 0, 0, 0.6),
+    inset 0 -2px 8px rgba(0, 0, 0, 0.5),
+    inset 0 0 15px rgba(180, 140, 40, 0.04);
 }
 
 .film-frame-btn:active {
-  transform: scale(0.95);
-  border-color: rgba(212, 175, 55, 0.5);
+  background: rgba(30, 25, 12, 0.9);
   box-shadow:
-    0 0 12px rgba(212, 175, 55, 0.2),
-    inset 0 0 15px rgba(212, 175, 55, 0.08);
+    inset 0 3px 10px rgba(0, 0, 0, 0.7),
+    inset 0 -3px 10px rgba(0, 0, 0, 0.6);
+  transform: scale(0.97);
 }
 
-/* Subtle gold edge glow on left/right of each frame */
+/* Remove the old gold edge pseudo-elements */
 .film-frame-btn::before,
 .film-frame-btn::after {
-  content: '';
-  position: absolute;
-  top: 15%;
-  bottom: 15%;
-  width: 1px;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    rgba(212, 175, 55, 0.15) 30%,
-    rgba(212, 175, 55, 0.2) 50%,
-    rgba(212, 175, 55, 0.15) 70%,
-    transparent
-  );
-}
-
-.film-frame-btn::before {
-  left: -1px;
-}
-
-.film-frame-btn::after {
-  right: -1px;
+  content: none;
 }

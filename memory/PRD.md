@@ -154,7 +154,10 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 #### Menu Laterale Pellicola Cinematografica (Apr 2026)
 - **Effetto pellicola animata CSS-only**: Background con bande scure + gradient dorato + perforazioni laterali, animazione verticale 20s loop infinito
 - **Frame dorati**: Ogni voce menu stilizzata come frame pellicola con bordo gold, glow sottile, sfondo semi-trasparente
-- **Performance**: Solo CSS (will-change: transform), nessuna immagine, nessun repaint pesante
+- **Fondi + CinePass fissi in alto**: Badge dorato fondi + badge cyan CinePass sempre visibili nel menu laterale
+- **Admin Panel**: Bottone rosso con icona Settings, solo per admin/co-admin, fisso sotto fondi
+- **Titoli di Coda**: Bottone hamburger in basso nel menu → apre griglia navigazione completa (ex hamburger menu) con profilo, tutorial, logout
+- **Top navbar**: Aggiunto badge CinePass cyan accanto ai fondi
 - File: `App.js`, `styles/film-strip-menu.css`
 
 ## Backlog

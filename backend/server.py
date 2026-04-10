@@ -10108,6 +10108,7 @@ if not os.path.exists("uploads"):
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/api/static", StaticFiles(directory="/app/backend/static"), name="static")
 app.mount("/api/posters", StaticFiles(directory="/app/backend/assets/posters"), name="posters")
+app.mount("/api/backgrounds", StaticFiles(directory="/app/backend/assets/backgrounds"), name="backgrounds")
 
 app.add_middleware(
     CORSMiddleware,

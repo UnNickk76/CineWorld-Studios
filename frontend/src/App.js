@@ -78,6 +78,7 @@ const FilmPipeline = React.lazy(() => import('./pages/FilmPipeline'));
 const PipelineV2 = React.lazy(() => import('./pages/PipelineV2'));
 const FriendsPage = React.lazy(() => import('./pages/FriendsPage'));
 const InfrastructurePage = React.lazy(() => import('./pages/InfrastructurePage'));
+const ParcoStudioPage = React.lazy(() => import('./pages/ParcoStudioPage'));
 const ActingSchool = React.lazy(() => import('./pages/ActingSchool'));
 const LeaderboardPage = React.lazy(() => import('./pages/LeaderboardPage'));
 const MajorPage = React.lazy(() => import('./pages/MajorPage'));
@@ -1160,6 +1161,17 @@ const TopNavbar = () => {
             onClick={() => navigate('/major')} data-testid="top-nav-major" aria-label="Major">
             <Crown className="w-4 h-4" />
           </Button>
+          {/* INFRA */}
+          <Button variant="ghost" size="sm" className={`flex h-8 w-8 p-0 flex-shrink-0 ${location.pathname === '/infrastructure' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            onClick={() => navigate('/infrastructure')} data-testid="top-nav-infra" aria-label="Infrastrutture">
+            <Building className="w-4 h-4" />
+          </Button>
+          {/* 3D PARCO STUDIO */}
+          <Button variant="ghost" size="sm" className={`relative flex h-8 w-8 p-0 flex-shrink-0 ${location.pathname === '/parco-studio' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            onClick={() => navigate('/parco-studio')} data-testid="top-nav-parco3d" aria-label="Parco Studio 3D">
+            <Building className="w-3.5 h-3.5" />
+            <span className="absolute -bottom-0.5 right-0 text-[6px] font-black text-cyan-400 leading-none">3D</span>
+          </Button>
           {/* CHAT */}
           <Button variant="ghost" size="sm" className={`flex h-8 w-8 p-0 flex-shrink-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
             onClick={() => navigate('/chat')} data-testid="top-nav-chat" aria-label="Chat">
@@ -1566,6 +1578,7 @@ function App() {
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                 <Route path="/creator-board" element={<ProtectedRoute><CreatorBoard /></ProtectedRoute>} />
                 <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
+                <Route path="/parco-studio" element={<ProtectedRoute><ParcoStudioPage /></ProtectedRoute>} />
                 <Route path="/strutture" element={<ProtectedRoute><StrutturePage /></ProtectedRoute>} />
                 <Route path="/agenzia" element={<ProtectedRoute><AgenziaPage /></ProtectedRoute>} />
                 <Route path="/strategico" element={<ProtectedRoute><StrategicoPage /></ProtectedRoute>} />

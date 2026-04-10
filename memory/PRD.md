@@ -160,6 +160,15 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - **Top navbar**: Aggiunto badge CinePass cyan accanto ai fondi
 - File: `App.js`, `styles/film-strip-menu.css`
 
+#### Vista Parco Studio 3D (Apr 2026)
+- **Nuova pagina** `/parco-studio` — griglia 19 infrastrutture con sfondo AI cinematico generato via GPT Image 1
+- **Backend**: `GET /api/infrastructure/parco-studio/backgrounds` + `POST .../generate-background` — generazione lazy, salvataggio URL su DB, serve via mount statico
+- **Top navbar**: 2 icone aggiunte (INFRA classico + INFRA 3D con badge "3D" cyan)
+- **Sblocco**: infrastrutture non acquistate → overlay scuro con lucchetto → click porta a pagina acquisto
+- **Performance**: immagini salvate come file PNG, lazy load, cache client, generazione una sola volta
+- **Retrocompatibile**: sistema classico invariato, pagina completamente separata
+- File: `App.js`, `ParcoStudioPage.jsx`, `routes/infrastructure.py`, `server.py`
+
 ## Backlog
 
 ### P1

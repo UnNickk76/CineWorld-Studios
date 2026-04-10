@@ -403,10 +403,11 @@ const MobileBottomNav = () => {
   const location = useLocation();
   const { setIsOpen: setShowProductionMenu } = useProductionMenu();
   const [showQuickCommands, setShowQuickCommands] = useState(false);
+  const [showIMiei, setShowIMiei] = useState(false);
 
   const items = [
     { path: '/dashboard', icon: Home, label: 'Home', testid: 'bn-home' },
-    { path: '/films', icon: Film, label: 'I Miei', testid: 'bn-films' },
+    { path: null, icon: Film, label: 'I Miei', testid: 'bn-films', action: () => { setShowIMiei(!showIMiei); setShowQuickCommands(false); }, imiei: true },
     { path: null, icon: Camera, label: 'Produci', testid: 'bn-produci', action: () => setShowProductionMenu(true), highlight: true },
     { path: '/social', icon: Globe, label: 'CineBoard', testid: 'bn-cineboard' },
     { path: '/leaderboard', icon: BarChart3, label: 'Classifiche', testid: 'bn-classifiche' },
@@ -431,6 +432,38 @@ const MobileBottomNav = () => {
 
   return (
     <>
+      {/* I Miei Popup — Film / Serie TV / Anime */}
+      <AnimatePresence>
+        {showIMiei && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 z-[55] sm:hidden" onClick={() => setShowIMiei(false)} />
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 400 }}
+              className="fixed bottom-[52px] left-1 z-[56] sm:hidden w-36" data-testid="imiei-panel"
+            >
+              <div className="bg-[#111113] border border-white/10 rounded-xl overflow-hidden shadow-2xl">
+                <p className="text-[9px] text-yellow-500/60 uppercase tracking-widest font-semibold px-3 pt-2 pb-1">I Miei Contenuti</p>
+                {[
+                  { icon: Film, label: 'Film', path: '/films' },
+                  { icon: Tv, label: 'Serie TV', path: '/sagas?type=tv_series' },
+                  { icon: Sparkles, label: 'Anime', path: '/sagas?type=anime' },
+                ].map(c => (
+                  <button key={c.path}
+                    className={`w-full flex items-center gap-2.5 py-2.5 px-3 text-[11px] transition-all ${location.pathname === c.path ? 'bg-yellow-500/15 text-yellow-400' : 'text-gray-300 hover:bg-white/5'}`}
+                    onClick={() => { navigate(c.path); setShowIMiei(false); }}
+                    data-testid={`imiei-${c.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <c.icon className="w-4 h-4 text-yellow-500/70" />
+                    <span>{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Quick Commands Popup */}
       <AnimatePresence>
         {showQuickCommands && (
@@ -474,6 +507,7 @@ const MobileBottomNav = () => {
                 className={`flex flex-col items-center justify-center gap-0 flex-1 min-w-0 py-0.5 rounded transition-colors ${
                   item.highlight ? 'text-yellow-400' :
                   item.quick ? (showQuickCommands ? 'text-yellow-400' : 'text-orange-400/70') :
+                  item.imiei ? (showIMiei ? 'text-yellow-400' : (isActive ? 'text-yellow-400' : 'text-gray-500')) :
                   isActive ? 'text-yellow-400' : 'text-gray-500'
                 }`}
                 onClick={() => item.action ? item.action() : navigate(item.path)}
@@ -1155,6 +1189,11 @@ const TopNavbar = () => {
               {user?.cinepass ?? 100}
             </span>
           </div>
+          {/* Online Users */}
+          <Button variant="ghost" size="sm" className="flex h-7 w-7 p-0 text-green-400/70 hover:text-green-400 flex-shrink-0"
+            onClick={() => navigate('/online')} data-testid="top-nav-online" aria-label="Utenti Online">
+            <Users className="w-3.5 h-3.5" />
+          </Button>
         </div>
       </div>
 

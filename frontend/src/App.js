@@ -631,7 +631,7 @@ const GlobalSideMenu = () => {
           </div>
 
           {/* MIDDLE: Scrollable menu items */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-0" style={{ scrollbarWidth: 'none', paddingBottom: 60 }}>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none', paddingBottom: 60 }}>
             {menuItems.map(item => (
               <button
                 key={item.label}
@@ -639,33 +639,18 @@ const GlobalSideMenu = () => {
                 onClick={item.action}
                 data-testid={`global-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
               >
-                <item.icon className="mb-0.5 text-yellow-500/80" style={{ width: 17, height: 17 }} />
-                <span className="text-[9.5px] text-center leading-tight text-gray-300/80">{item.label}</span>
+                <item.icon className="mb-0.5 text-yellow-500/80 mx-auto" style={{ width: 17, height: 17 }} />
+                <span className="text-[9px] text-center leading-tight text-gray-300/80 block w-full">{item.label}</span>
               </button>
             ))}
-            {/* Titoli di Coda (hamburger) — inside scroll */}
+            {/* Titoli di Coda (hamburger) */}
             <button
               onClick={() => { setOpen(false); window.dispatchEvent(new Event('open-titoli-di-coda')); }}
               className="film-frame-btn w-full"
               data-testid="menu-titoli-di-coda"
             >
-              <Menu className="w-4 h-4 mb-0.5 text-gray-400" />
-              <span className="text-[9px] text-center leading-tight text-gray-400">Titoli di Coda</span>
-            </button>
-          </div>
-
-          {/* BOTTOM FIXED: Esci (rosso) */}
-          <div className="flex-shrink-0 px-1.5 pb-1" style={{ paddingBottom: 'calc(6px + env(safe-area-inset-bottom, 0px))' }}>
-            <button
-              onClick={() => {
-                setOpen(false);
-                window.dispatchEvent(new Event('confirm-logout'));
-              }}
-              className="w-full flex items-center justify-center gap-1 py-1.5 rounded bg-red-600/70 hover:bg-red-600 text-white text-[9px] font-bold transition-colors"
-              data-testid="menu-esci"
-            >
-              <LogOut className="w-3 h-3" />
-              <span>Esci</span>
+              <Menu className="w-4 h-4 mb-0.5 text-gray-400 mx-auto" />
+              <span className="text-[9px] text-center leading-tight text-gray-400 block w-full">Titoli di Coda</span>
             </button>
           </div>
 
@@ -784,8 +769,9 @@ const TitoliDiCoda = ({ open, setOpen, navItems, user, navigate, logout, languag
             onClick={() => { setShowGameTutorial(true); setOpen(false); }}>
             <HelpCircle className="w-3.5 h-3.5" /> Tutorial
           </button>
-          <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-red-400/70 text-[10px] hover:bg-red-500/10 transition-colors"
-            onClick={() => { logout(); setOpen(false); }}>
+          <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-red-400 text-[10px] font-bold hover:bg-red-500/15 transition-colors border border-red-500/20"
+            onClick={() => { setOpen(false); window.dispatchEvent(new Event('confirm-logout')); }}
+            data-testid="titoli-esci">
             <LogOut className="w-3.5 h-3.5" /> Esci
           </button>
         </div>
@@ -1139,79 +1125,77 @@ const TopNavbar = () => {
 
   return (
     <nav className="fixed top-0 left-0 right-0 bg-[#0F0F10] border-b border-white/10 z-50 sidemenu-translate" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-      <div className="max-w-7xl mx-auto h-12 px-1 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto h-11 px-0.5 flex items-center justify-between">
         {/* 8 icone principali: CIACK HOME PRODUCI ARENA LE MIE TV MAJOR CHAT NOTIFICHE */}
         <div className="flex items-center gap-0 w-full justify-between">
           {/* CIACK */}
-          <Button variant="ghost" size="sm" className="flex h-8 w-8 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
+          <Button variant="ghost" size="sm" className="flex h-7 w-7 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
             onClick={() => { window.dispatchEvent(new Event('global-sidemenu-toggle')); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
             data-testid="ciack-btn" aria-label="Menu">
-            <Clapperboard className="w-5 h-5" />
+            <Clapperboard className="w-4 h-4" />
           </Button>
           {/* HOME */}
-          <Button variant="ghost" size="sm" className={`flex h-8 w-8 p-0 flex-shrink-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}`}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}`}
             onClick={() => navigate('/dashboard')} data-testid="home-btn" aria-label="Home">
-            <Home className="w-4 h-4" />
+            <Home className="w-3.5 h-3.5" />
           </Button>
           {/* PRODUCI */}
-          <Button variant="ghost" size="sm" className={`flex h-8 w-8 p-0 flex-shrink-0 ${['/create-film','/create-series','/create-anime'].includes(location.pathname) ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${['/create-film','/create-series','/create-anime'].includes(location.pathname) ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => setShowProductionMenu(!showProductionMenu)} data-testid="top-nav-produci" aria-label="Produci">
-            <Camera className="w-4 h-4" />
+            <Camera className="w-3.5 h-3.5" />
           </Button>
           {/* ARENA */}
-          <Button variant="ghost" size="sm" className={`flex h-8 w-8 p-0 flex-shrink-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
             onClick={() => navigate('/pvp-arena')} data-testid="top-nav-arena" aria-label="Arena">
-            <Target className="w-4 h-4" />
+            <Target className="w-3.5 h-3.5" />
           </Button>
           {/* LE MIE TV */}
-          <Button variant="ghost" size="sm" className={`flex h-8 w-8 p-0 flex-shrink-0 ${location.pathname === '/my-tv' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/my-tv' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/my-tv')} data-testid="top-nav-tv" aria-label="Le Mie TV">
-            <Tv className="w-4 h-4" />
+            <Tv className="w-3.5 h-3.5" />
           </Button>
           {/* MAJOR */}
-          <Button variant="ghost" size="sm" className={`flex h-8 w-8 p-0 flex-shrink-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
             onClick={() => navigate('/major')} data-testid="top-nav-major" aria-label="Major">
-            <Crown className="w-4 h-4" />
+            <Crown className="w-3.5 h-3.5" />
           </Button>
           {/* INFRA */}
-          <Button variant="ghost" size="sm" className={`flex h-8 w-8 p-0 flex-shrink-0 ${location.pathname === '/infrastructure' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/infrastructure' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/infrastructure')} data-testid="top-nav-infra" aria-label="Infrastrutture">
-            <Building className="w-4 h-4" />
+            <Building className="w-3.5 h-3.5" />
           </Button>
           {/* 3D PARCO STUDIO */}
-          <Button variant="ghost" size="sm" className={`relative flex h-8 w-8 p-0 flex-shrink-0 ${location.pathname === '/parco-studio' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/parco-studio' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/parco-studio')} data-testid="top-nav-parco3d" aria-label="Parco Studio 3D">
             <Building className="w-3.5 h-3.5" />
             <span className="absolute -bottom-0.5 right-0 text-[6px] font-black text-cyan-400 leading-none">3D</span>
           </Button>
           {/* CHAT */}
-          <Button variant="ghost" size="sm" className={`flex h-8 w-8 p-0 flex-shrink-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
             onClick={() => navigate('/chat')} data-testid="top-nav-chat" aria-label="Chat">
-            <MessageSquare className="w-4 h-4" />
+            <MessageSquare className="w-3.5 h-3.5" />
           </Button>
           {/* NOTIFICHE */}
-          <Button variant="ghost" size="sm" className={`relative flex h-8 w-8 p-0 flex-shrink-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/notifications')} data-testid="top-nav-notifiche" aria-label="Notifiche">
-            <Bell className="w-4 h-4" />
+            <Bell className="w-3.5 h-3.5" />
             {notificationCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
                 {notificationCount > 9 ? '9+' : notificationCount}
               </span>
             )}
           </Button>
-          {/* Funds compact */}
-          <div className="flex items-center gap-0.5 bg-yellow-500/10 px-1 py-0.5 rounded border border-yellow-500/20 flex-shrink-0">
-            <DollarSign className="w-2.5 h-2.5 text-yellow-500" />
-            <span className="text-yellow-500 font-bold text-[8px]" data-testid="user-funds">
+          {/* Funds */}
+          <div className="flex items-center bg-yellow-500/10 px-0.5 py-0 rounded border border-yellow-500/20 flex-shrink-0">
+            <DollarSign className="w-2 h-2 text-yellow-500" />
+            <span className="text-yellow-500 font-bold text-[7px]" data-testid="user-funds">
               {user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
             </span>
           </div>
-          {/* CinePass compact */}
-          <div className="flex items-center gap-0.5 bg-cyan-500/10 px-1 py-0.5 rounded border border-cyan-500/20 flex-shrink-0">
-            <Ticket className="w-2.5 h-2.5 text-cyan-400" />
-            <span className="text-cyan-400 font-bold text-[8px]" data-testid="cinepass-balance">
-              {user?.cinepass ?? 100}
-            </span>
+          {/* CinePass */}
+          <div className="flex items-center bg-cyan-500/10 px-0.5 py-0 rounded border border-cyan-500/20 flex-shrink-0">
+            <Ticket className="w-2 h-2 text-cyan-400" />
+            <span className="text-cyan-400 font-bold text-[7px]" data-testid="cinepass-balance">{user?.cinepass ?? 100}</span>
           </div>
           {/* Online Users — opens panel */}
           <Button variant="ghost" size="sm" className="flex h-7 w-7 p-0 text-green-400/70 hover:text-green-400 flex-shrink-0"
@@ -1222,6 +1206,46 @@ const TopNavbar = () => {
       </div>
 
       {showGameTutorial && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
+
+      {/* Online Users Panel */}
+      {showOnlineUsersPanel && (
+        <div className="fixed inset-0 z-[100]" data-testid="online-users-panel">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowOnlineUsersPanel(false)} />
+          <div className="absolute top-12 right-1 w-64 max-h-[70vh] bg-[#111113] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+            <div className="sticky top-0 bg-[#111113] px-3 py-2 border-b border-white/5 flex items-center justify-between">
+              <span className="text-xs font-bold text-green-400">Utenti Online ({onlineUsersCount})</span>
+              <button onClick={() => setShowOnlineUsersPanel(false)} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-2 space-y-1">
+              {onlineUsersList.filter(u => !u.is_bot).map(u => (
+                <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
+                  onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
+                  <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+                  <span className="text-xs text-gray-300 truncate">{u.nickname}</span>
+                  {u.level && <span className="text-[8px] text-gray-500 ml-auto">Lv.{u.level}</span>}
+                </div>
+              ))}
+              {onlineUsersList.filter(u => !u.is_bot).length === 0 && (
+                <p className="text-[10px] text-gray-500 text-center py-4">Nessun utente online</p>
+              )}
+              {allPlayersList.length > 0 && (
+                <>
+                  <div className="border-t border-white/5 mt-2 pt-2">
+                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider px-1 mb-1">Tutti i giocatori</p>
+                  </div>
+                  {allPlayersList.filter(u => !onlineUsersList.find(o => o.nickname === u.nickname)).slice(0, 20).map(u => (
+                    <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/5 cursor-pointer"
+                      onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
+                      <div className="w-2 h-2 rounded-full bg-gray-600 flex-shrink-0" />
+                      <span className="text-xs text-gray-500 truncate">{u.nickname}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TITOLI DI CODA — Full navigation grid (ex hamburger menu) */}
       <TitoliDiCoda open={mobileMenuOpen} setOpen={setMobileMenuOpen} navItems={navItems} user={user} navigate={navigate} logout={logout} language={language} t={t} levelInfo={levelInfo} setShowGameTutorial={setShowGameTutorial} />
@@ -1512,7 +1536,7 @@ const UrlManager = ({ children }) => {
     <>
       {showUrlChanged && (
         <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-yellow-500 to-amber-500 text-black py-2 px-4 z-[100] flex items-center justify-center gap-3 text-sm">
-          <Bell className="w-4 h-4" />
+          <Bell className="w-3.5 h-3.5" />
           <span className="font-medium">Il gioco si è spostato! Salva questo nuovo link:</span>
           <code className="bg-black/20 px-2 py-0.5 rounded text-xs">{newUrl}</code>
           <Button 

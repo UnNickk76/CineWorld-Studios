@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════
-   Film Strip Side Menu — Realistic Film Reel
+   Film Strip Side Menu — Ultra Realistic Reel
    ═══════════════════════════════════════════ */
 
 @keyframes filmScroll {
@@ -25,146 +25,128 @@
   height: 200%;
   will-change: transform;
   animation: filmScroll 25s linear infinite;
-  /* Central darker lane only between the sprocket bands */
   background:
-    /* Left sprocket band */
-    linear-gradient(to right, #0c0a06 0px, #0c0a06 16px, transparent 16px),
+    /* Left sprocket band - brown/black like real film */
+    linear-gradient(to right, #0d0906 0px, #0d0906 11px, transparent 11px),
     /* Right sprocket band */
-    linear-gradient(to left, #0c0a06 0px, #0c0a06 16px, transparent 16px),
-    /* Central frame lane — narrower, subtle gold tint */
+    linear-gradient(to left, #0d0906 0px, #0d0906 11px, transparent 11px),
+    /* Thin edge lines between bands and frames */
     linear-gradient(to right,
-      transparent 16px,
-      #0e0c07 16px,
-      #0e0c07 18px,
-      #110e08 18px,
-      #110e08 calc(100% - 18px),
-      #0e0c07 calc(100% - 18px),
-      #0e0c07 calc(100% - 16px),
-      transparent calc(100% - 16px)
-    ),
-    /* Subtle grain */
-    repeating-linear-gradient(
-      to bottom,
-      rgba(100, 80, 20, 0.03) 0px,
-      rgba(60, 45, 10, 0.01) 2px,
-      rgba(100, 80, 20, 0.03) 4px
+      transparent 10px,
+      rgba(90, 70, 30, 0.2) 10px,
+      rgba(90, 70, 30, 0.2) 11px,
+      transparent 11px,
+      transparent calc(100% - 11px),
+      rgba(90, 70, 30, 0.2) calc(100% - 11px),
+      rgba(90, 70, 30, 0.2) calc(100% - 10px),
+      transparent calc(100% - 10px)
     );
-  background-color: #070503;
+  background-color: #090705;
 }
 
-/* ═══ SPROCKET HOLES — left & right ═══ */
-@keyframes perfScroll {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-50%); }
-}
-
+/* ═══ SPROCKET HOLES — realistic perforations ═══ */
 .film-perfs {
   position: absolute;
   top: 0;
-  width: 16px;
+  width: 11px;
   height: 200%;
   z-index: 4;
   pointer-events: none;
   will-change: transform;
-  animation: perfScroll 25s linear infinite;
+  animation: filmScroll 25s linear infinite;
 }
 
-/* Sprocket hole = small rounded rectangle, repeating */
-.film-perfs-left {
-  left: 0;
-}
+.film-perfs-left { left: 0; }
+.film-perfs-right { right: 0; }
 
-.film-perfs-right {
-  right: 0;
-}
-
-/* Draw the actual holes */
+/* The actual rectangular holes — BRIGHT like real film perforations */
 .film-perfs-left::before,
 .film-perfs-right::before {
   content: '';
   position: absolute;
   top: 0;
-  width: 6px;
+  width: 5px;
   height: 200%;
   background:
     repeating-linear-gradient(
       to bottom,
       transparent 0px,
-      transparent 14px,
-      rgba(160, 140, 80, 0.35) 14px,
-      rgba(160, 140, 80, 0.35) 20px,
-      transparent 20px,
-      transparent 56px
+      transparent 10px,
+      rgba(220, 200, 140, 0.7) 10px,
+      rgba(220, 200, 140, 0.7) 17px,
+      transparent 17px,
+      transparent 44px
     );
-  border-radius: 1px;
+  border-radius: 0.5px;
 }
 
-.film-perfs-left::before {
-  left: 5px;
-}
+.film-perfs-left::before { left: 3px; }
+.film-perfs-right::before { right: 3px; }
 
-.film-perfs-right::before {
-  right: 5px;
-}
-
-/* Thin border lines along sprocket edge */
+/* Second row of smaller alignment marks — also brighter */
 .film-perfs-left::after,
 .film-perfs-right::after {
   content: '';
   position: absolute;
-  top: 0;
-  width: 1px;
+  top: 22px;
+  width: 3px;
   height: 200%;
-  background: rgba(120, 100, 50, 0.15);
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 15px,
+      rgba(200, 175, 100, 0.45) 15px,
+      rgba(200, 175, 100, 0.45) 19px,
+      transparent 19px,
+      transparent 44px
+    );
+  border-radius: 0.5px;
 }
 
-.film-perfs-left::after {
-  right: 0;
-}
+.film-perfs-left::after { left: 1px; }
+.film-perfs-right::after { right: 1px; }
 
-.film-perfs-right::after {
-  left: 0;
-}
-
-/* ═══ FILM FRAME BUTTONS (photogram look) ═══ */
+/* ═══ FRAME BUTTONS — true photogram style ═══ */
 .film-frame-btn {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 54px;
-  padding: 7px 2px;
+  min-height: 52px;
+  padding: 6px 2px;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.15s ease;
 
-  /* KEY: wide margins to NOT cover sprocket bands */
-  margin-left: 18px;
-  margin-right: 18px;
+  /* Tight margins: just enough to reveal sprocket bands */
+  margin-left: 12px;
+  margin-right: 12px;
 
-  /* Photogram: slightly lighter than strip bg, inset feel */
-  background: rgba(20, 17, 10, 0.55);
+  /* Photogram: darker than surround with film grain feel */
+  background: rgba(16, 13, 7, 0.5);
   border: none;
-  border-top: 1px solid rgba(90, 70, 25, 0.15);
-  border-bottom: 1px solid rgba(90, 70, 25, 0.15);
+  border-top: 1px solid rgba(80, 65, 25, 0.18);
+  border-bottom: 1px solid rgba(60, 48, 18, 0.12);
   box-shadow:
-    inset 0 2px 5px rgba(0, 0, 0, 0.45),
-    inset 0 -2px 5px rgba(0, 0, 0, 0.35);
+    inset 0 1px 4px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 4px rgba(0, 0, 0, 0.4),
+    inset 2px 0 4px rgba(0, 0, 0, 0.25),
+    inset -2px 0 4px rgba(0, 0, 0, 0.25);
   border-radius: 0;
 }
 
 .film-frame-btn:hover {
-  background: rgba(28, 23, 12, 0.7);
-  box-shadow:
-    inset 0 2px 7px rgba(0, 0, 0, 0.55),
-    inset 0 -2px 7px rgba(0, 0, 0, 0.45);
+  background: rgba(24, 20, 10, 0.65);
 }
 
 .film-frame-btn:active {
-  background: rgba(32, 27, 14, 0.8);
+  background: rgba(30, 25, 12, 0.75);
   box-shadow:
-    inset 0 3px 10px rgba(0, 0, 0, 0.65),
-    inset 0 -3px 10px rgba(0, 0, 0, 0.55);
+    inset 0 2px 8px rgba(0, 0, 0, 0.65),
+    inset 0 -2px 8px rgba(0, 0, 0, 0.55),
+    inset 3px 0 6px rgba(0, 0, 0, 0.35),
+    inset -3px 0 6px rgba(0, 0, 0, 0.35);
   transform: scale(0.97);
 }
 

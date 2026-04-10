@@ -501,8 +501,7 @@ const TopNavbar = () => {
   // Core data - fetch once on mount + poll
   useEffect(() => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
-    api.get('/release-notes/unread-count').then(r => setReleaseNotesCount(r.data.unread_count)).catch(() => {});
-    api.get('/system-notes/unread').then(r => setSystemNotesCount(r.data.unread_count)).catch(() => {});
+    // Release notes and system notes are FROZEN - skip unread count fetch
     api.get('/emerging-screenplays/count').then(r => setEmergingScreenplaysCount(r.data.new || 0)).catch(() => {});
     api.get('/major/my').then(r => setMajorInfo(r.data)).catch(() => {});
     api.get('/production-studios/unlock-status').then(r => setProductionUnlocks(r.data)).catch(() => {});
@@ -724,10 +723,10 @@ const TopNavbar = () => {
     { path: '/leaderboard', icon: BarChart3, label: 'leaderboard' },
     { path: '/pvp-arena', icon: Target, label: 'Arena' },
     { path: '/chat', icon: MessageSquare, label: 'chat' },
-    { path: '/releases', icon: Megaphone, label: 'release_notes', notificationCount: releaseNotesCount },
+    { path: '/releases', icon: Megaphone, label: 'release_notes', frozen: true },
     { path: '/feedback', icon: Lightbulb, label: 'feedback' },
     { path: '/tutorial', icon: HelpCircle, label: 'tutorial' },
-    { path: '/system-notes', icon: Bell, label: language === 'it' ? 'Note di Sistema' : 'System Notes', notificationCount: systemNotesCount },
+    { path: '/system-notes', icon: Bell, label: language === 'it' ? 'Note di Sistema' : 'System Notes', frozen: true },
     { path: '/credits', icon: Info, label: 'credits' },
   ];
 
@@ -1142,6 +1141,7 @@ const TopNavbar = () => {
                   variant={location.pathname === item.path ? "default" : "ghost"}
                   size="sm"
                   className={`flex flex-col items-center gap-0.5 h-10 py-1 px-1 relative rounded-lg ${
+                    item.frozen ? 'opacity-35 cursor-not-allowed bg-[#1a1a1a] border border-amber-500/10' :
                     item.disabled ? 'opacity-40 cursor-not-allowed' :
                     item.locked ? 'opacity-50 bg-[#1a1a1a] text-gray-500 border border-white/5' :
                     location.pathname === item.path 
@@ -1149,12 +1149,13 @@ const TopNavbar = () => {
                       : 'bg-[#1a1a1a] hover:bg-[#252525] text-gray-300 border border-white/5'
                   }`}
                   onClick={() => { 
-                    if (item.disabled) return;
+                    if (item.disabled || item.frozen) return;
                     if (item.locked) { navigate('/infrastructure'); setMobileMenuOpen(false); return; }
                     navigate(item.path); setMobileMenuOpen(false); 
                   }}
                 >
                   {item.locked && <Lock className="w-2 h-2 absolute top-0.5 right-0.5 text-gray-600" />}
+                  {item.frozen && <span className="absolute -top-0.5 right-0 text-[5px] text-amber-400 font-bold bg-amber-500/15 px-1 rounded">SOSPESO</span>}
                   <item.icon className="w-3 h-3" />
                   <span className="text-[7px] font-medium truncate w-full text-center leading-tight">{item.pauseLabel || t(item.label)}</span>
                   {item.notificationCount > 0 && (

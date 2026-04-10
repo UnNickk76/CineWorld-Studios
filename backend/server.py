@@ -112,6 +112,7 @@ from routes.la_prima import router as la_prima_router
 from routes.deletion import router as deletion_router
 from routes.maintenance import router as maintenance_router
 from routes.city_dynamics import router as city_dynamics_router
+from routes.tutorial import router as tutorial_router
 import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -9894,6 +9895,7 @@ app.include_router(recovery_router)
 from routes.contest import router as contest_router
 app.include_router(contest_router, prefix="/api")
 app.include_router(maintenance_router, prefix="/api")
+app.include_router(tutorial_router, prefix="/api")
 
 # ==================== GAME URL REDIRECT SYSTEM ====================
 # Endpoint pubblico (no auth) per gestire i redirect dai vecchi link

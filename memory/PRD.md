@@ -74,6 +74,28 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - Micro feedback toast contestuali su ogni azione (prezzi, aggiunta/rimozione film)
 - Statistiche griglia (Affluenza, Occupazione, Schermi)
 
+#### FASE 3 — Mondo Vivo (Apr 2026)
+- **Sistema Citta Dinamiche (Invisibile)**: 47 citta con generi attivi e valori nascosti (0-100), timer random 5-25 giorni, update asincrono via scheduler
+- **Sistema Hype Film**: Campo hype (0-100) per ogni film, decadimento nel tempo, influenza su affluenza/food/rendimento cinema
+- **Impatto Citta su LaPrima**: Boost forte su premiere basato su affinita citta-genere, max +15%/-5%
+- **Impatto Citta post-uscita**: Leggero su revenue cinema via scheduler
+- **Notifiche Impatto Film**: Generate ogni 3h per film attivi, ~40 parole descrittive (4 tier), MAI numeri esposti
+- **Velion LaPrima Suggestion**: ~40% probabilita, suggerisce 2-4 citta (60-70% buone, 30-40% sbagliate), UI con fade e glow
+- **Collegamento Eventi-Hype**: Eventi positivi → hype/gradimento +, negativi → hype/gradimento -
+- Backend: `/app/backend/routes/city_dynamics.py`, scheduler jobs in `scheduler_tasks.py`
+
+#### Sistema Tutorial PRO (Apr 2026)
+- **Backend model**: `tutorial_config` collection MongoDB con template statico/velion/guest
+- **Admin Tutorial Manager**: 3 pulsanti aggiornamento (statico, velion, guest) con progress bar live
+- **Background task non bloccante**: Processing → Generazione → Salvataggio → Completato con polling 1.5s
+- **Frozen Sections**: "Note di Rilascio" e "Note di Sistema" freezate con badge "In aggiornamento"
+  - Pagine sostituite con layout freeze (icona lucchetto, messaggio, box AI futuro)
+  - Menu grid: opacita ridotta, badge "SOSPESO", click disabilitato
+  - Nessun fetch vecchi contenuti, nessun errore console
+- **Tutorial Page**: Legge contenuti da DB (`/api/tutorial/content`), versioning visibile
+- **Preparazione riattivazione futura**: Struttura DB pronta per AI/Admin Panel
+- Backend: `/app/backend/routes/tutorial.py`, model: `/app/backend/models/tutorial.py`
+
 ## Backlog
 
 ### P1

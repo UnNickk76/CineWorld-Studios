@@ -65,6 +65,15 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 | Prossimamente Dashboard | Dashboard globale | Contenuti di TUTTI i giocatori in sviluppo |
 | Prossimamente Emittente TV | TVMenuModal → Contenuti | Contenuti programmati per la propria emittente con timer |
 
+#### UX Migliorata Strutture/Cinema (Apr 2026)
+- Badge performance film visuale (Ottimo verde / Medio giallo / Flop rosso) con icone
+- Box "Perché stai guadagnando così?" con fattori positivi/negativi/neutri
+- Differenziazione tipo struttura con label e bonus genere
+- Dettagli noleggio film (durata restante, % ricavi, costo pagato)
+- Barra gradimento pubblico animata con colori dinamici
+- Micro feedback toast contestuali su ogni azione (prezzi, aggiunta/rimozione film)
+- Statistiche griglia (Affluenza, Occupazione, Schermi)
+
 ## Backlog
 
 ### P1

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { AuthContext, useTranslations } from '../contexts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -8,9 +8,9 @@ import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Film, Star, TrendingUp, Plus, X, DollarSign, Building, Ticket,
-  Store, Crown, ShoppingBag, Eye, Zap, Shield, ArrowUpCircle, Wallet,
-  ChevronDown, ChevronUp, Users
+  Film, TrendingUp, Plus, X, DollarSign, Building, Ticket,
+  Store, Crown, ShoppingBag, ArrowUpCircle, Wallet,
+  ChevronDown, ChevronUp, Clock, Info, Zap, ThumbsUp, ThumbsDown, Minus
 } from 'lucide-react';
 
 const STRUTTURE_CATEGORIES = [
@@ -20,6 +20,80 @@ const STRUTTURE_CATEGORIES = [
 ];
 
 const ALL_STRUTTURE_TYPES = STRUTTURE_CATEGORIES.flatMap(c => c.types);
+
+const STRUCTURE_LABELS = {
+  cinema: { label: 'Cinema Standard', bonus: null },
+  drive_in: { label: 'Drive-In', bonus: 'Bonus Horror / Action +20%' },
+  vip_cinema: { label: 'Cinema VIP di Lusso', bonus: 'Bonus Drama / Romance +25%' },
+  multiplex_small: { label: 'Centro Comm. Piccolo', bonus: 'Bonus Action +15%' },
+  multiplex_medium: { label: 'Centro Comm. Medio', bonus: 'Bonus Action +15%' },
+  multiplex_large: { label: 'Centro Comm. Grande IMAX', bonus: 'Bonus Action / Sci-Fi +15%' },
+  cinema_museum: { label: 'Museo del Cinema', bonus: 'Bonus Storico / Drama +25%' },
+  film_festival_venue: { label: 'Sede Festival', bonus: 'Bonus Drama / Indie +25%' },
+  theme_park: { label: 'Parco a Tema', bonus: 'Bonus Action / Adventure / Sci-Fi +25%' },
+};
+
+function getFilmPerformance(film, gradimento) {
+  const q = film.quality_score || 50;
+  const imdb = film.imdb_rating || 5;
+  const g = gradimento || 70;
+  const score = (q * 0.4) + (imdb * 6) + (g * 0.2);
+  if (score >= 65) return { level: 'ottimo', color: 'green', label: 'Ottimo rendimento', icon: ThumbsUp };
+  if (score >= 40) return { level: 'medio', color: 'yellow', label: 'Rendimento medio', icon: Minus };
+  return { level: 'flop', color: 'red', label: 'Sta performando male', icon: ThumbsDown };
+}
+
+function getRentalDaysLeft(film) {
+  if (!film.rental_end_date) return null;
+  const end = new Date(film.rental_end_date);
+  const now = new Date();
+  const diff = Math.max(0, Math.ceil((end - now) / 86400000));
+  return diff;
+}
+
+function getFilmAge(film) {
+  if (!film.added_at) return null;
+  const added = new Date(film.added_at);
+  const now = new Date();
+  return Math.floor((now - added) / 86400000);
+}
+
+function generateEarningsExplanation(detail, prices) {
+  const factors = [];
+  const films = detail?.films_showing || [];
+  const gradimento = detail?.gradimento ?? detail?.stats?.satisfaction_index ?? 70;
+  const ticketPrice = prices?.ticket || 12;
+  const screens = detail?.type_info?.screens || 4;
+
+  if (films.length === 0) {
+    factors.push({ type: 'negative', text: 'Nessun film in programmazione' });
+    return factors;
+  }
+
+  const avgQuality = films.reduce((s, f) => s + (f.quality_score || 50), 0) / films.length;
+  const avgImdb = films.reduce((s, f) => s + (f.imdb_rating || 5), 0) / films.length;
+
+  if (avgQuality >= 65) factors.push({ type: 'positive', text: 'Film di alta qualita in programmazione' });
+  else if (avgQuality < 40) factors.push({ type: 'negative', text: 'Film di bassa qualita abbassano la resa' });
+
+  if (avgImdb >= 7) factors.push({ type: 'positive', text: `Rating IMDb medio alto (${avgImdb.toFixed(1)})` });
+  else if (avgImdb < 5) factors.push({ type: 'negative', text: `Rating IMDb medio basso (${avgImdb.toFixed(1)})` });
+
+  if (ticketPrice >= 8 && ticketPrice <= 15) factors.push({ type: 'positive', text: 'Prezzi ben bilanciati' });
+  else if (ticketPrice > 20) factors.push({ type: 'negative', text: 'Prezzo biglietto troppo alto, meno spettatori' });
+  else if (ticketPrice < 5) factors.push({ type: 'neutral', text: 'Prezzo biglietto molto basso, alta affluenza ma bassi incassi' });
+
+  if (gradimento >= 70) factors.push({ type: 'positive', text: 'Gradimento pubblico alto' });
+  else if (gradimento < 40) factors.push({ type: 'negative', text: 'Gradimento pubblico basso' });
+
+  if (films.length < screens) factors.push({ type: 'neutral', text: `${screens - films.length} scherm${screens - films.length > 1 ? 'i' : 'o'} vuot${screens - films.length > 1 ? 'i' : 'o'}` });
+  if (films.length === screens) factors.push({ type: 'positive', text: 'Tutti gli schermi occupati' });
+
+  const oldFilms = films.filter(f => getFilmAge(f) > 5).length;
+  if (oldFilms > 0) factors.push({ type: 'negative', text: `${oldFilms} film in programmazione da troppo tempo` });
+
+  return factors;
+}
 
 export default function StrutturePage() {
   const { api, user, refreshUser } = useContext(AuthContext);
@@ -32,7 +106,6 @@ export default function StrutturePage() {
   const [upgradeInfo, setUpgradeInfo] = useState(null);
   const [upgrading, setUpgrading] = useState(false);
   const [pendingRevenue, setPendingRevenue] = useState(null);
-  // Film management
   const [showAddFilm, setShowAddFilm] = useState(false);
   const [showRentFilm, setShowRentFilm] = useState(false);
   const [myFilms, setMyFilms] = useState([]);
@@ -41,7 +114,6 @@ export default function StrutturePage() {
   const [rentalWeeks, setRentalWeeks] = useState(1);
   const [actionLoading, setActionLoading] = useState(false);
   const [removingFilm, setRemovingFilm] = useState(null);
-  // Prices
   const [showPrices, setShowPrices] = useState(false);
   const [prices, setPrices] = useState({});
   const [savingPrices, setSavingPrices] = useState(false);
@@ -90,7 +162,7 @@ export default function StrutturePage() {
     setActionLoading(true);
     try {
       const r = await api.post(`/infrastructure/${expanded}/add-film`, { film_id: selectedFilm.id });
-      toast.success(`"${selectedFilm.title}" aggiunto!`);
+      toast.success(`"${selectedFilm.title}" aggiunto! Affluenza prevista in aumento`);
       setDetail(prev => ({ ...prev, films_showing: r.data.films_showing }));
       setShowAddFilm(false); setSelectedFilm(null);
       await refreshStructures();
@@ -103,7 +175,7 @@ export default function StrutturePage() {
     setActionLoading(true);
     try {
       const r = await api.post(`/infrastructure/${expanded}/rent-film`, { film_id: selectedFilm.id, weeks: rentalWeeks });
-      toast.success(`"${selectedFilm.title}" affittato per ${rentalWeeks} settimane!`);
+      toast.success(`"${selectedFilm.title}" affittato! Il 70% dei ricavi sara tuo`);
       setDetail(prev => ({ ...prev, films_showing: r.data.films_showing }));
       setShowRentFilm(false); setSelectedFilm(null); setRentalWeeks(1);
       await refreshStructures(); refreshUser();
@@ -117,7 +189,7 @@ export default function StrutturePage() {
     try {
       const r = await api.delete(`/infrastructure/${expanded}/films/${filmId}`);
       setDetail(prev => ({ ...prev, films_showing: r.data.films_showing }));
-      toast.success('Film rimosso');
+      toast('Film rimosso. Rischio calo spettatori se non sostituito', { icon: <Info className="w-4 h-4 text-yellow-400" /> });
       await refreshStructures();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     finally { setRemovingFilm(null); }
@@ -128,7 +200,11 @@ export default function StrutturePage() {
     setSavingPrices(true);
     try {
       await api.put(`/infrastructure/${expanded}/prices`, { prices });
-      toast.success('Prezzi aggiornati!');
+      const p = prices.ticket || 12;
+      if (p > 20) toast('Prezzi aggiornati. Attenzione: prezzo alto, rischio calo spettatori', { icon: <Info className="w-4 h-4 text-yellow-400" /> });
+      else if (p < 5) toast('Prezzi aggiornati. Prezzo basso = tanta affluenza, pochi incassi per biglietto', { icon: <Info className="w-4 h-4 text-cyan-400" /> });
+      else toast.success('Prezzi aggiornati! Buon bilanciamento');
+      await openDetail(structures.find(s => s.id === expanded));
       await refreshStructures();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     finally { setSavingPrices(false); setShowPrices(false); }
@@ -137,14 +213,10 @@ export default function StrutturePage() {
   const activeCat = STRUTTURE_CATEGORIES.find(c => c.id === activeTab) || STRUTTURE_CATEGORIES[0];
   const filtered = structures.filter(s => activeCat.types.includes(s.type));
 
-  const getPerformanceColor = (val) => val >= 70 ? 'text-green-400' : val >= 40 ? 'text-yellow-400' : 'text-red-400';
-  const getPerformanceBg = (val) => val >= 70 ? 'bg-green-500/15 border-green-500/25' : val >= 40 ? 'bg-yellow-500/15 border-yellow-500/25' : 'bg-red-500/15 border-red-500/25';
-
   if (loading) return <div className="pt-20 text-center text-gray-500">Caricamento...</div>;
 
   return (
     <div className="pt-16 pb-20 max-w-2xl mx-auto px-3" data-testid="strutture-page">
-      {/* Header */}
       <div className="mb-4">
         <h1 className="font-['Bebas_Neue'] text-2xl tracking-wide">Le Tue Strutture</h1>
         <p className="text-xs text-gray-500">Gestisci cinema, programmazione film e incassi</p>
@@ -157,16 +229,9 @@ export default function StrutturePage() {
           const count = structures.filter(s => cat.types.includes(s.type)).length;
           const isActive = activeTab === cat.id;
           return (
-            <button
-              key={cat.id}
-              onClick={() => { setActiveTab(cat.id); setExpanded(null); setDetail(null); }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium border transition-all ${
-                isActive
-                  ? `bg-${cat.color}-500/15 border-${cat.color}-500/30 text-${cat.color}-400 shadow-[0_0_12px_rgba(251,191,36,0.08)]`
-                  : 'bg-white/3 border-white/5 text-gray-500 hover:text-gray-300'
-              }`}
-              data-testid={`strutture-tab-${cat.id}`}
-            >
+            <button key={cat.id} onClick={() => { setActiveTab(cat.id); setExpanded(null); setDetail(null); }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium border transition-all ${isActive ? `bg-${cat.color}-500/15 border-${cat.color}-500/30 text-${cat.color}-400 shadow-[0_0_12px_rgba(251,191,36,0.08)]` : 'bg-white/3 border-white/5 text-gray-500 hover:text-gray-300'}`}
+              data-testid={`strutture-tab-${cat.id}`}>
               <CatIcon className="w-3.5 h-3.5" />
               {cat.label}
               {count > 0 && <span className="text-[9px] bg-white/10 px-1.5 rounded-full">{count}</span>}
@@ -186,14 +251,16 @@ export default function StrutturePage() {
         <div className="space-y-2">
           {filtered.map(infra => {
             const isOpen = expanded === infra.id;
+            const structInfo = STRUCTURE_LABELS[infra.type] || { label: infra.type, bonus: null };
+            const gradimento = detail?.gradimento ?? detail?.stats?.satisfaction_index ?? 70;
+            const earningsFactors = isOpen && detail ? generateEarningsExplanation(detail, prices) : [];
+
             return (
               <div key={infra.id} className="rounded-xl border border-white/8 bg-white/3 overflow-hidden transition-all">
                 {/* Card header */}
-                <button
-                  className="w-full flex items-center gap-3 p-3 text-left active:scale-[0.99] transition-transform"
+                <button className="w-full flex items-center gap-3 p-3 text-left active:scale-[0.99] transition-transform"
                   onClick={() => isOpen ? (setExpanded(null), setDetail(null)) : openDetail(infra)}
-                  data-testid={`struttura-card-${infra.id}`}
-                >
+                  data-testid={`struttura-card-${infra.id}`}>
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center bg-${activeCat.color}-500/15 flex-shrink-0`}>
                     <activeCat.icon className={`w-5 h-5 text-${activeCat.color}-400`} />
                   </div>
@@ -214,14 +281,34 @@ export default function StrutturePage() {
                 {/* Expanded detail */}
                 <AnimatePresence>
                   {isOpen && detail && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.25 }}
-                      className="overflow-hidden"
-                    >
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }} className="overflow-hidden">
                       <div className="px-3 pb-3 space-y-3 border-t border-white/5 pt-3">
+
+                        {/* 3) STRUCTURE TYPE + BONUS */}
+                        <div className="flex items-center gap-2 p-2 bg-white/3 rounded-lg border border-white/8">
+                          <Zap className={`w-4 h-4 flex-shrink-0 text-${activeCat.color}-400`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-semibold">{structInfo.label}</p>
+                            {structInfo.bonus && <p className="text-[9px] text-cyan-400">{structInfo.bonus}</p>}
+                          </div>
+                        </div>
+
+                        {/* 5) GRADIMENTO BAR (animated) */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-gray-400">Gradimento pubblico</span>
+                            <span className={`text-xs font-bold ${gradimento >= 70 ? 'text-green-400' : gradimento >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>{gradimento}/100</span>
+                          </div>
+                          <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <motion.div
+                              className={`h-full rounded-full ${gradimento >= 70 ? 'bg-gradient-to-r from-green-500 to-green-400' : gradimento >= 40 ? 'bg-gradient-to-r from-yellow-600 to-yellow-400' : 'bg-gradient-to-r from-red-600 to-red-400'}`}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${gradimento}%` }}
+                              transition={{ duration: 0.8, ease: 'easeOut' }}
+                            />
+                          </div>
+                        </div>
+
                         {/* Stats grid */}
                         {detail.stats && (
                           <div className="grid grid-cols-3 gap-2">
@@ -233,9 +320,9 @@ export default function StrutturePage() {
                               <p className="text-[9px] text-gray-400">Occupazione</p>
                               <p className="text-sm font-bold text-green-400">{detail.stats.occupancy_rate}%</p>
                             </div>
-                            <div className={`p-2 rounded-lg border text-center ${getPerformanceBg(detail.stats.satisfaction_index)}`}>
-                              <p className="text-[9px] text-gray-400">Gradimento</p>
-                              <p className={`text-sm font-bold ${getPerformanceColor(detail.stats.satisfaction_index)}`}>{detail.stats.satisfaction_index}/100</p>
+                            <div className="p-2 bg-white/5 rounded-lg border border-white/10 text-center">
+                              <p className="text-[9px] text-gray-400">Schermi</p>
+                              <p className="text-sm font-bold text-white">{detail.stats?.screens || 0}</p>
                             </div>
                           </div>
                         )}
@@ -250,12 +337,26 @@ export default function StrutturePage() {
                             </div>
                           </div>
                           <div className="text-right text-[10px] text-gray-500">
-                            <p>{detail.stats?.screens || 0} schermi</p>
                             <p>{detail.stats?.total_capacity?.toLocaleString() || 0} posti</p>
                           </div>
                         </div>
 
-                        {/* Film Programming */}
+                        {/* 2) SPIEGAZIONE GUADAGNI */}
+                        {earningsFactors.length > 0 && (
+                          <div className="p-2.5 bg-white/3 rounded-lg border border-white/8 space-y-1.5">
+                            <p className="text-[10px] font-semibold text-gray-300 flex items-center gap-1"><Info className="w-3 h-3 text-gray-500" /> Perche stai guadagnando cosi?</p>
+                            {earningsFactors.map((f, i) => (
+                              <div key={i} className="flex items-start gap-1.5">
+                                <span className={`text-[10px] font-bold mt-px ${f.type === 'positive' ? 'text-green-400' : f.type === 'negative' ? 'text-red-400' : 'text-yellow-400'}`}>
+                                  {f.type === 'positive' ? '+' : f.type === 'negative' ? '-' : '~'}
+                                </span>
+                                <span className="text-[10px] text-gray-400">{f.text}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 1) FILM PROGRAMMING with performance badges */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <h4 className="text-xs font-semibold flex items-center gap-1.5">
@@ -267,22 +368,44 @@ export default function StrutturePage() {
                           {detail.films_showing?.length > 0 ? (
                             <div className="space-y-1.5">
                               {detail.films_showing.map(film => {
-                                const perf = film.imdb_rating >= 7 ? 'green' : film.imdb_rating >= 5 ? 'yellow' : 'red';
+                                const perf = getFilmPerformance(film, gradimento);
+                                const PerfIcon = perf.icon;
+                                const daysLeft = getRentalDaysLeft(film);
+                                const age = getFilmAge(film);
+                                const isRented = !film.is_owned;
                                 return (
-                                  <div key={film.film_id} className={`flex items-center gap-2 p-2 rounded-lg border bg-${perf}-500/5 border-${perf}-500/15`}>
-                                    {film.poster_url && <img src={film.poster_url} alt="" className="w-8 h-12 object-cover rounded" />}
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-semibold truncate">{film.title}</p>
-                                      <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
-                                        <span className={`text-${perf}-400 font-bold`}>IMDb {film.imdb_rating || '?'}</span>
-                                        <Badge className={`text-[8px] h-3.5 ${film.is_owned ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                                          {film.is_owned ? '100%' : `${film.revenue_share_renter || 70}%`}
-                                        </Badge>
+                                  <div key={film.film_id} className={`p-2 rounded-lg border bg-${perf.color}-500/5 border-${perf.color}-500/15`} data-testid={`film-card-${film.film_id}`}>
+                                    <div className="flex items-center gap-2">
+                                      {film.poster_url && <img src={film.poster_url} alt="" className="w-8 h-12 object-cover rounded flex-shrink-0" />}
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                          <p className="text-xs font-semibold truncate">{film.title}</p>
+                                          {/* Performance badge */}
+                                          <Badge className={`text-[7px] h-3.5 px-1 bg-${perf.color}-500/25 text-${perf.color}-400 flex items-center gap-0.5 flex-shrink-0`}>
+                                            <PerfIcon className="w-2 h-2" />
+                                            {perf.level === 'ottimo' ? 'OTTIMO' : perf.level === 'medio' ? 'MEDIO' : 'FLOP'}
+                                          </Badge>
+                                        </div>
+                                        <p className={`text-[9px] text-${perf.color}-400/80`}>{perf.label}</p>
+                                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                          <span className="text-[9px] text-gray-500">IMDb {film.imdb_rating || '?'}</span>
+                                          {/* 4) RENTAL info */}
+                                          {isRented ? (
+                                            <>
+                                              <Badge className="text-[7px] h-3 bg-blue-500/25 text-blue-400">Noleggiato {film.revenue_share_renter || 70}%</Badge>
+                                              {daysLeft !== null && <span className="text-[9px] text-blue-300"><Clock className="w-2.5 h-2.5 inline mr-0.5" />{daysLeft}g</span>}
+                                              {film.rental_cost && <span className="text-[9px] text-gray-600">Pagato ${film.rental_cost?.toLocaleString()}</span>}
+                                            </>
+                                          ) : (
+                                            <Badge className="text-[7px] h-3 bg-green-500/20 text-green-400">Tuo 100%</Badge>
+                                          )}
+                                          {age !== null && age > 5 && <span className="text-[9px] text-orange-400">In prog. da {age}g</span>}
+                                        </div>
                                       </div>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10 flex-shrink-0" disabled={removingFilm === film.film_id} onClick={() => removeFilm(film.film_id)}>
+                                        <X className="w-3.5 h-3.5" />
+                                      </Button>
                                     </div>
-                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10" disabled={removingFilm === film.film_id} onClick={() => removeFilm(film.film_id)}>
-                                      <X className="w-3.5 h-3.5" />
-                                    </Button>
                                   </div>
                                 );
                               })}
@@ -295,14 +418,10 @@ export default function StrutturePage() {
                             <div className="grid grid-cols-2 gap-2">
                               <Button variant="outline" className="h-8 text-[11px] border-white/10" onClick={async () => {
                                 const r = await api.get('/films/my-available'); setMyFilms(r.data); setShowAddFilm(true);
-                              }}>
-                                <Plus className="w-3 h-3 mr-1" /> I Miei Film
-                              </Button>
+                              }}><Plus className="w-3 h-3 mr-1" /> I Miei Film</Button>
                               <Button className="h-8 text-[11px] bg-blue-600 hover:bg-blue-500" onClick={async () => {
                                 const r = await api.get('/films/available-for-rental'); setRentalFilms(r.data); setShowRentFilm(true);
-                              }}>
-                                <ShoppingBag className="w-3 h-3 mr-1" /> Affitta
-                              </Button>
+                              }}><ShoppingBag className="w-3 h-3 mr-1" /> Affitta</Button>
                             </div>
                           )}
                         </div>
@@ -313,12 +432,8 @@ export default function StrutturePage() {
                             <DollarSign className="w-3 h-3 mr-1" /> Prezzi
                           </Button>
                           {upgradeInfo && upgradeInfo.current_level < upgradeInfo.max_level && (
-                            <Button
-                              className={`h-8 text-[11px] ${upgradeInfo.can_upgrade ? 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white' : 'bg-gray-700 text-gray-400'}`}
-                              disabled={!upgradeInfo.can_upgrade || upgrading}
-                              onClick={() => handleUpgrade(infra.id)}
-                              data-testid={`upgrade-struttura-${infra.id}`}
-                            >
+                            <Button className={`h-8 text-[11px] ${upgradeInfo.can_upgrade ? 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white' : 'bg-gray-700 text-gray-400'}`}
+                              disabled={!upgradeInfo.can_upgrade || upgrading} onClick={() => handleUpgrade(infra.id)} data-testid={`upgrade-struttura-${infra.id}`}>
                               <ArrowUpCircle className="w-3 h-3 mr-1" />
                               {upgrading ? '...' : `Lv.${upgradeInfo.next_level} ($${upgradeInfo.upgrade_cost?.toLocaleString()})`}
                             </Button>
@@ -432,6 +547,7 @@ export default function StrutturePage() {
               </div>
             ))}
           </div>
+          <p className="text-[9px] text-gray-500">Prezzi troppo alti riducono l'affluenza. Bilanciamento ideale: $8-$15 per biglietto.</p>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setShowPrices(false)}>Annulla</Button>
             <Button size="sm" onClick={savePricesFn} disabled={savingPrices} className="bg-yellow-500 text-black">{savingPrices ? '...' : 'Salva'}</Button>

@@ -4,7 +4,7 @@ import {
   Plus, Sparkles, Camera, Clapperboard, Megaphone, Award, Ticket,
   MapPin, Palette, FileText, Lock, Users, Music, Wand2, Play,
   Timer, TrendingUp, DollarSign, Building2, Globe, Heart, Send,
-  Pencil, Tv, BarChart3, PlayCircle
+  Pencil, Tv, BarChart3, PlayCircle, RefreshCw
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { useToast } from '../hooks/use-toast';
@@ -549,8 +549,59 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
           <span className="text-[9px] text-gray-400 uppercase font-bold flex items-center gap-1"><Palette className="w-3 h-3" /> Locandina</span>
           {hasPoster && <Badge className="bg-emerald-500/15 text-emerald-400 text-[7px] border-emerald-500/20">Creata</Badge>}
         </div>
-        {film.poster_url && <img src={film.poster_url} alt="" className="w-full max-w-[160px] mx-auto rounded-lg border border-gray-700" />}
-        {!hasPoster && (
+        {/* Poster display with regen button */}
+        {film.poster_url ? (
+          <div className="relative group">
+            <img src={film.poster_url} alt="" className={`w-full max-w-[160px] mx-auto rounded-lg border border-gray-700 transition-opacity ${loading === 'regen-poster' ? 'opacity-30' : ''}`} />
+            {loading === 'regen-poster' && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {(film.poster_regen_count || 0) < 3 ? (
+              <button
+                onClick={async () => {
+                  setLoading('regen-poster');
+                  try {
+                    const res = await api.post(`/pipeline-v2/films/${film.id}/regenerate-poster`);
+                    setFilm(prev => ({ ...prev, poster_url: res.data.poster_url, poster_regen_count: res.data.regen_count }));
+                    toast({ title: 'Locandina rigenerata!' });
+                  } catch (e) { toast({ title: e.response?.data?.detail || 'Errore, riprova', variant: 'destructive' }); }
+                  finally { setLoading(null); }
+                }}
+                disabled={loading === 'regen-poster'}
+                className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/60 border border-yellow-500/30 text-yellow-400 text-[8px] flex items-center gap-0.5 opacity-0 group-hover:opacity-100 hover:bg-black/80 transition-all disabled:opacity-30"
+                data-testid="regen-poster-btn"
+              >
+                <RefreshCw className="w-2.5 h-2.5" /> Rigenera
+              </button>
+            ) : (
+              <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-gray-500 text-[7px]">Max 3 rigenerate</span>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-4">
+            <Film className="w-8 h-8 text-gray-600" />
+            <p className="text-[9px] text-gray-500">Locandina non disponibile</p>
+            <button
+              onClick={async () => {
+                setLoading('regen-poster');
+                try {
+                  const res = await api.post(`/pipeline-v2/films/${film.id}/regenerate-poster`);
+                  setFilm(prev => ({ ...prev, poster_url: res.data.poster_url, poster_regen_count: res.data.regen_count, pipeline_flags: { ...prev.pipeline_flags, has_poster: true } }));
+                  toast({ title: 'Locandina generata!' });
+                } catch (e) { toast({ title: e.response?.data?.detail || 'Errore, riprova', variant: 'destructive' }); }
+                finally { setLoading(null); }
+              }}
+              disabled={loading === 'regen-poster'}
+              className="px-3 py-1.5 rounded-lg bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[10px] flex items-center gap-1 hover:bg-yellow-500/25 transition-colors disabled:opacity-50"
+              data-testid="gen-poster-btn"
+            >
+              {loading === 'regen-poster' ? <><div className="w-3 h-3 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" /> Generazione...</> : <><Sparkles className="w-3 h-3" /> Genera Locandina</>}
+            </button>
+          </div>
+        )}
+        {!hasPoster && !film.poster_url && (
           <div className="flex gap-1.5">
             <button onClick={() => generatePoster('ai_auto')} disabled={loading === 'poster'}
               className="flex-1 text-[9px] py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50" data-testid="poster-ai-auto">

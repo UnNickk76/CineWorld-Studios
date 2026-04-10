@@ -530,6 +530,56 @@ async def generate_poster_v2(pid: str, req: PosterV2Request, user: dict = Depend
     film = await _update_project(pid, update)
     return {'film': film, 'poster_url': poster_url}
 
+
+@router.post("/films/{pid}/regenerate-poster")
+async def regenerate_poster_v2(pid: str, user: dict = Depends(get_current_user)):
+    """Regenerate poster for a film. Max 3 times per film."""
+    project = await _get_project(pid, user['id'])
+    regen_count = project.get('poster_regen_count', 0)
+    if regen_count >= 3:
+        raise HTTPException(400, "Limite rigenerazioni raggiunto (max 3)")
+
+    try:
+        import os, uuid as _uuid
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        api_key = os.environ.get('EMERGENT_LLM_KEY', '')
+        genre_label = project.get('genre', 'drama')
+        subs = ', '.join(project.get('subgenres', []))
+        prompt_text = (
+            f"Professional cinematic movie poster, portrait orientation 2:3 ratio, for the film '{project['title']}'. "
+            f"Genre: {genre_label}. Subgenres: {subs or 'N/A'}. "
+            f"Film title '{project['title']}' displayed prominently with professional typography. "
+            f"Dramatic lighting, Hollywood quality, style matching the genre."
+        )
+        img_gen = OpenAIImageGeneration(api_key=api_key)
+        images = await img_gen.generate_images(prompt=prompt_text, model="gpt-image-1", number_of_images=1)
+
+        if images and len(images) > 0:
+            posters_dir = '/app/frontend/public/posters/ai'
+            os.makedirs(posters_dir, exist_ok=True)
+            fname = f"{pid}_regen_{_uuid.uuid4().hex[:6]}.png"
+            fpath = os.path.join(posters_dir, fname)
+            with open(fpath, 'wb') as f:
+                f.write(images[0])
+            poster_url = f"/posters/ai/{fname}"
+        else:
+            raise HTTPException(500, "Generazione fallita, riprova")
+
+        film = await _update_project(pid, {
+            'poster_url': poster_url,
+            'poster_regen_count': regen_count + 1,
+            'pipeline_flags.has_poster': True,
+        })
+        return {'success': True, 'poster_url': poster_url, 'regen_count': regen_count + 1}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.warning(f"[V2] Poster regen failed: {e}")
+        raise HTTPException(500, f"Errore generazione: {str(e)}")
+
+
+
 class ScreenplayV2Request(BaseModel):
     mode: str = 'ai_auto'
     prompt: str = ''

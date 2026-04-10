@@ -1,7 +1,7 @@
 # CineWorld - TV Stations System
 # Netflix-style TV stations: multi-purchase, content management, share/revenue, public listings
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
@@ -1758,3 +1758,253 @@ async def start_reruns(req: StartRerunsRequest, user: dict = Depends(get_current
         {'$set': {'contents': station['contents'], 'updated_at': datetime.now(timezone.utc).isoformat()}}
     )
     return {"message": f"Repliche avviate! Audience al {int(RERUN_MULTIPLIER*100)}%.", "broadcast_state": "airing"}
+
+
+# ═══════════════════════════════════════════════════════
+# MIGRAZIONE SERIE/ANIME: Vecchio → Nuovo formato
+# ═══════════════════════════════════════════════════════
+
+ADMIN_NICK = "NeoMorpheus"
+
+@router.get("/admin/migration/old-series")
+async def list_old_series(user: dict = Depends(get_current_user)):
+    """Lista tutte le serie/anime vecchio formato da migrare."""
+    if user.get('nickname') != ADMIN_NICK:
+        raise HTTPException(403, "Solo admin")
+
+    series_list = await db.tv_series.find(
+        {'user_id': user['id']},
+        {'_id': 0, 'id': 1, 'title': 1, 'type': 1, 'genre': 1, 'num_episodes': 1,
+         'quality_score': 1, 'imdb_rating': 1, 'status': 1, 'migrated': 1,
+         'episodes': 1, 'cast': 1}
+    ).to_list(100)
+
+    result = []
+    for s in series_list:
+        eps = s.get('episodes', [])
+        has_real_titles = any(
+            ep.get('title', '').replace(f'Episodio {ep.get("number", 0)}', '').strip()
+            for ep in eps
+        )
+        has_episode_types = any(ep.get('episode_type') for ep in eps)
+        cast = s.get('cast', [])
+        cast_format = 'array' if isinstance(cast, list) else 'object' if isinstance(cast, dict) else 'unknown'
+
+        result.append({
+            'id': s['id'],
+            'title': s.get('title', '?'),
+            'type': s.get('type', 'tv_series'),
+            'genre': s.get('genre', '?'),
+            'num_episodes': s.get('num_episodes', len(eps)),
+            'quality_score': s.get('quality_score', 0),
+            'imdb_rating': s.get('imdb_rating', 0),
+            'status': s.get('status', '?'),
+            'migrated': s.get('migrated', False),
+            'needs_migration': not has_real_titles or not has_episode_types,
+            'cast_format': cast_format,
+            'episodes_count': len(eps),
+        })
+
+    return {'series': result, 'total': len(result)}
+
+
+class MigrateSeriesRequest(BaseModel):
+    series_id: str
+
+
+@router.post("/admin/migration/migrate-series")
+async def migrate_series(req: MigrateSeriesRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    """Avvia migrazione di una serie al nuovo formato con AI."""
+    if user.get('nickname') != ADMIN_NICK:
+        raise HTTPException(403, "Solo admin")
+
+    series = await db.tv_series.find_one(
+        {'id': req.series_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not series:
+        raise HTTPException(404, "Serie non trovata")
+
+    # Set migration status
+    await db.tv_series.update_one(
+        {'id': req.series_id},
+        {'$set': {'migration_status': 'processing', 'migration_progress': 0}}
+    )
+
+    background_tasks.add_task(_run_series_migration, req.series_id, series)
+    return {'status': 'started', 'series_id': req.series_id}
+
+
+@router.get("/admin/migration/migrate-status/{series_id}")
+async def get_migration_status(series_id: str, user: dict = Depends(get_current_user)):
+    """Polling stato migrazione."""
+    if user.get('nickname') != ADMIN_NICK:
+        raise HTTPException(403, "Solo admin")
+
+    series = await db.tv_series.find_one(
+        {'id': series_id},
+        {'_id': 0, 'migration_status': 1, 'migration_progress': 1, 'migration_step': 1, 'migrated': 1}
+    )
+    if not series:
+        raise HTTPException(404, "Serie non trovata")
+
+    return {
+        'status': series.get('migration_status', 'idle'),
+        'progress': series.get('migration_progress', 0),
+        'step': series.get('migration_step', ''),
+        'migrated': series.get('migrated', False),
+    }
+
+
+async def _run_series_migration(series_id: str, series: dict):
+    """Background task: migra una serie con AI."""
+    import json as json_mod
+    import uuid
+    try:
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+        title = series.get('title', 'Serie sconosciuta')
+        genre = series.get('genre', 'drama')
+        episodes = series.get('episodes', [])
+        num_eps = len(episodes) or series.get('num_episodes', 10)
+        screenplay = series.get('screenplay', '')
+        pre_trama = series.get('pre_trama', '')
+        imdb = series.get('imdb_rating', series.get('quality_score', 60))
+        content_type = series.get('type', 'tv_series')
+
+        # Estrai testo screenplay
+        if isinstance(screenplay, dict):
+            screenplay_text = screenplay.get('text', '')[:500]
+        else:
+            screenplay_text = str(screenplay)[:500]
+        pre_trama_text = str(pre_trama)[:300] if pre_trama else ''
+
+        # Step 1: Analisi
+        await db.tv_series.update_one(
+            {'id': series_id},
+            {'$set': {'migration_progress': 10, 'migration_step': 'Analisi serie'}}
+        )
+
+        # Step 2: AI genera episodi
+        await db.tv_series.update_one(
+            {'id': series_id},
+            {'$set': {'migration_progress': 25, 'migration_step': 'Generazione episodi con AI...'}}
+        )
+
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise ValueError("EMERGENT_LLM_KEY non configurata")
+
+        prompt = f"""Genera ESATTAMENTE {num_eps} episodi per la {"serie TV" if content_type == "tv_series" else "serie anime"} "{title}" (genere: {genre}).
+
+Contesto trama: {pre_trama_text or 'Non disponibile'}
+Sceneggiatura (estratto): {screenplay_text or 'Non disponibile'}
+
+Per ogni episodio genera:
+- number (1 a {num_eps})
+- title (titolo creativo in italiano, 3-6 parole)
+- mini_plot (mini trama 1-2 frasi in italiano)
+- episode_type: scegli tra "normal", "peak", "filler", "plot_twist", "season_finale" (solo l'ultimo puo essere season_finale, distribuisci 1-2 peak, 1 plot_twist, 1-2 filler, resto normal)
+- quality (numero 50-95, varia per episodio ma media intorno a {min(90, max(50, int(imdb * 10)))})
+- hype_impact (1-15, piu alto per peak/plot_twist)
+- audience_multiplier (0.7-1.8, piu alto per peak/season_finale)
+
+Rispondi SOLO con array JSON. Nessun altro testo."""
+
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"migrate-{series_id[:8]}-{uuid.uuid4().hex[:6]}",
+            system_message="Genera solo JSON valido."
+        ).with_model("openai", "gpt-4.1-mini")
+
+        response = await chat.send_message(UserMessage(text=prompt))
+
+        # Step 3: Parsing
+        await db.tv_series.update_one(
+            {'id': series_id},
+            {'$set': {'migration_progress': 60, 'migration_step': 'Parsing risposta AI'}}
+        )
+
+        clean = response.strip()
+        if clean.startswith('```'):
+            clean = clean.split('\n', 1)[1] if '\n' in clean else clean[3:]
+        if clean.endswith('```'):
+            clean = clean[:-3]
+        clean = clean.strip()
+
+        new_episodes = json_mod.loads(clean)
+        if not isinstance(new_episodes, list):
+            raise ValueError("Non e' un array")
+
+        # Step 4: Conversione cast
+        await db.tv_series.update_one(
+            {'id': series_id},
+            {'$set': {'migration_progress': 75, 'migration_step': 'Conversione cast'}}
+        )
+
+        old_cast = series.get('cast', [])
+        if isinstance(old_cast, list):
+            # Converti array → object
+            new_cast = {
+                'director': None,
+                'screenwriter': None,
+                'actors': [],
+                'composer': None,
+            }
+            for member in old_cast:
+                role = member.get('role', '').lower()
+                actor_entry = {
+                    'actor_id': member.get('actor_id', ''),
+                    'name': member.get('name', ''),
+                    'skill': member.get('skill', 50),
+                    'popularity': member.get('popularity', 50),
+                    'role': member.get('role', 'protagonist'),
+                }
+                if 'regist' in role or 'director' in role:
+                    new_cast['director'] = actor_entry
+                elif 'sceneggia' in role or 'screenwriter' in role:
+                    new_cast['screenwriter'] = actor_entry
+                elif 'compos' in role or 'music' in role:
+                    new_cast['composer'] = actor_entry
+                else:
+                    new_cast['actors'].append(actor_entry)
+        else:
+            new_cast = old_cast  # Gia nel formato giusto
+
+        # Step 5: Salvataggio
+        await db.tv_series.update_one(
+            {'id': series_id},
+            {'$set': {'migration_progress': 90, 'migration_step': 'Salvataggio'}}
+        )
+
+        update_fields = {
+            'episodes': new_episodes,
+            'cast': new_cast,
+            'migrated': True,
+            'migration_status': 'done',
+            'migration_progress': 100,
+            'migration_step': 'Completato',
+            'pipeline_version': 2,
+        }
+
+        await db.tv_series.update_one(
+            {'id': series_id},
+            {'$set': update_fields}
+        )
+
+        import logging
+        logging.getLogger(__name__).info(f"[MIGRATION] Serie '{title}' migrata con {len(new_episodes)} episodi")
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[MIGRATION] Errore migrazione: {e}")
+        await db.tv_series.update_one(
+            {'id': series_id},
+            {'$set': {
+                'migration_status': 'error',
+                'migration_step': f'Errore: {str(e)[:100]}',
+            }}
+        )

@@ -1247,6 +1247,39 @@ const TopNavbar = () => {
         </div>
       )}
 
+      {/* PRODUCI MENU — Bottom sheet with production options */}
+      {showProductionMenu && (
+        <div className="fixed inset-0 z-[100]" data-testid="produci-menu">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowProductionMenu(false)} />
+          <div className="absolute bottom-0 left-0 right-0 bg-[#111113] border-t border-yellow-500/20 rounded-t-2xl shadow-2xl"
+            style={{ paddingBottom: 'calc(60px + env(safe-area-inset-bottom, 0px))' }}>
+            <div className="px-4 py-3 flex items-center justify-between border-b border-white/5">
+              <span className="font-['Bebas_Neue'] text-base tracking-widest text-yellow-500">Produci</span>
+              <button onClick={() => setShowProductionMenu(false)} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="grid grid-cols-3 gap-2 p-3">
+              {[
+                { icon: Camera, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400' },
+                { icon: Copy, label: 'Sequel', path: '/create-sequel', color: 'bg-orange-500/15 border-orange-500/30 text-orange-400' },
+                { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400' },
+                { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400' },
+                { icon: Radio, label: 'La Tua TV', path: '/my-tv', color: 'bg-teal-500/15 border-teal-500/30 text-teal-400' },
+                { icon: Users, label: 'Agenzia', path: '/agenzia', color: 'bg-purple-500/15 border-purple-500/30 text-purple-400' },
+              ].map(item => (
+                <button key={item.path}
+                  className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border ${item.color} transition-all hover:scale-105 active:scale-95`}
+                  onClick={() => { setShowProductionMenu(false); navigate(item.path); }}
+                  data-testid={`produci-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                >
+                  <item.icon className="w-6 h-6" />
+                  <span className="text-[10px] font-bold">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TITOLI DI CODA — Full navigation grid (ex hamburger menu) */}
       <TitoliDiCoda open={mobileMenuOpen} setOpen={setMobileMenuOpen} navItems={navItems} user={user} navigate={navigate} logout={logout} language={language} t={t} levelInfo={levelInfo} setShowGameTutorial={setShowGameTutorial} />
 

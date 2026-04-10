@@ -111,6 +111,7 @@ from routes.sponsors import router as sponsors_router, initialize_sponsors as _i
 from routes.la_prima import router as la_prima_router
 from routes.deletion import router as deletion_router
 from routes.maintenance import router as maintenance_router
+from routes.city_dynamics import router as city_dynamics_router
 import poster_storage
 from cast_system import (
     generate_cast_member, generate_cast_member_v2, generate_full_cast_pool,
@@ -7281,6 +7282,19 @@ async def startup_event():
         auto_cleanup_corrupted_projects,
         auto_revenue_tick
     )
+    from routes.city_dynamics import (
+        initialize_city_dynamics,
+        update_expired_cities,
+        generate_film_city_notifications
+    )
+    from scheduler_tasks import process_hype_and_events
+    # Inizializza citta dinamiche
+    await initialize_city_dynamics()
+    # Inizializza hype per film esistenti senza campo hype
+    await db.films.update_many(
+        {'hype': {'$exists': False}},
+        {'$set': {'hype': 50, 'hype_last_update': datetime.now(timezone.utc).isoformat()}}
+    )
     
     # Add scheduled jobs
     
@@ -7468,6 +7482,30 @@ async def startup_event():
     )
 
     # Start the scheduler
+    # City dynamics: update expired cities every 6 hours
+    scheduler.add_job(
+        update_expired_cities,
+        IntervalTrigger(hours=6),
+        id='update_city_dynamics',
+        replace_existing=True
+    )
+
+    # Film city notifications: every 3 hours
+    scheduler.add_job(
+        generate_film_city_notifications,
+        IntervalTrigger(hours=3),
+        id='film_city_notifications',
+        replace_existing=True
+    )
+
+    # Hype decay + events connection: every 30 min
+    scheduler.add_job(
+        process_hype_and_events,
+        IntervalTrigger(minutes=30),
+        id='process_hype_events',
+        replace_existing=True
+    )
+
     scheduler.start()
     logging.info("APScheduler started with background jobs for autonomous game operations")
 

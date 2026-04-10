@@ -200,7 +200,8 @@ def _calc_decay_factor(initial_hype_boost: float) -> float:
 
 
 async def calculate_premiere_impact(film_project: dict, city: dict, datetime_str: str, delay_days: int) -> dict:
-    """Calculate hidden premiere impact. Returns impact details (internal only)."""
+    """Calculate hidden premiere impact. Returns impact details (internal only).
+    Integra city_dynamics per boost forte su LaPrima."""
     genre = film_project.get('genre', 'drama')
     cast = film_project.get('cast', {})
     sponsors = film_project.get('sponsors', [])
@@ -212,10 +213,19 @@ async def calculate_premiere_impact(film_project: dict, city: dict, datetime_str
     cast_bonus = _calc_cast_bonus(cast)
     sponsor_bonus = _calc_sponsor_bonus(sponsors)
 
+    # City dynamics boost (FORTE su LaPrima: fino a +0.15)
+    city_dynamics_boost = 0.0
+    try:
+        from routes.city_dynamics import get_city_boost
+        cd = await get_city_boost(city['name'], genre)
+        city_dynamics_boost = cd.get('bonus', 0.0) * 0.5  # Scala a meta per LaPrima
+    except Exception:
+        pass
+
     # Base multiplier: 0.30 (a premiere alone is worth up to 30% hype boost)
     base = 0.30
 
-    raw_impact = base * (city_match + timing + delay + cast_bonus + sponsor_bonus - saturation)
+    raw_impact = base * (city_match + timing + delay + cast_bonus + sponsor_bonus - saturation + city_dynamics_boost)
     # Clamp to 0.01 - 0.40 range
     initial_hype_boost = round(max(0.01, min(0.40, raw_impact)), 3)
     decay_factor = _calc_decay_factor(initial_hype_boost)
@@ -230,6 +240,7 @@ async def calculate_premiere_impact(film_project: dict, city: dict, datetime_str
             'saturation': round(saturation, 3),
             'cast_bonus': round(cast_bonus, 3),
             'sponsor_bonus': round(sponsor_bonus, 3),
+            'city_dynamics_boost': round(city_dynamics_boost, 3),
             'raw_impact': round(raw_impact, 3),
         }
     }
@@ -839,3 +850,47 @@ async def get_la_prima_rankings(user: dict = Depends(get_current_user)):
         },
         'total_events': len(entries),
     }
+
+
+# ═══════════════════════════════════════════════════════
+# VELION LA PRIMA — Suggerimenti citta (~40% probabilita)
+# ═══════════════════════════════════════════════════════
+
+@router.get("/velion-suggestion/{film_id}")
+async def get_velion_la_prima_suggestion(film_id: str, user: dict = Depends(get_current_user)):
+    """Velion suggerisce 2-4 citta per LaPrima. Probabilita ~40%.
+    60-70% citta buone, 30-40% medie/sbagliate. MAI perfetto."""
+    project = await db.film_projects.find_one(
+        {'id': film_id, 'user_id': user['id']},
+        {'_id': 0, 'id': 1, 'genre': 1, 'title': 1, 'premiere': 1}
+    )
+    if not project:
+        project = await db.films.find_one(
+            {'id': film_id, 'user_id': user['id']},
+            {'_id': 0, 'id': 1, 'genre': 1, 'title': 1, 'premiere': 1}
+        )
+    if not project:
+        return {'has_suggestion': False}
+
+    # 40% probabilita che Velion abbia un suggerimento
+    if random.random() > 0.40:
+        return {'has_suggestion': False}
+
+    genre = project.get('genre', 'drama')
+    count = random.randint(2, 4)
+
+    try:
+        from routes.city_dynamics import get_velion_city_suggestions
+        cities = await get_velion_city_suggestions(genre, count)
+    except Exception:
+        cities = random.sample(
+            ['Roma', 'Tokyo', 'New York', 'Parigi', 'Londra', 'Seoul', 'Los Angeles'],
+            min(count, 7)
+        )
+
+    return {
+        'has_suggestion': True,
+        'message': f'Ho una sensazione... questo film potrebbe funzionare bene a:',
+        'cities': cities,
+    }
+

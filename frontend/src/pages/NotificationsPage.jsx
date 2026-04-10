@@ -16,7 +16,7 @@ import {
   Heart, MessageSquare, Swords, Trophy, Target,
   ChevronRight, AlertTriangle, AlertCircle, Sparkles,
   Flame, Eye, Zap, UserPlus, UserCheck, Crown, GraduationCap,
-  Mail, BarChart3, CheckCircle, TrendingDown, Camera, Gavel
+  Mail, BarChart3, CheckCircle, TrendingDown, Camera, Gavel, MapPin
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
 import { useNotifications } from '../components/NotificationProvider';
@@ -121,6 +121,7 @@ const NotificationsPage = () => {
       flop_warning: <TrendingDown className="w-5 h-5 text-red-400" />,
       chart_entry: <BarChart3 className="w-5 h-5 text-green-400" />,
       film_interaction: <Eye className="w-5 h-5 text-cyan-400" />,
+      film_city_impact: <MapPin className="w-5 h-5 text-amber-400" />,
       speed_up_used: <Zap className="w-5 h-5 text-yellow-400" />,
       film_release: <Camera className="w-5 h-5 text-yellow-400" />,
       system: <Info className="w-5 h-5 text-gray-400" />

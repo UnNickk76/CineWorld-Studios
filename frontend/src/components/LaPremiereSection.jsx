@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '../components/ui/dialog';
 import { Slider } from '../components/ui/slider';
 import { toast } from 'sonner';
-import { MapPin, Clock, Calendar, Sparkles, Star, Film } from 'lucide-react';
+import { MapPin, Clock, Calendar, Sparkles, Star, Film, Eye } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -29,6 +30,7 @@ export const LaPremiereSection = ({ film, filmId: filmIdProp, project, api: apiP
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('20:00');
   const [delayDays, setDelayDays] = useState(3);
+  const [velionSuggestion, setVelionSuggestion] = useState(null);
 
   const filmId = filmIdProp || film?.id;
 
@@ -53,6 +55,15 @@ export const LaPremiereSection = ({ film, filmId: filmIdProp, project, api: apiP
   }, [api]);
 
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  // Fetch Velion suggestion when premiere is enabled but not configured
+  useEffect(() => {
+    if (premiereData?.premiere?.enabled && !premiereData?.premiere?.city && filmId && api) {
+      api.get(`/la-prima/velion-suggestion/${filmId}`)
+        .then(res => { if (res.data?.has_suggestion) setVelionSuggestion(res.data); })
+        .catch(() => {});
+    }
+  }, [premiereData, filmId, api]);
 
   const handleEnable = async () => {
     setLoading(true);
@@ -159,6 +170,39 @@ export const LaPremiereSection = ({ film, filmId: filmIdProp, project, api: apiP
             <p className="text-sm text-gray-400 mb-3">
               La Prima e' attiva! Configura citta', data e tempistica.
             </p>
+
+            {/* Velion LaPrima Suggestion */}
+            <AnimatePresence>
+              {velionSuggestion && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.6, ease: 'easeOut' }}
+                  data-testid="velion-la-prima-suggestion"
+                  className="mb-4 p-3 rounded-xl border border-cyan-500/20 bg-gradient-to-r from-cyan-500/5 to-purple-500/5 text-left"
+                  style={{ boxShadow: '0 0 20px rgba(6,182,212,0.06)' }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="text-[11px] font-semibold text-cyan-400 uppercase tracking-wider">Velion</span>
+                  </div>
+                  <p className="text-xs text-gray-300 mb-2">{velionSuggestion.message}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {velionSuggestion.cities?.map(city => (
+                      <button
+                        key={city}
+                        onClick={() => setSelectedCity(city)}
+                        className="text-[11px] px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/20 transition-colors cursor-pointer"
+                      >
+                        {city}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <Dialog open={setupOpen} onOpenChange={(open) => { setSetupOpen(open); if (open && cities.length === 0) fetchCities(); }}>
               <DialogTrigger asChild>
                 <Button

@@ -81,6 +81,7 @@ from routes.casting_agency import router as casting_agency_router
 from routes.film_pipeline import router as film_pipeline_router
 from routes.pipeline_v2 import router as pipeline_v2_router
 from routes.series_pipeline import router as series_pipeline_router
+from routes.admin_recovery import router as admin_recovery_router
 from routes.sequel_pipeline import router as sequel_pipeline_router
 from routes.emittente_tv import router as emittente_tv_router
 from routes.tv_stations import router as tv_stations_router
@@ -9913,6 +9914,7 @@ app.include_router(pvp_cinema_router, prefix="/api")
 velion_init(db, JWT_SECRET)
 app.include_router(velion_router)
 app.include_router(cast_router, prefix="/api")
+app.include_router(admin_recovery_router)
 app.include_router(admin_migration_router)
 app.include_router(users_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")

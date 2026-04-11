@@ -7,6 +7,7 @@ import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Pl
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 import { PlayerBadge } from '../components/PlayerBadge';
+import AdminFilmRecovery from '../components/AdminFilmRecovery';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
@@ -21,6 +22,7 @@ const ADMIN_TABS = [
   { id: 'tutorial', label: 'Tutorial Manager', icon: BookOpen },
   { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
+  { id: 'recovery', label: 'Anti-Limbo', icon: AlertTriangle },
 ];
 
 const COADMIN_TABS = [
@@ -2302,6 +2304,7 @@ export default function AdminPage() {
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
+        {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}
         {activeTab === 'migration' && isAdmin && <MigrationTab api={api} />}
         {activeTab === 'tutorial' && isAdmin && <TutorialManagerTab api={api} />}
       </div>

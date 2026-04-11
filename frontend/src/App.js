@@ -536,10 +536,16 @@ const GlobalSideMenu = () => {
   const { api, user } = useContext(AuthContext);
   const { setIsOpen: openProductionMenu } = useProductionMenu();
   const [categories, setCategories] = useState({ has_strutture: false, has_agenzia: false, has_strategico: false });
+  const [menuBadges, setMenuBadges] = useState({ produci: 0, contest: false });
 
   useEffect(() => {
     if (open && api) {
       api.get('/infrastructure/owned-categories').then(r => setCategories(r.data)).catch(() => {});
+      api.get('/pipeline-v2/production-counts').then(r => setMenuBadges(prev => ({ ...prev, produci: r.data?.total || 0 }))).catch(() => {});
+      api.get('/games/active-contests').then(r => {
+        const contests = Array.isArray(r.data) ? r.data : (r.data?.contests || []);
+        setMenuBadges(prev => ({ ...prev, contest: contests.length > 0 }));
+      }).catch(() => {});
     }
   }, [open, api]);
 
@@ -561,16 +567,18 @@ const GlobalSideMenu = () => {
     };
   }, []);
 
-  // Expose state for SwipeNavigator
+  // Expose badge state for CIACK indicator
   useEffect(() => {
     window.__sideMenuOpen = open;
-  }, [open]);
+    window.__menuHasBadge = menuBadges.produci > 0 || menuBadges.contest;
+    window.dispatchEvent(new Event('menu-badge-update'));
+  }, [open, menuBadges]);
 
   const go = (path) => { setOpen(false); navigate(path); };
   const goProduci = () => { setOpen(false); openProductionMenu(true); };
 
   const menuItems = [
-    { icon: Camera, label: "Produci", action: goProduci },
+    { icon: Camera, label: "Produci", action: goProduci, badge: menuBadges.produci > 0 },
     { icon: Pen, label: "Sceneggiature", action: () => go('/emerging-screenplays') },
     { icon: Store, label: "Mercato", action: () => go('/marketplace') },
     { icon: Tv, label: "Le mie TV", action: () => go('/my-tv') },
@@ -579,7 +587,7 @@ const GlobalSideMenu = () => {
     ...(categories.has_agenzia ? [{ icon: Users, label: "Agenzia", action: () => go('/agenzia') }] : []),
     ...(categories.has_strategico ? [{ icon: Shield, label: "Strategico", action: () => go('/strategico') }] : []),
     { icon: Gamepad2, label: "Minigiochi", action: () => go('/minigiochi') },
-    { icon: Trophy, label: "Contest", action: () => go('/games') },
+    { icon: Trophy, label: "Contest", action: () => go('/games'), badge: menuBadges.contest },
     { icon: Target, label: "Arena", action: () => go('/pvp-arena') },
     { icon: Award, label: "Festival", action: () => go('/festivals') },
   ];
@@ -594,7 +602,7 @@ const GlobalSideMenu = () => {
       <div
         className={`fixed top-0 left-0 h-full w-[24%] min-w-[82px] max-w-[110px] z-[48] transform transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
         data-testid="global-side-menu"
-        style={{ background: '#050505', overflow: 'hidden' }}
+        style={{ background: '#050505', overflow: 'hidden', touchAction: 'pan-y' }}
       >
         {/* LAYER 1: Animated film strip background */}
         <div className="film-strip-bg" aria-hidden="true" />
@@ -632,10 +640,11 @@ const GlobalSideMenu = () => {
           {/* MIDDLE: Scrollable frames */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none' }}>
             {menuItems.map(item => (
-              <button key={item.label} className="film-frame-btn" onClick={item.action}
+              <button key={item.label} className="film-frame-btn relative" onClick={item.action}
                 data-testid={`global-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
                 <item.icon className="mb-0.5 text-yellow-500/80 mx-auto" style={{ width: 16, height: 16 }} />
                 <span className="text-[8.5px] text-center leading-tight text-gray-300/80 block w-full">{item.label}</span>
+                {item.badge && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
               </button>
             ))}
             {/* Titoli di Coda */}
@@ -1159,6 +1168,7 @@ const TopNavbar = () => {
             data-testid="ciack-btn" aria-label="Menu">
             <Clapperboard className="w-4 h-4" />
             <ChevronDown className="w-2 h-2 opacity-50 -mt-0.5 animate-bounce" style={{ animationDuration: '2s' }} />
+            {(prodCounts.total > 0) && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
           </Button>
           {/* HOME */}
           <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}`}

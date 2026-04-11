@@ -74,11 +74,15 @@ export default function ParcoStudioPage() {
   }, [api]);
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Map dimensions: wider, less tall
+  const MAP_W = 4000;
+  const MAP_H = 2400;
+
   // Center on studio
   const centerMap = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    const mw = 3000 * zoom, mh = 3000 * zoom;
+    const mw = MAP_W * zoom, mh = MAP_H * zoom;
     const cw = el.clientWidth, ch = el.clientHeight;
     if (mw <= cw) { el.scrollLeft = 0; } else { el.scrollLeft = (mw * 0.5) - cw / 2; }
     if (mh <= ch) { el.scrollTop = 0; } else { el.scrollTop = (mh * 0.42) - ch / 2; }
@@ -123,7 +127,7 @@ export default function ParcoStudioPage() {
 
   if (loading) return <div className="fixed inset-0 bg-[#080604] flex items-center justify-center z-40" style={{ top: 44, bottom: 52 }}><Loader2 className="w-8 h-8 text-yellow-500 animate-spin" /></div>;
 
-  const mw = 3000 * zoom, mh = 3000 * zoom;
+  const mw = MAP_W * zoom, mh = MAP_H * zoom;
   const vw = containerRef.current?.clientWidth || 390;
   const vh = containerRef.current?.clientHeight || 700;
   const padX = mw < vw ? (vw - mw) / 2 : 0;

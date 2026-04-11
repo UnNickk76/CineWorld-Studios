@@ -409,7 +409,6 @@ const MobileBottomNav = () => {
   const items = [
     { path: '/dashboard', icon: Home, label: 'Home', testid: 'bn-home' },
     { path: null, icon: Film, label: 'I Miei', testid: 'bn-films', action: () => { setShowIMiei(!showIMiei); setShowQuickCommands(false); }, imiei: true },
-    { path: null, icon: Camera, label: 'Produci', testid: 'bn-produci', action: () => setShowProductionMenu(true), highlight: true },
     { path: '/social', icon: Globe, label: 'CineBoard', testid: 'bn-cineboard' },
     { path: '/leaderboard', icon: BarChart3, label: 'Classifiche', testid: 'bn-classifiche' },
     { path: '/festivals', icon: Medal, label: 'Festival', testid: 'bn-festival' },
@@ -1155,8 +1154,9 @@ const TopNavbar = () => {
             onClick={() => navigate('/dashboard')} data-testid="home-btn" aria-label="Home">
             <Home className="w-3.5 h-3.5" />
           </Button>
-          {/* PRODUCI */}
-          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 ${['/create-film','/create-series','/create-anime'].includes(location.pathname) ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          {/* PRODUCI — gold, pulse when active */}
+          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 text-yellow-500 hover:text-yellow-400 ${prodCounts.total > 0 ? 'animate-pulse' : ''}`}
+            style={prodCounts.total > 0 ? { animationDuration: '2.5s' } : {}}
             onClick={() => setShowProductionMenu(!showProductionMenu)} data-testid="top-nav-produci" aria-label="Produci">
             <Camera className="w-3.5 h-3.5" />
             {prodCounts.total > 0 && (

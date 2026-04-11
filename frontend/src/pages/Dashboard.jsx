@@ -433,17 +433,7 @@ const Dashboard = () => {
             </Card>
           </div>
 
-          {/* Menu button at bottom → opens old-style action grid */}
-          <button
-            onClick={() => setShowActionGrid(prev => !prev)}
-            className="w-full mt-2 mb-2 py-3 rounded-lg bg-white/10 text-white text-sm border border-white/10 active:scale-[0.98] transition-transform"
-            data-testid="dashboard-menu-btn"
-          >
-            <MenuIcon className="w-4 h-4 inline mr-2" />
-            Menu
-          </button>
-
-          {/* Old-style Action Grid (Foto 2) */}
+          {/* Old-style Action Grid (Foto 2) — accessible from other triggers */}
           {showActionGrid && (
             <div className="mb-6 space-y-2" data-testid="action-grid">
               {/* PRODUCI! - full width */}

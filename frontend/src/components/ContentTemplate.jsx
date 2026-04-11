@@ -107,16 +107,21 @@ function formatDuration(film, contentType) {
 }
 
 // === CAST EXTRACTOR (top 4-5, sorted by fame then value) ===
-function extractCastInfo(cast) {
+function extractCastInfo(cast, film) {
   let director = null;
   let actors = [];
 
-  if (!cast) return { director: null, actors: [] };
+  // Director from film.director (old format) or cast.director (V2)
+  if (film?.director?.name) {
+    director = film.director.name;
+  }
+
+  if (!cast) return { director, actors: [] };
 
   if (Array.isArray(cast)) {
     actors = cast.filter(a => a && a.name);
   } else if (typeof cast === 'object') {
-    if (cast.director?.name) director = cast.director.name;
+    if (!director && cast.director?.name) director = cast.director.name;
     if (Array.isArray(cast.actors)) {
       actors = cast.actors.filter(a => a && a.name);
     }
@@ -276,7 +281,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
   const statusInfo = getStatusInfo(film, contentType);
   const reviews = generateReviews(film.quality_score, film.popularity_score, contentType);
-  const castInfo = extractCastInfo(film.cast);
+  const castInfo = extractCastInfo(film.cast, film);
   const imdb = film.imdb_rating || (film.quality_score ? (film.quality_score / 10).toFixed(1) : null);
   const durationStr = formatDuration(film, contentType);
   const shortPlot = film.short_plot ? cleanText(film.short_plot) : null;
@@ -329,16 +334,17 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
             <div className="ct2-info-plot">{shortPlot}</div>
           ) : screenplay ? (
             <div className="ct2-info-plot">{(() => {
-              // Extract clean plot: skip title/logline headers, get narrative
               let text = screenplay;
-              // Remove header lines like "Titolo: ...", "Logline: ...", "Genere: ..."
               text = text.replace(/^(Titolo|Logline|Genere|Sottogenere|Ambientazione|Tono|Cast|Regia|Sceneggiatura)[:\s].+$/gmi, '');
               text = text.replace(/^(ATTO|ACT|SCENA|SCENE|INT\.|EXT\.)[:\s].*/gmi, '');
               text = text.trim();
-              // Take first meaningful paragraph
+              // If screenplay is already short (≤5 lines), use it as-is
+              const lines = text.split('\n').filter(l => l.trim());
+              if (lines.length <= 5) return text;
+              // Otherwise extract first narrative paragraphs
               const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 30);
-              const plot = paragraphs.length > 0 ? paragraphs[0].trim() : text;
-              return plot.substring(0, 200).trim() + (plot.length > 200 ? '...' : '');
+              const plot = paragraphs.slice(0, 2).join(' ').trim();
+              return plot.substring(0, 400).trim() + (plot.length > 400 ? '...' : '');
             })()}</div>
           ) : null}
         </div>

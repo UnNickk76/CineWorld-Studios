@@ -3998,6 +3998,42 @@ async def discard_film_v2(pid: str, user: dict = Depends(get_current_user)):
     )
     return {'success': True, 'message': f'Film scartato e messo in vendita a ${sale_price:,}', 'sale_price': sale_price}
 
+
+@router.post("/films/{pid}/admin-force-complete")
+async def admin_force_complete(pid: str, user: dict = Depends(get_current_user)):
+    """Admin: force-complete a film stuck in any pipeline state."""
+    if user.get('nickname') != 'NeoMorpheus' and user.get('role') != 'admin':
+        raise HTTPException(403, "Solo admin")
+    project = await db.film_projects.find_one({'id': pid}, {'_id': 0})
+    if not project:
+        raise HTTPException(404, "Progetto non trovato")
+
+    now = _now()
+    quality = project.get('quality_score') or project.get('pre_imdb_score', 60)
+    if quality < 10:
+        quality = quality * 10  # pre_imdb_score is 0-10, quality_score is 0-100
+    imdb = round(max(1.0, min(10.0, quality / 10)), 1)
+
+    update = {
+        'pipeline_state': 'completed',
+        'pipeline_substate': 'released',
+        'status': 'completed',
+        'pipeline_ui_step': 9,
+        'quality_score': quality,
+        'imdb_rating': imdb,
+        'released_at': now,
+        'completed_at': now,
+        'updated_at': now,
+        'release_schedule': {
+            'date_option': 'immediate', 'days': 0,
+            'zones': ['world'], 'zone_names': ['Mondiale'],
+            'hype_mult': 1.0, 'rev_mult': 3.5,
+        },
+    }
+    await db.film_projects.update_one({'id': pid}, {'$set': update})
+    return {'success': True, 'message': f'Film "{project.get("title")}" completato forzatamente', 'quality': quality, 'imdb': imdb}
+
+
 @router.post("/admin/diagnose")
 async def admin_diagnose_v2(user: dict = Depends(get_current_user)):
     """Diagnose V2 pipeline issues"""

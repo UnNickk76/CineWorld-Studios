@@ -412,6 +412,7 @@ const MobileBottomNav = () => {
     { path: '/social', icon: Globe, label: 'CineBoard', testid: 'bn-cineboard' },
     { path: '/leaderboard', icon: BarChart3, label: 'Classifiche', testid: 'bn-classifiche' },
     { path: '/festivals', icon: Medal, label: 'Festival', testid: 'bn-festival' },
+    { path: null, icon: Heart, label: 'Dona', testid: 'bn-dona', action: () => window.open('https://www.paypal.me/cineworldstudios', '_blank'), donate: true },
     { path: '/journal', icon: Newspaper, label: 'CineJournal', testid: 'bn-journal' },
     { path: '/marketplace', icon: Store, label: 'Mercato', testid: 'bn-mercato' },
     { path: '/minigiochi', icon: Gamepad2, label: 'Minigiochi', testid: 'bn-minigiochi' },
@@ -505,11 +506,13 @@ const MobileBottomNav = () => {
             return (
               <button key={item.testid}
                 className={`flex flex-col items-center justify-center gap-0 flex-1 min-w-0 py-0.5 rounded transition-colors ${
+                  item.donate ? 'text-pink-400 animate-pulse' :
                   item.highlight ? 'text-yellow-400' :
                   item.quick ? (showQuickCommands ? 'text-yellow-400' : 'text-orange-400/70') :
                   item.imiei ? (showIMiei ? 'text-yellow-400' : (isActive ? 'text-yellow-400' : 'text-gray-500')) :
                   isActive ? 'text-yellow-400' : 'text-gray-500'
                 }`}
+                style={item.donate ? { animationDuration: '2s' } : {}}
                 onClick={() => item.action ? item.action() : navigate(item.path)}
                 data-testid={item.testid}
               >

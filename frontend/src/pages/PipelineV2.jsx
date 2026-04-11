@@ -2364,11 +2364,11 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
     }
     setLoading('schedule');
     try {
-      const res = await api.post(`/films/${film.id}/schedule-release`, {
+      const res = await api.post(`/pipeline-v2/films/${film.id}/schedule-release`, {
         date_option: selectedDate, zones: activeZones,
       });
-      setScheduled(res.schedule);
-      toast({ title: `Distribuzione programmata! -$${res.funds_charged?.toLocaleString()} / -${res.cp_charged} CP` });
+      setScheduled(res.data?.schedule || res.data);
+      toast({ title: `Distribuzione programmata!` });
       onRefresh();
     } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); }
     finally { setLoading(''); }
@@ -2377,18 +2377,18 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
   const release = async () => {
     setLoading('release');
     try {
-      const res = await api.post(`/films/${film.id}/release`);
-      if (res.scheduled) {
-        toast({ title: `Film programmato per uscita tra ${res.days} giorni in ${res.zones?.join(', ')}` });
+      const res = await api.post(`/pipeline-v2/films/${film.id}/release`);
+      if (res.data?.scheduled) {
+        toast({ title: `Film programmato per uscita` });
         onRefresh(); setLoading('');
       } else {
-        setResult(res);
+        setResult(res.data);
         if (!film.release_sequence_played) {
           setShowReleaseOverlay(true);
         } else {
           setLoading('');
           onRefresh();
-          toast({ title: `${film.title} rilasciato! Quality: ${res.quality_score || '?'}` });
+          toast({ title: `${film.title} rilasciato! Quality: ${res.data?.quality_score || '?'}` });
         }
       }
     } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); setLoading(''); }

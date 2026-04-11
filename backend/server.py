@@ -3313,15 +3313,26 @@ async def get_release_cinematic(film_id: str, user: dict = Depends(get_current_u
 async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
-        # Fallback: check film_projects for auto-released/completed films
-        film = await db.film_projects.find_one({'id': film_id, 'status': 'completed'}, {'_id': 0})
+        # Fallback: check film_projects for ANY status (not just completed)
+        film = await db.film_projects.find_one({'id': film_id}, {'_id': 0})
         if film:
-            # Provide defaults for film_projects that may lack some fields
             film.setdefault('owner_id', film.get('user_id'))
             film.setdefault('owner_nickname', '')
     if not film:
         raise HTTPException(status_code=404, detail="Film non trovato")
     
+    # Map pipeline_state to status for ContentTemplate
+    if film.get('pipeline_state'):
+        ps = film['pipeline_state']
+        if ps == 'premiere_live' or ps == 'premiere_setup':
+            film['status'] = 'premiere_live'
+        elif ps in ('release_pending', 'released', 'completed'):
+            film['status'] = ps
+        elif ps in ('hype_setup', 'hype_live'):
+            film['status'] = 'coming_soon'
+        elif ps != 'discarded':
+            film['status'] = 'in_production'
+
     # Calculate and add cineboard_score
     film['cineboard_score'] = calculate_cineboard_score(film)
     
@@ -3358,6 +3369,12 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film.setdefault('advanced_factors', {})
     film.setdefault('soundtrack_rating', None)
     film.setdefault('critic_reviews', [])
+    film.setdefault('duration_category', None)
+    film.setdefault('duration_minutes', None)
+    film.setdefault('short_plot', None)
+    film.setdefault('trend_score', 0)
+    film.setdefault('trend_position', None)
+    film.setdefault('trend_delta', None)
     
     return film
 

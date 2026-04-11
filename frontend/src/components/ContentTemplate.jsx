@@ -76,6 +76,19 @@ function generateReviews(quality, hype, contentType) {
 
 const toStr = (v) => typeof v === 'string' ? v : (v?.text || v?.content || '');
 
+// Clean markdown artifacts from screenplay/plot text
+const cleanText = (text) => {
+  if (!text) return '';
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold** → bold
+    .replace(/\*([^*]+)\*/g, '$1')        // *italic* → italic
+    .replace(/^#{1,3}\s+/gm, '')          // # headers
+    .replace(/^[-*]\s+/gm, '')            // bullet points
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url) → link
+    .replace(/\n{3,}/g, '\n\n')           // multiple newlines
+    .trim();
+};
+
 // === DURATION FORMATTER ===
 function formatDuration(film, contentType) {
   if (contentType === 'series' || contentType === 'anime') {
@@ -225,16 +238,26 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
     setLoading(true);
     try {
       const endpoint = isSeries ? `/series/${filmId}` : `/films/${filmId}`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
       const [filmRes, vaRes] = await Promise.all([
-        api.get(endpoint),
-        isSeries ? Promise.resolve({ data: null }) : api.get(`/films/${filmId}/virtual-audience`).catch(() => ({ data: null })),
+        api.get(endpoint, { signal: controller.signal }),
+        isSeries ? Promise.resolve({ data: null }) : api.get(`/films/${filmId}/virtual-audience`, { signal: controller.signal }).catch(() => ({ data: null })),
       ]);
+      clearTimeout(timeout);
       const data = filmRes.data;
       if (data && !data.detail) {
         setFilm(data);
         setVirtualAudience(vaRes.data);
       }
-    } catch { /* silent */ }
+    } catch {
+      // Fallback: try getting just the basic film data
+      try {
+        const endpoint = isSeries ? `/series/${filmId}` : `/films/${filmId}`;
+        const res = await api.get(endpoint);
+        if (res.data && !res.data.detail) setFilm(res.data);
+      } catch { /* truly failed */ }
+    }
     finally { setLoading(false); }
   }, [api, filmId, isSeries]);
 
@@ -256,10 +279,10 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const castInfo = extractCastInfo(film.cast);
   const imdb = film.imdb_rating || (film.quality_score ? (film.quality_score / 10).toFixed(1) : null);
   const durationStr = formatDuration(film, contentType);
-  const shortPlot = film.short_plot || null;
+  const shortPlot = film.short_plot ? cleanText(film.short_plot) : null;
   const trendPos = film.trend_position;
   const trendDelta = film.trend_delta;
-  const screenplay = toStr(film.screenplay) || toStr(film.pre_screenplay) || toStr(film.description) || '';
+  const screenplay = cleanText(toStr(film.screenplay) || toStr(film.pre_screenplay) || toStr(film.description) || '');
   const perception = getPublicPerception(film);
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
@@ -305,7 +328,18 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           {shortPlot ? (
             <div className="ct2-info-plot">{shortPlot}</div>
           ) : screenplay ? (
-            <div className="ct2-info-plot">{screenplay.substring(0, 180).replace(/\n/g, ' ').trim()}{screenplay.length > 180 ? '...' : ''}</div>
+            <div className="ct2-info-plot">{(() => {
+              // Extract clean plot: skip title/logline headers, get narrative
+              let text = screenplay;
+              // Remove header lines like "Titolo: ...", "Logline: ...", "Genere: ..."
+              text = text.replace(/^(Titolo|Logline|Genere|Sottogenere|Ambientazione|Tono|Cast|Regia|Sceneggiatura)[:\s].+$/gmi, '');
+              text = text.replace(/^(ATTO|ACT|SCENA|SCENE|INT\.|EXT\.)[:\s].*/gmi, '');
+              text = text.trim();
+              // Take first meaningful paragraph
+              const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 30);
+              const plot = paragraphs.length > 0 ? paragraphs[0].trim() : text;
+              return plot.substring(0, 200).trim() + (plot.length > 200 ? '...' : '');
+            })()}</div>
           ) : null}
         </div>
       </div>
@@ -313,19 +347,6 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       {/* 3. TITLE */}
       <div className="ct2-title-row" data-testid="ct-title">
         <h1 className="ct2-title">{film.title}</h1>
-      </div>
-
-      {/* 4. DIRECTOR + CAST */}
-      <div className="ct2-cast-row" data-testid="ct-cast-row">
-        {castInfo.director && (
-          <div className="ct2-director">Regia di: <strong>{castInfo.director}</strong></div>
-        )}
-        {castInfo.actors.length > 0 && (
-          <div className="ct2-cast-names" onClick={() => setShowCast(true)} data-testid="ct-cast-btn">
-            Cast: {castInfo.actors.map(a => a.name).join(', ')}
-            <ChevronRight size={14} className="ct2-cast-chevron" />
-          </div>
-        )}
       </div>
 
       {/* 5. DATA BAR (fuschia) */}

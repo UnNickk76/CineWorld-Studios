@@ -237,6 +237,12 @@ const Dashboard = () => {
       project_type: 'film',
       title: evento.titolo,
       created_at: Date.now().toString(),
+      // Film details for the expanded card
+      film_id: evento.filmId,
+      film_title: evento.titolo,
+      film_poster: evento.poster,
+      film_quality: evento.quality,
+      film_producer: evento.producer,
     });
   };
 
@@ -265,7 +271,7 @@ const Dashboard = () => {
                 {eventiWow.map(evento => (
                   <div
                     key={evento.id}
-                    onClick={() => evento.filmId ? navigate(`/films/${evento.filmId}`) : openEvento(evento)}
+                    onClick={() => openEvento(evento)}
                     className={`min-w-[140px] h-[90px] rounded-lg p-2 cursor-pointer relative overflow-hidden backdrop-blur-sm border border-white/10 active:scale-95 transition-transform flex gap-2 ${
                       evento.rarita === 'LEGGENDARIO' ? 'glow-gold bg-gradient-to-br from-yellow-900/30 to-amber-900/10' : 'glow-purple bg-gradient-to-br from-purple-900/30 to-violet-900/10'
                     }`}

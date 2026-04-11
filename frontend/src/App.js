@@ -643,8 +643,16 @@ const GlobalSideMenu = () => {
             </button>
           </div>
 
-          {/* BOTTOM STICKY: Esci (rosso) */}
-          <div className="flex-shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          {/* BOTTOM FIXED: Banner donazioni + Esci */}
+          <div className="flex-shrink-0" style={{ paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
+            {/* Banner donazioni arancione */}
+            <div className="mx-1 mb-1 px-2 py-1.5 rounded bg-gradient-to-r from-orange-600/30 to-amber-600/20 border border-orange-500/25 cursor-pointer"
+              onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent('open-donate')); }}
+              data-testid="menu-donate-banner">
+              <p className="text-[8px] font-bold text-orange-300 text-center leading-tight">Sostieni CineWorld</p>
+              <p className="text-[6px] text-orange-400/60 text-center">Il tuo supporto conta!</p>
+            </div>
+            {/* Esci */}
             <button onClick={() => { setOpen(false); window.dispatchEvent(new Event('confirm-logout')); }}
               className="film-exit-btn" data-testid="menu-esci">
               <LogOut className="w-3 h-3" />

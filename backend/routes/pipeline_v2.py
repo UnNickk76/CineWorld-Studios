@@ -2536,15 +2536,45 @@ RELEASE_ZONES = {
 }
 
 RELEASE_DATE_OPTIONS = {
-    'immediate': {'label': 'Immediato',   'days': 0, 'hype_mult': 0.70, 'direct_only': True},
-    '24h':       {'label': 'Tra 24 ore',  'days': 1, 'hype_mult': 0.85, 'direct_only': True},
-    '2d':        {'label': '2 giorni',    'days': 2, 'hype_mult': 0.95, 'direct_only': False},
-    '3d':        {'label': '3 giorni',    'days': 3, 'hype_mult': 1.05, 'direct_only': False},
-    '4d':        {'label': '4 giorni',    'days': 4, 'hype_mult': 1.10, 'direct_only': False},
-    '5d':        {'label': '5 giorni',    'days': 5, 'hype_mult': 1.05, 'direct_only': False},
-    '6d':        {'label': '6 giorni',    'days': 6, 'hype_mult': 0.95, 'direct_only': False},
-    '7d':        {'label': '7 giorni',    'days': 7, 'hype_mult': 0.85, 'direct_only': False},
+    '6h':        {'label': '6 ore',       'days': 0.25, 'hype_mult': 0.60, 'direct_only': True},
+    '12h':       {'label': '12 ore',      'days': 0.5,  'hype_mult': 0.75, 'direct_only': True},
+    'immediate': {'label': 'Immediato',   'days': 0,    'hype_mult': 0.70, 'direct_only': True},
+    '24h':       {'label': 'Tra 24 ore',  'days': 1,    'hype_mult': 0.85, 'direct_only': True},
+    '2d':        {'label': '2 giorni',    'days': 2,    'hype_mult': 0.95, 'direct_only': False},
+    '3d':        {'label': '3 giorni',    'days': 3,    'hype_mult': 1.05, 'direct_only': False},
+    '4d':        {'label': '4 giorni',    'days': 4,    'hype_mult': 1.10, 'direct_only': False},
+    '5d':        {'label': '5 giorni',    'days': 5,    'hype_mult': 1.05, 'direct_only': False},
+    '6d':        {'label': '6 giorni',    'days': 6,    'hype_mult': 0.95, 'direct_only': False},
 }
+
+# Zone hype bonuses based on distribution scope
+ZONE_HYPE_BONUSES = {
+    1: 0.05,   # 1 zona = +5%
+    2: 0.10,   # 2 zone = +10%
+    3: 0.12,   # 3 zone = +12%
+    4: 0.15,   # 4 zone = +15%
+    5: 0.18,   # 5+ zone = +18%
+}
+
+def _calc_release_hype(base_hype_mult: float, zone_count: int, has_world: bool, quality: float) -> float:
+    """Calculate final hype multiplier with randomness + zone impact."""
+    # Base randomness: ±10%
+    randomness = 0.9 + random.random() * 0.2
+
+    # Zone bonus
+    if has_world:
+        zone_bonus = 1.20  # mondiale = +20%
+    else:
+        zone_bonus = 1.0 + ZONE_HYPE_BONUSES.get(min(zone_count, 5), 0.18)
+
+    # Quality factor: high quality films benefit more from waiting
+    quality_factor = 1.0
+    if quality >= 80 and base_hype_mult >= 1.0:
+        quality_factor = 1.05  # bonus per film di qualità che aspettano
+    elif quality < 40 and base_hype_mult < 0.85:
+        quality_factor = 0.95  # penalità doppia per film scarsi usciti troppo presto
+
+    return round(base_hype_mult * randomness * zone_bonus * quality_factor, 3)
 
 
 @router.get("/release-zones")
@@ -2556,6 +2586,7 @@ async def get_release_zones():
             'id': zid, 'name': z['name'], 'continent': z['continent'],
             'countries': z['countries'], 'funds': z['funds'], 'cp': z['cp'],
             'rev_mult': z['rev_mult'],
+            'hype_bonus': '+20%' if zid == 'world' else f"+{int(ZONE_HYPE_BONUSES.get(1, 5))}%",
         })
     dates = []
     for did, d in RELEASE_DATE_OPTIONS.items():
@@ -2621,7 +2652,11 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
 
     # Calculate total revenue multiplier from zones
     rev_mult = sum(RELEASE_ZONES[z]['rev_mult'] for z in selected_zones)
-    hype_mult = date_opt['hype_mult']
+    hype_mult_base = date_opt['hype_mult']
+
+    # Smart hype calculation with randomness + zone impact
+    quality = project.get('quality_score', project.get('pre_imdb_score', 50))
+    final_hype_mult = _calc_release_hype(hype_mult_base, len(selected_zones), has_world, quality)
 
     schedule = {
         'date_option': body.date_option,
@@ -2632,7 +2667,8 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
         'funds_cost': total_funds,
         'cp_cost': total_cp,
         'rev_mult': round(rev_mult, 2),
-        'hype_mult': hype_mult,
+        'hype_mult': final_hype_mult,
+        'hype_mult_base': hype_mult_base,
         'scheduled_at': _now(),
     }
 

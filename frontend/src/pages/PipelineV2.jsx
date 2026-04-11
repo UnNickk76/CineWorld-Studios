@@ -2320,9 +2320,9 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
   const isSeries = film.content_type === 'serie_tv' || film.content_type === 'anime';
 
   useEffect(() => {
-    api.get('/pipeline-v2/release-zones').then(res => {
-      setZones(res.zones || []);
-      setDateOptions(res.dates || []);
+    api.get('/pipeline-v2/release-zones').then(r => {
+      setZones(r.data?.zones || []);
+      setDateOptions(r.data?.dates || []);
     }).catch(() => {});
   }, []);
 

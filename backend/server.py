@@ -10010,6 +10010,19 @@ async def serve_trailer(filename: str):
         raise HTTPException(status_code=404, detail=f"Trailer non trovato: {filename}")
     return TrailerFileResponse(trailer_path, media_type="video/mp4")
 
+@app.get("/api/poster-status/{job_id}")
+async def get_poster_job_status(job_id: str):
+    """Check status of async poster generation job."""
+    job = await db.poster_jobs.find_one({'job_id': job_id}, {'_id': 0})
+    if not job:
+        raise HTTPException(404, "Job non trovato")
+    return {
+        'job_id': job['job_id'],
+        'status': job['status'],
+        'poster_url': job.get('poster_url'),
+        'error': job.get('error'),
+    }
+
 @app.get("/api/posters/{filename}")
 async def serve_poster(filename: str):
     """Serve poster files from disk cache or MongoDB. Tries alternate extensions."""

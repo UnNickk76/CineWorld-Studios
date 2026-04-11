@@ -531,52 +531,80 @@ async def generate_poster_v2(pid: str, req: PosterV2Request, user: dict = Depend
     return {'film': film, 'poster_url': poster_url}
 
 
+# ═══════════════════════════════════════════════════════════════
+#  ASYNC POSTER GENERATION — Job-based, no timeout
+# ═══════════════════════════════════════════════════════════════
+import asyncio as _asyncio
+
+async def _run_poster_generation(job_id: str, prompt: str, filename: str, collection: str, doc_id: str, id_field: str, regen_count: int):
+    """Background task: generate poster, save, update status."""
+    try:
+        import os
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        api_key = os.environ.get('EMERGENT_LLM_KEY', '')
+        img_gen = OpenAIImageGeneration(api_key=api_key)
+
+        images = await img_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+
+        if images and len(images) > 0:
+            # Save via poster_storage (MongoDB + disk cache)
+            import poster_storage
+            await poster_storage.save_poster(filename, images[0], 'image/png')
+            poster_url = f"/api/posters/{filename}"
+
+            # Update the content document
+            coll = db[collection]
+            await coll.update_one(
+                {id_field: doc_id},
+                {'$set': {'poster_url': poster_url, 'poster_regen_count': regen_count, 'pipeline_flags.has_poster': True}}
+            )
+
+            # Update job status
+            await db.poster_jobs.update_one(
+                {'job_id': job_id},
+                {'$set': {'status': 'completed', 'poster_url': poster_url, 'completed_at': _now()}}
+            )
+        else:
+            await db.poster_jobs.update_one({'job_id': job_id}, {'$set': {'status': 'failed', 'error': 'Empty result'}})
+
+    except Exception as e:
+        logging.error(f"[POSTER-JOB] {job_id} failed: {e}")
+        await db.poster_jobs.update_one({'job_id': job_id}, {'$set': {'status': 'failed', 'error': str(e)}})
+
+
 @router.post("/films/{pid}/regenerate-poster")
 async def regenerate_poster_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Regenerate poster for a film. Max 3 times per film."""
+    """Start async poster generation for a film. Returns job_id immediately."""
     project = await _get_project(pid, user['id'])
     regen_count = project.get('poster_regen_count', 0)
     if regen_count >= 3:
         raise HTTPException(400, "Limite rigenerazioni raggiunto (max 3)")
 
-    try:
-        import os, uuid as _uuid
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-        api_key = os.environ.get('EMERGENT_LLM_KEY', '')
-        genre_label = project.get('genre', 'drama')
-        subs = ', '.join(project.get('subgenres', []))
-        prompt_text = (
-            f"Professional cinematic movie poster, portrait orientation 2:3 ratio, for the film '{project['title']}'. "
-            f"Genre: {genre_label}. Subgenres: {subs or 'N/A'}. "
-            f"Film title '{project['title']}' displayed prominently with professional typography. "
-            f"Dramatic lighting, Hollywood quality, style matching the genre."
-        )
-        img_gen = OpenAIImageGeneration(api_key=api_key)
-        images = await img_gen.generate_images(prompt=prompt_text, model="gpt-image-1", number_of_images=1)
+    import uuid as _uuid
+    job_id = _uuid.uuid4().hex[:12]
+    genre_label = project.get('genre', 'drama')
+    subs = ', '.join(project.get('subgenres', []))
+    prompt = (
+        f"Professional cinematic movie poster, portrait orientation 2:3 ratio, for the film '{project['title']}'. "
+        f"Genre: {genre_label}. Subgenres: {subs or 'N/A'}. "
+        f"Film title '{project['title']}' displayed prominently with professional typography. "
+        f"Dramatic lighting, Hollywood quality, style matching the genre."
+    )
+    filename = f"film_{pid}_r{regen_count + 1}.png"
 
-        if images and len(images) > 0:
-            posters_dir = '/app/frontend/public/posters/ai'
-            os.makedirs(posters_dir, exist_ok=True)
-            fname = f"{pid}_regen_{_uuid.uuid4().hex[:6]}.png"
-            fpath = os.path.join(posters_dir, fname)
-            with open(fpath, 'wb') as f:
-                f.write(images[0])
-            poster_url = f"/posters/ai/{fname}"
-        else:
-            raise HTTPException(500, "Generazione fallita, riprova")
+    # Create job record
+    await db.poster_jobs.insert_one({
+        'job_id': job_id, 'user_id': user['id'], 'content_id': pid,
+        'content_type': 'film', 'status': 'processing',
+        'created_at': _now(), 'poster_url': None, 'error': None,
+    })
 
-        film = await _update_project(pid, {
-            'poster_url': poster_url,
-            'poster_regen_count': regen_count + 1,
-            'pipeline_flags.has_poster': True,
-        })
-        return {'success': True, 'poster_url': poster_url, 'regen_count': regen_count + 1}
+    # Fire and forget
+    _asyncio.create_task(_run_poster_generation(
+        job_id, prompt, filename, 'film_projects', pid, 'id', regen_count + 1
+    ))
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.warning(f"[V2] Poster regen failed: {e}")
-        raise HTTPException(500, f"Errore generazione: {str(e)}")
+    return {'job_id': job_id, 'status': 'processing'}
 
 
 

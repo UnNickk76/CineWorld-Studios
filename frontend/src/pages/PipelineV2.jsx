@@ -549,13 +549,14 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
           <span className="text-[9px] text-gray-400 uppercase font-bold flex items-center gap-1"><Palette className="w-3 h-3" /> Locandina</span>
           {hasPoster && <Badge className="bg-emerald-500/15 text-emerald-400 text-[7px] border-emerald-500/20">Creata</Badge>}
         </div>
-        {/* Poster display with regen button */}
+        {/* Poster display with async regen */}
         {film.poster_url ? (
           <div className="relative group">
             <img src={film.poster_url} alt="" className={`w-full max-w-[160px] mx-auto rounded-lg border border-gray-700 transition-opacity ${loading === 'regen-poster' ? 'opacity-30' : ''}`} />
             {loading === 'regen-poster' && (
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
                 <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-[8px] text-yellow-400">Generazione in corso...</span>
               </div>
             )}
             {(film.poster_regen_count || 0) < 3 ? (
@@ -564,10 +565,26 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
                   setLoading('regen-poster');
                   try {
                     const res = await api.post(`/pipeline-v2/films/${film.id}/regenerate-poster`);
-                    setFilm(prev => ({ ...prev, poster_url: res.data.poster_url, poster_regen_count: res.data.regen_count }));
-                    toast({ title: 'Locandina rigenerata!' });
-                  } catch (e) { toast({ title: e.response?.data?.detail || 'Errore, riprova', variant: 'destructive' }); }
-                  finally { setLoading(null); }
+                    const jobId = res.data.job_id;
+                    // Poll for completion
+                    const poll = setInterval(async () => {
+                      try {
+                        const st = await api.get(`/poster-status/${jobId}`);
+                        if (st.data.status === 'completed') {
+                          clearInterval(poll);
+                          setFilm(prev => ({ ...prev, poster_url: st.data.poster_url + '?t=' + Date.now(), poster_regen_count: (prev.poster_regen_count || 0) + 1 }));
+                          toast({ title: 'Locandina rigenerata!' });
+                          setLoading(null);
+                        } else if (st.data.status === 'failed') {
+                          clearInterval(poll);
+                          toast({ title: st.data.error || 'Errore, riprova', variant: 'destructive' });
+                          setLoading(null);
+                        }
+                      } catch { /* continue polling */ }
+                    }, 2000);
+                    // Failsafe: stop after 40s
+                    setTimeout(() => { clearInterval(poll); setLoading(null); }, 40000);
+                  } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); setLoading(null); }
                 }}
                 disabled={loading === 'regen-poster'}
                 className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/60 border border-yellow-500/30 text-yellow-400 text-[8px] flex items-center gap-0.5 opacity-0 group-hover:opacity-100 hover:bg-black/80 transition-all disabled:opacity-30"
@@ -588,10 +605,24 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
                 setLoading('regen-poster');
                 try {
                   const res = await api.post(`/pipeline-v2/films/${film.id}/regenerate-poster`);
-                  setFilm(prev => ({ ...prev, poster_url: res.data.poster_url, poster_regen_count: res.data.regen_count, pipeline_flags: { ...prev.pipeline_flags, has_poster: true } }));
-                  toast({ title: 'Locandina generata!' });
-                } catch (e) { toast({ title: e.response?.data?.detail || 'Errore, riprova', variant: 'destructive' }); }
-                finally { setLoading(null); }
+                  const jobId = res.data.job_id;
+                  const poll = setInterval(async () => {
+                    try {
+                      const st = await api.get(`/poster-status/${jobId}`);
+                      if (st.data.status === 'completed') {
+                        clearInterval(poll);
+                        setFilm(prev => ({ ...prev, poster_url: st.data.poster_url, poster_regen_count: 1, pipeline_flags: { ...prev.pipeline_flags, has_poster: true } }));
+                        toast({ title: 'Locandina generata!' });
+                        setLoading(null);
+                      } else if (st.data.status === 'failed') {
+                        clearInterval(poll);
+                        toast({ title: st.data.error || 'Errore', variant: 'destructive' });
+                        setLoading(null);
+                      }
+                    } catch { /* continue */ }
+                  }, 2000);
+                  setTimeout(() => { clearInterval(poll); setLoading(null); }, 40000);
+                } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); setLoading(null); }
               }}
               disabled={loading === 'regen-poster'}
               className="px-3 py-1.5 rounded-lg bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[10px] flex items-center gap-1 hover:bg-yellow-500/25 transition-colors disabled:opacity-50"

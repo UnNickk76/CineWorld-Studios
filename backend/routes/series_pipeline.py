@@ -1036,11 +1036,8 @@ class PosterRequest(BaseModel):
 
 @router.post("/series-pipeline/{series_id}/generate-poster")
 async def generate_series_poster(series_id: str, body: PosterRequest = PosterRequest(), user: dict = Depends(get_current_user)):
-    """Generate or regenerate a poster for the series using AI."""
-    series = await db.tv_series.find_one(
-        {'id': series_id, 'user_id': user['id']},
-        {'_id': 0}
-    )
+    """Start async poster generation for series/anime. Returns job_id immediately."""
+    series = await db.tv_series.find_one({'id': series_id, 'user_id': user['id']}, {'_id': 0})
     if not series:
         raise HTTPException(404, "Serie non trovata")
 
@@ -1048,55 +1045,47 @@ async def generate_series_poster(series_id: str, body: PosterRequest = PosterReq
     if regen_count >= 3 and series.get('poster_url'):
         raise HTTPException(400, "Limite rigenerazioni raggiunto (max 3)")
 
-    key = os.environ.get('EMERGENT_LLM_KEY', '')
-    if not key:
-        raise HTTPException(500, "Servizio generazione immagini non disponibile")
-    
-    try:
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-        img_gen = OpenAIImageGeneration(api_key=key)
-        
-        is_anime = series['type'] == 'anime'
+    import uuid as _uuid, asyncio as _asyncio
+    job_id = _uuid.uuid4().hex[:12]
+    is_anime = series.get('type') == 'anime'
 
-        if body.mode == 'ai_custom' and body.custom_prompt:
-            prompt = f"{body.custom_prompt}. {'Anime art style.' if is_anime else 'Cinematic TV poster style.'} No text or titles in the image."
-        else:
-            style = "anime art style, vibrant colors, dramatic composition" if is_anime else "cinematic TV show poster style, professional photography, dramatic lighting"
-            prompt = f"TV series poster for '{series['title']}', {series.get('genre_name', series['genre'])} {'anime' if is_anime else 'TV series'}. {style}. No text or titles in the image."
-        
-        images = await img_gen.generate_images(
-            prompt=prompt,
-            model="gpt-image-1",
-            number_of_images=1
-        )
-        
-        if images:
-            from PIL import Image
-            import io
-            
-            img_data = images[0]
-            img = Image.open(io.BytesIO(img_data))
-            img = img.resize((400, 600), Image.LANCZOS)
-            
-            buf = io.BytesIO()
-            img.save(buf, 'PNG', optimize=True)
-            png_bytes = buf.getvalue()
-            
-            filename = f"series_{series_id}.png"
-            await poster_storage.save_poster(filename, png_bytes, 'image/png')
-            
-            poster_url = f"/api/posters/{filename}"
-            new_count = regen_count + 1 if series.get('poster_url') else 0
-            await db.tv_series.update_one(
-                {'id': series_id},
-                {'$set': {'poster_url': poster_url, 'poster_regen_count': new_count, 'updated_at': datetime.now(timezone.utc).isoformat()}}
-            )
-            return {"poster_url": poster_url, "message": "Locandina generata!", "regen_count": new_count, "success": True}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Poster generation error: {e}")
-        raise HTTPException(500, f"Errore generazione poster: {str(e)}")
+    if body.mode == 'ai_custom' and body.custom_prompt:
+        prompt = f"{body.custom_prompt}. {'Anime art style.' if is_anime else 'Cinematic TV poster style.'} No text or titles in the image."
+    else:
+        style = "anime art style, vibrant colors, dramatic composition" if is_anime else "cinematic TV show poster style, professional photography, dramatic lighting"
+        prompt = f"TV series poster for '{series['title']}', {series.get('genre_name', series.get('genre', 'drama'))} {'anime' if is_anime else 'TV series'}. {style}. No text or titles in the image."
+
+    filename = f"series_{series_id}_r{regen_count + 1}.png"
+    new_count = regen_count + 1 if series.get('poster_url') else 0
+
+    await db.poster_jobs.insert_one({
+        'job_id': job_id, 'user_id': user['id'], 'content_id': series_id,
+        'content_type': 'anime' if is_anime else 'series', 'status': 'processing',
+        'created_at': datetime.now(timezone.utc).isoformat(), 'poster_url': None, 'error': None,
+    })
+
+    async def _gen():
+        try:
+            from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+            key = os.environ.get('EMERGENT_LLM_KEY', '')
+            img_gen = OpenAIImageGeneration(api_key=key)
+            images = await img_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+            if images and len(images) > 0:
+                await poster_storage.save_poster(filename, images[0], 'image/png')
+                poster_url = f"/api/posters/{filename}"
+                await db.tv_series.update_one(
+                    {'id': series_id},
+                    {'$set': {'poster_url': poster_url, 'poster_regen_count': new_count, 'updated_at': datetime.now(timezone.utc).isoformat()}}
+                )
+                await db.poster_jobs.update_one({'job_id': job_id}, {'$set': {'status': 'completed', 'poster_url': poster_url}})
+            else:
+                await db.poster_jobs.update_one({'job_id': job_id}, {'$set': {'status': 'failed', 'error': 'Empty result'}})
+        except Exception as e:
+            logger.error(f"[POSTER-JOB] {job_id} failed: {e}")
+            await db.poster_jobs.update_one({'job_id': job_id}, {'$set': {'status': 'failed', 'error': str(e)}})
+
+    _asyncio.create_task(_gen())
+    return {'job_id': job_id, 'status': 'processing'}
 
 
 @router.get("/series-pipeline/{series_id}/poster-status")

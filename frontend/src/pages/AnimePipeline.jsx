@@ -225,21 +225,35 @@ export default function AnimePipeline() {
     try {
       const body = { mode };
       if (mode === 'ai_custom') body.custom_prompt = posterPrompt[seriesId] || '';
-      const res = await api.post(`/series-pipeline/${seriesId}/generate-poster`, body, { timeout: 120000 });
-      toast.success(res.data.message || 'Locandina generata!');
-      await loadData();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione poster'); }
-    finally { setPosterLoading(null); }
+      const res = await api.post(`/series-pipeline/${seriesId}/generate-poster`, body);
+      const jobId = res.data.job_id;
+      if (!jobId) { toast.success(res.data.message || 'Locandina generata!'); await loadData(); setPosterLoading(null); return; }
+      const poll = setInterval(async () => {
+        try {
+          const st = await api.get(`/poster-status/${jobId}`);
+          if (st.data.status === 'completed') { clearInterval(poll); toast.success('Locandina generata!'); loadData(); setPosterLoading(null); }
+          else if (st.data.status === 'failed') { clearInterval(poll); toast.error(st.data.error || 'Errore'); setPosterLoading(null); }
+        } catch {}
+      }, 2000);
+      setTimeout(() => { clearInterval(poll); setPosterLoading(null); }, 40000);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione poster'); setPosterLoading(null); }
   };
 
   const generatePosterQuick = async (seriesId) => {
     setPosterLoading(seriesId);
     try {
-      const res = await api.post(`/series-pipeline/${seriesId}/generate-poster`, { mode: 'ai' }, { timeout: 120000 });
-      toast.success(res.data.message || 'Locandina generata!');
-      await loadData();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione poster'); }
-    finally { setPosterLoading(null); }
+      const res = await api.post(`/series-pipeline/${seriesId}/generate-poster`, { mode: 'ai' });
+      const jobId = res.data.job_id;
+      if (!jobId) { toast.success(res.data.message || 'Locandina generata!'); await loadData(); setPosterLoading(null); return; }
+      const poll = setInterval(async () => {
+        try {
+          const st = await api.get(`/poster-status/${jobId}`);
+          if (st.data.status === 'completed') { clearInterval(poll); toast.success('Locandina generata!'); loadData(); setPosterLoading(null); }
+          else if (st.data.status === 'failed') { clearInterval(poll); toast.error(st.data.error || 'Errore'); setPosterLoading(null); }
+        } catch {}
+      }, 2000);
+      setTimeout(() => { clearInterval(poll); setPosterLoading(null); }, 40000);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore generazione poster'); setPosterLoading(null); }
   };
 
   const releaseSeries = async () => {

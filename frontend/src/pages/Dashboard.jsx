@@ -311,9 +311,19 @@ const Dashboard = () => {
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
                     {recentReleases.slice(0, 10).map(film => (
                       <div key={film.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate(`/films/${film.id}`)} data-testid={`recent-film-${film.id}`}>
-                        <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
+                        <div className="aspect-[2/3] relative rounded-lg overflow-hidden" style={{ boxShadow: film.status === 'premiere_live' ? '0 0 8px rgba(212,175,55,0.3)' : film.status === 'in_theaters' ? '0 0 6px rgba(80,160,80,0.2)' : 'none' }}>
                           <MasterpieceBadge isMasterpiece={film.is_masterpiece} size="xs" />
-                          <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                          <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 active:scale-110 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
+                          {/* Status badge */}
+                          {film.status && film.status !== 'released' && film.status !== 'completed' && (
+                            <div className={`absolute bottom-0 inset-x-0 py-0.5 text-center text-[5px] font-bold tracking-wider ${
+                              film.status === 'premiere_live' ? 'bg-amber-600/90 text-amber-100' :
+                              film.status === 'in_theaters' ? 'bg-green-600/90 text-green-100' :
+                              'bg-blue-600/80 text-blue-100'
+                            }`}>
+                              {film.status === 'premiere_live' ? 'LA PRIMA' : film.status === 'in_theaters' ? 'AL CINEMA' : 'IN USCITA'}
+                            </div>
+                          )}
                           {film.virtual_likes > 0 && (
                             <div className="absolute top-0.5 left-0.5 bg-black/70 rounded px-0.5 py-0.5 flex items-center gap-0.5">
                               <Heart className="w-1.5 h-1.5 text-pink-400 fill-pink-400" />

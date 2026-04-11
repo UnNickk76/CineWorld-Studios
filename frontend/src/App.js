@@ -862,12 +862,21 @@ const TopNavbar = () => {
   const { isOpen: showProductionMenu, setIsOpen: setShowProductionMenu } = useProductionMenu();
   const [showCineboardMenu, setShowCineboardMenu] = useState(false);
   const [showFilmsMenu, setShowFilmsMenu] = useState(false);
+  const [prodCounts, setProdCounts] = useState({ total: 0, film: 0, series: 0, anime: 0 });
   const [loginReward, setLoginReward] = useState(null); // Login Coming Soon reward popup
   const [showGuestConvertModal, setShowGuestConvertModal] = useState(false);
   const [guestConvertForm, setGuestConvertForm] = useState({ email: '', password: '', nickname: '', production_house_name: '' });
   const [guestConverting, setGuestConverting] = useState(false);
 
   // Guest conversion timer - show modal after 20 minutes (only if tutorial completed)
+  // Fetch production counts for badge
+  useEffect(() => {
+    if (api && user) {
+      api.get('/pipeline-v2/production-counts').then(r => setProdCounts(r.data)).catch(() => {});
+      const iv = setInterval(() => { api.get('/pipeline-v2/production-counts').then(r => setProdCounts(r.data)).catch(() => {}); }, 60000);
+      return () => clearInterval(iv);
+    }
+  }, [api, user]);
   useEffect(() => {
     if (!user?.is_guest) return;
     if (!user?.tutorial_completed) return; // Don't show during tutorial
@@ -1139,9 +1148,14 @@ const TopNavbar = () => {
             <Home className="w-3.5 h-3.5" />
           </Button>
           {/* PRODUCI */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${['/create-film','/create-series','/create-anime'].includes(location.pathname) ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 ${['/create-film','/create-series','/create-anime'].includes(location.pathname) ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => setShowProductionMenu(!showProductionMenu)} data-testid="top-nav-produci" aria-label="Produci">
             <Camera className="w-3.5 h-3.5" />
+            {prodCounts.total > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[10px] h-2.5 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">
+                {prodCounts.total > 9 ? '9+' : prodCounts.total}
+              </span>
+            )}
           </Button>
           {/* ARENA */}
           <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
@@ -1284,20 +1298,25 @@ const TopNavbar = () => {
             </div>
             <div className="grid grid-cols-3 gap-2 p-3">
               {[
-                { icon: Camera, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400' },
-                { icon: Copy, label: 'Sequel', path: '/create-sequel', color: 'bg-orange-500/15 border-orange-500/30 text-orange-400' },
-                { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400' },
-                { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400' },
-                { icon: Radio, label: 'La Tua TV', path: '/my-tv', color: 'bg-teal-500/15 border-teal-500/30 text-teal-400' },
-                { icon: Users, label: 'Agenzia', path: '/agenzia', color: 'bg-purple-500/15 border-purple-500/30 text-purple-400' },
+                { icon: Camera, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400', count: prodCounts.film },
+                { icon: Copy, label: 'Sequel', path: '/create-sequel', color: 'bg-orange-500/15 border-orange-500/30 text-orange-400', count: 0 },
+                { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', count: prodCounts.series },
+                { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400', count: prodCounts.anime },
+                { icon: Radio, label: 'La Tua TV', path: '/my-tv', color: 'bg-teal-500/15 border-teal-500/30 text-teal-400', count: 0 },
+                { icon: Users, label: 'Agenzia', path: '/agenzia', color: 'bg-purple-500/15 border-purple-500/30 text-purple-400', count: 0 },
               ].map(item => (
                 <button key={item.path}
-                  className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border ${item.color} transition-all hover:scale-105 active:scale-95`}
+                  className={`relative flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border ${item.color} transition-all hover:scale-105 active:scale-95`}
                   onClick={() => { setShowProductionMenu(false); navigate(item.path); }}
                   data-testid={`produci-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                 >
                   <item.icon className="w-6 h-6" />
                   <span className="text-[10px] font-bold">{item.label}</span>
+                  {item.count > 0 && (
+                    <span className="absolute top-1 right-1 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                      {item.count}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>

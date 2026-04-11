@@ -608,6 +608,27 @@ async def regenerate_poster_v2(pid: str, user: dict = Depends(get_current_user))
 
 
 
+@router.get("/production-counts")
+async def get_production_counts(user: dict = Depends(get_current_user)):
+    """Get count of active projects by type for badge display."""
+    active_states = {'draft', 'idea', 'proposed', 'hype_setup', 'hype_live', 'casting_live',
+                     'prep', 'shooting', 'postproduction', 'sponsorship', 'marketing',
+                     'premiere_setup', 'premiere_live', 'release_pending'}
+    films = await db.film_projects.count_documents({
+        'user_id': user['id'], 'pipeline_state': {'$in': list(active_states)}
+    })
+    series = await db.tv_series.count_documents({
+        'user_id': user['id'], 'type': 'tv_series',
+        'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']}
+    })
+    anime = await db.tv_series.count_documents({
+        'user_id': user['id'], 'type': 'anime',
+        'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']}
+    })
+    return {'total': films + series + anime, 'film': films, 'series': series, 'anime': anime}
+
+
+
 class ScreenplayV2Request(BaseModel):
     mode: str = 'ai_auto'
     prompt: str = ''

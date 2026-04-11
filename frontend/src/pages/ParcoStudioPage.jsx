@@ -1,24 +1,26 @@
 import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts';
-import { Lock, Loader2, Building, Film, Tv, Sparkles, Camera, Radio, GraduationCap, Shield, X, ChevronRight, Plus, Minus } from 'lucide-react';
+import { Lock, Loader2, Building, Film, Sparkles, Camera, Radio, GraduationCap, Shield, X, ChevronRight, Plus, Minus, Gamepad2 } from 'lucide-react';
+
+const GLOW_COLORS = ['#d4af37','#e04040','#4080e0','#40c060','#9050d0','#40c8d8','#e08030'];
 
 const SLOTS = [
-  { id: 'studios', label: 'Studi di Produzione', cx: 1500, cy: 1500, color: '#e8a040', icon: Camera,
+  { id: 'studios', label: 'Studi di Produzione', cx: 50, cy: 42, color: '#e8a040', icon: Camera,
     infras: [
       { type: 'production_studio', name: 'Studio Produzione Film', route: '/create-film' },
       { type: 'studio_serie_tv', name: 'Studio Serie TV', route: '/create-series' },
       { type: 'studio_anime', name: 'Studio Anime', route: '/create-anime' },
     ],
   },
-  { id: 'talent', label: 'Agenzia & Talenti', cx: 900, cy: 900, color: '#a070d0', icon: GraduationCap,
+  { id: 'talent', label: 'Agenzia & Talenti', cx: 22, cy: 28, color: '#a070d0', icon: GraduationCap,
     infras: [
       { type: 'talent_scout_actors', name: 'Scout Attori', route: '/infrastructure' },
       { type: 'talent_scout_screenwriters', name: 'Scout Sceneggiatori', route: '/infrastructure' },
       { type: 'cinema_school', name: 'Scuola di Recitazione', route: '/acting-school' },
     ],
   },
-  { id: 'cinema', label: 'Cinema & Sale', cx: 2100, cy: 900, color: '#60a0e0', icon: Film,
+  { id: 'cinema', label: 'Cinema & Sale', cx: 78, cy: 28, color: '#60a0e0', icon: Film,
     infras: [
       { type: 'cinema', name: 'Cinema', route: '/infrastructure' },
       { type: 'drive_in', name: 'Drive-In', route: '/infrastructure' },
@@ -28,155 +30,181 @@ const SLOTS = [
       { type: 'vip_cinema', name: 'VIP Cinema', route: '/infrastructure' },
     ],
   },
-  { id: 'events', label: 'Eventi & Esperienza', cx: 2100, cy: 2100, color: '#50c878', icon: Sparkles,
+  { id: 'events', label: 'Eventi & Esperienza', cx: 72, cy: 72, color: '#50c878', icon: Sparkles,
     infras: [
       { type: 'film_festival_venue', name: 'Festival del Cinema', route: '/festivals' },
       { type: 'cinema_museum', name: 'Museo del Cinema', route: '/infrastructure' },
       { type: 'theme_park', name: 'Parco Tematico', route: '/infrastructure' },
     ],
   },
-  { id: 'broadcast', label: 'Broadcast TV', cx: 900, cy: 2100, color: '#e06060', icon: Radio,
+  { id: 'broadcast', label: 'Broadcast TV', cx: 22, cy: 65, color: '#e06060', icon: Radio,
     infras: [
       { type: 'emittente_tv', name: 'Emittente TV', route: '/my-tv' },
     ],
   },
-  { id: 'strategic', label: 'Divisioni Strategiche', cx: 1500, cy: 2500, color: '#c0c0c0', icon: Shield,
+  { id: 'strategic', label: 'Div. Strategiche', cx: 50, cy: 82, color: '#c0c0c0', icon: Shield,
     infras: [
       { type: 'pvp_operative', name: 'Divisione Operativa', route: '/pvp-arena' },
       { type: 'pvp_investigative', name: 'Divisione Investigativa', route: '/pvp-arena' },
       { type: 'pvp_legal', name: 'Divisione Legale', route: '/pvp-arena' },
     ],
   },
+  { id: 'arcade', label: 'Sala Giochi', cx: 15, cy: 12, color: '#e840c0', icon: Gamepad2,
+    infras: [{ type: '_minigiochi', name: 'Minigiochi', route: '/minigiochi' }],
+  },
 ];
 
-const MAP_NATIVE = 3000;
-const ZOOM_MIN = 0.2;
-const ZOOM_MAX = 1.0;
-const ZOOM_INIT = 0.5;
-const ZOOM_STEP = 0.1;
-
 export default function ParcoStudioPage() {
-  const { api } = useContext(AuthContext);
+  const { api, user } = useContext(AuthContext);
   const navigate = useNavigate();
   const [backgrounds, setBackgrounds] = useState({});
   const [loading, setLoading] = useState(true);
   const [openSlot, setOpenSlot] = useState(null);
-  const [zoom, setZoom] = useState(ZOOM_INIT);
-  const scrollRef = useRef(null);
-  const centeredRef = useRef(false);
+  const [zoom, setZoom] = useState(0.5);
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const touchRef = useRef({ dist: 0, zoom: 0.5 });
+
+  // Glow color per player (deterministic from nickname)
+  const glowColor = GLOW_COLORS[(user?.nickname || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % GLOW_COLORS.length];
 
   const loadData = useCallback(async () => {
-    try {
-      const res = await api.get('/infrastructure/parco-studio/backgrounds');
-      setBackgrounds(res.data.backgrounds || {});
-    } catch {}
-    finally { setLoading(false); }
+    try { const res = await api.get('/infrastructure/parco-studio/backgrounds'); setBackgrounds(res.data.backgrounds || {}); }
+    catch {} finally { setLoading(false); }
   }, [api]);
-
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Center on studio after load and whenever zoom changes
+  // Center on studio
+  const centerMap = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const mw = 3000 * zoom, mh = 3000 * zoom;
+    const cw = el.clientWidth, ch = el.clientHeight;
+    if (mw <= cw) { el.scrollLeft = 0; } else { el.scrollLeft = (mw * 0.5) - cw / 2; }
+    if (mh <= ch) { el.scrollTop = 0; } else { el.scrollTop = (mh * 0.42) - ch / 2; }
+  }, [zoom]);
+
+  useEffect(() => { if (!loading) setTimeout(centerMap, 50); }, [loading, zoom, centerMap]);
+
+  // Pinch zoom
   useEffect(() => {
-    if (!loading && scrollRef.current) {
-      const el = scrollRef.current;
-      const mapPx = MAP_NATIVE * zoom;
-      const cx = 1500 * zoom;
-      const cy = 1500 * zoom;
-      el.scrollLeft = cx - (el.clientWidth / 2);
-      el.scrollTop = cy - (el.clientHeight / 2);
-      centeredRef.current = true;
-    }
-  }, [loading, zoom]);
+    const el = containerRef.current;
+    if (!el) return;
+    const getTouchDist = (e) => {
+      const [a, b] = [e.touches[0], e.touches[1]];
+      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    };
+    const onStart = (e) => { if (e.touches.length === 2) { touchRef.current = { dist: getTouchDist(e), zoom }; } };
+    const onMove = (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const d = getTouchDist(e);
+        const scale = d / touchRef.current.dist;
+        const nz = Math.max(0.2, Math.min(1.0, +(touchRef.current.zoom * scale).toFixed(2)));
+        setZoom(nz);
+      }
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    return () => { el.removeEventListener('touchstart', onStart); el.removeEventListener('touchmove', onMove); };
+  }, [zoom]);
 
-  const zoomIn = () => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)));
-  const zoomOut = () => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)));
+  const isOwned = (t) => t === '_minigiochi' ? true : (backgrounds[t]?.owned || false);
+  const getInfraId = (t) => backgrounds[t]?.infra_id;
+  const slotOwned = (s) => s.infras.filter(i => isOwned(i.type)).length;
 
-  const isOwned = (type) => backgrounds[type]?.owned || false;
-  const getInfraId = (type) => backgrounds[type]?.infra_id;
-  const slotOwnedCount = (slot) => slot.infras.filter(i => isOwned(i.type)).length;
-
-  const handleInfraClick = (infra) => {
+  const handleInfra = (infra) => {
     if (isOwned(infra.type)) {
       const iid = getInfraId(infra.type);
-      if (iid) navigate(`/infrastructure/${iid}`);
-      else navigate(infra.route);
-    } else {
-      navigate('/infrastructure');
-    }
+      if (iid) navigate(`/infrastructure/${iid}`); else navigate(infra.route);
+    } else navigate('/infrastructure');
     setOpenSlot(null);
   };
 
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-[#080604] flex items-center justify-center z-40" style={{ top: 44, bottom: 52 }}>
-        <Loader2 className="w-8 h-8 text-yellow-500 animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <div className="fixed inset-0 bg-[#080604] flex items-center justify-center z-40" style={{ top: 44, bottom: 52 }}><Loader2 className="w-8 h-8 text-yellow-500 animate-spin" /></div>;
 
-  const mapPx = MAP_NATIVE * zoom;
-  const hitSize = 200 * zoom;
+  const mw = 3000 * zoom, mh = 3000 * zoom;
+  const vw = containerRef.current?.clientWidth || 390;
+  const vh = containerRef.current?.clientHeight || 700;
+  const padX = mw < vw ? (vw - mw) / 2 : 0;
+  const padY = mh < vh ? (vh - mh) / 2 : 0;
 
   return (
-    <div className="fixed inset-0 bg-[#040302] z-30" style={{ top: 44, bottom: 52 }} data-testid="parco-studio-page">
-      <div ref={scrollRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="relative" style={{ width: mapPx, height: mapPx }}>
-          <img src="/parco-studio-map.png" alt="" style={{ width: mapPx, height: mapPx, display: 'block' }} draggable={false} />
+    <div className="fixed inset-0 bg-[#0a0906] z-30" style={{ top: 44, bottom: 52 }} data-testid="parco-studio-page">
+      <div ref={containerRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ paddingLeft: padX, paddingTop: padY, paddingRight: padX, paddingBottom: padY }}>
+          <div ref={mapRef} className="relative" style={{ width: mw, height: mh }}>
+            <img src="/parco-studio-map.png" alt="" style={{ width: mw, height: mh, display: 'block' }} draggable={false} />
 
-          {SLOTS.map(slot => {
-            const owned = slotOwnedCount(slot);
-            const Icon = slot.icon;
-            const isEmpty = owned === 0;
-            const sx = slot.cx * zoom - hitSize / 2;
-            const sy = slot.cy * zoom - hitSize / 2;
-            const fontSize = Math.max(8, 11 * zoom / ZOOM_INIT);
-
-            return (
-              <div key={slot.id} className="absolute cursor-pointer" data-testid={`slot-${slot.id}`}
-                style={{ left: sx, top: sy, width: hitSize, height: hitSize }}
-                onClick={() => setOpenSlot(slot.id)}>
-                <div className="w-full h-full flex flex-col items-center justify-center">
-                  {isEmpty ? (
-                    <div className="animate-pulse flex flex-col items-center" style={{ animationDuration: '2s' }}>
-                      <div className="rounded-full flex items-center justify-center"
-                        style={{ width: hitSize * 0.4, height: hitSize * 0.4, background: 'rgba(0,0,0,0.6)', border: '2px solid rgba(212,175,55,0.6)', boxShadow: '0 0 15px rgba(212,175,55,0.35)' }}>
-                        <Lock style={{ width: hitSize * 0.2, height: hitSize * 0.2 }} className="text-yellow-500" />
-                      </div>
-                      <div className="bg-black/70 backdrop-blur-sm rounded mt-1 px-2 py-0.5">
-                        <p className="font-bold text-yellow-500/80 text-center whitespace-nowrap" style={{ fontSize }}>{slot.label}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center">
-                      <div className="rounded-full flex items-center justify-center"
-                        style={{ width: hitSize * 0.4, height: hitSize * 0.4, background: 'rgba(0,0,0,0.5)', border: `2px solid ${slot.color}80`, boxShadow: `0 0 14px ${slot.color}30` }}>
-                        <Icon style={{ width: hitSize * 0.2, height: hitSize * 0.2, color: slot.color }} />
-                      </div>
-                      <div className="bg-black/70 backdrop-blur-sm rounded mt-1 px-2 py-1" style={{ borderLeft: `2px solid ${slot.color}60` }}>
-                        <p className="font-bold text-white text-center whitespace-nowrap" style={{ fontSize }}>{slot.label}</p>
-                        <p className="text-center" style={{ color: slot.color, fontSize: fontSize * 0.8 }}>{owned}/{slot.infras.length} attivi</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+            {/* Studio sign with glow */}
+            <div className="absolute flex flex-col items-center pointer-events-none" style={{ left: '32%', top: `${34 * zoom < 30 ? 34 : 34}%`, width: '36%' }}>
+              <div style={{
+                padding: `${Math.max(2, 6 * zoom)}px ${Math.max(4, 12 * zoom)}px`,
+                background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                borderRadius: Math.max(3, 8 * zoom),
+                border: `1.5px solid ${glowColor}60`,
+                boxShadow: `0 0 ${20 * zoom}px ${glowColor}40, 0 0 ${40 * zoom}px ${glowColor}20`,
+                animation: 'glowPulse 2.5s ease-in-out infinite',
+              }}>
+                <p className="font-['Bebas_Neue'] text-center text-white tracking-widest" style={{ fontSize: Math.max(8, 18 * zoom), lineHeight: 1.1 }}>
+                  {user?.production_house || user?.nickname || 'CineWorld'} Studios
+                </p>
               </div>
-            );
-          })}
+            </div>
+
+            {/* Slots */}
+            {SLOTS.map(slot => {
+              const owned = slotOwned(slot);
+              const Icon = slot.icon;
+              const empty = owned === 0;
+              const hs = Math.max(40, 120 * zoom);
+              const fs = Math.max(6, 10 * zoom);
+
+              return (
+                <div key={slot.id} className="absolute cursor-pointer" data-testid={`slot-${slot.id}`}
+                  style={{ left: `${slot.cx}%`, top: `${slot.cy}%`, width: hs, height: hs, transform: 'translate(-50%,-50%)' }}
+                  onClick={() => slot.id === 'arcade' ? navigate('/minigiochi') : setOpenSlot(slot.id)}>
+                  <div className="w-full h-full flex flex-col items-center justify-center">
+                    {empty ? (
+                      <div className="animate-pulse flex flex-col items-center" style={{ animationDuration: '2s' }}>
+                        <div className="rounded-full flex items-center justify-center"
+                          style={{ width: hs * 0.45, height: hs * 0.45, background: 'rgba(0,0,0,0.55)', border: '2px solid rgba(212,175,55,0.5)', boxShadow: '0 0 12px rgba(212,175,55,0.3)' }}>
+                          <Lock style={{ width: hs * 0.22, height: hs * 0.22 }} className="text-yellow-500" />
+                        </div>
+                        <div className="bg-black/65 backdrop-blur-sm rounded mt-0.5 px-1.5 py-0.5">
+                          <p className="font-bold text-yellow-500/80 text-center whitespace-nowrap" style={{ fontSize: fs }}>{slot.label}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center">
+                        <div className="rounded-full flex items-center justify-center"
+                          style={{ width: hs * 0.45, height: hs * 0.45, background: 'rgba(0,0,0,0.45)', border: `2px solid ${slot.color}70`, boxShadow: `0 0 10px ${slot.color}25` }}>
+                          <Icon style={{ width: hs * 0.22, height: hs * 0.22, color: slot.color }} />
+                        </div>
+                        <div className="bg-black/65 backdrop-blur-sm rounded mt-0.5 px-1.5 py-0.5">
+                          <p className="font-bold text-white text-center whitespace-nowrap" style={{ fontSize: fs }}>{slot.label}</p>
+                          <p className="text-center" style={{ color: slot.color, fontSize: fs * 0.75 }}>{owned}/{slot.infras.length}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Zoom controls */}
-      <div className="absolute bottom-3 right-3 flex flex-col gap-1.5 z-10">
-        <button onClick={zoomIn} disabled={zoom >= ZOOM_MAX}
-          className="w-9 h-9 rounded-full bg-black/70 border border-yellow-500/40 text-yellow-500 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
-          data-testid="zoom-in">
-          <Plus className="w-4 h-4" />
+      {/* Zoom — left side */}
+      <div className="absolute bottom-3 left-3 flex flex-col gap-1.5 z-10">
+        <button onClick={() => setZoom(z => Math.min(1.0, +(z + 0.1).toFixed(2)))}
+          className="w-8 h-8 rounded-full bg-black/70 border border-yellow-500/40 text-yellow-500 flex items-center justify-center active:scale-90 transition-transform" data-testid="zoom-in">
+          <Plus className="w-3.5 h-3.5" />
         </button>
-        <div className="text-center text-[8px] text-yellow-500/60 font-bold">{Math.round(zoom * 100)}%</div>
-        <button onClick={zoomOut} disabled={zoom <= ZOOM_MIN}
-          className="w-9 h-9 rounded-full bg-black/70 border border-yellow-500/40 text-yellow-500 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
-          data-testid="zoom-out">
-          <Minus className="w-4 h-4" />
+        <div className="text-center text-[7px] text-yellow-500/50 font-bold">{Math.round(zoom * 100)}%</div>
+        <button onClick={() => setZoom(z => Math.max(0.2, +(z - 0.1).toFixed(2)))}
+          className="w-8 h-8 rounded-full bg-black/70 border border-yellow-500/40 text-yellow-500 flex items-center justify-center active:scale-90 transition-transform" data-testid="zoom-out">
+          <Minus className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -188,31 +216,19 @@ export default function ParcoStudioPage() {
         return (
           <div className="fixed inset-0 z-[60] flex items-end justify-center" onClick={() => setOpenSlot(null)}>
             <div className="absolute inset-0 bg-black/50" />
-            <div className="relative w-full max-w-sm bg-[#111113] border-t rounded-t-2xl overflow-hidden"
-              style={{ borderColor: `${slot.color}30` }} onClick={e => e.stopPropagation()}>
+            <div className="relative w-full max-w-sm bg-[#111113] border-t rounded-t-2xl overflow-hidden" style={{ borderColor: `${slot.color}30` }} onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-                <div className="flex items-center gap-2">
-                  <Icon className="w-5 h-5" style={{ color: slot.color }} />
-                  <span className="font-bold text-sm text-white">{slot.label}</span>
-                </div>
+                <div className="flex items-center gap-2"><Icon className="w-5 h-5" style={{ color: slot.color }} /><span className="font-bold text-sm text-white">{slot.label}</span></div>
                 <button onClick={() => setOpenSlot(null)} className="text-gray-400"><X className="w-4 h-4" /></button>
               </div>
               <div className="p-3 space-y-1.5" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
                 {slot.infras.map(infra => {
                   const own = isOwned(infra.type);
                   return (
-                    <button key={infra.type}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all active:scale-[0.98] ${own ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-black/30 border-white/5'}`}
-                      onClick={() => handleInfraClick(infra)} data-testid={`infra-${infra.type}`}>
-                      {own ? (
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${slot.color}20`, border: `1.5px solid ${slot.color}50` }}>
-                          <Icon className="w-4 h-4" style={{ color: slot.color }} />
-                        </div>
-                      ) : (
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-yellow-500/10 border border-yellow-500/30">
-                          <Lock className="w-4 h-4 text-yellow-500/70" />
-                        </div>
-                      )}
+                    <button key={infra.type} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all active:scale-[0.98] ${own ? 'bg-white/5 border-white/10' : 'bg-black/30 border-white/5'}`}
+                      onClick={() => handleInfra(infra)} data-testid={`infra-${infra.type}`}>
+                      {own ? <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${slot.color}20`, border: `1.5px solid ${slot.color}50` }}><Icon className="w-4 h-4" style={{ color: slot.color }} /></div>
+                        : <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-yellow-500/10 border border-yellow-500/30"><Lock className="w-4 h-4 text-yellow-500/70" /></div>}
                       <div className="flex-1 text-left">
                         <p className={`text-[11px] font-bold ${own ? 'text-white' : 'text-gray-500'}`}>{infra.name}</p>
                         <p className="text-[8px]" style={{ color: own ? slot.color : '#666' }}>{own ? 'Attiva' : 'Non acquistata'}</p>
@@ -227,7 +243,7 @@ export default function ParcoStudioPage() {
         );
       })()}
 
-      {/* UI overlays */}
+      {/* Top UI */}
       <div className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-sm rounded px-2 py-0.5 border border-white/10">
         <p className="text-[7px] text-yellow-500/70 font-bold tracking-wider">PARCO STUDIO</p>
       </div>
@@ -235,6 +251,9 @@ export default function ParcoStudioPage() {
         onClick={() => navigate('/infrastructure')} data-testid="parco-back">
         <Building className="w-3 h-3" /> Classica
       </button>
+
+      {/* Glow animation */}
+      <style>{`@keyframes glowPulse { 0%,100% { opacity: 0.85; } 50% { opacity: 1; } }`}</style>
     </div>
   );
 }

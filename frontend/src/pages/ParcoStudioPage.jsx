@@ -109,8 +109,8 @@ export default function ParcoStudioPage() {
   return (
     <div className="fixed inset-0 bg-[#040302] z-30" style={{ top: 44, bottom: 52 }} data-testid="parco-studio-page">
       <div ref={scrollRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="relative" style={{ width: 3000, height: 3000 }}>
-          <img src="/parco-studio-map.png" alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+        <div className="relative" style={{ width: 3000, height: 'auto', minHeight: 3000 }}>
+          <img src="/parco-studio-map.png" alt="" style={{ width: 3000, height: 'auto', display: 'block' }} draggable={false} />
 
           {/* 6 Slot hitboxes */}
           {SLOTS.map(slot => {

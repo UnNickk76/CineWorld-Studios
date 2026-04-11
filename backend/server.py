@@ -10107,7 +10107,7 @@ if not os.path.exists("uploads"):
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/api/static", StaticFiles(directory="/app/backend/static"), name="static")
-app.mount("/api/posters", StaticFiles(directory="/app/backend/assets/posters"), name="posters")
+# Poster serving handled by @app.get("/api/posters/{filename}") endpoint in server.py
 app.mount("/api/backgrounds", StaticFiles(directory="/app/backend/assets/backgrounds"), name="backgrounds")
 
 app.add_middleware(

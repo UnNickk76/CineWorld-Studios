@@ -1671,62 +1671,8 @@ async def get_parco_studio_backgrounds(user: dict = Depends(get_current_user)):
 
 @router.post("/infrastructure/parco-studio/generate-base-map")
 async def generate_parco_studio_base_map(user: dict = Depends(get_current_user)):
-    """Generate the base aerial map for user's Parco Studio (once)."""
-    bg_doc = await db.parco_studio_backgrounds.find_one({'user_id': user['id']}, {'_id': 0})
-    if bg_doc and bg_doc.get('base_map_url'):
-        return {'image_url': bg_doc['base_map_url'], 'cached': True}
-
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    try:
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-        api_key = os.environ.get('EMERGENT_LLM_KEY')
-        if not api_key:
-            raise HTTPException(500, "LLM key non configurata")
-
-        image_gen = OpenAIImageGeneration(api_key=api_key)
-        prompt = (
-            "large cinematic film studio park, isometric top view, "
-            "central big movie studio building with sign CineWorld Studios, "
-            "5 empty land plots around, dirt terrain lots, roads connecting, "
-            "realistic, no people, game map style, high detail, soft lighting"
-        )
-        images = await image_gen.generate_images(prompt=prompt, model='gpt-image-1', number_of_images=1)
-
-        if not images or len(images) == 0:
-            raise HTTPException(500, "Generazione fallita")
-
-        # Save compressed
-        filename = f"{user['id']}_base_map.jpg"
-        filepath = f"/app/backend/assets/backgrounds/{filename}"
-
-        # Convert to JPEG for small size
-        from PIL import Image
-        import io
-        img = Image.open(io.BytesIO(images[0]))
-        img = img.convert('RGB')
-        img.save(filepath, 'JPEG', quality=60, optimize=True)
-
-        image_url = f"/api/backgrounds/{filename}"
-
-        await db.parco_studio_backgrounds.update_one(
-            {'user_id': user['id']},
-            {'$set': {
-                'base_map_url': image_url,
-                'base_map_generated_at': datetime.now(timezone.utc).isoformat(),
-            }},
-            upsert=True
-        )
-
-        return {'image_url': image_url, 'cached': False}
-
-    except ImportError as e:
-        raise HTTPException(500, f"Libreria non disponibile: {str(e)}")
-    except Exception as e:
-        logging.error(f"[PARCO-STUDIO] Base map error: {e}")
-        raise HTTPException(500, f"Errore: {str(e)}")
+    """Base map is now static for all users."""
+    return {'image_url': '/parco-studio-map.png', 'cached': True}
 
 
 @router.post("/infrastructure/parco-studio/generate-background")

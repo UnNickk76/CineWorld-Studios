@@ -109,7 +109,7 @@ export function LaPrimaSection({ compact = false }) {
             key={ev.film_id}
             className="flex-shrink-0 w-[100px] rounded-lg bg-[#0E0E10] border border-amber-500/20 hover:border-amber-500/40 transition-all cursor-pointer overflow-hidden"
             style={{ boxShadow: '0 0 12px rgba(212,175,55,0.12)' }}
-            onClick={() => setSelectedFilmId(ev.film_id)}
+            onClick={() => navigate(`/films/${ev.film_id}`)}
             data-testid={`la-prima-event-${ev.film_id}`}
           >
             {/* Poster 2:3 */}

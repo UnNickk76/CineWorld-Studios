@@ -643,7 +643,13 @@ export function ComingSoonSection({ compact = false, filterType, sectionTitle })
       ) : (
         <div className="flex gap-2 overflow-x-auto pb-2 px-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
           {items.map(item => (
-            <ComingSoonThumb key={item.id} item={item} onClick={() => setSelectedItem(item)} />
+            <ComingSoonThumb key={item.id} item={item} onClick={() => {
+              if (item.content_type === 'series' || item.content_type === 'anime') {
+                navigate(`/series/${item.id}`);
+              } else {
+                navigate(`/films/${item.id}`);
+              }
+            }} />
           ))}
         </div>
       )}

@@ -274,9 +274,16 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       {/* 1. STATUS BAR */}
       <div className={`ct2-status-bar ${statusInfo.cls}`} data-testid="ct-status-bar">
         <span className="ct2-status-label">{statusInfo.label}</span>
+        {statusInfo.label === 'LaPrima!' && (
+          <div className="ct2-laprima-progress">
+            <div className="ct2-laprima-bar">
+              <div className="ct2-laprima-fill" style={{ width: `${Math.min(100, Math.max(5, (film.spectators_total || film.cumulative_attendance || 0) / Math.max(1, film.target_spectators || 5000) * 100))}%` }} />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 2. POSTER + SHORT PLOT */}
+      {/* 2. POSTER + INFO BOX */}
       <div className="ct2-top-block" data-testid="ct-top-block">
         <div className="ct2-poster" data-testid="ct-poster">
           {posterSrc(film.poster_url) ? (
@@ -286,7 +293,20 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           )}
         </div>
         <div className="ct2-short-plot" data-testid="ct-short-plot">
-          {shortPlot || ''}
+          <div className="ct2-info-title">{film.title}</div>
+          {castInfo.director && (
+            <div className="ct2-info-director">Regia di: {castInfo.director}</div>
+          )}
+          {castInfo.actors.length > 0 && (
+            <div className="ct2-info-cast">
+              {isAnime ? 'Disegnatori' : 'Cast'}: {castInfo.actors.map(a => a.name).join(', ')}
+            </div>
+          )}
+          {shortPlot ? (
+            <div className="ct2-info-plot">{shortPlot}</div>
+          ) : screenplay ? (
+            <div className="ct2-info-plot">{screenplay.substring(0, 180).replace(/\n/g, ' ').trim()}{screenplay.length > 180 ? '...' : ''}</div>
+          ) : null}
         </div>
       </div>
 

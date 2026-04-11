@@ -717,9 +717,9 @@ const TitoliDiCoda = ({ open, setOpen, navItems, user, navigate, logout, languag
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center" data-testid="titoli-di-coda">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
-      <div className="relative w-full max-w-md bg-[#0F0F10] border-t border-white/10 rounded-t-2xl max-h-[85vh] overflow-y-auto" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        {/* Header */}
-        <div className="sticky top-0 bg-[#0F0F10]/95 backdrop-blur-md z-10 flex items-center justify-between px-4 py-3 border-b border-white/5">
+      <div className="relative w-full max-w-md bg-[#0F0F10] border-t border-white/10 rounded-t-2xl max-h-[85vh] overflow-hidden flex flex-col" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        {/* Header - FIXED */}
+        <div className="flex-shrink-0 bg-[#0F0F10]/95 backdrop-blur-md z-10 flex items-center justify-between px-4 py-3 border-b border-white/5">
           <div className="flex items-center gap-2">
             <Clapperboard className="w-5 h-5 text-yellow-500" />
             <span className="font-['Bebas_Neue'] text-base tracking-widest text-gray-300">Titoli di Coda</span>
@@ -729,49 +729,56 @@ const TitoliDiCoda = ({ open, setOpen, navItems, user, navigate, logout, languag
           </Button>
         </div>
 
-        {/* User info */}
-        <div className="px-4 py-3 border-b border-white/5">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
-              <User className="w-4 h-4 text-yellow-500" />
+        {/* SCROLLABLE content */}
+        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+          {/* User info */}
+          <div className="px-4 py-3 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                <User className="w-4 h-4 text-yellow-500" />
+              </div>
+              <div>
+                <p className="text-white text-xs font-bold">{user?.nickname || 'Player'}</p>
+                {levelInfo && <p className="text-[9px] text-gray-400">Lv.{levelInfo.level} {levelInfo.title}</p>}
+              </div>
             </div>
-            <div>
-              <p className="text-white text-xs font-bold">{user?.nickname || 'Player'}</p>
-              {levelInfo && <p className="text-[9px] text-gray-400">Lv.{levelInfo.level} {levelInfo.title}</p>}
+          </div>
+
+          {/* Navigation grid */}
+          <div className="p-3">
+            <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold mb-2 px-1">Navigazione</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              {navItems.filter(i => !i.locked).map(item => (
+                <button key={item.path}
+                  className="flex flex-col items-center gap-1 py-2.5 rounded-lg border border-white/5 text-gray-400 text-[8px] hover:bg-white/5 hover:text-white transition-all"
+                  onClick={() => { navigate(item.path); setOpen(false); }}
+                >
+                  <item.icon className="w-4 h-4" />
+                  <span className="truncate w-full text-center px-0.5">{typeof item.label === 'string' && item.label.length > 12 ? item.label.slice(0, 12) + '..' : item.label}</span>
+                </button>
+              ))}
             </div>
+          </div>
+
+          {/* Actions */}
+          <div className="px-3 pb-3 space-y-1.5">
+            <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-gray-400 text-[10px] hover:bg-white/5 transition-colors"
+              onClick={() => { navigate('/profile'); setOpen(false); }}>
+              <User className="w-3.5 h-3.5" /> Profilo
+            </button>
+            <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-gray-400 text-[10px] hover:bg-white/5 transition-colors"
+              onClick={() => { setShowGameTutorial(true); setOpen(false); }}>
+              <HelpCircle className="w-3.5 h-3.5" /> Tutorial
+            </button>
           </div>
         </div>
 
-        {/* Navigation grid */}
-        <div className="p-3">
-          <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold mb-2 px-1">Navigazione</p>
-          <div className="grid grid-cols-4 gap-1.5">
-            {navItems.filter(i => !i.locked).map(item => (
-              <button key={item.path}
-                className="flex flex-col items-center gap-1 py-2.5 rounded-lg border border-white/5 text-gray-400 text-[8px] hover:bg-white/5 hover:text-white transition-all"
-                onClick={() => { navigate(item.path); setOpen(false); }}
-              >
-                <item.icon className="w-4 h-4" />
-                <span className="truncate w-full text-center px-0.5">{typeof item.label === 'string' && item.label.length > 12 ? item.label.slice(0, 12) + '..' : item.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="px-3 pb-3 space-y-1.5">
-          <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-gray-400 text-[10px] hover:bg-white/5 transition-colors"
-            onClick={() => { navigate('/profile'); setOpen(false); }}>
-            <User className="w-3.5 h-3.5" /> Profilo
-          </button>
-          <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-gray-400 text-[10px] hover:bg-white/5 transition-colors"
-            onClick={() => { setShowGameTutorial(true); setOpen(false); }}>
-            <HelpCircle className="w-3.5 h-3.5" /> Tutorial
-          </button>
-          <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-red-400 text-[10px] font-bold hover:bg-red-500/15 transition-colors border border-red-500/20"
+        {/* Footer FIXED - Esci SOPRA banner donazioni */}
+        <div className="flex-shrink-0 px-3 pb-2 pt-1 border-t border-white/5 bg-[#0F0F10]">
+          <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-red-400 text-[10px] font-bold hover:bg-red-500/15 transition-colors border border-red-500/20"
             onClick={() => { setOpen(false); window.dispatchEvent(new Event('confirm-logout')); }}
             data-testid="titoli-esci">
-            <LogOut className="w-3.5 h-3.5" /> Esci
+            <LogOut className="w-3.5 h-3.5" /> Esci dal gioco
           </button>
         </div>
       </div>
@@ -1137,10 +1144,11 @@ const TopNavbar = () => {
         {/* 8 icone principali: CIACK HOME PRODUCI ARENA LE MIE TV MAJOR CHAT NOTIFICHE */}
         <div className="flex items-center gap-0 w-full justify-between">
           {/* CIACK */}
-          <Button variant="ghost" size="sm" className="flex h-7 w-7 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
+          <Button variant="ghost" size="sm" className="relative flex flex-col h-7 w-7 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
             onClick={() => { window.dispatchEvent(new Event('global-sidemenu-toggle')); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
             data-testid="ciack-btn" aria-label="Menu">
             <Clapperboard className="w-4 h-4" />
+            <ChevronDown className="w-2 h-2 opacity-50 -mt-0.5 animate-bounce" style={{ animationDuration: '2s' }} />
           </Button>
           {/* HOME */}
           <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}`}

@@ -60,15 +60,17 @@ const LeaderboardPage = () => {
 
   useEffect(() => {
     api.get('/leaderboard/global?limit=50').then(r => {
-      setGlobalLeaderboard(r.data.leaderboard);
+      setGlobalLeaderboard(Array.isArray(r.data?.leaderboard) ? r.data.leaderboard : []);
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   }, [api]);
 
   const loadLocalLeaderboard = async (country) => {
     setSelectedCountry(country);
-    const res = await api.get(`/leaderboard/local/${country}?limit=50`);
-    setLocalLeaderboard(res.data.leaderboard);
+    try {
+      const res = await api.get(`/leaderboard/local/${country}?limit=50`);
+      setLocalLeaderboard(Array.isArray(res.data?.leaderboard) ? res.data.leaderboard : []);
+    } catch { setLocalLeaderboard([]); }
   };
 
   const getRankBadge = (rank) => {

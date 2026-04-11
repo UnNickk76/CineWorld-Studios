@@ -8635,6 +8635,18 @@ async def contact_creator(data: ContactCreatorRequest, user: dict = Depends(get_
 # ==================== CUSTOM FESTIVALS (Player-Created) ====================
 # Original code commented out below
 # ==================== LIVE CEREMONY SYSTEM ====================
+@api_router.get("/leaderboard/global")
+async def api_get_global_leaderboard(limit: int = 50, user: dict = Depends(get_current_user)):
+    return await get_global_leaderboard(limit)
+
+@api_router.get("/leaderboard/local/{country}")
+async def api_get_local_leaderboard(country: str, limit: int = 50, user: dict = Depends(get_current_user)):
+    """Get local leaderboard by country — fallback to global filtered."""
+    result = await get_global_leaderboard(limit * 3)
+    all_users = result.get('leaderboard', [])
+    local = [u for u in all_users if u.get('country') == country][:limit]
+    return {'leaderboard': local}
+
 async def get_global_leaderboard(limit: int = 50):
     """Get global leaderboard."""
     users = await db.users.find(

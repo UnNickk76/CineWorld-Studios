@@ -141,17 +141,17 @@ function EventCard({ event, onDone }) {
             animate={{ opacity: 1 }}
             transition={{ delay: 2.5, duration: 0.4 }}
           >
-            {event.revenue_mod !== 0 && (
+            {event.revenue_mod !== 0 && !isNaN(event.revenue_mod) && (
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${event.revenue_mod > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                {event.revenue_mod > 0 ? '+' : ''}{Math.round(event.revenue_mod * 100)}% incassi
+                {event.revenue_mod > 0 ? '+' : ''}{Math.round((event.revenue_mod || 0) * 100)}% incassi
               </span>
             )}
-            {event.hype_mod !== 0 && (
+            {event.hype_mod !== 0 && !isNaN(event.hype_mod) && (
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${event.hype_mod > 0 ? 'bg-cyan-500/20 text-cyan-400' : 'bg-red-500/20 text-red-400'}`}>
-                {event.hype_mod > 0 ? '+' : ''}{event.hype_mod} hype
+                {event.hype_mod > 0 ? '+' : ''}{event.hype_mod || 0} hype
               </span>
             )}
-            {event.fame_mod !== 0 && (
+            {event.fame_mod !== 0 && !isNaN(event.fame_mod) && (
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${event.fame_mod > 0 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
                 {event.fame_mod > 0 ? '+' : ''}{event.fame_mod} fama
               </span>

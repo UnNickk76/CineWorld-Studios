@@ -107,8 +107,8 @@ const Dashboard = () => {
         id: f.id,
         titolo: f.title,
         testo: f.is_masterpiece
-          ? `Capolavoro! ${f.producer_nickname} ha rilasciato un film eccezionale!`
-          : `${f.producer_nickname} ha rilasciato un film di alta qualità!`,
+          ? `Capolavoro! ${f.producer_nickname} ha rilasciato "${f.title}"!`
+          : `${f.producer_nickname} ha rilasciato "${f.title}"`,
         rarita: f.is_masterpiece || f.quality_score >= 90 ? 'LEGGENDARIO' : 'EPICO',
         poster: f.poster_url,
         quality: f.quality_score,
@@ -265,15 +265,21 @@ const Dashboard = () => {
                 {eventiWow.map(evento => (
                   <div
                     key={evento.id}
-                    onClick={() => openEvento(evento)}
-                    className={`min-w-[140px] h-[90px] rounded-lg p-2 cursor-pointer relative overflow-hidden backdrop-blur-sm border border-white/10 active:scale-95 transition-transform ${
+                    onClick={() => evento.filmId ? navigate(`/films/${evento.filmId}`) : openEvento(evento)}
+                    className={`min-w-[140px] h-[90px] rounded-lg p-2 cursor-pointer relative overflow-hidden backdrop-blur-sm border border-white/10 active:scale-95 transition-transform flex gap-2 ${
                       evento.rarita === 'LEGGENDARIO' ? 'glow-gold bg-gradient-to-br from-yellow-900/30 to-amber-900/10' : 'glow-purple bg-gradient-to-br from-purple-900/30 to-violet-900/10'
                     }`}
                     data-testid={`evento-wow-${evento.id}`}
                   >
-                    <div className="text-[10px] font-bold text-white leading-tight truncate">{evento.titolo}</div>
-                    <div className="text-[9px] opacity-70 line-clamp-2 mt-0.5 leading-tight">{evento.testo}</div>
-                    <div className={`absolute bottom-1 right-2 text-[8px] font-bold ${
+                    {/* Mini poster */}
+                    {evento.poster && (
+                      <img src={posterSrc(evento.poster)} alt="" className="h-full w-[45px] object-cover rounded flex-shrink-0" onError={e => { e.target.style.display = 'none'; }} />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-bold text-white leading-tight truncate">{evento.titolo}</div>
+                      <div className="text-[8px] opacity-70 line-clamp-2 mt-0.5 leading-tight">{evento.testo}</div>
+                    </div>
+                    <div className={`absolute bottom-1 right-2 text-[7px] font-bold ${
                       evento.rarita === 'LEGGENDARIO' ? 'text-yellow-400' : 'text-purple-400'
                     }`}>
                       {evento.rarita}

@@ -177,6 +177,13 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - **Click → route esistenti**: Nessuna nuova UI, richiama esattamente le pagine attuali
 - File: `ParcoStudioPage.jsx`
 
+#### Fix Menu Laterale Push (Apr 2026)
+- **Menu push senza overlay**: Aprendo il menu laterale, la pagina si sposta a destra senza zoom-out e senza overlay scuro
+- **Scroll orizzontale reale**: Il contenuto spostato e visibile tramite scroll orizzontale (`body[data-sidemenu="open"]` con `overflow-x: auto`)
+- **CSS left/right**: Elementi fixed (TopNavbar, BottomNav) shiftati via `left`/`right` CSS (non transform) per creare vero overflow scrollabile
+- **Reset automatico**: Alla chiusura del menu, scroll orizzontale resettato a 0 con animazione smooth
+- File: `App.js`, `index.css`
+
 ## Backlog
 
 ### P1

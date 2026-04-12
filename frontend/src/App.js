@@ -564,14 +564,23 @@ const GlobalSideMenu = () => {
       window.removeEventListener('global-sidemenu-open', openEv);
       window.removeEventListener('global-sidemenu-close', closeEv);
       window.removeEventListener('dashboard-toggle-menu', toggle);
+      delete document.body.dataset.sidemenu;
     };
   }, []);
 
-  // Expose badge state for CIACK indicator
+  // Expose badge state for CIACK indicator + push body attribute
   useEffect(() => {
     window.__sideMenuOpen = open;
     window.__menuHasBadge = menuBadges.produci > 0 || menuBadges.contest;
     window.dispatchEvent(new Event('menu-badge-update'));
+    // Toggle body data attribute for CSS push
+    if (open) {
+      document.body.dataset.sidemenu = 'open';
+    } else {
+      delete document.body.dataset.sidemenu;
+      // Reset horizontal scroll when menu closes
+      if (window.scrollX > 0) window.scrollTo({ left: 0, behavior: 'smooth' });
+    }
   }, [open, menuBadges]);
 
   const go = (path) => { setOpen(false); navigate(path); };
@@ -594,11 +603,6 @@ const GlobalSideMenu = () => {
 
   return (
     <>
-      <div
-        className={`fixed inset-0 bg-black/40 z-[40] transition-opacity duration-300 ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-        onClick={() => { setOpen(false); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(10); } catch {} }}
-        data-testid="global-side-menu-overlay"
-      />
       <div
         className={`fixed top-0 left-0 h-full w-[24%] min-w-[82px] max-w-[110px] z-[48] transform transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
         data-testid="global-side-menu"
@@ -1488,7 +1492,7 @@ const ProtectedRoute = ({ children }) => {
       <SwipeNavigator />
       <LoginRewardPopup />
       <AutoTickNotifications api={api} />
-      <div style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <div className="main-content-push" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <AnimatePresence>
         <PageTransition key={location.pathname}>
           <ErrorBoundary>

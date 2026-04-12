@@ -10,16 +10,16 @@ import { toast } from 'sonner';
 // ─── 13 STEP V2: dalla Dashboard al rilascio film + finale ───
 const STEPS = [
   /* 0 */ { title: 'Benvenuto!', text: 'Sono Velion, il tuo assistente! Ti guider\u00f2 passo passo nella creazione del tuo primo film!', action: 'Iniziamo!', target: null, position: 'bottom', velionSize: 150 },
-  /* 1 */ { title: 'Clicca su PRODUCI', text: 'Clicca sull\'icona PRODUCI nella barra in alto!', target: '[data-testid="top-nav-produci"]', position: 'bottom', velionSize: 120 },
-  /* 2 */ { title: 'Seleziona Film', text: 'Ora seleziona "Film" dal menu per iniziare!', target: '[data-testid="produci-film"]', position: 'top', velionSize: 120 },
-  /* 3 */ { title: 'Nuovo film', text: 'Clicca per creare il tuo primo film!', target: '[data-testid="new-film-card"]', position: 'top', velionSize: 120 },
-  /* 4 */ { title: 'Dai un titolo', text: 'Inserisci un titolo per il tuo film e scegli il genere!', target: '[data-testid="idea-title"]', position: 'top', velionSize: 110 },
-  /* 5 */ { title: 'Scrivi l\'idea', text: 'Scrivi una breve idea o trama per il tuo film!', target: '[data-testid="idea-pretrama"]', position: 'top', velionSize: 110 },
-  /* 6 */ { title: 'Crea il film!', text: 'Perfetto! Ora clicca "Crea e Inizia" per dare vita al tuo progetto!', target: '[data-testid="propose-film-btn"]', position: 'top', velionSize: 110 },
-  /* 7 */ { title: 'Apri il tuo film', text: 'Ottimo! Il film \u00e8 stato creato. Cliccaci sopra per continuare!', target: '[data-testid^="film-card-"]', position: 'top', velionSize: 120 },
-  /* 8 */ { title: 'Genera la locandina', text: 'Ogni film ha bisogno di un poster! Clicca per generarlo.', target: '[data-testid="gen-poster-btn"]', position: 'top', velionSize: 120 },
-  /* 9 */ { title: 'Avvia la fase HYPE!', text: 'Lancia la fase HYPE per creare aspettativa sul tuo film!', target: '[data-testid="setup-hype-btn"], [data-testid="launch-hype-btn"]', position: 'top', velionSize: 120 },
-  /* 10 */ { title: 'Velocizza GRATIS!', text: 'Hai velocizzazioni gratuite! Usale per accelerare il timer.', target: '[data-testid^="speedup-"]', position: 'top', velionSize: 120 },
+  /* 1 */ { title: 'Clicca su PRODUCI', text: 'Clicca sull\'icona PRODUCI nella barra in alto!', target: '[data-testid="top-nav-produci"]', position: 'bottom', velionSize: 100 },
+  /* 2 */ { title: 'Seleziona Film', text: 'Ora seleziona "Film" dal menu per iniziare!', target: '[data-testid="produci-film"]', position: 'bottom', velionSize: 100 },
+  /* 3 */ { title: 'Nuovo film', text: 'Clicca per creare il tuo primo film!', target: '[data-testid="new-film-card"]', position: 'top', velionSize: 90 },
+  /* 4 */ { title: 'Dai un titolo', text: 'Inserisci un titolo per il tuo film e scegli il genere!', target: '[data-testid="idea-title"]', position: 'bottom', velionSize: 80 },
+  /* 5 */ { title: 'Scrivi l\'idea', text: 'Scrivi una breve idea o trama per il tuo film!', target: '[data-testid="idea-pretrama"]', position: 'bottom', velionSize: 80 },
+  /* 6 */ { title: 'Crea il film!', text: 'Perfetto! Ora clicca "Crea e Inizia" per dare vita al tuo progetto!', target: '[data-testid="propose-film-btn"]', position: 'top', velionSize: 80 },
+  /* 7 */ { title: 'Apri il tuo film', text: 'Ottimo! Il film \u00e8 stato creato. Cliccaci sopra per continuare!', target: '[data-testid^="film-card-"]', position: 'top', velionSize: 90 },
+  /* 8 */ { title: 'Genera la locandina', text: 'Ogni film ha bisogno di un poster! Clicca per generarlo.', target: '[data-testid="gen-poster-btn"]', position: 'top', velionSize: 90 },
+  /* 9 */ { title: 'Avvia la fase HYPE!', text: 'Lancia la fase HYPE per creare aspettativa sul tuo film!', target: '[data-testid="setup-hype-btn"], [data-testid="launch-hype-btn"]', position: 'top', velionSize: 90 },
+  /* 10 */ { title: 'Velocizza GRATIS!', text: 'Hai velocizzazioni gratuite! Usale per accelerare il timer.', target: '[data-testid^="speedup-"]', position: 'top', velionSize: 90 },
   /* 11 */ { title: 'Congratulazioni!', text: 'Hai creato il tuo primo film!\nAdesso non ti resta che esplorare tutte le altre sezioni del gioco!\nPuoi creare Serie Tv, Anime, Sequel\u2026\nE poi c\'è l\'Arena dove puoi supportare o boicottare i film degli altri Player.\nE ancora la chat dove puoi fare amicizia o chiedere aiuto agli altri player.\nE tanto, tanto ancora!\nDivertiti con noi in', action: 'finale', target: null, position: 'center', velionSize: 200 },
   /* 12 */ { title: 'Registrati', text: 'Vuoi salvare i progressi?', action: 'convert', target: null, position: 'bottom', velionSize: 150 },
 ];
@@ -144,12 +144,12 @@ export function GuestTutorial() {
       if (step === 9 && has('[data-testid^="speedup-"]')) advanceStep(10);
       // Step 10→11: Hype completed (complete-hype-btn or next step visible)
       if (step === 10 && has('[data-testid="complete-hype-btn"]')) advanceStep(11);
-    }, 1500);
+    }, 500);
 
     return () => clearInterval(poll);
   }, [step, location.pathname, isActive, advanceStep]);
 
-  // ─── SPOTLIGHT: find + glow + scroll target ───
+  // ─── SPOTLIGHT: find + glow + scroll target (continuous polling) ───
   useEffect(() => {
     document.querySelectorAll('.tut-target-active').forEach(el => el.classList.remove('tut-target-active'));
     document.querySelectorAll('.tut-parent-lifted').forEach(el => el.classList.remove('tut-parent-lifted'));
@@ -161,10 +161,11 @@ export function GuestTutorial() {
       const selectors = msg.target.split(',').map(s => s.trim());
       let el = null;
       for (const sel of selectors) { el = document.querySelector(sel); if (el && el.offsetParent !== null) break; el = null; }
-      if (!el) return;
+      if (!el) { setTargetRect(null); targetElRef.current = null; return; }
       targetElRef.current = el;
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setTimeout(() => {
+        if (!targetElRef.current || targetElRef.current !== el) return;
         el.classList.add('tut-target-active');
         let parent = el.parentElement;
         while (parent && parent !== document.body) {
@@ -173,12 +174,14 @@ export function GuestTutorial() {
           parent = parent.parentElement;
         }
         const rect = el.getBoundingClientRect();
-        setTargetRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
-      }, 300);
+        if (rect.width > 0 && rect.height > 0) {
+          setTargetRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+        }
+      }, 200);
     };
-    const t1 = setTimeout(findAndHighlight, 600);
-    const t2 = setTimeout(findAndHighlight, 2000);
-    return () => { clearTimeout(t1); clearTimeout(t2); document.querySelectorAll('.tut-parent-lifted').forEach(el => el.classList.remove('tut-parent-lifted')); };
+    findAndHighlight();
+    const poll = setInterval(findAndHighlight, 1200);
+    return () => { clearInterval(poll); document.querySelectorAll('.tut-parent-lifted').forEach(el => el.classList.remove('tut-parent-lifted')); };
   }, [step, minimized, msg.target, isActive]);
 
   if (!isActive) return null;
@@ -435,12 +438,25 @@ export function GuestTutorial() {
 
   return (
     <>
-      {/* OVERLAY */}
+      {/* OVERLAY — lighter when target is found */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
         className="fixed inset-0 z-[100] pointer-events-none"
-        style={{ background: 'rgba(0,0,0,0.7)' }}
+        style={{ background: targetRect ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.4)' }}
         data-testid="tutorial-overlay"
       />
+
+      {/* SPOTLIGHT cutout on target */}
+      {targetRect && !minimized && (
+        <div className="fixed z-[101] pointer-events-none" style={{
+          top: targetRect.top - 8,
+          left: targetRect.left - 8,
+          width: targetRect.width + 16,
+          height: targetRect.height + 16,
+          borderRadius: 12,
+          boxShadow: '0 0 0 9999px rgba(0,0,0,0.55), 0 0 30px 8px rgba(255,215,0,0.4)',
+          animation: 'tutGlow 1.5s ease-in-out infinite',
+        }} />
+      )}
 
       {/* ARROW to target */}
       {targetRect && !minimized && (() => {
@@ -483,9 +499,9 @@ export function GuestTutorial() {
             className="absolute left-0 right-0 px-2"
             style={{ top: 'max(env(safe-area-inset-top, 8px), 8px)' }}
           >
-            <div className="relative" style={{ height: 180 }}>
+            <div className="relative" style={{ height: 130 }}>
               <VelionCharacter side="right" />
-              <div className="absolute left-0 top-2" style={{ width: `calc(100% - ${msg.velionSize + 16}px)`, zIndex: 3 }}>
+              <div className="absolute left-0 top-1" style={{ width: `calc(100% - ${msg.velionSize + 12}px)`, zIndex: 3 }}>
                 <SpeechBubble />
               </div>
             </div>

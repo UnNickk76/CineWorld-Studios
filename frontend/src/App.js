@@ -8,7 +8,7 @@ import {
   Film, Home, Users, MessageSquare, BarChart3, User, LogOut, Plus, Heart, 
   Globe, Calendar, DollarSign, Star, Clapperboard, Camera, MapPin, Sparkles,
   Send, Image, ChevronRight, ChevronDown, ChevronLeft, Menu, X, Settings, 
-  Gamepad2, Trophy, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Trash2,
+  Gamepad2, Trophy, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Trash2, Coins,
   Check, XCircle, Newspaper, MessageCircle, Building, Building2, GraduationCap,
   Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock,
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff, Play,
@@ -425,7 +425,7 @@ const MobileBottomNav = () => {
     { icon: Tv, label: 'Le mie TV', path: '/my-tv' },
     { icon: Building, label: 'Infrastrutture', path: '/infrastructure' },
     { icon: Target, label: 'Arena', path: '/pvp-arena' },
-    { icon: Trophy, label: 'Contest', path: '/games' },
+    { icon: Coins, label: 'Contest', path: '/games' },
     { icon: BookOpen, label: 'Saghe', path: '/sagas' },
     { icon: Star, label: 'Stelle', path: '/stars' },
     { icon: User, label: 'Profilo', path: '/profile' },
@@ -541,12 +541,21 @@ const GlobalSideMenu = () => {
   useEffect(() => {
     if (open && api) {
       api.get('/infrastructure/owned-categories').then(r => setCategories(r.data)).catch(() => {});
+    }
+  }, [open, api]);
+
+  // Load badge counts on mount + when menu opens
+  useEffect(() => {
+    if (!api) return;
+    const loadBadges = () => {
       api.get('/pipeline-v2/production-counts').then(r => setMenuBadges(prev => ({ ...prev, produci: r.data?.total || 0 }))).catch(() => {});
       api.get('/games/active-contests').then(r => {
         const contests = Array.isArray(r.data) ? r.data : (r.data?.contests || []);
         setMenuBadges(prev => ({ ...prev, contest: contests.length > 0 }));
       }).catch(() => {});
-    }
+    };
+    loadBadges();
+    if (open) loadBadges();
   }, [open, api]);
 
   // Listen for global toggle
@@ -596,7 +605,7 @@ const GlobalSideMenu = () => {
     ...(categories.has_agenzia ? [{ icon: Users, label: "Agenzia", action: () => go('/agenzia') }] : []),
     ...(categories.has_strategico ? [{ icon: Shield, label: "Strategico", action: () => go('/strategico') }] : []),
     { icon: Gamepad2, label: "Minigiochi", action: () => go('/minigiochi') },
-    { icon: Trophy, label: "Contest", action: () => go('/games'), badge: menuBadges.contest },
+    { icon: Coins, label: "Contest", action: () => go('/games'), badge: menuBadges.contest },
     { icon: Target, label: "Arena", action: () => go('/pvp-arena') },
     { icon: Award, label: "Festival", action: () => go('/festivals') },
   ];
@@ -1142,7 +1151,7 @@ const TopNavbar = () => {
     { path: '/stars', icon: Star, label: 'discovered_stars' },
     { path: '/festivals', icon: Award, label: 'festivals' },
     { path: '/social', icon: Globe, label: 'cineboard' },
-    { path: '/games', icon: Trophy, label: 'contests' },
+    { path: '/games', icon: Coins, label: 'contests' },
     { path: '/minigiochi', icon: Gamepad2, label: language === 'it' ? 'Minigiochi + Sfide' : 'Minigames + VS' },
     { path: '/leaderboard', icon: BarChart3, label: 'leaderboard' },
     { path: '/pvp-arena', icon: Target, label: 'Arena' },

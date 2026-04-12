@@ -20,6 +20,7 @@ const ADMIN_TABS = [
   { id: 'deletions', label: 'Cancellazioni', icon: Trash2 },
   { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
   { id: 'donations', label: 'Donazioni', icon: Heart },
+  { id: 'city_tastes', label: 'Gusti Città', icon: Star },
   { id: 'tutorial', label: 'Tutorial Manager', icon: BookOpen },
   { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
@@ -914,6 +915,97 @@ function DonationsTab({ api }) {
 
 
 function MaintenanceTab({ api }) {
+
+
+function CityTastesAdmin({ api }) {
+  const [cities, setCities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [testResult, setTestResult] = useState(null);
+  const [testCity, setTestCity] = useState('roma');
+  const [testGenre, setTestGenre] = useState('comedy');
+
+  const load = () => {
+    api.get('/city-tastes/admin/cities').then(r => { setCities(r.data?.cities || []); setLoading(false); }).catch(() => setLoading(false));
+  };
+  useEffect(load, [api]);
+
+  const LEVEL_COLORS = { fermento: 'text-green-400', forte: 'text-emerald-400', discreto: 'text-yellow-400', tiepido: 'text-orange-400', freddo: 'text-red-400' };
+  const getLevel = (v) => v >= 0.85 ? 'fermento' : v >= 0.7 ? 'forte' : v >= 0.5 ? 'discreto' : v >= 0.35 ? 'tiepido' : 'freddo';
+
+  return (
+    <div className="space-y-3" data-testid="city-tastes-admin">
+      <Card className="bg-[#111113] border-white/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2"><Star className="w-4 h-4 text-yellow-400" /> Gusti Città — Sistema Dinamico</CardTitle>
+          <p className="text-[10px] text-gray-500">{cities.length} città attive. I gusti evolvono ogni 5-25 giorni.</p>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex gap-2">
+            <Button size="sm" className="h-7 text-[10px] bg-purple-600 hover:bg-purple-700" onClick={async () => {
+              await api.post('/city-tastes/admin/evolve');
+              toast.success('Gusti evoluti!'); load();
+            }}>Forza Evoluzione</Button>
+            <Button size="sm" className="h-7 text-[10px] bg-red-600 hover:bg-red-700" onClick={async () => {
+              await api.post('/city-tastes/admin/seed');
+              toast.success('Città re-seedate!'); load();
+            }}>Reset Seed</Button>
+          </div>
+
+          {/* Test Tool */}
+          <div className="p-2 bg-white/[0.02] rounded border border-white/5">
+            <p className="text-[9px] text-gray-400 mb-1 font-bold">Test Città vs Genere</p>
+            <div className="flex gap-1 items-center">
+              <select value={testCity} onChange={e => setTestCity(e.target.value)} className="bg-gray-800 text-[9px] text-white border border-gray-700 rounded px-1 py-1 flex-1">
+                {cities.map(c => <option key={c.city_id} value={c.city_id}>{c.name}</option>)}
+              </select>
+              <select value={testGenre} onChange={e => setTestGenre(e.target.value)} className="bg-gray-800 text-[9px] text-white border border-gray-700 rounded px-1 py-1 flex-1">
+                {['action','comedy','drama','horror','romance','sci_fi','thriller','anime','fantasy','documentary','crime','noir','superhero','spy','musical','adventure','war','western','experimental','historical','mystery','biography','sport','family'].map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+              <Button size="sm" className="h-6 text-[9px] px-2" onClick={async () => {
+                const r = await api.get(`/city-tastes/admin/test/${testCity}/${testGenre}`);
+                setTestResult(r.data);
+              }}>Test</Button>
+            </div>
+            {testResult && (
+              <div className="mt-1 p-1.5 bg-black/30 rounded text-[8px] space-y-0.5">
+                <p className="text-white">{testResult.city} + {testResult.genre}: <span className={LEVEL_COLORS[testResult.level]}>{testResult.level}</span></p>
+                <p className="text-gray-500">Base: {testResult.personality_base} | Attuale: {testResult.raw_taste} | Saturazione: {testResult.saturation} | Effettivo: {testResult.effective} | Moltiplicatore: {testResult.multiplier}x | Trend: {testResult.trend}</p>
+                <p className="text-cyan-400/70 italic">"{testResult.phrase}"</p>
+              </div>
+            )}
+          </div>
+
+          {/* Cities Grid */}
+          {loading ? <p className="text-xs text-gray-500">Caricamento...</p> : (
+            <div className="grid grid-cols-1 gap-1 max-h-[300px] overflow-y-auto">
+              {cities.map(c => {
+                const topGenres = Object.entries(c.current_tastes || {}).sort((a, b) => b[1] - a[1]).slice(0, 3);
+                return (
+                  <div key={c.city_id} className="flex items-center justify-between p-1.5 bg-white/[0.02] rounded border border-white/5">
+                    <div className="flex-1">
+                      <span className="text-[10px] font-bold text-white">{c.name}</span>
+                      <span className="text-[8px] text-gray-600 ml-1">({c.zone})</span>
+                    </div>
+                    <div className="flex gap-1">
+                      {topGenres.map(([g, v]) => (
+                        <span key={g} className={`text-[7px] px-1 py-0.5 rounded ${LEVEL_COLORS[getLevel(v)]} bg-white/5`}>{g}:{v.toFixed(2)}</span>
+                      ))}
+                    </div>
+                    <button onClick={async () => { await api.post(`/city-tastes/admin/toggle/${c.city_id}`); load(); }}
+                      className={`ml-1 text-[7px] px-1 py-0.5 rounded ${c.enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {c.enabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 
 function GuestCleanupPanel({ api }) {
   const [data, setData] = useState(null);
@@ -2383,6 +2475,7 @@ export default function AdminPage() {
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
         {activeTab === 'donations' && isAdmin && <DonationsTab api={api} />}
         {activeTab === 'donations' && isAdmin && <GuestCleanupPanel api={api} />}
+        {activeTab === 'city_tastes' && isAdmin && <CityTastesAdmin api={api} />}
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}

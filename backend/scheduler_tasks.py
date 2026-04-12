@@ -2054,3 +2054,26 @@ async def update_trend_scores():
 
     except Exception as e:
         logger.error(f"[TREND] Error updating trend scores: {e}")
+
+
+async def evolve_city_tastes():
+    """Evolve city taste preferences. Runs every 6 hours, only evolves cities whose timer expired."""
+    try:
+        import city_tastes as ct
+        evolved = await ct.maybe_evolve_cities(db)
+        if evolved:
+            logger.info(f"[CITY_TASTES] Evolved {evolved} cities")
+    except Exception as e:
+        logger.error(f"[CITY_TASTES] Error: {e}")
+
+async def seed_city_tastes_if_needed():
+    """Seed city tastes on first startup."""
+    try:
+        import city_tastes as ct
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        count = await ct.seed_cities(_db)
+        logger.info(f"[CITY_TASTES] Cities in DB: {count}")
+    except Exception as e:
+        logger.error(f"[CITY_TASTES] Seed error: {e}")

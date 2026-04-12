@@ -2333,6 +2333,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
   const [scheduled, setScheduled] = useState(film.release_schedule || null);
   const [epCount, setEpCount] = useState(film.episode_count || 12);
   const [epSaved, setEpSaved] = useState(!!film.episode_count);
+  const [cityTips, setCityTips] = useState(null);
   const state = film.pipeline_state;
   const isPremiere = film.release_type === 'premiere';
   const canRelease = state === 'release_pending';
@@ -2344,7 +2345,12 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
       setZones(r?.zones || []);
       setDateOptions(r?.dates || []);
     }).catch(() => {});
-  }, []);
+    // Fetch Velion city tips
+    const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+    const token = localStorage.getItem('cineworld_token');
+    fetch(`${BACKEND}/api/city-tastes/tips/${film.id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setCityTips(d)).catch(() => {});
+  }, [film.id]);
 
   useEffect(() => {
     if (film.release_schedule) {
@@ -2630,6 +2636,31 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
           <div className="px-2.5 py-2 bg-cyan-500/5 border border-cyan-500/15 rounded-lg">
             <p className="text-[9px] text-cyan-400 font-bold mb-0.5">Consiglio di Velion:</p>
             <p className="text-[8px] text-gray-400">"Mondiale" raggiunge tutti ma costa di pi\u00f9. Seleziona zone specifiche per risparmiare e concentrare gli incassi dove il genere funziona meglio!</p>
+          </div>
+        )}
+
+        {/* Velion City Intelligence */}
+        {cityTips?.city_tips?.length > 0 && (selectedDate || selectedZones.length > 0) && (
+          <div className="p-2.5 bg-gradient-to-br from-cyan-500/5 to-purple-500/5 border border-cyan-500/15 rounded-lg space-y-2">
+            <p className="text-[9px] text-cyan-400 font-bold flex items-center gap-1">Velion — Intelligence Citt\u00e0</p>
+            {cityTips.date_tips && (
+              <div className="space-y-0.5">
+                {cityTips.date_tips.map((t, i) => (
+                  <p key={i} className="text-[8px] text-gray-400">{t}</p>
+                ))}
+              </div>
+            )}
+            <div className="space-y-1 mt-1">
+              {cityTips.city_tips.slice(0, 5).map(tip => {
+                const colors = { fermento: 'text-green-400', forte: 'text-emerald-400', discreto: 'text-yellow-400', tiepido: 'text-orange-400', freddo: 'text-red-400' };
+                return (
+                  <div key={tip.city_id} className="flex items-start gap-2">
+                    <span className={`text-[8px] font-bold ${colors[tip.level] || 'text-gray-400'} flex-shrink-0 w-16`}>{tip.name}</span>
+                    <p className="text-[7px] text-gray-500 leading-relaxed">{tip.phrase}</p>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

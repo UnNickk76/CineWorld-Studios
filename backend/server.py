@@ -82,6 +82,7 @@ from routes.film_pipeline import router as film_pipeline_router
 from routes.pipeline_v2 import router as pipeline_v2_router
 from routes.series_pipeline import router as series_pipeline_router
 from routes.admin_recovery import router as admin_recovery_router
+from routes.city_tastes import router as city_tastes_router
 from routes.sequel_pipeline import router as sequel_pipeline_router
 from routes.emittente_tv import router as emittente_tv_router
 from routes.tv_stations import router as tv_stations_router
@@ -7526,16 +7527,25 @@ async def startup_event():
     )
 
     # Trend scores: every 6 hours
-    from scheduler_tasks import update_trend_scores
+    from scheduler_tasks import update_trend_scores, evolve_city_tastes, seed_city_tastes_if_needed
     scheduler.add_job(
         update_trend_scores,
         IntervalTrigger(hours=6),
         id='update_trend_scores',
         replace_existing=True
     )
+    scheduler.add_job(
+        evolve_city_tastes,
+        IntervalTrigger(hours=6),
+        id='evolve_city_tastes',
+        replace_existing=True
+    )
 
     scheduler.start()
     logging.info("APScheduler started with background jobs for autonomous game operations")
+    # Seed city tastes on first startup
+    import asyncio
+    asyncio.create_task(seed_city_tastes_if_needed())
 
 async def fix_decimal_skills_in_db():
     """Fix any existing cast members that have decimal skill values."""
@@ -9915,6 +9925,7 @@ velion_init(db, JWT_SECRET)
 app.include_router(velion_router)
 app.include_router(cast_router, prefix="/api")
 app.include_router(admin_recovery_router)
+app.include_router(city_tastes_router)
 app.include_router(admin_migration_router)
 app.include_router(users_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")

@@ -16,7 +16,8 @@ const STEPS = [
   /* 4 */ { title: 'Dai un titolo', text: 'Inserisci un titolo per il tuo film e scegli il genere!', target: '[data-testid="idea-title"]', position: 'bottom', velionSize: 80 },
   /* 5 */ { title: 'Scrivi la pre-trama', text: 'Scrivi una breve idea o trama per il tuo film. Prenditi il tuo tempo!', target: '[data-testid="idea-pretrama"]', position: 'bottom', velionSize: 80 },
   /* 6 */ { title: 'Genera la Locandina AI!', text: 'Clicca "AI Auto" per generare una locandina unica con l\'Intelligenza Artificiale! Ogni poster \u00e8 un\'opera d\'arte irripetibile.', target: '[data-testid="poster-ai-auto"]', position: 'top', velionSize: 90 },
-  /* 7 */ { title: 'Proponi il film!', text: 'La locandina \u00e8 pronta! Ora clicca "Proponi Film" per dare vita al tuo progetto!', target: '[data-testid="propose-film-btn"]', position: 'top', velionSize: 80 },
+  /* 7 */ { title: 'Scrivi la Sceneggiatura!', text: 'Ora la sceneggiatura! Hai 3 opzioni:\n\n- AI Auto: genera tutto automaticamente\n- AI Custom: dai indicazioni all\'AI\n- Manuale: scrivila tu\n\nTi consiglio "AI Auto"!', target: '[data-testid="screenplay-ai-auto"], [data-testid="write-screenplay-btn"]', position: 'top', velionSize: 90 },
+  /* 8 */ { title: 'Proponi il film!', text: 'Sceneggiatura pronta! Ora clicca "Proponi Film" per dare vita al tuo progetto!', target: '[data-testid="propose-film-btn"]', position: 'top', velionSize: 80 },
   /* 8 */ { title: 'Apri il tuo film', text: 'Ottimo! Il film \u00e8 stato creato. Cliccaci sopra per continuare!', target: '[data-testid^="film-card-"]', position: 'top', velionSize: 90 },
   /* 9 */ { title: 'Avvia la fase HYPE!', text: 'Lancia la fase HYPE per creare aspettativa sul tuo film!', target: '[data-testid="setup-hype-btn"], [data-testid="launch-hype-btn"]', position: 'top', velionSize: 90 },
   /* 10 */ { title: 'Velocizza GRATIS!', text: 'Hai velocizzazioni gratuite! Usale per accelerare il timer.', target: '[data-testid^="speedup-"]', position: 'top', velionSize: 90 },
@@ -90,11 +91,11 @@ export function GuestTutorial() {
   const advanceStep = useCallback(async (newStep) => {
     if (demoMode) {
       // In demo: skip convert step, just close at end
-      if (newStep >= 11) { setDemoMode(false); setVisible(false); toast.success('Tutorial Pipeline completato!'); return; }
+      if (newStep >= 12) { setDemoMode(false); setVisible(false); toast.success('Tutorial Pipeline completato!'); return; }
       setStep(newStep);
       return;
     }
-    try { await api.post('/auth/tutorial-step', { step: newStep }); setStep(newStep); if (newStep >= 12) setShowConvert(true); } catch {}
+    try { await api.post('/auth/tutorial-step', { step: newStep }); setStep(newStep); if (newStep >= 13) setShowConvert(true); } catch {}
   }, [api, demoMode]);
 
   // ─── AUTO-ADVANCE: detect page changes and DOM elements ───
@@ -138,16 +139,18 @@ export function GuestTutorial() {
       if (step === 4 && val('[data-testid="idea-title"]').length > 0) advanceStep(5);
       // Step 5→6: Pretrama filled AND 20 seconds have passed
       if (step === 5 && val('[data-testid="idea-pretrama"]').length > 10 && elapsed() > 20) advanceStep(6);
-      // Step 6→7: Poster generated (poster image visible or poster button gone) AND 5s min
+      // Step 6→7: Poster generated (poster button gone or image visible) AND 5s min
       if (step === 6 && elapsed() > 5 && (!has('[data-testid="poster-ai-auto"]') || has('img[data-testid="poster-preview"]'))) advanceStep(7);
-      // Step 7→8: Film created (form closed, film card appeared)
-      if (step === 7 && !has('[data-testid="propose-film-btn"]') && has('[data-testid^="film-card-"]')) advanceStep(8);
-      // Step 8→9: Film opened (hype buttons visible)
-      if (step === 8 && (has('[data-testid="setup-hype-btn"]') || has('[data-testid="launch-hype-btn"]'))) advanceStep(9);
-      // Step 9→10: Hype launched (speedup buttons visible)
-      if (step === 9 && has('[data-testid^="speedup-"]')) advanceStep(10);
-      // Step 10→11: Hype completed
-      if (step === 10 && has('[data-testid="complete-hype-btn"]')) advanceStep(11);
+      // Step 7→8: Screenplay written (write-screenplay-btn gone = screenplay done) AND 5s reading time
+      if (step === 7 && elapsed() > 5 && !has('[data-testid="write-screenplay-btn"]')) advanceStep(8);
+      // Step 8→9: Film created (form closed, film card appeared)
+      if (step === 8 && !has('[data-testid="propose-film-btn"]') && has('[data-testid^="film-card-"]')) advanceStep(9);
+      // Step 9→10: Film opened (hype buttons visible)
+      if (step === 9 && (has('[data-testid="setup-hype-btn"]') || has('[data-testid="launch-hype-btn"]'))) advanceStep(10);
+      // Step 10→11: Hype launched (speedup buttons visible)
+      if (step === 10 && has('[data-testid^="speedup-"]')) advanceStep(11);
+      // Step 11→12: Hype completed
+      if (step === 11 && has('[data-testid="complete-hype-btn"]')) advanceStep(12);
     }, 500);
 
     return () => clearInterval(poll);
@@ -293,7 +296,7 @@ export function GuestTutorial() {
             </Button>
           </motion.div>
         )}
-        {!hasTarget && step > 0 && step < 11 && !msg.action && (
+        {!hasTarget && step > 0 && step < 12 && !msg.action && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
             <Button className="mt-2 w-full bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 h-7 text-[11px] rounded-xl pointer-events-auto"
               onClick={() => advanceStep(step + 1)} data-testid="tutorial-continue-btn">Continua</Button>
@@ -440,7 +443,7 @@ export function GuestTutorial() {
           >
             <Button
               className="bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 text-black hover:from-yellow-400 hover:to-orange-400 font-bold px-8 h-10 text-xs rounded-xl shadow-lg shadow-yellow-500/30"
-              onClick={() => advanceStep(12)}
+              onClick={() => advanceStep(13)}
               data-testid="tutorial-finale-continue-btn"
             >
               <Sparkles className="w-4 h-4 mr-2" />Continua l'avventura!

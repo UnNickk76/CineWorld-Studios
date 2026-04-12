@@ -665,6 +665,7 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
             <div className="flex gap-1.5">
               {['ai_auto', 'ai_custom', 'manual'].map(m => (
                 <button key={m} onClick={() => setScreenplayMode(m)}
+                  data-testid={`screenplay-${m.replace('_','-')}`}
                   className={`flex-1 text-[9px] py-1.5 rounded-lg border transition-colors ${screenplayMode === m ? 'bg-purple-500/15 border-purple-500/40 text-purple-400' : 'bg-gray-800/50 border-gray-700 text-gray-500'}`}>
                   {m === 'ai_auto' ? 'AI Auto' : m === 'ai_custom' ? 'AI Custom' : 'Manuale'}
                 </button>

@@ -14,10 +14,10 @@ const STEPS = [
   /* 2 */ { title: 'Seleziona Film', text: 'Ora seleziona "Film" dal menu per iniziare!', target: '[data-testid="produci-film"]', position: 'top', velionSize: 80 },
   /* 3 */ { title: 'Nuovo film', text: 'Clicca per creare il tuo primo film!', target: '[data-testid="new-film-card"]', position: 'top', velionSize: 90 },
   /* 4 */ { title: 'Dai un titolo', text: 'Inserisci un titolo per il tuo film e scegli il genere!', target: '[data-testid="idea-title"]', position: 'bottom', velionSize: 80 },
-  /* 5 */ { title: 'Scrivi l\'idea', text: 'Scrivi una breve idea o trama per il tuo film!', target: '[data-testid="idea-pretrama"]', position: 'bottom', velionSize: 80 },
-  /* 6 */ { title: 'Crea il film!', text: 'Perfetto! Ora clicca "Crea e Inizia" per dare vita al tuo progetto!', target: '[data-testid="propose-film-btn"]', position: 'top', velionSize: 80 },
-  /* 7 */ { title: 'Apri il tuo film', text: 'Ottimo! Il film \u00e8 stato creato. Cliccaci sopra per continuare!', target: '[data-testid^="film-card-"]', position: 'top', velionSize: 90 },
-  /* 8 */ { title: 'Genera la locandina', text: 'Ogni film ha bisogno di un poster! Clicca per generarlo.', target: '[data-testid="gen-poster-btn"]', position: 'top', velionSize: 90 },
+  /* 5 */ { title: 'Scrivi la pre-trama', text: 'Scrivi una breve idea o trama per il tuo film. Prenditi il tuo tempo!', target: '[data-testid="idea-pretrama"]', position: 'bottom', velionSize: 80 },
+  /* 6 */ { title: 'Genera la Locandina AI!', text: 'Clicca "AI Auto" per generare una locandina unica con l\'Intelligenza Artificiale! Ogni poster \u00e8 un\'opera d\'arte irripetibile.', target: '[data-testid="poster-ai-auto"]', position: 'top', velionSize: 90 },
+  /* 7 */ { title: 'Proponi il film!', text: 'La locandina \u00e8 pronta! Ora clicca "Proponi Film" per dare vita al tuo progetto!', target: '[data-testid="propose-film-btn"]', position: 'top', velionSize: 80 },
+  /* 8 */ { title: 'Apri il tuo film', text: 'Ottimo! Il film \u00e8 stato creato. Cliccaci sopra per continuare!', target: '[data-testid^="film-card-"]', position: 'top', velionSize: 90 },
   /* 9 */ { title: 'Avvia la fase HYPE!', text: 'Lancia la fase HYPE per creare aspettativa sul tuo film!', target: '[data-testid="setup-hype-btn"], [data-testid="launch-hype-btn"]', position: 'top', velionSize: 90 },
   /* 10 */ { title: 'Velocizza GRATIS!', text: 'Hai velocizzazioni gratuite! Usale per accelerare il timer.', target: '[data-testid^="speedup-"]', position: 'top', velionSize: 90 },
   /* 11 */ { title: 'Congratulazioni!', text: 'Hai creato il tuo primo film!\nAdesso non ti resta che esplorare tutte le altre sezioni del gioco!\nPuoi creare Serie Tv, Anime, Sequel\u2026\nE poi c\'è l\'Arena dove puoi supportare o boicottare i film degli altri Player.\nE ancora la chat dove puoi fare amicizia o chiedere aiuto agli altri player.\nE tanto, tanto ancora!\nDivertiti con noi in', action: 'finale', target: null, position: 'center', velionSize: 200 },
@@ -98,6 +98,9 @@ export function GuestTutorial() {
   }, [api, demoMode]);
 
   // ─── AUTO-ADVANCE: detect page changes and DOM elements ───
+  const stepEnteredAt = useRef(Date.now());
+  useEffect(() => { stepEnteredAt.current = Date.now(); }, [step]);
+
   useEffect(() => {
     if (!isActive) return;
     const path = location.pathname;
@@ -114,7 +117,7 @@ export function GuestTutorial() {
     // Step 2 → 3: arrived at /create-film
     if (step === 2 && path === '/create-film') { advanceStep(3); return; }
 
-    // Steps 3-10: poll DOM for element presence every 1.5s
+    // Steps 3-10: poll DOM for element presence
     if (step < 3 || step > 10 || path !== '/create-film') return;
 
     const poll = setInterval(() => {
@@ -127,22 +130,23 @@ export function GuestTutorial() {
         const el = document.querySelector(sel);
         return el ? (el.value || '').trim() : '';
       };
+      const elapsed = () => (Date.now() - stepEnteredAt.current) / 1000;
 
       // Step 3→4: "Nuovo film" clicked → creation form visible (idea-title appears)
       if (step === 3 && has('[data-testid="idea-title"]')) advanceStep(4);
-      // Step 4→5: Title filled (input not empty)
+      // Step 4→5: Title filled
       if (step === 4 && val('[data-testid="idea-title"]').length > 0) advanceStep(5);
-      // Step 5→6: Pretrama filled (textarea not empty)
-      if (step === 5 && val('[data-testid="idea-pretrama"]').length > 0) advanceStep(6);
-      // Step 6→7: Film created (form closed, film card appeared)
-      if (step === 6 && !has('[data-testid="propose-film-btn"]') && has('[data-testid^="film-card-"]')) advanceStep(7);
-      // Step 7→8: Film opened (poster button visible)
-      if (step === 7 && has('[data-testid="gen-poster-btn"]')) advanceStep(8);
-      // Step 8→9: Poster generated (hype buttons visible)
+      // Step 5→6: Pretrama filled AND 20 seconds have passed
+      if (step === 5 && val('[data-testid="idea-pretrama"]').length > 10 && elapsed() > 20) advanceStep(6);
+      // Step 6→7: Poster generated (poster image visible or poster button gone) AND 5s min
+      if (step === 6 && elapsed() > 5 && (!has('[data-testid="poster-ai-auto"]') || has('img[data-testid="poster-preview"]'))) advanceStep(7);
+      // Step 7→8: Film created (form closed, film card appeared)
+      if (step === 7 && !has('[data-testid="propose-film-btn"]') && has('[data-testid^="film-card-"]')) advanceStep(8);
+      // Step 8→9: Film opened (hype buttons visible)
       if (step === 8 && (has('[data-testid="setup-hype-btn"]') || has('[data-testid="launch-hype-btn"]'))) advanceStep(9);
       // Step 9→10: Hype launched (speedup buttons visible)
       if (step === 9 && has('[data-testid^="speedup-"]')) advanceStep(10);
-      // Step 10→11: Hype completed (complete-hype-btn or next step visible)
+      // Step 10→11: Hype completed
       if (step === 10 && has('[data-testid="complete-hype-btn"]')) advanceStep(11);
     }, 500);
 

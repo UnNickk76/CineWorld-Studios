@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 const STEPS = [
   /* 0 */ { title: 'Benvenuto!', text: 'Sono Velion, il tuo assistente! Ti guider\u00f2 passo passo nella creazione del tuo primo film!', action: 'Iniziamo!', target: null, position: 'bottom', velionSize: 150 },
   /* 1 */ { title: 'Clicca su PRODUCI', text: 'Clicca sull\'icona PRODUCI nella barra in alto!', target: '[data-testid="top-nav-produci"]', position: 'bottom', velionSize: 100 },
-  /* 2 */ { title: 'Seleziona Film', text: 'Ora seleziona "Film" dal menu per iniziare!', target: '[data-testid="produci-film"]', position: 'bottom', velionSize: 100 },
+  /* 2 */ { title: 'Seleziona Film', text: 'Ora seleziona "Film" dal menu per iniziare!', target: '[data-testid="produci-film"]', position: 'top', velionSize: 80 },
   /* 3 */ { title: 'Nuovo film', text: 'Clicca per creare il tuo primo film!', target: '[data-testid="new-film-card"]', position: 'top', velionSize: 90 },
   /* 4 */ { title: 'Dai un titolo', text: 'Inserisci un titolo per il tuo film e scegli il genere!', target: '[data-testid="idea-title"]', position: 'bottom', velionSize: 80 },
   /* 5 */ { title: 'Scrivi l\'idea', text: 'Scrivi una breve idea o trama per il tuo film!', target: '[data-testid="idea-pretrama"]', position: 'bottom', velionSize: 80 },
@@ -162,6 +162,17 @@ export function GuestTutorial() {
       let el = null;
       for (const sel of selectors) { el = document.querySelector(sel); if (el && el.offsetParent !== null) break; el = null; }
       if (!el) { setTargetRect(null); targetElRef.current = null; return; }
+      if (targetElRef.current === el) {
+        // Same element — only update rect if moved significantly
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          setTargetRect(prev => {
+            if (prev && Math.abs(prev.top - rect.top) < 3 && Math.abs(prev.left - rect.left) < 3) return prev;
+            return { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+          });
+        }
+        return;
+      }
       targetElRef.current = el;
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setTimeout(() => {

@@ -492,9 +492,10 @@ async def generate_poster_v2(pid: str, req: PosterV2Request, user: dict = Depend
         style = CLASSIC_POSTER_STYLES.get(req.classic_style, CLASSIC_POSTER_STYLES.get('noir', {}))
         poster_url = style.get('preview_url', f'/posters/classic_{req.classic_style}.jpg')
     else:
-        # AI poster generation
+        # AI poster generation → saved to MongoDB via poster_storage for persistence
         try:
-            import base64, os, uuid as _uuid
+            import os, uuid as _uuid
+            import poster_storage
             from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
             api_key = os.environ.get('EMERGENT_LLM_KEY', '')
             genre_label = project.get('genre', 'drama')
@@ -508,13 +509,9 @@ async def generate_poster_v2(pid: str, req: PosterV2Request, user: dict = Depend
             img_gen = OpenAIImageGeneration(api_key=api_key)
             images = await img_gen.generate_images(prompt=prompt_text, model="gpt-image-1", number_of_images=1)
             if images and len(images) > 0:
-                posters_dir = '/app/frontend/public/posters/ai'
-                os.makedirs(posters_dir, exist_ok=True)
-                fname = f"{pid}_{_uuid.uuid4().hex[:6]}.png"
-                fpath = os.path.join(posters_dir, fname)
-                with open(fpath, 'wb') as f:
-                    f.write(images[0])
-                poster_url = f"/posters/ai/{fname}"
+                fname = f"{pid}_{_uuid.uuid4().hex[:6]}.jpg"
+                await poster_storage.save_poster(fname, images[0], 'image/png')
+                poster_url = f"/api/posters/{fname}"
             else:
                 poster_url = f"/posters/placeholder_{project['genre']}.jpg"
         except Exception as e:

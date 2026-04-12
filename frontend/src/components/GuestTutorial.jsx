@@ -7,20 +7,21 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { toast } from 'sonner';
 
-// ─── 12 STEP V2: dalla Dashboard al rilascio film + finale ───
+// ─── 13 STEP V2: dalla Dashboard al rilascio film + finale ───
 const STEPS = [
   /* 0 */ { title: 'Benvenuto!', text: 'Sono Velion, il tuo assistente! Ti guider\u00f2 passo passo nella creazione del tuo primo film!', action: 'Iniziamo!', target: null, position: 'bottom', velionSize: 150 },
-  /* 1 */ { title: 'Clicca su PRODUCI', text: 'Apri il menu PRODUCI e seleziona "Film" per iniziare!', target: '[data-testid="prod-menu-film"], [data-testid="bottom-nav-produci"]', position: 'top', velionSize: 120 },
-  /* 2 */ { title: 'Nuovo film', text: 'Clicca per creare il tuo primo film!', target: '[data-testid="new-film-card"]', position: 'top', velionSize: 120 },
-  /* 3 */ { title: 'Dai un titolo', text: 'Inserisci un titolo per il tuo film e scegli il genere!', target: '[data-testid="idea-title"]', position: 'top', velionSize: 110 },
-  /* 4 */ { title: 'Scrivi l\'idea', text: 'Scrivi una breve idea o trama per il tuo film!', target: '[data-testid="idea-pretrama"]', position: 'top', velionSize: 110 },
-  /* 5 */ { title: 'Crea il film!', text: 'Perfetto! Ora clicca "Crea e Inizia" per dare vita al tuo progetto!', target: '[data-testid="propose-film-btn"]', position: 'top', velionSize: 110 },
-  /* 6 */ { title: 'Apri il tuo film', text: 'Ottimo! Il film \u00e8 stato creato. Cliccaci sopra per continuare!', target: '[data-testid^="film-card-"]', position: 'top', velionSize: 120 },
-  /* 7 */ { title: 'Genera la locandina', text: 'Ogni film ha bisogno di un poster! Clicca per generarlo.', target: '[data-testid="gen-poster-btn"]', position: 'top', velionSize: 120 },
-  /* 8 */ { title: 'Avvia la fase HYPE!', text: 'Lancia la fase HYPE per creare aspettativa sul tuo film!', target: '[data-testid="setup-hype-btn"], [data-testid="launch-hype-btn"]', position: 'top', velionSize: 120 },
-  /* 9 */ { title: 'Velocizza GRATIS!', text: 'Hai velocizzazioni gratuite! Usale per accelerare il timer.', target: '[data-testid^="speedup-"]', position: 'top', velionSize: 120 },
-  /* 10 */ { title: 'Congratulazioni!', text: 'Hai creato il tuo primo film!\nAdesso non ti resta che esplorare tutte le altre sezioni del gioco!\nPuoi creare Serie Tv, Anime, Sequel\u2026\nE poi c\'è l\'Arena dove puoi supportare o boicottare i film degli altri Player.\nE ancora la chat dove puoi fare amicizia o chiedere aiuto agli altri player.\nE tanto, tanto ancora!\nDivertiti con noi in', action: 'finale', target: null, position: 'center', velionSize: 200 },
-  /* 11 */ { title: 'Registrati', text: 'Vuoi salvare i progressi?', action: 'convert', target: null, position: 'bottom', velionSize: 150 },
+  /* 1 */ { title: 'Clicca su PRODUCI', text: 'Clicca sull\'icona PRODUCI nella barra in alto!', target: '[data-testid="top-nav-produci"]', position: 'bottom', velionSize: 120 },
+  /* 2 */ { title: 'Seleziona Film', text: 'Ora seleziona "Film" dal menu per iniziare!', target: '[data-testid="produci-film"]', position: 'top', velionSize: 120 },
+  /* 3 */ { title: 'Nuovo film', text: 'Clicca per creare il tuo primo film!', target: '[data-testid="new-film-card"]', position: 'top', velionSize: 120 },
+  /* 4 */ { title: 'Dai un titolo', text: 'Inserisci un titolo per il tuo film e scegli il genere!', target: '[data-testid="idea-title"]', position: 'top', velionSize: 110 },
+  /* 5 */ { title: 'Scrivi l\'idea', text: 'Scrivi una breve idea o trama per il tuo film!', target: '[data-testid="idea-pretrama"]', position: 'top', velionSize: 110 },
+  /* 6 */ { title: 'Crea il film!', text: 'Perfetto! Ora clicca "Crea e Inizia" per dare vita al tuo progetto!', target: '[data-testid="propose-film-btn"]', position: 'top', velionSize: 110 },
+  /* 7 */ { title: 'Apri il tuo film', text: 'Ottimo! Il film \u00e8 stato creato. Cliccaci sopra per continuare!', target: '[data-testid^="film-card-"]', position: 'top', velionSize: 120 },
+  /* 8 */ { title: 'Genera la locandina', text: 'Ogni film ha bisogno di un poster! Clicca per generarlo.', target: '[data-testid="gen-poster-btn"]', position: 'top', velionSize: 120 },
+  /* 9 */ { title: 'Avvia la fase HYPE!', text: 'Lancia la fase HYPE per creare aspettativa sul tuo film!', target: '[data-testid="setup-hype-btn"], [data-testid="launch-hype-btn"]', position: 'top', velionSize: 120 },
+  /* 10 */ { title: 'Velocizza GRATIS!', text: 'Hai velocizzazioni gratuite! Usale per accelerare il timer.', target: '[data-testid^="speedup-"]', position: 'top', velionSize: 120 },
+  /* 11 */ { title: 'Congratulazioni!', text: 'Hai creato il tuo primo film!\nAdesso non ti resta che esplorare tutte le altre sezioni del gioco!\nPuoi creare Serie Tv, Anime, Sequel\u2026\nE poi c\'è l\'Arena dove puoi supportare o boicottare i film degli altri Player.\nE ancora la chat dove puoi fare amicizia o chiedere aiuto agli altri player.\nE tanto, tanto ancora!\nDivertiti con noi in', action: 'finale', target: null, position: 'center', velionSize: 200 },
+  /* 12 */ { title: 'Registrati', text: 'Vuoi salvare i progressi?', action: 'convert', target: null, position: 'bottom', velionSize: 150 },
 ];
 
 // Per-step Velion animations (diverse per ogni step)
@@ -89,11 +90,11 @@ export function GuestTutorial() {
   const advanceStep = useCallback(async (newStep) => {
     if (demoMode) {
       // In demo: skip convert step, just close at end
-      if (newStep >= 10) { setDemoMode(false); setVisible(false); toast.success('Tutorial Pipeline completato!'); return; }
+      if (newStep >= 11) { setDemoMode(false); setVisible(false); toast.success('Tutorial Pipeline completato!'); return; }
       setStep(newStep);
       return;
     }
-    try { await api.post('/auth/tutorial-step', { step: newStep }); setStep(newStep); if (newStep >= 11) setShowConvert(true); } catch {}
+    try { await api.post('/auth/tutorial-step', { step: newStep }); setStep(newStep); if (newStep >= 12) setShowConvert(true); } catch {}
   }, [api, demoMode]);
 
   // ─── AUTO-ADVANCE: detect page changes and DOM elements ───
@@ -101,11 +102,20 @@ export function GuestTutorial() {
     if (!isActive) return;
     const path = location.pathname;
 
-    // Step 1 → 2: arrived at /create-film
-    if (step === 1 && path === '/create-film') { advanceStep(2); return; }
+    // Step 1 → 2: production menu opened (produci-film visible)
+    if (step === 1) {
+      const poll = setInterval(() => {
+        const el = document.querySelector('[data-testid="produci-film"]');
+        if (el && el.offsetParent !== null) { advanceStep(2); clearInterval(poll); }
+      }, 800);
+      return () => clearInterval(poll);
+    }
 
-    // Steps 2-9: poll DOM for element presence every 1.5s
-    if (step < 2 || step > 9 || path !== '/create-film') return;
+    // Step 2 → 3: arrived at /create-film
+    if (step === 2 && path === '/create-film') { advanceStep(3); return; }
+
+    // Steps 3-10: poll DOM for element presence every 1.5s
+    if (step < 3 || step > 10 || path !== '/create-film') return;
 
     const poll = setInterval(() => {
       const has = (sel) => {
@@ -118,22 +128,22 @@ export function GuestTutorial() {
         return el ? (el.value || '').trim() : '';
       };
 
-      // Step 2→3: "Nuovo film" clicked → creation form visible (idea-title appears)
-      if (step === 2 && has('[data-testid="idea-title"]')) advanceStep(3);
-      // Step 3→4: Title filled (input not empty)
-      if (step === 3 && val('[data-testid="idea-title"]').length > 0) advanceStep(4);
-      // Step 4→5: Pretrama filled (textarea not empty)
-      if (step === 4 && val('[data-testid="idea-pretrama"]').length > 0) advanceStep(5);
-      // Step 5→6: Film created (form closed, film card appeared)
-      if (step === 5 && !has('[data-testid="propose-film-btn"]') && has('[data-testid^="film-card-"]')) advanceStep(6);
-      // Step 6→7: Film opened (poster button visible)
-      if (step === 6 && has('[data-testid="gen-poster-btn"]')) advanceStep(7);
-      // Step 7→8: Poster generated (hype buttons visible)
-      if (step === 7 && (has('[data-testid="setup-hype-btn"]') || has('[data-testid="launch-hype-btn"]'))) advanceStep(8);
-      // Step 8→9: Hype launched (speedup buttons visible)
-      if (step === 8 && has('[data-testid^="speedup-"]')) advanceStep(9);
-      // Step 9→10: Hype completed (complete-hype-btn or next step visible)
-      if (step === 9 && has('[data-testid="complete-hype-btn"]')) advanceStep(10);
+      // Step 3→4: "Nuovo film" clicked → creation form visible (idea-title appears)
+      if (step === 3 && has('[data-testid="idea-title"]')) advanceStep(4);
+      // Step 4→5: Title filled (input not empty)
+      if (step === 4 && val('[data-testid="idea-title"]').length > 0) advanceStep(5);
+      // Step 5→6: Pretrama filled (textarea not empty)
+      if (step === 5 && val('[data-testid="idea-pretrama"]').length > 0) advanceStep(6);
+      // Step 6→7: Film created (form closed, film card appeared)
+      if (step === 6 && !has('[data-testid="propose-film-btn"]') && has('[data-testid^="film-card-"]')) advanceStep(7);
+      // Step 7→8: Film opened (poster button visible)
+      if (step === 7 && has('[data-testid="gen-poster-btn"]')) advanceStep(8);
+      // Step 8→9: Poster generated (hype buttons visible)
+      if (step === 8 && (has('[data-testid="setup-hype-btn"]') || has('[data-testid="launch-hype-btn"]'))) advanceStep(9);
+      // Step 9→10: Hype launched (speedup buttons visible)
+      if (step === 9 && has('[data-testid^="speedup-"]')) advanceStep(10);
+      // Step 10→11: Hype completed (complete-hype-btn or next step visible)
+      if (step === 10 && has('[data-testid="complete-hype-btn"]')) advanceStep(11);
     }, 1500);
 
     return () => clearInterval(poll);
@@ -265,7 +275,7 @@ export function GuestTutorial() {
             </Button>
           </motion.div>
         )}
-        {!hasTarget && step > 0 && step < 10 && !msg.action && (
+        {!hasTarget && step > 0 && step < 11 && !msg.action && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
             <Button className="mt-2 w-full bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 h-7 text-[11px] rounded-xl pointer-events-auto"
               onClick={() => advanceStep(step + 1)} data-testid="tutorial-continue-btn">Continua</Button>
@@ -300,8 +310,8 @@ export function GuestTutorial() {
 
   // ═══════ MAIN RENDER ═══════
 
-  // ═══════ FINALE CELEBRATIVO (Step 10) ═══════
-  if (step === 10) {
+  // ═══════ FINALE CELEBRATIVO (Step 11) ═══════
+  if (step === 11) {
     return (
       <>
         {/* Overlay scuro di base */}
@@ -412,7 +422,7 @@ export function GuestTutorial() {
           >
             <Button
               className="bg-gradient-to-r from-yellow-500 via-amber-500 to-orange-500 text-black hover:from-yellow-400 hover:to-orange-400 font-bold px-8 h-10 text-xs rounded-xl shadow-lg shadow-yellow-500/30"
-              onClick={() => advanceStep(11)}
+              onClick={() => advanceStep(12)}
               data-testid="tutorial-finale-continue-btn"
             >
               <Sparkles className="w-4 h-4 mr-2" />Continua l'avventura!

@@ -525,6 +525,7 @@ body[data-sidemenu="open"] {
 body[data-sidemenu="open"] .sidemenu-translate {
   left: var(--side-menu-w) !important;
   right: calc(-1 * var(--side-menu-w)) !important;
+  overflow-x: auto;
 }
 
 /* Main content area: push right */

@@ -161,7 +161,7 @@ const GLOW_COLORS = ['#d4af37','#e04040','#4080e0','#40c060','#9050d0','#40c8d8'
 
 const SLOTS = [
   { id: 'studios', label: 'Studi di Produzione', cx: 50, cy: 33, color: '#e8a040', icon: Camera,
-    w: 28, h: 22,
+    w: 36, h: 30,
     infras: [
       { type: 'production_studio', name: 'Studio Produzione Film', route: '/create-film' },
       { type: 'studio_serie_tv', name: 'Studio Serie TV', route: '/create-series' },
@@ -169,11 +169,11 @@ const SLOTS = [
     ],
   },
   { id: 'arcade', label: 'Sala Giochi', cx: 14, cy: 14, color: '#e840c0', icon: Gamepad2,
-    w: 16, h: 18,
+    w: 22, h: 24,
     infras: [{ type: '_minigiochi', name: 'Minigiochi', route: '/minigiochi' }],
   },
   { id: 'talent', label: 'Agenzia & Talenti', cx: 16, cy: 37, color: '#a070d0', icon: GraduationCap,
-    w: 14, h: 14,
+    w: 20, h: 20,
     infras: [
       { type: 'talent_scout_actors', name: 'Scout Attori', route: '/infrastructure' },
       { type: 'talent_scout_screenwriters', name: 'Scout Sceneggiatori', route: '/infrastructure' },
@@ -181,13 +181,13 @@ const SLOTS = [
     ],
   },
   { id: 'broadcast', label: 'Broadcast TV', cx: 18, cy: 57, color: '#e06060', icon: Radio,
-    w: 14, h: 16,
+    w: 20, h: 22,
     infras: [
       { type: 'emittente_tv', name: 'Emittente TV', route: '/my-tv' },
     ],
   },
   { id: 'events', label: 'Eventi & Esperienza', cx: 72, cy: 56, color: '#50c878', icon: Sparkles,
-    w: 20, h: 18,
+    w: 26, h: 24,
     infras: [
       { type: 'film_festival_venue', name: 'Festival del Cinema', route: '/festivals' },
       { type: 'cinema_museum', name: 'Museo del Cinema', route: '/infrastructure' },
@@ -195,7 +195,7 @@ const SLOTS = [
     ],
   },
   { id: 'strategic', label: 'Strategico', cx: 86, cy: 40, color: '#c0c0c0', icon: Shield,
-    w: 14, h: 18,
+    w: 20, h: 24,
     infras: [
       { type: 'pvp_operative', name: 'Divisione Operativa', route: '/pvp-arena' },
       { type: 'pvp_investigative', name: 'Divisione Investigativa', route: '/pvp-arena' },
@@ -203,7 +203,7 @@ const SLOTS = [
     ],
   },
   { id: 'cinema', label: 'Cinema & Sale', cx: 82, cy: 16, color: '#60a0e0', icon: Film,
-    w: 20, h: 18,
+    w: 26, h: 24,
     infras: [
       { type: 'cinema', name: 'Cinema', route: '/infrastructure' },
       { type: 'drive_in', name: 'Drive-In', route: '/infrastructure' },
@@ -296,6 +296,11 @@ export default function ParcoStudioPage() {
 
   return (
     <div className="fixed inset-0 bg-[#0a0906] z-30" style={{ top: 44, bottom: 52 }} data-testid="parco-studio-page">
+      {/* Banner "In fase di sviluppo" */}
+      <div className="absolute top-0 left-0 right-0 z-[5] text-center py-2 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%)' }}>
+        <p className="text-white/40 text-[10px] font-bold tracking-[0.3em] uppercase">In fase di sviluppo</p>
+        <p className="text-yellow-400/35 font-['Bebas_Neue'] text-lg tracking-[0.2em]">COMING SOON</p>
+      </div>
       <div ref={containerRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div style={{ paddingLeft: padX, paddingTop: padY, paddingRight: padX, paddingBottom: padY }}>
           <div ref={mapRef} className="relative" style={{ width: mw, height: mh }}>

@@ -1493,6 +1493,7 @@ const ProtectedRoute = ({ children }) => {
       <LoginRewardPopup />
       <AutoTickNotifications api={api} />
       <div className="main-content-push" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <StickyPageHeader />
       <AnimatePresence>
         <PageTransition key={location.pathname}>
           <ErrorBoundary>
@@ -1693,6 +1694,75 @@ const LogoutConfirmHandler = () => {
   }, [confirm, logout]);
 
   return null;
+};
+
+// ═══ STICKY PAGE HEADER — back arrow + title, fixed below TopNavbar ═══
+const PAGE_TITLES = {
+  '/films': 'I Miei Film',
+  '/create-film': 'Produci Film',
+  '/create': 'Produci Film',
+  '/pipeline-v2': 'Pipeline Film',
+  '/create-series': 'Produci Serie TV',
+  '/create-anime': 'Produci Anime',
+  '/create-sequel': 'Sequel',
+  '/create-legacy': 'Pipeline Classica',
+  '/my-tv': 'La Mia TV',
+  '/tv-stations': 'Emittenti TV',
+  '/marketplace': 'Mercato',
+  '/drafts': 'Bozze',
+  '/emerging-screenplays': 'Sceneggiature',
+  '/journal': 'CineJournal',
+  '/stars': 'Star Scoperte',
+  '/releases': 'Note di Rilascio',
+  '/feedback': 'Feedback',
+  '/social': 'CineBoard',
+  '/games': 'Contest',
+  '/contest': 'Contest',
+  '/minigiochi': 'Minigiochi + Sfide',
+  '/chat': 'Chat',
+  '/statistics': 'Statistiche',
+  '/profile': 'Profilo',
+  '/creator-board': 'Creator Board',
+  '/infrastructure': 'Infrastrutture',
+  '/parco-studio': 'Parco Studio 3D',
+  '/strutture': 'Strutture',
+  '/agenzia': 'Agenzia & Talenti',
+  '/strategico': 'Div. Strategiche',
+  '/acting-school': 'Scuola di Recitazione',
+  '/casting-agency': 'Agenzia Casting',
+  '/tour': 'Cinema Tour',
+  '/leaderboard': 'Classifiche',
+  '/tutorial': 'Tutorial',
+  '/system-notes': 'Note di Sistema',
+  '/admin': 'Admin Panel',
+  '/sagas': 'Saghe & Serie',
+  '/festivals': 'Festival',
+  '/credits': 'Titoli di Coda',
+  '/hq': 'Quartier Generale',
+  '/pvp-arena': 'Arena PvP',
+  '/major': 'Major',
+  '/event-history': 'Storico Eventi',
+  '/friends': 'Amici',
+  '/notifications': 'Notifiche',
+};
+
+const StickyPageHeader = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const path = location.pathname;
+  if (path === '/dashboard' || path === '/' || path.startsWith('/auth') || path.startsWith('/films/') || path.startsWith('/series/') || path.startsWith('/player/') || path.startsWith('/tv-station/') || path.startsWith('/recovery') || path.startsWith('/reset-')) return null;
+  const title = PAGE_TITLES[path];
+  if (!title) return null;
+  return (
+    <div className="sticky z-[45] bg-[#0F0F10]/95 backdrop-blur-sm border-b border-white/5 px-3 py-2 flex items-center gap-2 sidemenu-translate"
+      style={{ top: 44 }} data-testid="sticky-page-header">
+      <button onClick={() => navigate(-1)} className="flex items-center justify-center w-7 h-7 rounded-full active:scale-90 transition-transform"
+        style={{ animation: 'headerArrowPulse 2s ease-in-out infinite' }} data-testid="page-back-btn">
+        <ArrowLeft className="w-5 h-5 text-yellow-400" />
+      </button>
+      <span className="font-['Bebas_Neue'] text-sm tracking-wider text-white truncate">{title}</span>
+    </div>
+  );
 };
 
 function App() {

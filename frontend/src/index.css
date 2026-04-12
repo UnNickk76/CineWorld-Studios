@@ -535,3 +535,9 @@ body[data-sidemenu="open"] .main-content-push {
   margin-left: var(--side-menu-w);
   width: 100vw;
 }
+
+/* ═══ Sticky page header back arrow pulse ═══ */
+@keyframes headerArrowPulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 6px rgba(255,215,0,0.6)); }
+}

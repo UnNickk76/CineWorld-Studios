@@ -218,14 +218,14 @@ export default function ParcoStudioPage() {
         if (!slot) return null;
         const Icon = slot.icon;
         return (
-          <div className="fixed inset-0 z-[60] flex items-end justify-center" onClick={() => setOpenSlot(null)}>
-            <div className="absolute inset-0 bg-black/50" />
-            <div className="relative w-full max-w-sm bg-[#111113] border-t rounded-t-2xl overflow-hidden" style={{ borderColor: `${slot.color}30` }} onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center px-4" onClick={() => setOpenSlot(null)}>
+            <div className="absolute inset-0 bg-black/60" />
+            <div className="relative w-full max-w-sm bg-[#111113] rounded-2xl overflow-hidden border" style={{ borderColor: `${slot.color}30`, maxHeight: 'calc(100vh - 120px)' }} onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 flex-shrink-0">
                 <div className="flex items-center gap-2"><Icon className="w-5 h-5" style={{ color: slot.color }} /><span className="font-bold text-sm text-white">{slot.label}</span></div>
                 <button onClick={() => setOpenSlot(null)} className="text-gray-400"><X className="w-4 h-4" /></button>
               </div>
-              <div className="p-3 space-y-1.5" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
+              <div className="p-3 space-y-1.5 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
                 {slot.infras.map(infra => {
                   const own = isOwned(infra.type);
                   return (

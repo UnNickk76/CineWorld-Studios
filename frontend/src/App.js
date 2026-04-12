@@ -663,7 +663,7 @@ const GlobalSideMenu = () => {
           <div className="flex-shrink-0" style={{ paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
             {/* Banner donazioni arancione */}
             <div className="mx-1 mb-1 px-2 py-1.5 rounded bg-gradient-to-r from-orange-600/30 to-amber-600/20 border border-orange-500/25 cursor-pointer"
-              onClick={() => { setOpen(false); window.dispatchEvent(new CustomEvent('open-donate')); }}
+              onClick={() => { setOpen(false); window.open('https://www.paypal.me/UnNickk', '_blank'); }}
               data-testid="menu-donate-banner">
               <p className="text-[8px] font-bold text-orange-300 text-center leading-tight">Sostieni CineWorld</p>
               <p className="text-[6px] text-orange-400/60 text-center">Il tuo supporto conta!</p>

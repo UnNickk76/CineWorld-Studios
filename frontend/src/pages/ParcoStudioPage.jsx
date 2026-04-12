@@ -147,17 +147,17 @@ export default function ParcoStudioPage() {
           <div ref={mapRef} className="relative" style={{ width: mw, height: mh }}>
             <img src="/parco-studio-map.png?v=2" alt="" style={{ width: mw, height: mh, display: 'block' }} draggable={false} />
 
-            {/* Insegna nome casa di produzione — dentro la fascia, con glow rainbow animato */}
+            {/* Insegna nome casa di produzione — sulla fascia dorata, glow rainbow */}
             {user?.production_house_name && (
-              <div className="absolute pointer-events-none" style={{ left: '36%', top: '40%', width: '28%' }}>
+              <div className="absolute pointer-events-none" style={{ left: '33%', top: '35%', width: '34%' }}>
                 <div className="flex justify-center">
                   <div className="parco-sign-glow" style={{
-                    padding: `${mw * 0.003}px ${mw * 0.012}px`,
-                    background: 'rgba(5,3,0,0.7)', backdropFilter: 'blur(4px)',
+                    padding: `${mw * 0.004}px ${mw * 0.015}px`,
+                    background: 'rgba(5,3,0,0.65)', backdropFilter: 'blur(4px)',
                     borderRadius: mw * 0.002,
                     border: `${Math.max(1.5, mw * 0.0005)}px solid rgba(255,200,60,0.4)`,
                   }}>
-                    <p className="font-['Bebas_Neue'] text-center text-white tracking-[0.15em] whitespace-nowrap" style={{ fontSize: mw * 0.008, lineHeight: 1.1 }}>
+                    <p className="font-['Bebas_Neue'] text-center text-white tracking-[0.18em] whitespace-nowrap" style={{ fontSize: mw * 0.012, lineHeight: 1.1 }}>
                       {user.production_house_name}
                     </p>
                   </div>

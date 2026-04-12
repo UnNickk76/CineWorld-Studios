@@ -281,6 +281,33 @@ async def _advance(project_id: str, user_id: str, target: str, extra_data: dict 
             }
         )
         updated = await db.film_projects.find_one({'id': project_id}, {'_id': 0})
+
+        # Generate cinematic city impact notifications on release
+        if target == 'released':
+            try:
+                import city_tastes as ct
+                genre = updated.get('genre', 'drama')
+                content_type = updated.get('content_type', 'film')
+                title = updated.get('title', '')
+                zones = updated.get('release_schedule', {}).get('zones', [])
+                cities = await db.city_tastes.find({'enabled': True}, {'_id': 0}).to_list(100)
+                notifs = []
+                for c in cities:
+                    if c['zone'] in zones or c['city_id'] in zones or 'world' in zones:
+                        tastes = c.get('current_tastes', c.get('personality', {}))
+                        sat = c.get('saturation', {})
+                        eff = ct.effective_taste(tastes.get(genre, 0.5), sat.get(genre, 0))
+                        if eff >= 0.65 or eff <= 0.3:
+                            msg = ct.get_notification_phrase(c['name'], title, content_type, eff)
+                            notifs.append({'type': 'city_impact', 'message': msg, 'city': c['name'], 'level': ct.get_taste_level(eff), 'created_at': now, 'read': False})
+                if notifs:
+                    # Store max 3 most impactful notifications
+                    notifs.sort(key=lambda x: {'fermento':0,'forte':1,'freddo':2,'discreto':3,'tiepido':4}.get(x['level'],5))
+                    for n in notifs[:3]:
+                        await db.notifications.insert_one({**n, 'user_id': user_id, 'film_id': project_id})
+            except Exception as e:
+                logging.warning(f"[CITY_IMPACT] Notification error: {e}")
+
         return updated
     except Exception as e:
         await db.film_projects.update_one(
@@ -2606,14 +2633,39 @@ async def complete_premiere_v2(pid: str, user: dict = Depends(get_current_user))
         if datetime.now(timezone.utc) < end_dt:
             raise HTTPException(400, "Premiere ancora in corso")
 
-    # Calculate premiere impact
+    # Calculate premiere impact with city taste bonus
     premiere = project.get('premiere', {})
     prestige = premiere.get('prestige', 70)
-    impact = int(prestige * 0.3 + random.randint(-5, 10))
+    base_impact = int(prestige * 0.3 + random.randint(-5, 10))
+
+    # City taste bonus for LaPrima
+    city_bonus = 0
+    try:
+        import city_tastes as ct_mod
+        premiere_city = premiere.get('city', '')
+        genre = project.get('genre', 'drama')
+        subgenres = project.get('subgenres', [])
+        content_type = project.get('content_type', 'film')
+        # Find matching city by name
+        city_doc = await db.city_tastes.find_one({'name': premiere_city, 'enabled': True}, {'_id': 0})
+        if city_doc:
+            tastes = city_doc.get('current_tastes', city_doc.get('personality', {}))
+            sat = city_doc.get('saturation', {})
+            eff = ct_mod.effective_taste(tastes.get(genre, 0.5), sat.get(genre, 0))
+            if eff >= 0.7:
+                city_bonus = int(base_impact * 0.25)  # +25% if city loves the genre
+            elif eff <= 0.3:
+                city_bonus = int(base_impact * -0.15)  # -15% if city is cold
+            await ct_mod.add_saturation(db, city_doc['city_id'], genre, 0.06)
+    except Exception as e:
+        logging.warning(f"[CITY_TASTES] Premiere bonus error: {e}")
+
+    impact = base_impact + city_bonus
 
     extra = {
         'premiere.outcome_score': impact,
         'premiere.completed': True,
+        'premiere.city_bonus': city_bonus,
         'pipeline_metrics.premiere_bonus': impact,
         'release_type': 'premiere',
     }
@@ -2801,6 +2853,21 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
     quality = project.get('quality_score', project.get('pre_imdb_score', 50))
     final_hype_mult = _calc_release_hype(hype_mult_base, len(selected_zones), has_world, quality)
 
+    # City taste bonus — dynamic city preferences affect revenue
+    try:
+        import city_tastes as ct
+        genre = project.get('genre', 'drama')
+        subgenres = project.get('subgenres', [])
+        content_type = project.get('content_type', 'film')
+        city_mult = await ct.calculate_city_bonus(db, selected_zones, genre, subgenres, content_type)
+        # Add saturation for each matching city
+        cities = await db.city_tastes.find({'enabled': True, '$or': [{'zone': {'$in': selected_zones}}, {'city_id': {'$in': selected_zones}}]}, {'_id': 0, 'city_id': 1}).to_list(100)
+        for c in cities:
+            await ct.add_saturation(db, c['city_id'], genre, 0.04)
+    except Exception as e:
+        logging.warning(f"[CITY_TASTES] Bonus calc failed: {e}")
+        city_mult = 1.0
+
     schedule = {
         'date_option': body.date_option,
         'date_label': date_opt['label'],
@@ -2809,7 +2876,8 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
         'zone_names': [RELEASE_ZONES[z]['name'] for z in selected_zones],
         'funds_cost': total_funds,
         'cp_cost': total_cp,
-        'rev_mult': round(rev_mult, 2),
+        'rev_mult': round(rev_mult * city_mult, 2),
+        'city_taste_mult': city_mult,
         'hype_mult': final_hype_mult,
         'hype_mult_base': hype_mult_base,
         'scheduled_at': _now(),

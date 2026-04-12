@@ -1844,6 +1844,7 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
   const [cities, setCities] = useState([]);
   const [selectedCity, setSelectedCity] = useState('');
   const [duration, setDuration] = useState(24);
+  const [cityTips, setCityTips] = useState(null);
   const state = film.pipeline_state;
   const timers = film.pipeline_timers || {};
   const { remaining, done } = useCountdown(timers.premiere_end);
@@ -1851,6 +1852,11 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
   useEffect(() => {
     if (state === 'premiere_setup') {
       api.get(`/films/${film.id}/premiere-cities`).then(d => setCities(d.cities || [])).catch(() => {});
+      // Fetch Velion city tips for LaPrima
+      const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+      const token = localStorage.getItem('cineworld_token');
+      fetch(`${BACKEND}/api/city-tastes/la-prima-tips/${film.id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json()).then(d => setCityTips(d)).catch(() => {});
     }
   }, [film.id, state]);
 
@@ -1906,6 +1912,22 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
               ))}
             </div>
           </div>
+          {/* Velion City Intelligence for LaPrima */}
+          {cityTips?.tips?.length > 0 && selectedCity && (
+            <div className="p-2 bg-gradient-to-br from-yellow-500/5 to-cyan-500/5 border border-yellow-500/15 rounded-lg">
+              <p className="text-[9px] text-yellow-400 font-bold mb-1">Velion — Consigli Premiere</p>
+              {cityTips.intro && <p className="text-[8px] text-gray-400 mb-1.5">{cityTips.intro}</p>}
+              {cityTips.tips.filter(t => t.name === selectedCity).map(tip => {
+                const colors = { fermento: 'text-green-400', forte: 'text-emerald-400', discreto: 'text-yellow-400', tiepido: 'text-orange-400', freddo: 'text-red-400' };
+                return (
+                  <div key={tip.city_id} className="flex items-start gap-2">
+                    <span className={`text-[9px] font-bold ${colors[tip.level] || 'text-gray-400'}`}>{tip.name}:</span>
+                    <p className="text-[8px] text-gray-400">{tip.phrase}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <div>
             <label className="text-[9px] text-gray-500 uppercase font-bold">Durata: {duration}h</label>
             <input type="range" min={2} max={48} value={duration} onChange={e => setDuration(+e.target.value)}

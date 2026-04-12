@@ -1091,16 +1091,23 @@ async def _generate_agency_proposals(project, agencies, user_id):
         roles.append(('animator', 12))     # Disegnatori from director pool
         roles.append(('voice_actor', 15))  # Doppiatori from actor pool
 
-    # Fetch per role, sorted by genre compatibility
+    # Fetch per role, sorted by genre compatibility, FILTERED by player level
+    player_level = player.get('level', 1) if player else 1
+    player_fame_val = player.get('fame', 0) if player else 0
+    # Base fame cap: players at low levels get mostly lower-fame NPCs
+    # Allow 2 "star" picks (high fame) per pool, rest capped
+    fame_cap_base = min(40 + player_level * 2 + player_fame_val * 0.05, 95)
+    fame_cap_star = min(60 + player_level * 3 + player_fame_val * 0.1, 100)
+
     for role_type, count in roles:
-        # Map anime roles to existing NPC pools
         query_role = role_type
         if role_type == 'animator':
             query_role = 'director'
         elif role_type == 'voice_actor':
             query_role = 'actor'
 
-        sample_size = count * 3
+        sample_size = count * 4
+        # Fetch a larger pool to filter
         cursor = db.people.aggregate([
             {'$match': {'role_type': query_role}},
             {'$sample': {'size': sample_size}},
@@ -1108,7 +1115,32 @@ async def _generate_agency_proposals(project, agencies, user_id):
         ])
         candidates = await cursor.to_list(sample_size)
         candidates.sort(key=_score_npc, reverse=True)
-        for i, npc in enumerate(candidates[:count]):
+
+        # Split: up to 2 star candidates (above base cap), rest within cap
+        stars_added = 0
+        filtered = []
+        for npc in candidates:
+            npc_fame = npc.get('fame', 30)
+            if not isinstance(npc_fame, (int, float)):
+                npc_fame = 30
+            if npc_fame > fame_cap_base and stars_added < 2:
+                if npc_fame <= fame_cap_star:
+                    filtered.append(npc)
+                    stars_added += 1
+            elif npc_fame <= fame_cap_base:
+                filtered.append(npc)
+            if len(filtered) >= count:
+                break
+
+        # If not enough, add remaining regardless
+        if len(filtered) < count:
+            for npc in candidates:
+                if npc not in filtered:
+                    filtered.append(npc)
+                if len(filtered) >= count:
+                    break
+
+        for i, npc in enumerate(filtered[:count]):
             proposals.append(_map_npc(npc, role_type, i))
 
     random.shuffle(proposals)
@@ -1937,6 +1969,120 @@ async def renegotiate_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(
             'worst_pair': chemistry['worst_pair'],
         },
     }
+
+
+@router.post("/films/{pid}/auto-cast")
+async def auto_complete_cast(pid: str, user: dict = Depends(get_current_user)):
+    """Auto-fill all cast roles with appropriate NPCs. Cost: $2M + 10 CP (free for guests)."""
+    project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] != 'casting_live':
+        raise HTTPException(400, "Non in fase casting")
+
+    is_guest = user.get('is_guest', False)
+    COST_FUNDS = 2_000_000
+    COST_CP = 10
+
+    if not is_guest:
+        u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1, 'cinepass': 1})
+        if u.get('funds', 0) < COST_FUNDS:
+            raise HTTPException(400, f"Servono ${COST_FUNDS:,} (hai ${u.get('funds',0):,})")
+        if u.get('cinepass', 0) < COST_CP:
+            raise HTTPException(400, f"Servono {COST_CP} crediti (hai {u.get('cinepass',0)})")
+        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -COST_FUNDS, 'cinepass': -COST_CP}})
+
+    # Get player level for scaling
+    player = await db.users.find_one({'id': user['id']}, {'_id': 0, 'level': 1, 'fame': 1})
+    player_level = player.get('level', 1) if player else 1
+    player_fame = player.get('fame', 0) if player else 0
+    genre = project.get('genre', 'drama')
+    ct = project.get('content_type', 'film')
+
+    # Calculate appropriate fame range for NPCs based on player level
+    # 2 high-quality picks, rest proportional
+    base_max_fame = min(500 + player_level * 30 + player_fame * 0.3, 10000)
+    high_max_fame = base_max_fame * 2.5  # 2 star picks can be much better
+
+    proposals = project.get('cast_proposals', [])
+    if not proposals:
+        raise HTTPException(400, "Nessuna proposta disponibile. Attendi le proposte dall'agenzia.")
+
+    # Group proposals by role
+    by_role = {}
+    for i, p in enumerate(proposals):
+        r = p.get('role', 'actor')
+        if r == 'writer': r = 'screenwriter'
+        by_role.setdefault(r, []).append((i, p))
+
+    # Sort each role group by genre compatibility score
+    def npc_score(p):
+        skills = p.get('skills', {})
+        return sum(skills.values()) + (p.get('fame', 0) or 0) * 0.3
+
+    # Select roles: 1 director, 1 composer, 1 screenwriter, 5 actors
+    cast = project.get('cast', {'director': None, 'screenwriters': [], 'actors': [], 'composer': None})
+    if 'screenwriter' in cast and cast['screenwriter'] and not cast.get('screenwriters'):
+        cast['screenwriters'] = [cast['screenwriter']]
+    cast.setdefault('screenwriters', [])
+    cast.setdefault('actors', [])
+
+    used_indices = set()
+    star_picks = 0  # Track high-quality picks (max 2)
+
+    def pick_best(role_key, max_fame_limit):
+        nonlocal star_picks
+        candidates = by_role.get(role_key, [])
+        # Filter by fame and unused
+        valid = [(i, p) for i, p in candidates if i not in used_indices and (p.get('fame', 0) or 0) <= max_fame_limit and p.get('status') != 'rejected']
+        if not valid:
+            valid = [(i, p) for i, p in candidates if i not in used_indices and p.get('status') != 'rejected']
+        if not valid:
+            return None
+        valid.sort(key=lambda x: npc_score(x[1]), reverse=True)
+        idx, chosen = valid[0]
+        used_indices.add(idx)
+        return chosen
+
+    # Director (1) - can be star pick
+    if not cast.get('director'):
+        d = pick_best('director', high_max_fame if star_picks < 2 else base_max_fame)
+        if d:
+            cast['director'] = d
+            if (d.get('fame', 0) or 0) > base_max_fame: star_picks += 1
+
+    # Composer (1)
+    if not cast.get('composer'):
+        c = pick_best('composer', base_max_fame)
+        if c: cast['composer'] = c
+
+    # Screenwriter (1)
+    if len(cast.get('screenwriters', [])) < 1:
+        s = pick_best('screenwriter', base_max_fame)
+        if s: cast['screenwriters'].append(s)
+
+    # Actors (fill to 5) - first 1 can be star pick
+    ACTOR_ROLES = ['protagonista', 'antagonista', 'spalla', 'comico', 'drammatico']
+    actor_count = len(cast.get('actors', []))
+    for role_name in ACTOR_ROLES:
+        if actor_count >= 5:
+            break
+        fame_limit = high_max_fame if star_picks < 2 else base_max_fame
+        a = pick_best('actor', fame_limit)
+        if a:
+            a['cast_role'] = role_name
+            cast['actors'].append(a)
+            if (a.get('fame', 0) or 0) > base_max_fame: star_picks += 1
+            actor_count += 1
+
+    # Calculate quality
+    quality_data = _calc_cast_quality(cast, genre, project.get('subgenres', []), ct)
+
+    update = {
+        'cast': cast,
+        'pipeline_metrics.cast_quality': quality_data.get('total', 0),
+    }
+    film = await _update_project(pid, update)
+    return {'film': film, 'auto_cast': True, 'star_picks': star_picks, 'cost_funds': 0 if is_guest else COST_FUNDS, 'cost_cp': 0 if is_guest else COST_CP}
+
 
 @router.post("/films/{pid}/lock-cast")
 async def lock_cast_v2(pid: str, user: dict = Depends(get_current_user)):
@@ -3793,11 +3939,13 @@ async def unified_speedup_v2(pid: str, req: SpeedupRequest, user: dict = Depends
     base_credits = SPEEDUP_BASE_CREDITS[pct]
     credit_cost = _calc_speedup_cost(base_credits, project)
 
-    # Check CinePass
-    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1})
-    available = u.get('cinepass', 0) if u else 0
-    if available < credit_cost:
-        raise HTTPException(400, f"Servono {credit_cost} crediti (hai {available})")
+    # Check CinePass (skip for guest users)
+    is_guest = user.get('is_guest', False)
+    if not is_guest:
+        u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1})
+        available = u.get('cinepass', 0) if u else 0
+        if available < credit_cost:
+            raise HTTPException(400, f"Servono {credit_cost} crediti (hai {available})")
 
     # Get current timer
     timers = project.get('pipeline_timers', {})

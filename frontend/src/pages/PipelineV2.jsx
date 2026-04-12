@@ -337,6 +337,7 @@ const SpeedupPanel = ({ film, onRefresh, toast }) => {
   const [costs, setCosts] = useState(null);
   const [loading, setLoading] = useState('');
   const [confirmPct, setConfirmPct] = useState(null);
+  const isGuest = JSON.parse(localStorage.getItem('cineworld_user') || '{}').is_guest;
 
   useEffect(() => {
     api.get(`/films/${film.id}/speedup-costs`).then(d => setCosts(d.costs || {})).catch(() => {});
@@ -348,7 +349,7 @@ const SpeedupPanel = ({ film, onRefresh, toast }) => {
     try {
       const res = await api.post(`/films/${film.id}/speedup`, { percentage: pct });
       onRefresh();
-      toast({ title: `Accelerato del ${pct}%! (-${res.credits_spent} crediti)` });
+      toast({ title: `Accelerato del ${pct}%!${isGuest ? '' : ` (-${res.credits_spent} crediti)`}` });
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
     setLoading('');
   };
@@ -371,13 +372,16 @@ const SpeedupPanel = ({ film, onRefresh, toast }) => {
           return (
             <button
               key={t.pct}
-              onClick={() => setConfirmPct(t.pct)}
+              onClick={() => isGuest ? doSpeedup(t.pct) : setConfirmPct(t.pct)}
               disabled={!!loading}
               className={`flex flex-col items-center py-2 px-1 rounded-lg border transition-colors disabled:opacity-40 ${colors[t.color]}`}
               data-testid={`speedup-${t.pct}`}
             >
               <span className="text-[10px] font-bold">{isLoading ? '...' : t.label}</span>
-              <span className="text-[7px] opacity-70 mt-0.5">{cost} cr</span>
+              {isGuest
+                ? <span className="text-[7px] mt-0.5"><s className="opacity-40">{cost} cr</s> <span className="text-green-400 font-bold">GRATIS</span></span>
+                : <span className="text-[7px] opacity-70 mt-0.5">{cost} cr</span>
+              }
             </button>
           );
         })}
@@ -1098,6 +1102,7 @@ const ChemistryPanel = ({ film, loading, setLoading, toast }) => {
 
 const CastPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState('');
+  const isGuest = JSON.parse(localStorage.getItem('cineworld_user') || '{}').is_guest;
   const [activeTab, setActiveTab] = useState('director');
   const [expandedProposal, setExpandedProposal] = useState(null);
   const [rejectInfo, setRejectInfo] = useState(null);
@@ -1402,6 +1407,20 @@ const CastPhase = ({ film, onRefresh, toast }) => {
         })}
         {tabProposals.length === 0 && <p className="text-[9px] text-gray-600 italic text-center py-4">Nessuna proposta {tabInfo?.label?.toLowerCase()}</p>}
       </div>
+
+      {/* Auto-Complete Cast */}
+      <button onClick={async () => {
+        setLoading('autocast');
+        try {
+          const r = await api.post(`/films/${film.id}/auto-cast`);
+          toast({ title: 'Cast completato automaticamente!' });
+          onRefresh();
+        } catch (e) { toast({ title: e.message || 'Errore', variant: 'destructive' }); }
+        setLoading('');
+      }} disabled={loading === 'autocast' || canLock}
+        className="w-full text-[10px] py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-30 font-bold mb-1.5" data-testid="auto-cast-btn">
+        {loading === 'autocast' ? 'Completamento...' : (<>Completa Cast Auto — {isGuest ? <><s className="opacity-50">$2M + 10cr</s> GRATIS</> : '$2M + 10cr'}</>)}
+      </button>
 
       {/* Lock */}
       <button onClick={lockCast} disabled={!canLock || loading === 'lock'}

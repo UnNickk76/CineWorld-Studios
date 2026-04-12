@@ -60,10 +60,10 @@ export default function ParcoStudioPage() {
   const [backgrounds, setBackgrounds] = useState({});
   const [loading, setLoading] = useState(true);
   const [openSlot, setOpenSlot] = useState(null);
-  const [zoom, setZoom] = useState(0.5);
+  const [zoom, setZoom] = useState(0.3);
   const containerRef = useRef(null);
   const mapRef = useRef(null);
-  const touchRef = useRef({ dist: 0, zoom: 0.5 });
+  const touchRef = useRef({ dist: 0, zoom: 0.3 });
 
   // Glow color per player (deterministic from nickname)
   const glowColor = GLOW_COLORS[(user?.nickname || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % GLOW_COLORS.length];
@@ -111,7 +111,7 @@ export default function ParcoStudioPage() {
     el.addEventListener('touchstart', onStart, { passive: true });
     el.addEventListener('touchmove', onMove, { passive: false });
     return () => { el.removeEventListener('touchstart', onStart); el.removeEventListener('touchmove', onMove); };
-  }, [zoom]);
+  }, [zoom, loading]);
 
   const isOwned = (t) => t === '_minigiochi' ? true : (backgrounds[t]?.owned || false);
   const getInfraId = (t) => backgrounds[t]?.infra_id;

@@ -202,8 +202,17 @@ export const AuthProvider = ({ children }) => {
     if (user?.is_guest) {
       try { await api.post('/auth/guest-logout'); } catch {}
     }
-    localStorage.removeItem('cineworld_token');
-    localStorage.removeItem('cw_guest_reg_tooltip');
+    // Clear ALL cineworld-related localStorage items
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('cineworld_') || key.startsWith('cw_') || key.startsWith('swr-'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+    // Also clear sessionStorage
+    sessionStorage.clear();
     setToken(null);
     setUser(null);
     clearApiCache();

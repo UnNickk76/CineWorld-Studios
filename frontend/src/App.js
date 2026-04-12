@@ -1688,21 +1688,24 @@ const UrlManager = ({ children }) => {
 // Logout with custom confirm dialog
 const LogoutConfirmHandler = () => {
   const confirm = useConfirm();
-  const { logout } = useContext(AuthContext);
+  const { logout, user } = useContext(AuthContext);
 
   useEffect(() => {
     const handler = async () => {
+      const isGuest = user?.is_guest;
       const ok = await confirm({
-        title: 'Uscire dal gioco?',
-        subtitle: 'Sei sicuro di voler effettuare il logout?',
-        confirmLabel: 'Esci',
+        title: isGuest ? 'Uscire dalla sessione Guest?' : 'Uscire dal gioco?',
+        subtitle: isGuest
+          ? 'Se esci ora perderai TUTTI i progressi della sessione guest. Non potrai recuperarli!'
+          : 'Sei sicuro di voler effettuare il logout?',
+        confirmLabel: isGuest ? 'Esci e cancella tutto' : 'Esci',
         cancelLabel: 'Annulla',
       });
       if (ok) logout();
     };
     window.addEventListener('confirm-logout', handler);
     return () => window.removeEventListener('confirm-logout', handler);
-  }, [confirm, logout]);
+  }, [confirm, logout, user?.is_guest]);
 
   return null;
 };

@@ -914,6 +914,47 @@ function DonationsTab({ api }) {
 
 
 function MaintenanceTab({ api }) {
+
+function GuestCleanupPanel({ api }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [cleaning, setCleaning] = useState(false);
+  useEffect(() => {
+    api.get('/admin/recovery/guest-orphans').then(r => { setData(r.data); setLoading(false); }).catch(() => setLoading(false));
+  }, [api]);
+  const clean = async () => {
+    setCleaning(true);
+    try {
+      const r = await api.post('/admin/recovery/clean-guests');
+      toast.success(`Eliminati ${r.data.deleted_users} guest, ${r.data.deleted_films} film, ${r.data.deleted_infra} infrastrutture`);
+      setData({ guests: [], total_guests: 0, total_films: 0 });
+    } catch (e) { toast.error(e.message || 'Errore'); }
+    setCleaning(false);
+  };
+  if (loading) return <Card className="bg-[#111113] border-white/5 mt-3"><CardContent className="p-3"><p className="text-xs text-gray-500">Caricamento...</p></CardContent></Card>;
+  if (!data || data.total_guests === 0) return null; // Hide if no orphans
+  return (
+    <Card className="bg-[#111113] border-white/5 mt-3" data-testid="guest-cleanup-panel">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2"><Trash2 className="w-4 h-4 text-red-400" /> Pulizia Dati Guest</CardTitle>
+        <p className="text-[10px] text-gray-500">Sessioni guest orfane rimaste in memoria</p>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between p-3 bg-red-500/5 rounded-lg border border-red-500/15">
+          <div>
+            <p className="text-sm font-semibold text-white">{data.total_guests} guest orfani</p>
+            <p className="text-[10px] text-gray-500">{data.total_films} film associati</p>
+          </div>
+          <Button size="sm" className="h-8 text-xs bg-red-600 hover:bg-red-700" onClick={clean} disabled={cleaning}>
+            {cleaning ? 'Eliminazione...' : 'Pulisci tutto'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
   const [username, setUsername] = useState('');
   const [projects, setProjects] = useState([]);
   const [stats, setStats] = useState(null);
@@ -2341,6 +2382,7 @@ export default function AdminPage() {
         {activeTab === 'deletions' && isAdmin && <DeletionsTab api={api} />}
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
         {activeTab === 'donations' && isAdmin && <DonationsTab api={api} />}
+        {activeTab === 'donations' && isAdmin && <GuestCleanupPanel api={api} />}
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}

@@ -134,3 +134,30 @@ async def get_broken_films(user: dict = Depends(get_current_user)):
         f['owner_nickname'] = users.get(f.get('user_id'), '?')
 
     return {'films': broken, 'total': len(broken)}
+
+
+@router.get("/guest-orphans")
+async def get_guest_orphans(user: dict = Depends(get_current_user)):
+    """Get orphaned guest data (guest users and their content)."""
+    if user.get('role') != 'admin':
+        raise HTTPException(403, "Solo admin")
+    guests = await db.users.find({'is_guest': True}, {'_id': 0, 'id': 1, 'nickname': 1, 'created_at': 1}).to_list(500)
+    guest_ids = [g['id'] for g in guests]
+    films_count = await db.film_projects.count_documents({'user_id': {'$in': guest_ids}}) if guest_ids else 0
+    return {'guests': guests, 'total_guests': len(guests), 'total_films': films_count}
+
+@router.post("/clean-guests")
+async def clean_guest_data(user: dict = Depends(get_current_user)):
+    """Delete ALL orphaned guest users and their data."""
+    if user.get('role') != 'admin':
+        raise HTTPException(403, "Solo admin")
+    guests = await db.users.find({'is_guest': True}, {'_id': 0, 'id': 1}).to_list(500)
+    guest_ids = [g['id'] for g in guests]
+    if not guest_ids:
+        return {'deleted_users': 0, 'deleted_films': 0}
+    # Delete all guest content
+    films_del = await db.film_projects.delete_many({'user_id': {'$in': guest_ids}})
+    infra_del = await db.infrastructure.delete_many({'owner_id': {'$in': guest_ids}})
+    users_del = await db.users.delete_many({'is_guest': True})
+    logging.info(f"[ADMIN] Cleaned guest data: {users_del.deleted_count} users, {films_del.deleted_count} films")
+    return {'deleted_users': users_del.deleted_count, 'deleted_films': films_del.deleted_count, 'deleted_infra': infra_del.deleted_count}

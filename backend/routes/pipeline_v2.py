@@ -2006,10 +2006,10 @@ async def auto_complete_cast(pid: str, user: dict = Depends(get_current_user)):
     if not proposals:
         raise HTTPException(400, "Nessuna proposta disponibile. Attendi le proposte dall'agenzia.")
 
-    # Group proposals by role
+    # Group proposals by role_type
     by_role = {}
     for i, p in enumerate(proposals):
-        r = p.get('role', 'actor')
+        r = p.get('role_type', p.get('role', 'actor'))
         if r == 'writer': r = 'screenwriter'
         by_role.setdefault(r, []).append((i, p))
 

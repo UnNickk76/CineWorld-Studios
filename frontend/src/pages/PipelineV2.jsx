@@ -2341,8 +2341,8 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
 
   useEffect(() => {
     api.get('/release-zones').then(r => {
-      setZones(r.data?.zones || []);
-      setDateOptions(r.data?.dates || []);
+      setZones(r?.zones || []);
+      setDateOptions(r?.dates || []);
     }).catch(() => {});
   }, []);
 

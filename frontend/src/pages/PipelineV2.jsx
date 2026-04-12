@@ -568,7 +568,7 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
                 onClick={async () => {
                   setLoading('regen-poster');
                   try {
-                    const res = await api.post(`/pipeline-v2/films/${film.id}/regenerate-poster`);
+                    const res = await api.post(`/films/${film.id}/regenerate-poster`);
                     const jobId = res.data.job_id;
                     // Poll for completion
                     const poll = setInterval(async () => {
@@ -608,7 +608,7 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
               onClick={async () => {
                 setLoading('regen-poster');
                 try {
-                  const res = await api.post(`/pipeline-v2/films/${film.id}/regenerate-poster`);
+                  const res = await api.post(`/films/${film.id}/regenerate-poster`);
                   const jobId = res.data.job_id;
                   const poll = setInterval(async () => {
                     try {
@@ -2369,6 +2369,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
         return prev.includes(zid) ? without : [...without, zid];
       });
     }
+    if (!velionZoneTip) setVelionZoneTip(true);
   };
 
   const continents = {};
@@ -2378,13 +2379,22 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
   });
   const worldZone = zones.find(z => z.id === 'world');
 
+  const [velionDateTip, setVelionDateTip] = useState(false);
+  const [velionZoneTip, setVelionZoneTip] = useState(false);
+
+  // Show Velion tips on first date selection
+  const handleDateSelect = (dateId) => {
+    setSelectedDate(dateId);
+    if (!velionDateTip) setVelionDateTip(true);
+  };
+
   const scheduleRelease = async () => {
     if (!selectedDate || activeZones.length === 0) {
       toast({ title: 'Seleziona data e almeno una zona', variant: 'destructive' }); return;
     }
     setLoading('schedule');
     try {
-      const res = await api.post(`/pipeline-v2/films/${film.id}/schedule-release`, {
+      const res = await api.post(`/films/${film.id}/schedule-release`, {
         date_option: selectedDate, zones: activeZones,
       });
       setScheduled(res.data?.schedule || res.data);
@@ -2397,7 +2407,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
   const release = async () => {
     setLoading('release');
     try {
-      const res = await api.post(`/pipeline-v2/films/${film.id}/release`);
+      const res = await api.post(`/films/${film.id}/release`);
       if (res.data?.scheduled) {
         toast({ title: `Film programmato per uscita` });
         onRefresh(); setLoading('');
@@ -2535,7 +2545,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
               const selected = selectedDate === d.id;
               return (
                 <button key={d.id} disabled={disabled}
-                  onClick={() => !disabled && setSelectedDate(d.id)}
+                  onClick={() => !disabled && handleDateSelect(d.id)}
                   className={`py-1.5 px-1 rounded-md text-[9px] font-bold border transition-all ${
                     disabled ? 'opacity-20 cursor-not-allowed border-gray-800 text-gray-600' :
                     selected ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' :
@@ -2548,12 +2558,11 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
               );
             })}
           </div>
-          {dateInfo && (
-            <div className="mt-1 flex items-center gap-2 text-[8px]">
-              <span className="text-gray-500">Hype:</span>
-              <span className={dateInfo.hype_mult >= 1 ? 'text-green-400' : 'text-orange-400'}>
-                x{dateInfo.hype_mult} {dateInfo.hype_mult >= 1.05 ? '(ottimo!)' : dateInfo.hype_mult < 0.9 ? '(basso)' : ''}
-              </span>
+          {/* Hype multiplier hidden from player */}
+          {velionDateTip && (
+            <div className="mt-1.5 px-2.5 py-2 bg-cyan-500/5 border border-cyan-500/15 rounded-lg">
+              <p className="text-[9px] text-cyan-400 font-bold mb-0.5">Consiglio di Velion:</p>
+              <p className="text-[8px] text-gray-400">Ogni data genera un diverso livello di aspettativa. Attesa pi\u00f9 lunga = pi\u00f9 hype ma anche pi\u00f9 rischio! "Immediato" \u00e8 sicuro ma senza bonus. Sperimenta!</p>
             </div>
           )}
         </div>
@@ -2616,6 +2625,13 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
             ))}
           </div>
         </div>
+
+        {velionZoneTip && (
+          <div className="px-2.5 py-2 bg-cyan-500/5 border border-cyan-500/15 rounded-lg">
+            <p className="text-[9px] text-cyan-400 font-bold mb-0.5">Consiglio di Velion:</p>
+            <p className="text-[8px] text-gray-400">"Mondiale" raggiunge tutti ma costa di pi\u00f9. Seleziona zone specifiche per risparmiare e concentrare gli incassi dove il genere funziona meglio!</p>
+          </div>
+        )}
 
         {/* Cost Summary */}
         {(selectedDate && activeZones.length > 0) && (

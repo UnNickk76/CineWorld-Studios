@@ -711,6 +711,8 @@ async def generate_ai_avatar(request: AvatarGenerationRequest, user: dict = Depe
     
     try:
         from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        from PIL import Image
+        import io, base64
         
         image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
         prompt = f"Professional {request.style} avatar portrait: {request.prompt}. Clean background, high quality, suitable for a profile picture. No text or watermarks."
@@ -718,14 +720,18 @@ async def generate_ai_avatar(request: AvatarGenerationRequest, user: dict = Depe
         images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
         
         if images and len(images) > 0:
-            avatar_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'avatars')
-            os.makedirs(avatar_dir, exist_ok=True)
-            filename = f"{user['id']}.png"
-            filepath = os.path.join(avatar_dir, filename)
-            with open(filepath, 'wb') as f:
-                f.write(images[0])
-            file_url = f"/api/avatar/image/{filename}"
-            return {'avatar_url': file_url, 'prompt': prompt}
+            # Compress to small JPEG and store as base64 data URI in DB (persistent, ~15-30KB)
+            img = Image.open(io.BytesIO(images[0]))
+            img = img.convert('RGB')
+            img.thumbnail((256, 256), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format='JPEG', quality=60, optimize=True)
+            b64 = base64.b64encode(buf.getvalue()).decode('ascii')
+            data_uri = f"data:image/jpeg;base64,{b64}"
+            # Save directly to DB
+            await db.users.update_one({'id': user['id']}, {'$set': {'avatar_url': data_uri, 'avatar_source': 'ai'}})
+            logging.info(f"AI avatar saved for {user.get('nickname')}, size: {len(buf.getvalue())} bytes")
+            return {'avatar_url': data_uri, 'prompt': prompt}
         else:
             raise HTTPException(status_code=500, detail="Failed to generate avatar")
     except Exception as e:

@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
+import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import {
   Film, Sparkles, ChevronRight, Globe, Loader2, DollarSign, TrendingUp, Heart,
   Clapperboard, MapPin, Building, Tv, Star, Menu as MenuIcon,
@@ -59,6 +60,7 @@ const Dashboard = () => {
   const [endingShootingEarly, setEndingShootingEarly] = useState(false);
   const [showShootingDialog, setShowShootingDialog] = useState(false);
   const [showWelcomeStats, setShowWelcomeStats] = useState(false);
+  const [levelInfo, setLevelInfo] = useState(null);
 
   // SideMenu — now global, just track open state for translate
   const [menuOpen, setMenuOpen] = useState(false);
@@ -90,6 +92,11 @@ const Dashboard = () => {
 
   // SWR batch data
   const { data: batchData } = useSWR('/dashboard/batch');
+
+  // Fetch level info for welcome section
+  useEffect(() => {
+    api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
+  }, [api]);
 
   useEffect(() => {
     if (!batchData) return;
@@ -263,28 +270,52 @@ const Dashboard = () => {
               <h1 className="font-['Bebas_Neue'] text-2xl text-yellow-400 tracking-wide">{user?.nickname || 'Player'}</h1>
             </button>
             {user?.production_house_name && <p className="text-[11px] text-gray-500 -mt-0.5">{user.production_house_name}</p>}
-            {showWelcomeStats && batchData?.stats && (
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/films')}>
-                  <Film className="w-4 h-4 text-yellow-500/70" />
-                  <div><p className="text-sm font-bold text-white">{batchData.stats.total_films}</p><p className="text-[8px] text-gray-500">Films</p></div>
-                  <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
+            {showWelcomeStats && (
+              <div className="mt-2 space-y-2">
+                {/* Avatar + Level/Fame row */}
+                <div className="flex items-center gap-3">
+                  <Avatar className="w-12 h-12 border-2 border-yellow-500/40">
+                    <AvatarImage src={user?.avatar_url?.startsWith('/') ? `${BACKEND_URL}${user.avatar_url}` : user?.avatar_url} />
+                    <AvatarFallback className="bg-gray-800 text-yellow-400 font-bold text-sm">{(user?.nickname || '?')[0]}</AvatarFallback>
+                  </Avatar>
+                  {levelInfo && (
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-bold text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded px-1.5 py-0.5">LV {levelInfo.level}</span>
+                        <span className="text-[9px] text-amber-400/70 bg-amber-500/10 border border-amber-500/15 rounded px-1.5 py-0.5">Fama {levelInfo.fame?.toLocaleString()}</span>
+                      </div>
+                      <div className="mt-1 h-1 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-yellow-600 to-amber-400 rounded-full" style={{ width: `${(levelInfo.xp_progress || 0) * 100}%` }} />
+                      </div>
+                      <p className="text-[8px] text-gray-600 mt-0.5">{levelInfo.current_xp?.toLocaleString()} / {levelInfo.xp_needed?.toLocaleString()} XP</p>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/statistics')}>
-                  <DollarSign className="w-4 h-4 text-green-500/70" />
-                  <div><p className="text-sm font-bold text-white">${batchData.stats.total_revenue >= 1000000 ? `${(batchData.stats.total_revenue / 1000000).toFixed(1)}M` : batchData.stats.total_revenue >= 1000 ? `${(batchData.stats.total_revenue / 1000).toFixed(0)}K` : batchData.stats.total_revenue?.toLocaleString()}</p><p className="text-[8px] text-gray-500">Incassi</p></div>
-                  <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
-                </div>
-                <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/social')}>
-                  <Heart className="w-4 h-4 text-red-400/70" />
-                  <div><p className="text-sm font-bold text-white">{batchData.stats.total_likes}</p><p className="text-[8px] text-gray-500">Like</p></div>
-                  <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
-                </div>
-                <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/statistics')}>
-                  <Star className="w-4 h-4 text-blue-400/70" />
-                  <div><p className="text-sm font-bold text-white">{Math.round(batchData.stats.average_quality)}%</p><p className="text-[8px] text-gray-500">Qualità</p></div>
-                  <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
-                </div>
+                {/* Stats grid */}
+                {batchData?.stats && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/films')}>
+                      <Film className="w-4 h-4 text-yellow-500/70" />
+                      <div><p className="text-sm font-bold text-white">{batchData.stats.total_films}</p><p className="text-[8px] text-gray-500">Films</p></div>
+                      <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
+                    </div>
+                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/statistics')}>
+                      <DollarSign className="w-4 h-4 text-green-500/70" />
+                      <div><p className="text-sm font-bold text-white">${batchData.stats.total_revenue >= 1000000 ? `${(batchData.stats.total_revenue / 1000000).toFixed(1)}M` : batchData.stats.total_revenue >= 1000 ? `${(batchData.stats.total_revenue / 1000).toFixed(0)}K` : batchData.stats.total_revenue?.toLocaleString()}</p><p className="text-[8px] text-gray-500">Incassi</p></div>
+                      <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
+                    </div>
+                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/social')}>
+                      <Heart className="w-4 h-4 text-red-400/70" />
+                      <div><p className="text-sm font-bold text-white">{batchData.stats.total_likes}</p><p className="text-[8px] text-gray-500">Like</p></div>
+                      <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
+                    </div>
+                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/statistics')}>
+                      <Star className="w-4 h-4 text-blue-400/70" />
+                      <div><p className="text-sm font-bold text-white">{Math.round(batchData.stats.average_quality)}%</p><p className="text-[8px] text-gray-500">Qualità</p></div>
+                      <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

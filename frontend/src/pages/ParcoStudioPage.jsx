@@ -26,7 +26,7 @@ const SignLED = ({ name, mw, mh }) => {
   // Reset frame on effect change
   useEffect(() => { setFrame(0); }, [effectIdx]);
 
-  const fs = mh * 0.04;
+  const fs = mh * 0.026;
   const maxFrames = Math.ceil(EFFECT_DURATION / 60);
 
   const renderEffect = () => {
@@ -138,7 +138,7 @@ const SignLED = ({ name, mw, mh }) => {
   };
 
   return (
-    <div className="absolute pointer-events-none" style={{ left: '38.5%', top: '21%', width: '23%', height: '7.5%' }}>
+    <div className="absolute pointer-events-none" style={{ left: '41%', top: '21.5%', width: '18%', height: '5%' }}>
       <div className="w-full h-full flex items-center justify-center" style={{
         background: 'rgba(0,5,20,0.82)',
         border: `${Math.max(1, mw * 0.0003)}px solid rgba(60,120,255,0.3)`,

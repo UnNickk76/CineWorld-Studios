@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 import { PlayerBadge } from '../components/PlayerBadge';
@@ -19,6 +19,7 @@ const ADMIN_TABS = [
   { id: 'reports', label: 'Segnalazioni', icon: Flag },
   { id: 'deletions', label: 'Cancellazioni', icon: Trash2 },
   { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
+  { id: 'donations', label: 'Donazioni', icon: Heart },
   { id: 'tutorial', label: 'Tutorial Manager', icon: BookOpen },
   { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
@@ -875,6 +876,43 @@ function ReportsTab({ api }) {
 }
 
 /* ─── Maintenance Tab (Rewritten — Advanced) ─── */
+
+function DonationsTab({ api }) {
+  const [enabled, setEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get('/admin/settings').then(r => { setEnabled(r.data.donations_enabled); setLoading(false); }).catch(() => setLoading(false));
+  }, [api]);
+  const toggle = async () => {
+    const newVal = !enabled;
+    await api.post('/admin/toggle-donations', { enabled: newVal });
+    setEnabled(newVal);
+    toast.success(newVal ? 'Donazioni abilitate' : 'Donazioni disabilitate');
+  };
+  return (
+    <Card className="bg-[#111113] border-white/5" data-testid="donations-tab">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2"><Heart className="w-4 h-4 text-pink-400" /> Gestione Donazioni</CardTitle>
+        <p className="text-[10px] text-gray-500">Abilita/disabilita il sistema donazioni PayPal</p>
+      </CardHeader>
+      <CardContent>
+        {loading ? <p className="text-xs text-gray-500">Caricamento...</p> : (
+          <div className="flex items-center justify-between p-3 bg-white/[0.03] rounded-lg border border-white/5">
+            <div>
+              <p className="text-sm font-semibold text-white">Donazioni PayPal</p>
+              <p className="text-[10px] text-gray-500">{enabled ? 'Il cuore rosa e il banner donazioni sono visibili' : 'Donazioni nascoste per tutti gli utenti'}</p>
+            </div>
+            <Button size="sm" className={`h-8 text-xs ${enabled ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`} onClick={toggle}>
+              {enabled ? 'Disattiva' : 'Attiva'}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
 function MaintenanceTab({ api }) {
   const [username, setUsername] = useState('');
   const [projects, setProjects] = useState([]);
@@ -2302,6 +2340,7 @@ export default function AdminPage() {
         {activeTab === 'reports' && <ReportsTab api={api} />}
         {activeTab === 'deletions' && isAdmin && <DeletionsTab api={api} />}
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
+        {activeTab === 'donations' && isAdmin && <DonationsTab api={api} />}
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}

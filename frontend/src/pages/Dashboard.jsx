@@ -58,6 +58,7 @@ const Dashboard = () => {
   const [startingShooting, setStartingShooting] = useState(false);
   const [endingShootingEarly, setEndingShootingEarly] = useState(false);
   const [showShootingDialog, setShowShootingDialog] = useState(false);
+  const [showWelcomeStats, setShowWelcomeStats] = useState(false);
 
   // SideMenu — now global, just track open state for translate
   const [menuOpen, setMenuOpen] = useState(false);
@@ -252,8 +253,41 @@ const Dashboard = () => {
         <VelionCinematicEvent events={[cinematicWow]} onAllDone={() => setCinematicWow(null)} />
       )}
 
-      <div className={`transition-transform duration-300 ${menuOpen ? "translate-x-[25%]" : ""}`}>
+      <div>
         <div className="pt-16 pb-20 px-3 max-w-7xl mx-auto" data-testid="dashboard">
+
+          {/* Welcome header */}
+          <div className="mb-4" data-testid="dashboard-welcome">
+            <p className="text-gray-400 text-xs">Benvenuto in CineWorld Studio's,</p>
+            <button className="text-left w-full" onClick={() => setShowWelcomeStats(p => !p)} data-testid="welcome-nickname-btn">
+              <h1 className="font-['Bebas_Neue'] text-2xl text-yellow-400 tracking-wide">{user?.nickname || 'Player'}</h1>
+            </button>
+            {user?.production_house_name && <p className="text-[11px] text-gray-500 -mt-0.5">{user.production_house_name}</p>}
+            {showWelcomeStats && batchData?.stats && (
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/films')}>
+                  <Film className="w-4 h-4 text-yellow-500/70" />
+                  <div><p className="text-sm font-bold text-white">{batchData.stats.total_films}</p><p className="text-[8px] text-gray-500">Films</p></div>
+                  <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
+                </div>
+                <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/statistics')}>
+                  <DollarSign className="w-4 h-4 text-green-500/70" />
+                  <div><p className="text-sm font-bold text-white">${batchData.stats.total_revenue >= 1000000 ? `${(batchData.stats.total_revenue / 1000000).toFixed(1)}M` : batchData.stats.total_revenue >= 1000 ? `${(batchData.stats.total_revenue / 1000).toFixed(0)}K` : batchData.stats.total_revenue?.toLocaleString()}</p><p className="text-[8px] text-gray-500">Incassi</p></div>
+                  <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
+                </div>
+                <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/social')}>
+                  <Heart className="w-4 h-4 text-red-400/70" />
+                  <div><p className="text-sm font-bold text-white">{batchData.stats.total_likes}</p><p className="text-[8px] text-gray-500">Like</p></div>
+                  <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
+                </div>
+                <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/statistics')}>
+                  <Star className="w-4 h-4 text-blue-400/70" />
+                  <div><p className="text-sm font-bold text-white">{Math.round(batchData.stats.average_quality)}%</p><p className="text-[8px] text-gray-500">Qualità</p></div>
+                  <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* 1. LaPrima */}
           <div className="mb-4 rounded-xl glow-gold" data-testid="dashboard-la-prima">

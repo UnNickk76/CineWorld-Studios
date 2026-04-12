@@ -184,6 +184,13 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - **Reset automatico**: Alla chiusura del menu, scroll orizzontale resettato a 0 con animazione smooth
 - File: `App.js`, `index.css`
 
+#### Fix Parco Studio 3D + Dashboard Benvenuto (Apr 2026)
+- **Parco Studio**: Rimossi TUTTI i nomi/label. Bottoni invisibili 150% più grandi, centrati sugli edifici reali (coordinate da image analysis). Insegna mostra solo `production_house_name` del player
+- **Dashboard**: Aggiunto header "Benvenuto in CineWorld Studio's," + nickname cliccabile (espande stats: Films, Incassi, Like, Qualità) + nome casa di produzione
+- **Cache-busting**: `?v=2` su immagine mappa per forzare refresh dopo deploy
+- **Fix `films_in_theaters`**: Variabile mancante in `velion.py` che causava crash deploy
+- File: `ParcoStudioPage.jsx`, `Dashboard.jsx`, `routes/velion.py`
+
 ## Backlog
 
 ### P1

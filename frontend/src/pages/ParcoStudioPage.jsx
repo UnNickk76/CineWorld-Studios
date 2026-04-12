@@ -6,50 +6,43 @@ import { Lock, Loader2, Building, Film, Sparkles, Camera, Radio, GraduationCap, 
 const GLOW_COLORS = ['#d4af37','#e04040','#4080e0','#40c060','#9050d0','#40c8d8','#e08030'];
 
 const SLOTS = [
-  { id: 'studios', label: 'Studi di Produzione', cx: 50, cy: 40, color: '#e8a040', icon: Camera,
-    textCx: 50, textCy: 48, textAngle: 0, noGroundText: true,
+  { id: 'studios', label: 'Studi di Produzione', cx: 50.2, cy: 53, color: '#e8a040', icon: Camera,
     infras: [
       { type: 'production_studio', name: 'Studio Produzione Film', route: '/create-film' },
       { type: 'studio_serie_tv', name: 'Studio Serie TV', route: '/create-series' },
       { type: 'studio_anime', name: 'Studio Anime', route: '/create-anime' },
     ],
   },
-  { id: 'arcade', label: 'Sala Giochi', cx: 19, cy: 16, color: '#e840c0', icon: Gamepad2,
-    textCx: 30, textCy: 26, textAngle: 25,
+  { id: 'arcade', label: 'Sala Giochi', cx: 22.1, cy: 17.8, color: '#e840c0', icon: Gamepad2,
     infras: [{ type: '_minigiochi', name: 'Minigiochi', route: '/minigiochi' }],
   },
-  { id: 'talent', label: 'Agenzia & Talenti', cx: 25, cy: 43, color: '#a070d0', icon: GraduationCap,
-    textCx: 34, textCy: 42, textAngle: -4,
+  { id: 'talent', label: 'Agenzia & Talenti', cx: 17.5, cy: 45.7, color: '#a070d0', icon: GraduationCap,
     infras: [
       { type: 'talent_scout_actors', name: 'Scout Attori', route: '/infrastructure' },
       { type: 'talent_scout_screenwriters', name: 'Scout Sceneggiatori', route: '/infrastructure' },
       { type: 'cinema_school', name: 'Scuola di Recitazione', route: '/acting-school' },
     ],
   },
-  { id: 'broadcast', label: 'Broadcast TV', cx: 28, cy: 62, color: '#e06060', icon: Radio,
-    textCx: 37, textCy: 54, textAngle: -30,
+  { id: 'broadcast', label: 'Broadcast TV', cx: 17.5, cy: 77, color: '#e06060', icon: Radio,
     infras: [
       { type: 'emittente_tv', name: 'Emittente TV', route: '/my-tv' },
     ],
   },
-  { id: 'events', label: 'Eventi & Esperienza', cx: 62, cy: 63, color: '#50c878', icon: Sparkles,
-    textCx: 57, textCy: 55, textAngle: 48,
+  { id: 'events', label: 'Eventi & Esperienza', cx: 71.7, cy: 75.5, color: '#50c878', icon: Sparkles,
     infras: [
       { type: 'film_festival_venue', name: 'Festival del Cinema', route: '/festivals' },
       { type: 'cinema_museum', name: 'Museo del Cinema', route: '/infrastructure' },
       { type: 'theme_park', name: 'Parco Tematico', route: '/infrastructure' },
     ],
   },
-  { id: 'strategic', label: 'Strategico', cx: 82, cy: 47, color: '#c0c0c0', icon: Shield,
-    textCx: 69, textCy: 45, textAngle: 8,
+  { id: 'strategic', label: 'Strategico', cx: 83.8, cy: 55, color: '#c0c0c0', icon: Shield,
     infras: [
       { type: 'pvp_operative', name: 'Divisione Operativa', route: '/pvp-arena' },
       { type: 'pvp_investigative', name: 'Divisione Investigativa', route: '/pvp-arena' },
       { type: 'pvp_legal', name: 'Divisione Legale', route: '/pvp-arena' },
     ],
   },
-  { id: 'cinema', label: 'Cinema & Sale', cx: 79, cy: 23, color: '#60a0e0', icon: Film,
-    textCx: 67, textCy: 30, textAngle: -19,
+  { id: 'cinema', label: 'Cinema & Sale', cx: 83.8, cy: 23, color: '#60a0e0', icon: Film,
     infras: [
       { type: 'cinema', name: 'Cinema', route: '/infrastructure' },
       { type: 'drive_in', name: 'Drive-In', route: '/infrastructure' },
@@ -147,71 +140,34 @@ export default function ParcoStudioPage() {
           <div ref={mapRef} className="relative" style={{ width: mw, height: mh }}>
             <img src="/parco-studio-map.png?v=2" alt="" style={{ width: mw, height: mh, display: 'block' }} draggable={false} />
 
-            {/* Studio sign — on the building facade, proportional */}
-            <div className="absolute pointer-events-none" style={{ left: '38%', top: '33%', width: '24%' }}>
-              <div className="flex justify-center">
-                <div style={{
-                  padding: `${mw * 0.002}px ${mw * 0.006}px`,
-                  background: 'rgba(10,5,0,0.65)', backdropFilter: 'blur(3px)',
-                  borderRadius: mw * 0.001,
-                  border: `${Math.max(1, mw * 0.0004)}px solid ${glowColor}50`,
-                  boxShadow: `0 0 ${mw * 0.004}px ${glowColor}35, 0 0 ${mw * 0.008}px ${glowColor}15`,
-                  animation: 'glowPulse 2.5s ease-in-out infinite',
-                }}>
-                  <p className="font-['Bebas_Neue'] text-center text-white tracking-[0.12em] whitespace-nowrap" style={{ fontSize: mw * 0.005, lineHeight: 1.1 }}>
-                    {user?.production_house || 'CineWorld'} Studios
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Ground text labels — painted on terrain with 3D perspective toward center */}
-            {SLOTS.filter(s => !s.noGroundText).map(slot => {
-              const groundFs = mw * 0.009;
-              return (
-                <div key={`ground-${slot.id}`} className="absolute pointer-events-none"
-                  style={{
-                    left: `${slot.textCx}%`, top: `${slot.textCy}%`,
-                    transform: `translate(-50%, -50%) perspective(${mw * 0.08}px) rotateX(58deg) rotateZ(${slot.textAngle}deg)`,
-                    transformOrigin: 'center center',
+            {/* Insegna — solo nome casa di produzione del player */}
+            {user?.production_house_name && (
+              <div className="absolute pointer-events-none" style={{ left: '38%', top: '44%', width: '24%' }}>
+                <div className="flex justify-center">
+                  <div style={{
+                    padding: `${mw * 0.002}px ${mw * 0.006}px`,
+                    background: 'rgba(10,5,0,0.6)', backdropFilter: 'blur(3px)',
+                    borderRadius: mw * 0.001,
+                    border: `${Math.max(1, mw * 0.0004)}px solid ${glowColor}50`,
+                    boxShadow: `0 0 ${mw * 0.004}px ${glowColor}35, 0 0 ${mw * 0.008}px ${glowColor}15`,
+                    animation: 'glowPulse 2.5s ease-in-out infinite',
                   }}>
-                  <p className="whitespace-nowrap text-center font-black uppercase" style={{
-                    fontSize: groundFs,
-                    color: slot.color,
-                    opacity: 0.45,
-                    letterSpacing: '0.18em',
-                    textShadow: `0 ${mw * 0.001}px ${mw * 0.002}px rgba(0,0,0,0.9), 0 0 ${mw * 0.004}px rgba(0,0,0,0.5)`,
-                    WebkitTextStroke: `${Math.max(0.3, mw * 0.0002)}px rgba(0,0,0,0.4)`,
-                    fontFamily: "'Bebas Neue', 'Impact', sans-serif",
-                  }}>{slot.label}</p>
-                </div>
-              );
-            })}
-
-            {/* Clickable slot icons — small circles on buildings */}
-            {SLOTS.map(slot => {
-              const owned = slotOwned(slot);
-              const Icon = slot.icon;
-              const empty = owned === 0;
-              const iconSize = mw * 0.013;
-
-              return (
-                <div key={slot.id} className="absolute cursor-pointer" data-testid={`slot-${slot.id}`}
-                  style={{ left: `${slot.cx}%`, top: `${slot.cy}%`, transform: 'translate(-50%,-50%)' }}
-                  onClick={() => slot.id === 'arcade' ? navigate('/minigiochi') : setOpenSlot(slot.id)}>
-                  <div className="rounded-full flex items-center justify-center"
-                    style={{
-                      width: iconSize, height: iconSize,
-                      background: empty ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.5)',
-                      border: empty ? `${Math.max(1, mw * 0.0004)}px solid rgba(212,175,55,0.6)` : `${Math.max(1, mw * 0.0004)}px solid ${slot.color}80`,
-                      boxShadow: empty ? '0 0 10px rgba(212,175,55,0.35)' : `0 0 10px ${slot.color}30`,
-                    }}>
-                    {empty
-                      ? <Lock style={{ width: iconSize * 0.48, height: iconSize * 0.48 }} className="text-yellow-500" />
-                      : <Icon style={{ width: iconSize * 0.48, height: iconSize * 0.48, color: slot.color }} />
-                    }
+                    <p className="font-['Bebas_Neue'] text-center text-white tracking-[0.12em] whitespace-nowrap" style={{ fontSize: mw * 0.005, lineHeight: 1.1 }}>
+                      {user.production_house_name}
+                    </p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Invisible tap areas on buildings — 150% larger, fully transparent */}
+            {SLOTS.map(slot => {
+              const tapSize = mw * 0.032;
+              return (
+                <div key={slot.id} className="absolute cursor-pointer" data-testid={`slot-${slot.id}`}
+                  style={{ left: `${slot.cx}%`, top: `${slot.cy}%`, width: tapSize, height: tapSize, transform: 'translate(-50%,-50%)' }}
+                  onClick={() => slot.id === 'arcade' ? navigate('/minigiochi') : setOpenSlot(slot.id)}
+                />
               );
             })}
           </div>

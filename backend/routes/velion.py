@@ -438,6 +438,9 @@ async def analyze_player_state(user: dict, page: str = None) -> dict:
 
     all_triggers = []
 
+    # Derive films_in_theaters from films list
+    films_in_theaters = [f for f in films if f.get('status') in ('in_theaters', 'released', 'showing')]
+
     # --- 1. Stuck / blocked pipeline films (PRIORITY 1) ---
     active_pipeline = [p for p in pipeline if p.get('status') not in ['completed', 'discarded', 'abandoned']]
     for p in active_pipeline:

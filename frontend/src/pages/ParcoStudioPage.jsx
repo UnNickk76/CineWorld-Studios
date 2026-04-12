@@ -1,7 +1,165 @@
-import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts';
 import { Lock, Loader2, Building, Film, Sparkles, Camera, Radio, GraduationCap, Shield, X, ChevronRight, Plus, Minus, Gamepad2 } from 'lucide-react';
+
+// ═══ LED SIGN — 15+ animated effects for production house name ═══
+const SignLED = ({ name, mw }) => {
+  const [effectIdx, setEffectIdx] = useState(0);
+  const [frame, setFrame] = useState(0);
+  const letters = useMemo(() => name.split(''), [name]);
+  const EFFECTS_COUNT = 15;
+  const EFFECT_DURATION = 5000; // 5 seconds per effect
+
+  // Rotate through effects slowly
+  useEffect(() => {
+    const iv = setInterval(() => setEffectIdx(i => (i + 1) % EFFECTS_COUNT), EFFECT_DURATION);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Frame ticker for animations (60ms per frame)
+  useEffect(() => {
+    const iv = setInterval(() => setFrame(f => f + 1), 60);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Reset frame on effect change
+  useEffect(() => { setFrame(0); }, [effectIdx]);
+
+  const fs = mw * 0.009;
+  const maxFrames = Math.ceil(EFFECT_DURATION / 60);
+
+  const renderEffect = () => {
+    switch (effectIdx) {
+      case 0: { // Typewriter — one letter at a time from left
+        const show = Math.min(letters.length, Math.floor(frame / 3) + 1);
+        return letters.map((l, i) => (
+          <span key={i} style={{ opacity: i < show ? 1 : 0, transition: 'opacity 0.1s' }}>{l}</span>
+        ));
+      }
+      case 1: { // Blink — full name appears/disappears irregularly
+        const pattern = [1,1,1,0,1,0,0,1,1,1,1,0,1,1,0,0,0,1,1,1,1,1,0,1];
+        const idx = Math.floor(frame / 8) % pattern.length;
+        return <span style={{ opacity: pattern[idx] }}>{name}</span>;
+      }
+      case 2: { // Zoom from dot — starts tiny, grows to full
+        const progress = Math.min(1, frame / 50);
+        const scale = 0.05 + progress * 0.95;
+        return <span style={{ display: 'inline-block', transform: `scale(${scale})`, opacity: 0.3 + progress * 0.7 }}>{name}</span>;
+      }
+      case 3: { // Reverse typewriter — last letter to first
+        const show = Math.min(letters.length, Math.floor(frame / 3) + 1);
+        return letters.map((l, i) => (
+          <span key={i} style={{ opacity: (letters.length - 1 - i) < show ? 1 : 0, transition: 'opacity 0.1s' }}>{l}</span>
+        ));
+      }
+      case 4: { // Wave — letters bounce up and down
+        return letters.map((l, i) => {
+          const offset = Math.sin((frame * 0.08) + i * 0.5) * fs * 0.3;
+          return <span key={i} style={{ display: 'inline-block', transform: `translateY(${offset}px)` }}>{l}</span>;
+        });
+      }
+      case 5: { // Color sweep — blue glow moves through letters
+        return letters.map((l, i) => {
+          const pos = (frame * 0.15) % (letters.length + 4) - 2;
+          const dist = Math.abs(i - pos);
+          const bright = dist < 2 ? 1 : 0.5;
+          const color = dist < 1.5 ? '#60c0ff' : dist < 3 ? '#4090dd' : '#2060aa';
+          return <span key={i} style={{ color, opacity: bright, transition: 'color 0.15s' }}>{l}</span>;
+        });
+      }
+      case 6: { // Fade in one by one from center outward
+        const center = Math.floor(letters.length / 2);
+        return letters.map((l, i) => {
+          const dist = Math.abs(i - center);
+          const show = frame > dist * 4;
+          return <span key={i} style={{ opacity: show ? 1 : 0, transition: 'opacity 0.2s' }}>{l}</span>;
+        });
+      }
+      case 7: { // Glitch — random letters flash different chars
+        return letters.map((l, i) => {
+          const glitching = Math.random() < 0.08 && frame % 4 === 0;
+          const char = glitching ? String.fromCharCode(33 + Math.floor(Math.random() * 90)) : l;
+          return <span key={i} style={{ color: glitching ? '#ff4040' : undefined }}>{char}</span>;
+        });
+      }
+      case 8: { // Slide in from right
+        const progress = Math.min(1, frame / 40);
+        const x = (1 - progress) * 100;
+        return <span style={{ display: 'inline-block', transform: `translateX(${x}%)`, opacity: progress }}>{name}</span>;
+      }
+      case 9: { // Flicker neon — simulates neon sign turning on
+        const steps = [0,0,0.3,0,0.5,0.3,0,0.8,0.5,1,0.8,1,1,1,1,1,0.9,1,1,1];
+        const idx = Math.min(steps.length - 1, Math.floor(frame / 4));
+        return <span style={{ opacity: steps[idx], textShadow: steps[idx] > 0.8 ? `0 0 ${fs*0.5}px #4080ff, 0 0 ${fs}px #2060cc` : 'none' }}>{name}</span>;
+      }
+      case 10: { // Scramble reveal — random chars settle into correct letters
+        return letters.map((l, i) => {
+          const settled = frame > (i * 3 + 10);
+          const char = settled ? l : String.fromCharCode(65 + Math.floor(Math.random() * 26));
+          return <span key={i} style={{ color: settled ? undefined : '#4080aa' }}>{char}</span>;
+        });
+      }
+      case 11: { // Bounce drop — letters drop in from top with bounce
+        return letters.map((l, i) => {
+          const delay = i * 3;
+          const t = Math.max(0, frame - delay);
+          const y = t < 10 ? -fs * 2 * (1 - t/10) : t < 15 ? fs * 0.3 * Math.sin((t-10) * 0.6) : 0;
+          const opacity = t > 0 ? 1 : 0;
+          return <span key={i} style={{ display: 'inline-block', transform: `translateY(${y}px)`, opacity }}>{l}</span>;
+        });
+      }
+      case 12: { // Pulse glow — entire name pulses with bright blue glow
+        const pulse = 0.5 + 0.5 * Math.sin(frame * 0.06);
+        return <span style={{ textShadow: `0 0 ${pulse * fs}px #3090ff, 0 0 ${pulse * fs * 2}px #2060cc40` }}>{name}</span>;
+      }
+      case 13: { // Matrix rain reveal — letters appear as if falling into place
+        return letters.map((l, i) => {
+          const delay = i * 2 + Math.floor(Math.sin(i * 2.5) * 5);
+          const t = Math.max(0, frame - delay);
+          const falling = t < 8;
+          const y = falling ? -fs * (1 - t/8) : 0;
+          return <span key={i} style={{ display: 'inline-block', transform: `translateY(${y}px)`, opacity: t > 0 ? 1 : 0, color: falling ? '#40ff80' : undefined }}>{l}</span>;
+        });
+      }
+      case 14: { // Split reveal — name splits from center
+        const progress = Math.min(1, frame / 40);
+        return letters.map((l, i) => {
+          const center = letters.length / 2;
+          const side = i < center ? -1 : 1;
+          const dist = Math.abs(i - center);
+          const x = (1 - progress) * side * dist * fs * 0.3;
+          return <span key={i} style={{ display: 'inline-block', transform: `translateX(${x}px)`, opacity: 0.2 + progress * 0.8 }}>{l}</span>;
+        });
+      }
+      default:
+        return <span>{name}</span>;
+    }
+  };
+
+  return (
+    <div className="absolute pointer-events-none" style={{ left: '35%', top: '38.5%', width: '30%' }}>
+      <div className="flex justify-center">
+        <div style={{
+          padding: `${mw * 0.003}px ${mw * 0.01}px`,
+          background: 'rgba(0,5,20,0.75)', backdropFilter: 'blur(3px)',
+          borderRadius: mw * 0.0015,
+          border: `${Math.max(1, mw * 0.0004)}px solid rgba(60,120,255,0.35)`,
+          boxShadow: '0 0 8px rgba(40,80,200,0.3), inset 0 0 6px rgba(40,80,200,0.15)',
+          overflow: 'hidden',
+        }}>
+          <p className="font-['Bebas_Neue'] font-bold text-center whitespace-nowrap" style={{
+            fontSize: fs, lineHeight: 1.2, color: '#4090ee',
+            letterSpacing: '0.15em',
+            textShadow: '0 0 4px rgba(60,140,255,0.6)',
+          }}>
+            {renderEffect()}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const GLOW_COLORS = ['#d4af37','#e04040','#4080e0','#40c060','#9050d0','#40c8d8','#e08030'];
 
@@ -145,24 +303,11 @@ export default function ParcoStudioPage() {
       <div ref={containerRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div style={{ paddingLeft: padX, paddingTop: padY, paddingRight: padX, paddingBottom: padY }}>
           <div ref={mapRef} className="relative" style={{ width: mw, height: mh }}>
-            <img src="/parco-studio-map.png?v=2" alt="" style={{ width: mw, height: mh, display: 'block' }} draggable={false} />
+            <img src="/parco-studio-map.png?v=3" alt="" style={{ width: mw, height: mh, display: 'block' }} draggable={false} />
 
-            {/* Insegna nome casa di produzione — sulla fascia dorata, glow rainbow */}
+            {/* LED Screen Sign — animated production house name */}
             {user?.production_house_name && (
-              <div className="absolute pointer-events-none" style={{ left: '33%', top: '35%', width: '34%' }}>
-                <div className="flex justify-center">
-                  <div className="parco-sign-glow" style={{
-                    padding: `${mw * 0.004}px ${mw * 0.015}px`,
-                    background: 'rgba(5,3,0,0.65)', backdropFilter: 'blur(4px)',
-                    borderRadius: mw * 0.002,
-                    border: `${Math.max(1.5, mw * 0.0005)}px solid rgba(255,200,60,0.4)`,
-                  }}>
-                    <p className="font-['Bebas_Neue'] text-center text-white tracking-[0.18em] whitespace-nowrap" style={{ fontSize: mw * 0.012, lineHeight: 1.1 }}>
-                      {user.production_house_name}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <SignLED name={user.production_house_name} mw={mw} />
             )}
 
             {/* Building tap areas — full building size, lock for unowned */}
@@ -247,19 +392,7 @@ export default function ParcoStudioPage() {
       </button>
 
       {/* Glow animations */}
-      <style>{`
-        @keyframes glowPulse { 0%,100% { opacity: 0.85; } 50% { opacity: 1; } }
-        @keyframes signGlow {
-          0%   { box-shadow: 0 0 8px 2px rgba(255,180,50,0.5), 0 0 20px 4px rgba(255,180,50,0.2); }
-          17%  { box-shadow: 0 0 8px 2px rgba(255,80,80,0.5),  0 0 20px 4px rgba(255,80,80,0.2); }
-          33%  { box-shadow: 0 0 8px 2px rgba(200,50,255,0.5), 0 0 20px 4px rgba(200,50,255,0.2); }
-          50%  { box-shadow: 0 0 8px 2px rgba(50,150,255,0.5), 0 0 20px 4px rgba(50,150,255,0.2); }
-          67%  { box-shadow: 0 0 8px 2px rgba(50,220,120,0.5), 0 0 20px 4px rgba(50,220,120,0.2); }
-          83%  { box-shadow: 0 0 8px 2px rgba(255,220,50,0.5), 0 0 20px 4px rgba(255,220,50,0.2); }
-          100% { box-shadow: 0 0 8px 2px rgba(255,180,50,0.5), 0 0 20px 4px rgba(255,180,50,0.2); }
-        }
-        .parco-sign-glow { animation: signGlow 6s ease-in-out infinite; }
-      `}</style>
+      <style>{`@keyframes glowPulse { 0%,100% { opacity: 0.85; } 50% { opacity: 1; } }`}</style>
     </div>
   );
 }

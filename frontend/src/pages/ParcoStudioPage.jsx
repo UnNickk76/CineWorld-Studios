@@ -6,43 +6,50 @@ import { Lock, Loader2, Building, Film, Sparkles, Camera, Radio, GraduationCap, 
 const GLOW_COLORS = ['#d4af37','#e04040','#4080e0','#40c060','#9050d0','#40c8d8','#e08030'];
 
 const SLOTS = [
-  { id: 'studios', label: 'Studi di Produzione', cx: 50, cy: 37, color: '#e8a040', icon: Camera,
+  { id: 'studios', label: 'Studi di Produzione', cx: 50, cy: 33, color: '#e8a040', icon: Camera,
+    w: 28, h: 22,
     infras: [
       { type: 'production_studio', name: 'Studio Produzione Film', route: '/create-film' },
       { type: 'studio_serie_tv', name: 'Studio Serie TV', route: '/create-series' },
       { type: 'studio_anime', name: 'Studio Anime', route: '/create-anime' },
     ],
   },
-  { id: 'arcade', label: 'Sala Giochi', cx: 15, cy: 15, color: '#e840c0', icon: Gamepad2,
+  { id: 'arcade', label: 'Sala Giochi', cx: 14, cy: 14, color: '#e840c0', icon: Gamepad2,
+    w: 16, h: 18,
     infras: [{ type: '_minigiochi', name: 'Minigiochi', route: '/minigiochi' }],
   },
-  { id: 'talent', label: 'Agenzia & Talenti', cx: 17, cy: 38, color: '#a070d0', icon: GraduationCap,
+  { id: 'talent', label: 'Agenzia & Talenti', cx: 16, cy: 37, color: '#a070d0', icon: GraduationCap,
+    w: 14, h: 14,
     infras: [
       { type: 'talent_scout_actors', name: 'Scout Attori', route: '/infrastructure' },
       { type: 'talent_scout_screenwriters', name: 'Scout Sceneggiatori', route: '/infrastructure' },
       { type: 'cinema_school', name: 'Scuola di Recitazione', route: '/acting-school' },
     ],
   },
-  { id: 'broadcast', label: 'Broadcast TV', cx: 18, cy: 56, color: '#e06060', icon: Radio,
+  { id: 'broadcast', label: 'Broadcast TV', cx: 18, cy: 57, color: '#e06060', icon: Radio,
+    w: 14, h: 16,
     infras: [
       { type: 'emittente_tv', name: 'Emittente TV', route: '/my-tv' },
     ],
   },
-  { id: 'events', label: 'Eventi & Esperienza', cx: 72, cy: 57, color: '#50c878', icon: Sparkles,
+  { id: 'events', label: 'Eventi & Esperienza', cx: 72, cy: 56, color: '#50c878', icon: Sparkles,
+    w: 20, h: 18,
     infras: [
       { type: 'film_festival_venue', name: 'Festival del Cinema', route: '/festivals' },
       { type: 'cinema_museum', name: 'Museo del Cinema', route: '/infrastructure' },
       { type: 'theme_park', name: 'Parco Tematico', route: '/infrastructure' },
     ],
   },
-  { id: 'strategic', label: 'Strategico', cx: 85, cy: 40, color: '#c0c0c0', icon: Shield,
+  { id: 'strategic', label: 'Strategico', cx: 86, cy: 40, color: '#c0c0c0', icon: Shield,
+    w: 14, h: 18,
     infras: [
       { type: 'pvp_operative', name: 'Divisione Operativa', route: '/pvp-arena' },
       { type: 'pvp_investigative', name: 'Divisione Investigativa', route: '/pvp-arena' },
       { type: 'pvp_legal', name: 'Divisione Legale', route: '/pvp-arena' },
     ],
   },
-  { id: 'cinema', label: 'Cinema & Sale', cx: 84, cy: 18, color: '#60a0e0', icon: Film,
+  { id: 'cinema', label: 'Cinema & Sale', cx: 82, cy: 16, color: '#60a0e0', icon: Film,
+    w: 20, h: 18,
     infras: [
       { type: 'cinema', name: 'Cinema', route: '/infrastructure' },
       { type: 'drive_in', name: 'Drive-In', route: '/infrastructure' },
@@ -140,19 +147,17 @@ export default function ParcoStudioPage() {
           <div ref={mapRef} className="relative" style={{ width: mw, height: mh }}>
             <img src="/parco-studio-map.png?v=2" alt="" style={{ width: mw, height: mh, display: 'block' }} draggable={false} />
 
-            {/* Insegna — solo nome casa di produzione del player */}
+            {/* Insegna nome casa di produzione — dentro la fascia, con glow rainbow animato */}
             {user?.production_house_name && (
-              <div className="absolute pointer-events-none" style={{ left: '38%', top: '44%', width: '24%' }}>
+              <div className="absolute pointer-events-none" style={{ left: '36%', top: '40%', width: '28%' }}>
                 <div className="flex justify-center">
-                  <div style={{
-                    padding: `${mw * 0.002}px ${mw * 0.006}px`,
-                    background: 'rgba(10,5,0,0.6)', backdropFilter: 'blur(3px)',
-                    borderRadius: mw * 0.001,
-                    border: `${Math.max(1, mw * 0.0004)}px solid ${glowColor}50`,
-                    boxShadow: `0 0 ${mw * 0.004}px ${glowColor}35, 0 0 ${mw * 0.008}px ${glowColor}15`,
-                    animation: 'glowPulse 2.5s ease-in-out infinite',
+                  <div className="parco-sign-glow" style={{
+                    padding: `${mw * 0.003}px ${mw * 0.012}px`,
+                    background: 'rgba(5,3,0,0.7)', backdropFilter: 'blur(4px)',
+                    borderRadius: mw * 0.002,
+                    border: `${Math.max(1.5, mw * 0.0005)}px solid rgba(255,200,60,0.4)`,
                   }}>
-                    <p className="font-['Bebas_Neue'] text-center text-white tracking-[0.12em] whitespace-nowrap" style={{ fontSize: mw * 0.005, lineHeight: 1.1 }}>
+                    <p className="font-['Bebas_Neue'] text-center text-white tracking-[0.15em] whitespace-nowrap" style={{ fontSize: mw * 0.008, lineHeight: 1.1 }}>
                       {user.production_house_name}
                     </p>
                   </div>
@@ -160,14 +165,24 @@ export default function ParcoStudioPage() {
               </div>
             )}
 
-            {/* Invisible tap areas on buildings — large, fully transparent */}
+            {/* Building tap areas — full building size, lock for unowned */}
             {SLOTS.map(slot => {
-              const tapSize = mw * 0.055;
+              const owned = slotOwned(slot);
+              const empty = owned === 0;
+              const bw = mw * slot.w / 100;
+              const bh = mh * slot.h / 100;
+              const lockSize = Math.min(bw, bh) * 0.35;
+
               return (
                 <div key={slot.id} className="absolute cursor-pointer" data-testid={`slot-${slot.id}`}
-                  style={{ left: `${slot.cx}%`, top: `${slot.cy}%`, width: tapSize, height: tapSize, transform: 'translate(-50%,-50%)' }}
-                  onClick={() => slot.id === 'arcade' ? navigate('/minigiochi') : setOpenSlot(slot.id)}
-                />
+                  style={{ left: `${slot.cx}%`, top: `${slot.cy}%`, width: bw, height: bh, transform: 'translate(-50%,-50%)' }}
+                  onClick={() => slot.id === 'arcade' ? navigate('/minigiochi') : (empty ? navigate('/infrastructure') : setOpenSlot(slot.id))}>
+                  {empty && slot.id !== 'arcade' && (
+                    <div className="w-full h-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: mw * 0.002 }}>
+                      <Lock style={{ width: lockSize, height: lockSize, color: 'rgba(212,175,55,0.55)' }} />
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -231,8 +246,20 @@ export default function ParcoStudioPage() {
         <Building className="w-3 h-3" /> Classica
       </button>
 
-      {/* Glow animation */}
-      <style>{`@keyframes glowPulse { 0%,100% { opacity: 0.85; } 50% { opacity: 1; } }`}</style>
+      {/* Glow animations */}
+      <style>{`
+        @keyframes glowPulse { 0%,100% { opacity: 0.85; } 50% { opacity: 1; } }
+        @keyframes signGlow {
+          0%   { box-shadow: 0 0 8px 2px rgba(255,180,50,0.5), 0 0 20px 4px rgba(255,180,50,0.2); }
+          17%  { box-shadow: 0 0 8px 2px rgba(255,80,80,0.5),  0 0 20px 4px rgba(255,80,80,0.2); }
+          33%  { box-shadow: 0 0 8px 2px rgba(200,50,255,0.5), 0 0 20px 4px rgba(200,50,255,0.2); }
+          50%  { box-shadow: 0 0 8px 2px rgba(50,150,255,0.5), 0 0 20px 4px rgba(50,150,255,0.2); }
+          67%  { box-shadow: 0 0 8px 2px rgba(50,220,120,0.5), 0 0 20px 4px rgba(50,220,120,0.2); }
+          83%  { box-shadow: 0 0 8px 2px rgba(255,220,50,0.5), 0 0 20px 4px rgba(255,220,50,0.2); }
+          100% { box-shadow: 0 0 8px 2px rgba(255,180,50,0.5), 0 0 20px 4px rgba(255,180,50,0.2); }
+        }
+        .parco-sign-glow { animation: signGlow 6s ease-in-out infinite; }
+      `}</style>
     </div>
   );
 }

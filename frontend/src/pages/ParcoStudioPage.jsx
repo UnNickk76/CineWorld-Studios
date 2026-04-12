@@ -6,43 +6,43 @@ import { Lock, Loader2, Building, Film, Sparkles, Camera, Radio, GraduationCap, 
 const GLOW_COLORS = ['#d4af37','#e04040','#4080e0','#40c060','#9050d0','#40c8d8','#e08030'];
 
 const SLOTS = [
-  { id: 'studios', label: 'Studi di Produzione', cx: 50.2, cy: 53, color: '#e8a040', icon: Camera,
+  { id: 'studios', label: 'Studi di Produzione', cx: 50, cy: 37, color: '#e8a040', icon: Camera,
     infras: [
       { type: 'production_studio', name: 'Studio Produzione Film', route: '/create-film' },
       { type: 'studio_serie_tv', name: 'Studio Serie TV', route: '/create-series' },
       { type: 'studio_anime', name: 'Studio Anime', route: '/create-anime' },
     ],
   },
-  { id: 'arcade', label: 'Sala Giochi', cx: 22.1, cy: 17.8, color: '#e840c0', icon: Gamepad2,
+  { id: 'arcade', label: 'Sala Giochi', cx: 15, cy: 15, color: '#e840c0', icon: Gamepad2,
     infras: [{ type: '_minigiochi', name: 'Minigiochi', route: '/minigiochi' }],
   },
-  { id: 'talent', label: 'Agenzia & Talenti', cx: 17.5, cy: 45.7, color: '#a070d0', icon: GraduationCap,
+  { id: 'talent', label: 'Agenzia & Talenti', cx: 17, cy: 38, color: '#a070d0', icon: GraduationCap,
     infras: [
       { type: 'talent_scout_actors', name: 'Scout Attori', route: '/infrastructure' },
       { type: 'talent_scout_screenwriters', name: 'Scout Sceneggiatori', route: '/infrastructure' },
       { type: 'cinema_school', name: 'Scuola di Recitazione', route: '/acting-school' },
     ],
   },
-  { id: 'broadcast', label: 'Broadcast TV', cx: 17.5, cy: 77, color: '#e06060', icon: Radio,
+  { id: 'broadcast', label: 'Broadcast TV', cx: 18, cy: 56, color: '#e06060', icon: Radio,
     infras: [
       { type: 'emittente_tv', name: 'Emittente TV', route: '/my-tv' },
     ],
   },
-  { id: 'events', label: 'Eventi & Esperienza', cx: 71.7, cy: 75.5, color: '#50c878', icon: Sparkles,
+  { id: 'events', label: 'Eventi & Esperienza', cx: 72, cy: 57, color: '#50c878', icon: Sparkles,
     infras: [
       { type: 'film_festival_venue', name: 'Festival del Cinema', route: '/festivals' },
       { type: 'cinema_museum', name: 'Museo del Cinema', route: '/infrastructure' },
       { type: 'theme_park', name: 'Parco Tematico', route: '/infrastructure' },
     ],
   },
-  { id: 'strategic', label: 'Strategico', cx: 83.8, cy: 55, color: '#c0c0c0', icon: Shield,
+  { id: 'strategic', label: 'Strategico', cx: 85, cy: 40, color: '#c0c0c0', icon: Shield,
     infras: [
       { type: 'pvp_operative', name: 'Divisione Operativa', route: '/pvp-arena' },
       { type: 'pvp_investigative', name: 'Divisione Investigativa', route: '/pvp-arena' },
       { type: 'pvp_legal', name: 'Divisione Legale', route: '/pvp-arena' },
     ],
   },
-  { id: 'cinema', label: 'Cinema & Sale', cx: 83.8, cy: 23, color: '#60a0e0', icon: Film,
+  { id: 'cinema', label: 'Cinema & Sale', cx: 84, cy: 18, color: '#60a0e0', icon: Film,
     infras: [
       { type: 'cinema', name: 'Cinema', route: '/infrastructure' },
       { type: 'drive_in', name: 'Drive-In', route: '/infrastructure' },
@@ -160,9 +160,9 @@ export default function ParcoStudioPage() {
               </div>
             )}
 
-            {/* Invisible tap areas on buildings — 150% larger, fully transparent */}
+            {/* Invisible tap areas on buildings — large, fully transparent */}
             {SLOTS.map(slot => {
-              const tapSize = mw * 0.032;
+              const tapSize = mw * 0.055;
               return (
                 <div key={slot.id} className="absolute cursor-pointer" data-testid={`slot-${slot.id}`}
                   style={{ left: `${slot.cx}%`, top: `${slot.cy}%`, width: tapSize, height: tapSize, transform: 'translate(-50%,-50%)' }}

@@ -145,7 +145,7 @@ export default function ParcoStudioPage() {
       <div ref={containerRef} className="w-full h-full overflow-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div style={{ paddingLeft: padX, paddingTop: padY, paddingRight: padX, paddingBottom: padY }}>
           <div ref={mapRef} className="relative" style={{ width: mw, height: mh }}>
-            <img src="/parco-studio-map.png" alt="" style={{ width: mw, height: mh, display: 'block' }} draggable={false} />
+            <img src="/parco-studio-map.png?v=2" alt="" style={{ width: mw, height: mh, display: 'block' }} draggable={false} />
 
             {/* Studio sign — on the building facade, proportional */}
             <div className="absolute pointer-events-none" style={{ left: '38%', top: '33%', width: '24%' }}>

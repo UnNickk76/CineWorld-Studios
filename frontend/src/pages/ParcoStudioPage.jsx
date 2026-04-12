@@ -4,7 +4,7 @@ import { AuthContext } from '../contexts';
 import { Lock, Loader2, Building, Film, Sparkles, Camera, Radio, GraduationCap, Shield, X, ChevronRight, Plus, Minus, Gamepad2 } from 'lucide-react';
 
 // ═══ LED SIGN — 15+ animated effects for production house name ═══
-const SignLED = ({ name, mw }) => {
+const SignLED = ({ name, mw, mh }) => {
   const [effectIdx, setEffectIdx] = useState(0);
   const [frame, setFrame] = useState(0);
   const letters = useMemo(() => name.split(''), [name]);
@@ -26,7 +26,7 @@ const SignLED = ({ name, mw }) => {
   // Reset frame on effect change
   useEffect(() => { setFrame(0); }, [effectIdx]);
 
-  const fs = mw * 0.009;
+  const fs = mh * 0.04;
   const maxFrames = Math.ceil(EFFECT_DURATION / 60);
 
   const renderEffect = () => {
@@ -138,24 +138,20 @@ const SignLED = ({ name, mw }) => {
   };
 
   return (
-    <div className="absolute pointer-events-none" style={{ left: '35%', top: '38.5%', width: '30%' }}>
-      <div className="flex justify-center">
-        <div style={{
-          padding: `${mw * 0.003}px ${mw * 0.01}px`,
-          background: 'rgba(0,5,20,0.75)', backdropFilter: 'blur(3px)',
-          borderRadius: mw * 0.0015,
-          border: `${Math.max(1, mw * 0.0004)}px solid rgba(60,120,255,0.35)`,
-          boxShadow: '0 0 8px rgba(40,80,200,0.3), inset 0 0 6px rgba(40,80,200,0.15)',
-          overflow: 'hidden',
+    <div className="absolute pointer-events-none" style={{ left: '38.5%', top: '21%', width: '23%', height: '7.5%' }}>
+      <div className="w-full h-full flex items-center justify-center" style={{
+        background: 'rgba(0,5,20,0.82)',
+        border: `${Math.max(1, mw * 0.0003)}px solid rgba(60,120,255,0.3)`,
+        boxShadow: '0 0 10px rgba(40,80,200,0.4), inset 0 0 8px rgba(40,80,200,0.2)',
+        overflow: 'hidden',
+      }}>
+        <p className="font-['Bebas_Neue'] font-bold text-center whitespace-nowrap" style={{
+          fontSize: fs, lineHeight: 1, color: '#4090ee',
+          letterSpacing: '0.12em',
+          textShadow: '0 0 6px rgba(60,140,255,0.7)',
         }}>
-          <p className="font-['Bebas_Neue'] font-bold text-center whitespace-nowrap" style={{
-            fontSize: fs, lineHeight: 1.2, color: '#4090ee',
-            letterSpacing: '0.15em',
-            textShadow: '0 0 4px rgba(60,140,255,0.6)',
-          }}>
-            {renderEffect()}
-          </p>
-        </div>
+          {renderEffect()}
+        </p>
       </div>
     </div>
   );
@@ -307,7 +303,7 @@ export default function ParcoStudioPage() {
 
             {/* LED Screen Sign — animated production house name */}
             {user?.production_house_name && (
-              <SignLED name={user.production_house_name} mw={mw} />
+              <SignLED name={user.production_house_name} mw={mw} mh={mh} />
             )}
 
             {/* Building tap areas — full building size, lock for unowned */}

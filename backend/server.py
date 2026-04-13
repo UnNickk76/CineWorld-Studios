@@ -3379,6 +3379,17 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film.setdefault('trend_position', None)
     film.setdefault('trend_delta', None)
     
+    # Ensure producer fields exist — fetch from user if missing
+    if not film.get('producer_nickname') or not film.get('production_house_name'):
+        uid = film.get('user_id') or film.get('owner_id')
+        if uid:
+            owner = await db.users.find_one({'id': uid}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+            if owner:
+                film['producer_nickname'] = film.get('producer_nickname') or owner.get('nickname', '')
+                film['production_house_name'] = film.get('production_house_name') or owner.get('production_house_name', '')
+    film.setdefault('producer_nickname', '')
+    film.setdefault('production_house_name', '')
+    
     return film
 
 @api_router.get("/films/{film_id}/distribution")

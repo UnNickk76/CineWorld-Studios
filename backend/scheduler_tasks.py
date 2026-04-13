@@ -2100,7 +2100,15 @@ async def migrate_theater_films():
         
         # Also migrate producer_nickname and production_house_name for old films
         films = await _db.film_projects.find(
-            {'$or': [{'producer_nickname': {'$exists': False}}, {'producer_nickname': ''}, {'producer_nickname': None}]},
+            {'$or': [
+                {'producer_nickname': {'$exists': False}},
+                {'producer_nickname': ''},
+                {'producer_nickname': None},
+                {'production_house_name': {'$exists': False}},
+                {'production_house_name': ''},
+                {'production_house_name': None},
+                {'production_house_name': 'Indipendente'},
+            ]},
             {'_id': 0, 'id': 1, 'user_id': 1}
         ).to_list(5000)
         if films:

@@ -192,3 +192,61 @@ async def migrate_film_fields(user: dict = Depends(get_current_user)):
     
     logging.info(f"[ADMIN] Migrated {migrated} films with producer/duration fields")
     return {'migrated': migrated}
+
+
+from pydantic import BaseModel as _BM
+class ResetGameRequest(_BM):
+    type: str  # 'keep_infra' or 'full'
+
+@router.post("/reset-game")
+async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_user)):
+    """Admin-only: reset game data. NEVER deletes users."""
+    if user.get('role') != 'admin':
+        raise HTTPException(403, "Solo admin")
+    
+    results = {}
+    
+    # Collections to ALWAYS delete (content)
+    content_collections = ['film_projects', 'films', 'series_projects', 'anime_projects',
+                           'leaderboard', 'leaderboard_snapshots', 'notifications',
+                           'marketplace_listings', 'ri_cinema_events', 'challenges',
+                           'game_challenges', 'city_tastes']
+    
+    for col_name in content_collections:
+        col = db[col_name]
+        r = await col.delete_many({})
+        results[col_name] = r.deleted_count
+    
+    if req.type == 'full':
+        # Also delete infrastructure and reset user progress
+        infra_collections = ['infrastructure', 'tv_stations', 'tv_programming']
+        for col_name in infra_collections:
+            col = db[col_name]
+            r = await col.delete_many({})
+            results[col_name] = r.deleted_count
+        
+        # Reset user progress (keep user accounts, reset funds/stats)
+        await db.users.update_many({}, {'$set': {
+            'funds': 10000000,  # Starting funds
+            'cinepass': 50,
+            'level': 1,
+            'fame': 0,
+            'xp': 0,
+            'total_films': 0,
+            'tutorial_step': 0,
+        }, '$unset': {
+            'theater_stats': '',
+            'challenge_stats': '',
+        }})
+        results['users_reset_progress'] = 'done'
+    
+    # Re-seed city tastes
+    try:
+        import city_tastes as ct
+        await ct.seed_cities(db)
+        results['city_tastes_reseeded'] = True
+    except:
+        pass
+    
+    logging.warning(f"[ADMIN RESET] Type: {req.type}, By: {user.get('nickname')}, Results: {results}")
+    return {'type': req.type, 'results': results}

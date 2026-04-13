@@ -206,41 +206,34 @@ async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_use
     
     results = {}
     
-    # Collections to ALWAYS delete (content)
+    # Collections to delete (content)
     content_collections = ['film_projects', 'films', 'series_projects', 'anime_projects',
-                           'leaderboard', 'leaderboard_snapshots', 'notifications',
-                           'marketplace_listings', 'ri_cinema_events', 'challenges',
-                           'game_challenges', 'city_tastes']
+                           'notifications', 'marketplace_listings', 'ri_cinema_events',
+                           'challenges', 'game_challenges', 'city_tastes']
     
     for col_name in content_collections:
-        col = db[col_name]
-        r = await col.delete_many({})
-        results[col_name] = r.deleted_count
+        try:
+            r = await db[col_name].delete_many({})
+            results[col_name] = r.deleted_count
+        except Exception as e:
+            results[col_name] = f"error: {str(e)}"
     
     if req.type == 'full':
-        # Also delete infrastructure and reset user progress
-        infra_collections = ['infrastructure', 'tv_stations', 'tv_programming']
-        for col_name in infra_collections:
-            col = db[col_name]
-            r = await col.delete_many({})
-            results[col_name] = r.deleted_count
+        for col_name in ['infrastructure', 'tv_stations', 'tv_programming']:
+            try:
+                r = await db[col_name].delete_many({})
+                results[col_name] = r.deleted_count
+            except Exception as e:
+                results[col_name] = f"error: {str(e)}"
         
-        # Reset user progress (keep user accounts, reset funds/stats)
-        await db.users.update_many({}, {'$set': {
-            'funds': 10000000,  # Starting funds
-            'cinepass': 50,
-            'level': 1,
-            'fame': 0,
-            'xp': 0,
-            'total_films': 0,
-            'tutorial_step': 0,
-        }, '$unset': {
-            'theater_stats': '',
-            'challenge_stats': '',
-        }})
-        results['users_reset_progress'] = 'done'
+        try:
+            await db.users.update_many({}, {'$set': {
+                'funds': 10000000, 'cinepass': 50, 'level': 1, 'fame': 0, 'xp': 0,
+            }})
+            results['users_reset'] = 'done'
+        except Exception as e:
+            results['users_reset'] = f"error: {str(e)}"
     
-    # Re-seed city tastes
     try:
         import city_tastes as ct
         await ct.seed_cities(db)

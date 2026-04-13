@@ -625,7 +625,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       </div>
 
       {/* 5b. THEATER EXPANDABLE PANEL */}
-      {showTheaterPanel && <TheaterInfoBar film={film} />}
+      {showTheaterPanel && (() => { try { return <TheaterInfoBar film={film} />; } catch { return null; } })()}
       {film.in_tv_programming && (
         <div className="mx-4 mb-1 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center">
           <span className="text-[9px] font-bold text-blue-400">PROSSIMAMENTE IN TV</span>

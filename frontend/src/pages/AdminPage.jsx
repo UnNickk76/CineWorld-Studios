@@ -20,7 +20,6 @@ const ADMIN_TABS = [
   { id: 'deletions', label: 'Cancellazioni', icon: Trash2 },
   { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
   { id: 'donations', label: 'Donazioni', icon: Heart },
-  { id: 'city_tastes', label: 'Gusti Città', icon: Star },
   { id: 'tutorial', label: 'Tutorial Manager', icon: BookOpen },
   { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
@@ -2475,7 +2474,7 @@ export default function AdminPage() {
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
         {activeTab === 'donations' && isAdmin && <DonationsTab api={api} />}
         {activeTab === 'donations' && isAdmin && <GuestCleanupPanel api={api} />}
-        {activeTab === 'city_tastes' && isAdmin && <CityTastesAdmin api={api} />}
+        {/* CityTastesAdmin temporarily disabled - investigating deploy issue */}
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}

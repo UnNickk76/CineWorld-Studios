@@ -1380,21 +1380,64 @@ const TopNavbar = () => {
 
 // ==================== ROUTING ====================
 
-// ═══ PLAYER PROFILE POPUP — Stats + Messaggia + Sfida Minigiochi ═══
-const MINIGAMES_LIST = [
-  { id: 'trivia', name: 'Trivia Cinema', icon: '🎬' },
-  { id: 'guess_poster', name: 'Indovina il Poster', icon: '🖼' },
-  { id: 'box_office', name: 'Box Office Quiz', icon: '💰' },
-  { id: 'director_match', name: 'Abbina il Regista', icon: '🎭' },
-  { id: 'speed_cast', name: 'Speed Casting', icon: '⚡' },
-];
+// ═══ CHALLENGE NOTIFICATION HANDLER — polls for incoming challenges ═══
+const ChallengeNotificationHandler = ({ api, user, navigate }) => {
+  const confirm = useConfirm();
+  const [lastChecked, setLastChecked] = useState('');
 
+  useEffect(() => {
+    if (!api || !user?.id) return;
+    const check = async () => {
+      try {
+        const r = await api.get('/api/challenges/pending');
+        const challenges = Array.isArray(r.data) ? r.data : r.data?.challenges || [];
+        for (const ch of challenges) {
+          if (ch.id === lastChecked) continue;
+          setLastChecked(ch.id);
+          const ok = await confirm({
+            title: `Sfida da ${ch.challenger_name}!`,
+            subtitle: `Minigioco: ${ch.game_id?.replace(/_/g, ' ')}${ch.bet_amount > 0 ? ` — Scommessa: $${ch.bet_amount.toLocaleString()}` : ''}`,
+            confirmLabel: 'Accetta!',
+            cancelLabel: 'Rifiuta',
+          });
+          try {
+            await api.post(`/api/challenges/${ch.id}/respond`, { accept: ok });
+            if (ok) {
+              toast.success(`Sfida accettata! Gioco: ${ch.game_id?.replace(/_/g, ' ')}`);
+              navigate(`/minigiochi?challenge=${ch.id}&game=${ch.game_id}`);
+            } else {
+              toast('Sfida rifiutata');
+            }
+          } catch {}
+          break; // Handle one at a time
+        }
+      } catch {}
+    };
+    const iv = setInterval(check, 8000);
+    check();
+    return () => clearInterval(iv);
+  }, [api, user?.id, confirm, lastChecked, navigate]);
+
+  return null;
+};
+
+
+
+// ═══ PLAYER PROFILE POPUP — Stats + Messaggia + Sfida Minigiochi ═══
 const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
   const confirm = useConfirm();
   const p = data.profile;
   const [showGames, setShowGames] = useState(false);
+  const [gamesList, setGamesList] = useState([]);
   const [challengeLoading, setChallengeLoading] = useState('');
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+
+  // Fetch all minigames from backend
+  useEffect(() => {
+    if (showGames && gamesList.length === 0) {
+      api.get('/api/arcade/games').then(r => setGamesList(Array.isArray(r.data) ? r.data : r.data || [])).catch(() => {});
+    }
+  }, [showGames, gamesList.length, api]);
 
   const handleMessage = async () => {
     const ok = await confirm({ title: `Messaggia ${p.nickname}?`, subtitle: 'Verrai portato nella chat privata.', confirmLabel: 'Vai alla chat', cancelLabel: 'Annulla' });
@@ -1402,11 +1445,12 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
   };
 
   const handleChallenge = async (gameId) => {
-    const ok = await confirm({ title: `Sfidare ${p.nickname}?`, subtitle: `Gioco: ${MINIGAMES_LIST.find(g => g.id === gameId)?.name}`, confirmLabel: 'Sfida!', cancelLabel: 'Annulla' });
+    const gameName = gamesList.find(g => g.id === gameId)?.name || gameId;
+    const ok = await confirm({ title: `Sfidare ${p.nickname}?`, subtitle: `Gioco: ${gameName}`, confirmLabel: 'Sfida!', cancelLabel: 'Annulla' });
     if (!ok) return;
     setChallengeLoading(gameId);
     try {
-      await api.post('/api/games/challenge', { opponent_id: data.userId, game_id: gameId, bet_amount: 0 });
+      await api.post('/api/challenges/send', { opponent_id: data.userId, game_id: gameId, bet_amount: 0 });
       toast.success(`Sfida inviata a ${p.nickname}!`);
       setShowGames(false);
     } catch (e) { toast.error(e.message || 'Errore invio sfida'); }
@@ -1481,14 +1525,18 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
           ) : (
             <div className="space-y-1">
               <p className="text-[9px] text-gray-400 font-bold">Scegli minigioco:</p>
-              {MINIGAMES_LIST.map(g => (
-                <button key={g.id} onClick={() => handleChallenge(g.id)} disabled={challengeLoading === g.id}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5 hover:bg-pink-500/10 hover:border-pink-500/20 transition-colors active:scale-[0.98]" data-testid={`challenge-game-${g.id}`}>
-                  <span className="text-sm">{g.icon}</span>
-                  <span className="text-[10px] text-white font-bold">{g.name}</span>
-                  {challengeLoading === g.id && <Loader2 className="w-3 h-3 animate-spin ml-auto text-pink-400" />}
-                </button>
-              ))}
+              <div className="max-h-[220px] overflow-y-auto space-y-1">
+                {gamesList.length === 0 ? (
+                  <p className="text-[9px] text-gray-500 text-center py-2">Caricamento giochi...</p>
+                ) : gamesList.map(g => (
+                  <button key={g.id} onClick={() => handleChallenge(g.id)} disabled={challengeLoading === g.id}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5 hover:bg-pink-500/10 hover:border-pink-500/20 transition-colors active:scale-[0.98]" data-testid={`challenge-game-${g.id}`}>
+                    <span className="text-[10px] text-white font-bold flex-1 text-left">{g.name}</span>
+                    <span className="text-[7px] text-gray-500 truncate max-w-[120px]">{g.desc}</span>
+                    {challengeLoading === g.id && <Loader2 className="w-3 h-3 animate-spin ml-1 text-pink-400" />}
+                  </button>
+                ))}
+              </div>
               <button onClick={() => setShowGames(false)} className="w-full text-[9px] text-gray-500 py-1">Indietro</button>
             </div>
           )}
@@ -1761,6 +1809,9 @@ const ProtectedRoute = ({ children }) => {
       {popupData && !popupData.loading && popupData.profile && (
         <PlayerProfilePopup data={popupData} onClose={() => setPopupData(null)} navigate={navigate} api={api} user={user} />
       )}
+
+      {/* ═══ CHALLENGE NOTIFICATION POPUP ═══ */}
+      <ChallengeNotificationHandler api={api} user={user} navigate={navigate} />
 
       {/* ═══ BOTTOM NAVBAR MOBILE ═══ */}
       <MobileBottomNav />

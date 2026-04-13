@@ -2100,6 +2100,26 @@ async def migrate_theater_films():
     except Exception as e:
         logger.error(f"[THEATER] Migration error: {e}")
 
+async def expire_old_challenges():
+    """Expire challenges that weren't responded to within 5 minutes."""
+    try:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        result = await _db.challenges.update_many(
+            {'status': 'pending', 'expires_at': {'$lt': now}},
+            {'$set': {'status': 'expired'}}
+        )
+        if result.modified_count:
+            logger.info(f"[CHALLENGES] Expired {result.modified_count} old challenges")
+    except Exception as e:
+        logger.error(f"[CHALLENGES] Expire error: {e}")
+
+    except Exception as e:
+        logger.error(f"[THEATER] Migration error: {e}")
+
         count = await ct.seed_cities(_db)
         logger.info(f"[CITY_TASTES] Cities in DB: {count}")
     except Exception as e:

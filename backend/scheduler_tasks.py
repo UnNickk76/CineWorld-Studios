@@ -2090,13 +2090,34 @@ async def check_theater_life():
         logger.error(f"[THEATER] Error: {e}")
 
 async def migrate_theater_films():
-    """One-time migration for old released films without theater_end_date."""
+    """One-time migration for old released films without theater_end_date + producer fields."""
     try:
         import theater_life
         from motor.motor_asyncio import AsyncIOMotorClient
         _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
         _db = _client[os.environ.get('DB_NAME', 'cineworld')]
         await theater_life.migrate_old_released_films(_db)
+        
+        # Also migrate producer_nickname and production_house_name for old films
+        films = await _db.film_projects.find(
+            {'$or': [{'producer_nickname': {'$exists': False}}, {'producer_nickname': ''}, {'producer_nickname': None}]},
+            {'_id': 0, 'id': 1, 'user_id': 1}
+        ).to_list(5000)
+        if films:
+            user_cache = {}
+            migrated = 0
+            for f in films:
+                uid = f.get('user_id')
+                if uid and uid not in user_cache:
+                    u = await _db.users.find_one({'id': uid}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+                    user_cache[uid] = u or {}
+                u = user_cache.get(uid, {})
+                await _db.film_projects.update_one({'id': f['id']}, {'$set': {
+                    'producer_nickname': u.get('nickname', ''),
+                    'production_house_name': u.get('production_house_name', ''),
+                }})
+                migrated += 1
+            logger.info(f"[MIGRATE] Updated {migrated} films with producer fields")
     except Exception as e:
         logger.error(f"[THEATER] Migration error: {e}")
 

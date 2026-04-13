@@ -2553,7 +2553,11 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
       setScheduled(res.data?.schedule || res.data);
       toast({ title: `Distribuzione programmata!` });
       onRefresh();
-    } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || e?.data?.detail || (typeof e === 'string' ? e : 'Errore distribuzione');
+      toast({ title: '' + msg, variant: 'destructive' });
+      onRefresh(); // Refresh to sync with actual backend state
+    }
     finally { setLoading(''); }
   };
 
@@ -2574,7 +2578,12 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
           toast({ title: `${film.title} rilasciato! Quality: ${res.data?.quality_score || '?'}` });
         }
       }
-    } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); setLoading(''); }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || e?.data?.detail || (typeof e === 'string' ? e : 'Errore rilascio');
+      toast({ title: '' + msg, variant: 'destructive' });
+      onRefresh(); // Sync with backend state
+      setLoading('');
+    }
   };
 
   const onCinemaOverlayDone = () => {

@@ -13,21 +13,17 @@ import '../styles/content-template.css';
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
 const TheaterInfoBar = ({ film }) => {
   const { user, api } = useContext(AuthContext);
-  const [expanded, setExpanded] = useState(false);
-  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState('');
+  const [stats, setStats] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
   const [tvStations, setTvStations] = useState([]);
   const [selectedTv, setSelectedTv] = useState('');
 
   const ts = film.theater_stats || {};
-  const isReleased = film.pipeline_state === 'released';
+  const isReleased = film.pipeline_state === 'released' || film.cinemas_showing > 0 || film.cinema_count > 0;
   const isOutOfTheater = film.pipeline_state === 'out_of_theaters';
   const isOwner = user?.id === film.user_id;
   const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
-
-  // Not relevant for films not in/out of theaters
-  if (!isReleased && !isOutOfTheater) return null;
 
   const fetchStats = () => {
     if (!api) return;
@@ -84,94 +80,75 @@ const TheaterInfoBar = ({ film }) => {
   const perfLabels = { great:'Straordinario', good:'Ottimo', ok:'Discreto', declining:'In calo', bad:'Scarso', flop:'Flop' };
   const fullStats = stats?.theater_stats || stats || ts;
 
+  // Auto-fetch stats on mount
+  useEffect(() => {
+    if (!stats) { fetchStats(); if (isOwner) fetchTvStations(); }
+  }, [film.id]);
+
   return (
-    <>
-      <div className="mx-4 mb-1 rounded-lg border border-yellow-500/15 overflow-hidden" data-testid="ct-theater-bar">
-        <button onClick={() => { setExpanded(!expanded); if (!expanded && !stats) { fetchStats(); if (isOwner) fetchTvStations(); } }}
-          className="w-full flex items-center justify-between px-3 py-1.5 bg-yellow-500/5 hover:bg-yellow-500/10 transition-colors">
-          <div className="flex items-center gap-2">
-            <Ticket size={12} className="text-yellow-400" />
-            <span className="text-[9px] font-bold text-yellow-400">{isReleased ? 'IN SALA' : 'FUORI SALA'}</span>
-            <span className={`text-[8px] font-bold ${perfColors[ts.performance] || 'text-gray-500'}`}>{perfLabels[ts.performance] || ''}</span>
-          </div>
-          <div className="flex items-center gap-2 text-[8px]">
-            <span className="text-white font-bold">{ts.days_in_theater || 0}gg</span>
-            {isReleased && <span className="text-gray-400">{ts.days_remaining || '?'}gg rimasti</span>}
-            {(ts.days_extended || 0) > 0 && <span className="text-green-400">+{ts.days_extended}</span>}
-            {(ts.days_reduced || 0) > 0 && <span className="text-red-400">-{ts.days_reduced}</span>}
-            <span className="text-gray-600">{expanded ? '▲' : '▼'}</span>
-          </div>
-        </button>
-        {expanded && (
-          <div className="p-2.5 space-y-2 bg-black/30">
-            <div className="grid grid-cols-3 gap-1.5">
-              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
-                <p className="text-[7px] text-gray-500">Cinema</p>
-                <p className="text-[11px] font-bold text-white">{fullStats.current_cinemas || 0}</p>
-              </div>
-              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
-                <p className="text-[7px] text-gray-500">Spett. oggi</p>
-                <p className="text-[11px] font-bold text-cyan-400">{(fullStats.daily_spectators || 0).toLocaleString()}</p>
-              </div>
-              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
-                <p className="text-[7px] text-gray-500">Spett. totali</p>
-                <p className="text-[11px] font-bold text-yellow-400">{(fullStats.total_spectators || 0).toLocaleString()}</p>
-              </div>
-            </div>
-            {fullStats.daily_history?.length > 0 && (
-              <div>
-                <p className="text-[7px] text-gray-500 uppercase font-bold mb-1">Ultimi 3 giorni</p>
-                <div className="flex gap-1">
-                  {(fullStats.daily_history || []).slice(-3).map((d, i) => (
-                    <div key={i} className="flex-1 p-1 rounded bg-white/[0.02] border border-white/5 text-center">
-                      <p className="text-[7px] text-gray-600">G{d.day}</p>
-                      <p className={`text-[8px] font-bold ${d.trend === 'up' ? 'text-green-400' : d.trend === 'down' ? 'text-red-400' : 'text-gray-400'}`}>{d.trend === 'up' ? '▲' : d.trend === 'down' ? '▼' : '●'} {d.spectators?.toLocaleString()}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="flex justify-between px-1 text-[8px]">
-              <span className="text-gray-500">Incassi sala</span>
-              <span className="font-bold text-green-400">${(fullStats.total_revenue || 0).toLocaleString()}</span>
-            </div>
-            {/* Owner action buttons */}
-            {isOwner && (
-              <div className="space-y-1.5 pt-1">
-                {/* TV station selector */}
-                {tvStations.length > 0 && (
-                  <select value={selectedTv} onChange={e => setSelectedTv(e.target.value)}
-                    className="w-full bg-gray-800 text-[9px] text-white border border-gray-700 rounded px-2 py-1.5">
-                    <option value="">Scegli emittente TV...</option>
-                    {tvStations.map(s => <option key={s.id || s.name} value={s.id || s.name}>{s.name || s.channel_name}</option>)}
-                  </select>
-                )}
-                <div className="flex gap-1.5">
-                  {isReleased && (
-                    <button onClick={() => setConfirmAction('withdraw')} disabled={!!loading}
-                      className="flex-1 text-[8px] py-1.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold disabled:opacity-40" data-testid="ct-withdraw-btn">
-                      {loading === 'withdraw' ? '...' : 'Ritira dal cinema'}
-                    </button>
-                  )}
-                  {selectedTv && (
-                    <>
-                      <button onClick={() => setConfirmAction('tv')} disabled={!!loading}
-                        className="flex-1 text-[8px] py-1.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold disabled:opacity-40" data-testid="ct-send-tv-btn">
-                        {loading === 'tv' ? '...' : 'Manda in TV'}
-                      </button>
-                      <button onClick={() => setConfirmAction('upcoming')} disabled={!!loading}
-                        className="flex-1 text-[8px] py-1.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-bold disabled:opacity-40" data-testid="ct-upcoming-tv-btn">
-                        {loading === 'upcoming' ? '...' : 'Prossimamente TV'}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+    <div className="mx-4 mb-1 rounded-lg border border-yellow-500/15 bg-black/30 p-2.5 space-y-2" data-testid="ct-theater-panel">
+      <div className="grid grid-cols-3 gap-1.5">
+        <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+          <p className="text-[7px] text-gray-500">Cinema</p>
+          <p className="text-[11px] font-bold text-white">{fullStats.current_cinemas || 0}</p>
+        </div>
+        <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+          <p className="text-[7px] text-gray-500">Spett. oggi</p>
+          <p className="text-[11px] font-bold text-cyan-400">{(fullStats.daily_spectators || 0).toLocaleString()}</p>
+        </div>
+        <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+          <p className="text-[7px] text-gray-500">Spett. totali</p>
+          <p className="text-[11px] font-bold text-yellow-400">{(fullStats.total_spectators || 0).toLocaleString()}</p>
+        </div>
       </div>
-      {/* Confirm dialogs */}
+      {fullStats.daily_history?.length > 0 && (
+        <div>
+          <p className="text-[7px] text-gray-500 uppercase font-bold mb-1">Ultimi 3 giorni</p>
+          <div className="flex gap-1">
+            {(fullStats.daily_history || []).slice(-3).map((d, i) => (
+              <div key={i} className="flex-1 p-1 rounded bg-white/[0.02] border border-white/5 text-center">
+                <p className="text-[7px] text-gray-600">G{d.day}</p>
+                <p className={`text-[8px] font-bold ${d.trend === 'up' ? 'text-green-400' : d.trend === 'down' ? 'text-red-400' : 'text-gray-400'}`}>{d.trend === 'up' ? '▲' : d.trend === 'down' ? '▼' : '●'} {d.spectators?.toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="flex justify-between px-1 text-[8px]">
+        <span className="text-gray-500">Incassi sala</span>
+        <span className="font-bold text-green-400">${(fullStats.total_revenue || 0).toLocaleString()}</span>
+      </div>
+      {isOwner && (
+        <div className="space-y-1.5 pt-1">
+          {tvStations.length > 0 && (
+            <select value={selectedTv} onChange={e => setSelectedTv(e.target.value)}
+              className="w-full bg-gray-800 text-[9px] text-white border border-gray-700 rounded px-2 py-1.5">
+              <option value="">Scegli emittente TV...</option>
+              {tvStations.map(s => <option key={s.id || s.name} value={s.id || s.name}>{s.name || s.channel_name}</option>)}
+            </select>
+          )}
+          <div className="flex gap-1.5">
+            {isReleased && (
+              <button onClick={() => setConfirmAction('withdraw')} disabled={!!loading}
+                className="flex-1 text-[8px] py-1.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold disabled:opacity-40" data-testid="ct-withdraw-btn">
+                {loading === 'withdraw' ? '...' : 'Ritira dal cinema'}
+              </button>
+            )}
+            {selectedTv && (
+              <>
+                <button onClick={() => setConfirmAction('tv')} disabled={!!loading}
+                  className="flex-1 text-[8px] py-1.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold disabled:opacity-40" data-testid="ct-send-tv-btn">
+                  {loading === 'tv' ? '...' : 'Manda in TV'}
+                </button>
+                <button onClick={() => setConfirmAction('upcoming')} disabled={!!loading}
+                  className="flex-1 text-[8px] py-1.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-bold disabled:opacity-40" data-testid="ct-upcoming-tv-btn">
+                  {loading === 'upcoming' ? '...' : 'Prossimamente TV'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {confirmAction === 'withdraw' && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center px-4" onClick={() => setConfirmAction(null)}>
           <div className="absolute inset-0 bg-black/60" />
@@ -190,7 +167,7 @@ const TheaterInfoBar = ({ film }) => {
           <div className="absolute inset-0 bg-black/60" />
           <div className="relative bg-[#111113] rounded-2xl p-4 border border-blue-500/20 max-w-sm w-full" onClick={e => e.stopPropagation()}>
             <p className="text-sm font-bold text-white mb-1">Inviare in TV e ritirare dalle sale?</p>
-            <p className="text-[10px] text-gray-400 mb-3">Il film verrà messo in programmazione TV e ritirato dal cinema.</p>
+            <p className="text-[10px] text-gray-400 mb-3">Il film verrà ritirato dal cinema e messo in programmazione TV.</p>
             <div className="flex gap-2">
               <button onClick={() => setConfirmAction(null)} className="flex-1 text-[10px] py-2 rounded-lg bg-gray-800 text-gray-400">Annulla</button>
               <button onClick={doSendToTv} className="flex-1 text-[10px] py-2 rounded-lg bg-blue-600 text-white font-bold">Conferma</button>
@@ -202,8 +179,8 @@ const TheaterInfoBar = ({ film }) => {
         <div className="fixed inset-0 z-[90] flex items-center justify-center px-4" onClick={() => setConfirmAction(null)}>
           <div className="absolute inset-0 bg-black/60" />
           <div className="relative bg-[#111113] rounded-2xl p-4 border border-purple-500/20 max-w-sm w-full" onClick={e => e.stopPropagation()}>
-            <p className="text-sm font-bold text-white mb-1">Aggiungere ai "Prossimamente in TV"?</p>
-            <p className="text-[10px] text-gray-400 mb-3">Il film comparirà tra i prossimamente nella tua emittente. Quando uscirà dalle sale andrà automaticamente in programmazione.</p>
+            <p className="text-sm font-bold text-white mb-1">Aggiungere ai Prossimamente in TV?</p>
+            <p className="text-[10px] text-gray-400 mb-3">Quando uscirà dalle sale andrà automaticamente in programmazione.</p>
             <div className="flex gap-2">
               <button onClick={() => setConfirmAction(null)} className="flex-1 text-[10px] py-2 rounded-lg bg-gray-800 text-gray-400">Annulla</button>
               <button onClick={doSendUpcoming} className="flex-1 text-[10px] py-2 rounded-lg bg-purple-600 text-white font-bold">Conferma</button>
@@ -211,7 +188,7 @@ const TheaterInfoBar = ({ film }) => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 
@@ -505,6 +482,16 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
 
+  // Theater status
+  const ts = film.theater_stats || {};
+  const isInTheater = film.pipeline_state === 'released' || (film.cinemas_showing > 0) || (film.cinema_count > 0);
+  const isOutTheater = film.pipeline_state === 'out_of_theaters';
+  const theaterDays = ts.days_in_theater || 0;
+  const theaterRemaining = ts.days_remaining || 0;
+  const theaterExtended = ts.days_extended || 0;
+  const theaterReduced = ts.days_reduced || 0;
+  const [showTheaterPanel, setShowTheaterPanel] = useState(false);
+
   return (
     <div className={`ct2-root ${isSeries ? 'ct2-series' : ''}`} data-testid="content-template">
       {/* BACK */}
@@ -585,8 +572,9 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
       )}
 
-      {/* 5. DATA BAR (fuschia) */}
-      <div className="ct2-data-bar" data-testid="ct-data-bar">
+      {/* 5. DATA BAR (fuschia) + THEATER DAYS */}
+      <div className="ct2-data-bar" data-testid="ct-data-bar" onClick={() => { if (isInTheater || isOutTheater) setShowTheaterPanel(p => !p); }}
+        style={{ cursor: (isInTheater || isOutTheater) ? 'pointer' : 'default' }}>
         <span className="ct2-data-type">{typeLabel}</span>
         <span className="ct2-data-sep">|</span>
         {imdb && (
@@ -597,7 +585,21 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </>
         )}
         <Clock size={13} />
-        <span className="ct2-data-duration">{durationStr || ''}</span>
+        <span className="ct2-data-duration">{durationStr || '~110m'}</span>
+        {/* Theater days info */}
+        {(isInTheater || isOutTheater) && (
+          <>
+            <span className="ct2-data-sep">|</span>
+            <Ticket size={12} className="text-yellow-400" />
+            <span style={{ color: '#facc15', fontSize: 11, fontWeight: 'bold' }}>{theaterDays}gg</span>
+            {isInTheater && theaterRemaining > 0 && (
+              <span style={{ color: '#9ca3af', fontSize: 10 }}>/{theaterRemaining}r</span>
+            )}
+            {theaterExtended > 0 && <span style={{ color: '#4ade80', fontSize: 10, fontWeight: 'bold' }}>+{theaterExtended}</span>}
+            {theaterReduced > 0 && <span style={{ color: '#f87171', fontSize: 10, fontWeight: 'bold' }}>-{theaterReduced}</span>}
+            <span style={{ color: '#6b7280', fontSize: 9 }}>▼</span>
+          </>
+        )}
         {trendPos && (
           <>
             <span className="ct2-data-sep">|</span>
@@ -615,8 +617,8 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         )}
       </div>
 
-      {/* 5b. THEATER INFO BAR + Prossimamente in TV badge */}
-      <TheaterInfoBar film={film} />
+      {/* 5b. THEATER EXPANDABLE PANEL */}
+      {showTheaterPanel && <TheaterInfoBar film={film} />}
       {film.in_tv_programming && (
         <div className="mx-4 mb-1 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center">
           <span className="text-[9px] font-bold text-blue-400">PROSSIMAMENTE IN TV</span>

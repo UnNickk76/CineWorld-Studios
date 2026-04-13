@@ -9,7 +9,6 @@ import {
   Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye
 } from 'lucide-react';
 import '../styles/content-template.css';
-import CinemaStatsModal from './CinemaStatsModal';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
 const TheaterInfoBar = ({ film }) => {
@@ -489,7 +488,6 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const perception = getPublicPerception(film);
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
-  const [cinemaModalOpen, setCinemaModalOpen] = useState(false);
 
   return (
     <div className={`ct2-root ${isSeries ? 'ct2-series' : ''}`} data-testid="content-template">
@@ -601,36 +599,14 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         )}
       </div>
 
-      {/* CINEMA BAR — cliccabile, apre modal esterno */}
-      {(() => {
-        try {
-          const ps = String(film?.pipeline_state || '');
-          const show = ps === 'released' || ps === 'out_of_theaters' || ps === 'in_theaters' || ps === 'completed' || parseInt(film?.cinemas_showing) > 0 || parseInt(film?.cinema_count) > 0;
-          if (!show) return null;
-          let d = 0, r = 0;
-          const ts = (film?.theater_stats && typeof film.theater_stats === 'object') ? film.theater_stats : null;
-          if (ts) { d = parseInt(ts.days_in_theater) || 0; r = parseInt(ts.days_remaining) || 0; }
-          else { const rl = film?.released_at || (film?.release_schedule ? film.release_schedule.scheduled_at : null); if (rl) { try { d = Math.max(0, Math.floor((Date.now() - new Date(rl).getTime()) / 86400000)); } catch(e){} } r = Math.max(0, (parseInt(film?.theater_weeks) || 3) * 7 - d); }
-          return (
-            <div onClick={() => setCinemaModalOpen(true)} style={{margin:'0 16px 4px',padding:'8px 12px',borderRadius:8,background:'rgba(56,189,248,0.08)',border:'1px solid rgba(56,189,248,0.2)',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}}>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
-                <span style={{fontSize:10,fontWeight:'bold',color: ps === 'released' ? '#38bdf8' : '#9ca3af'}}>{ps === 'released' ? 'AL CINEMA' : 'FUORI SALA'}</span>
-                <span style={{fontSize:11,fontWeight:'bold',color:'#facc15'}}>{'' + d + 'gg'}</span>
-                {ps === 'released' && <span style={{fontSize:10,color:'#9ca3af'}}>{'/ ' + r + ' rimasti'}</span>}
-              </div>
-              <span style={{fontSize:14,color:'#38bdf8'}}>{'\u25BC'}</span>
-            </div>
-          );
-        } catch(e) { return null; }
-      })()}
-      <CinemaStatsModal film={film} isOpen={cinemaModalOpen} onClose={() => setCinemaModalOpen(false)} />
-
       {/* PROSSIMAMENTE IN TV badge */}
       {film.in_tv_programming === true && (
         <div className="mx-4 mb-1 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center">
           <span className="text-[9px] font-bold text-blue-400">PROSSIMAMENTE IN TV</span>
         </div>
       )}
+
+      <div style={{border:"2px solid #00ffff",background:"rgba(0,255,255,0.08)",padding:"10px",marginTop:"8px",textAlign:"center",fontWeight:"bold",color:"#00ffff",borderRadius:"8px"}}>IN SALA - 3 giorni - 7 rimanenti</div>
 
       {/* 6. JOURNALIST REVIEWS (green boxes) */}
       <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>

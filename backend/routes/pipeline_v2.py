@@ -831,8 +831,10 @@ async def propose_film_v2(pid: str, user: dict = Depends(get_current_user)):
         raise HTTPException(400, "Il film deve essere in fase IDEA per essere proposto")
     if not project.get('title') or not project.get('genre'):
         raise HTTPException(400, "Titolo e genere obbligatori")
-    if not project.get('pre_trama') or len(project['pre_trama']) < 50:
-        raise HTTPException(400, "Pre-trama troppo corta (min 50 caratteri)")
+    has_screenplay = project.get('pipeline_flags', {}).get('has_screenplay', False) or bool(project.get('screenplay_content'))
+    pre_trama = project.get('pre_trama', '')
+    if not has_screenplay and (not pre_trama or len(pre_trama) < 50):
+        raise HTTPException(400, "Pre-trama troppo corta (min 50 caratteri) oppure genera prima la sceneggiatura")
 
     # Proposal cost
     cost = 25000

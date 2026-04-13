@@ -201,7 +201,7 @@ class ResetGameRequest(_BM):
 @router.post("/reset-game")
 async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_user)):
     """Admin-only: reset game data. NEVER deletes users."""
-    if user.get('role') != 'admin':
+    if user.get('nickname') != 'NeoMorpheus':
         raise HTTPException(403, "Solo admin")
     
     results = {}

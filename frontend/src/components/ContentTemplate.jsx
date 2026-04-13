@@ -582,15 +582,6 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         )}
         <Clock size={13} />
         <span className="ct2-data-duration">{durationStr || '~110m'}</span>
-        {(film.pipeline_state === 'released' || film.pipeline_state === 'out_of_theaters') && typeof film.theater_stats === 'object' && film.theater_stats !== null && (
-          <>
-            <span className="ct2-data-sep">|</span>
-            <span style={{color:'#facc15',fontSize:11,fontWeight:'bold'}}>{'' + (parseInt(film.theater_stats.days_in_theater) || 0) + 'gg'}</span>
-            {film.pipeline_state === 'released' && <span style={{color:'#9ca3af',fontSize:10}}>{'/' + (parseInt(film.theater_stats.days_remaining) || 0) + 'r'}</span>}
-            {parseInt(film.theater_stats.days_extended) > 0 && <span style={{color:'#4ade80',fontSize:10,fontWeight:'bold'}}>{'+' + parseInt(film.theater_stats.days_extended)}</span>}
-            {parseInt(film.theater_stats.days_reduced) > 0 && <span style={{color:'#f87171',fontSize:10,fontWeight:'bold'}}>{'-' + parseInt(film.theater_stats.days_reduced)}</span>}
-          </>
-        )}
         {trendPos && (
           <>
             <span className="ct2-data-sep">|</span>
@@ -607,6 +598,43 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </>
         )}
       </div>
+
+      {/* CINEMA STATS BAR — separate, celeste, with expand arrow */}
+      {(() => {
+        try {
+          const cinemas = parseInt(film.cinemas_showing) || parseInt(film.cinema_count) || 0;
+          const isInCinema = cinemas > 0 || film.pipeline_state === 'released' || film.pipeline_state === 'in_theaters';
+          const isOut = film.pipeline_state === 'out_of_theaters' || film.pipeline_state === 'completed';
+          if (!isInCinema && !isOut) return null;
+          let days = 0, remain = 0, ext = 0, red = 0;
+          const ts = (typeof film.theater_stats === 'object' && film.theater_stats) ? film.theater_stats : null;
+          if (ts) {
+            days = parseInt(ts.days_in_theater) || 0;
+            remain = parseInt(ts.days_remaining) || 0;
+            ext = parseInt(ts.days_extended) || 0;
+            red = parseInt(ts.days_reduced) || 0;
+          } else {
+            const rel = film.released_at || (film.release_schedule ? film.release_schedule.scheduled_at : null);
+            if (rel) { try { days = Math.max(0, Math.floor((Date.now() - new Date(rel).getTime()) / 86400000)); } catch(e) {} }
+            remain = Math.max(0, (parseInt(film.theater_weeks) || 3) * 7 - days);
+          }
+          return (
+            <div className="mx-4 mt-1 mb-1 px-3 py-1.5 rounded-lg flex items-center justify-between"
+              style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', cursor: 'pointer' }}
+              onClick={() => window.dispatchEvent(new CustomEvent('open-cinema-stats', { detail: { filmId: film.id } }))}
+              data-testid="cinema-stats-bar">
+              <div className="flex items-center gap-2">
+                <span style={{fontSize:10,fontWeight:'bold',color: isInCinema ? '#38bdf8' : '#9ca3af'}}>{isInCinema ? 'AL CINEMA' : 'FUORI SALA'}</span>
+                <span style={{fontSize:11,fontWeight:'bold',color:'#facc15'}}>{'' + days + 'gg'}</span>
+                {isInCinema && <span style={{fontSize:10,color:'#9ca3af'}}>{'/ ' + remain + ' rimasti'}</span>}
+                {ext > 0 && <span style={{fontSize:10,fontWeight:'bold',color:'#4ade80'}}>{'+' + ext}</span>}
+                {red > 0 && <span style={{fontSize:10,fontWeight:'bold',color:'#f87171'}}>{'-' + red}</span>}
+              </div>
+              <span style={{fontSize:12,color:'#38bdf8'}}>&#9660;</span>
+            </div>
+          );
+        } catch(e) { return null; }
+      })()}
 
       {/* PROSSIMAMENTE IN TV badge */}
       {film.in_tv_programming === true && (

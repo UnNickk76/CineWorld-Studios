@@ -913,3 +913,56 @@ async def guest_logout(user: dict = Depends(get_current_user)):
         return {'success': True, 'message': 'Non sei un utente guest, logout normale'}
     deleted = await _delete_guest_data(user['id'])
     return {'success': True, 'deleted': deleted}
+
+
+
+@router.get("/auth/player-profile/{nickname}")
+async def get_player_profile(nickname: str, user: dict = Depends(get_current_user)):
+    """Get public profile of a player by nickname for popup display."""
+    target = await db.users.find_one({'nickname': nickname}, {'_id': 0, 'password_hash': 0})
+    if not target:
+        raise HTTPException(404, "Player non trovato")
+    
+    uid = target['id']
+    
+    # Fetch stats
+    films = await db.film_projects.find({'user_id': uid}, {'_id': 0, 'title': 1, 'quality_score': 1, 'pre_imdb_score': 1, 'theater_stats': 1, 'box_office': 1}).to_list(200)
+    
+    total_films = len(films)
+    total_revenue = sum(f.get('box_office', {}).get('total', 0) if isinstance(f.get('box_office'), dict) else 0 for f in films)
+    total_spectators = sum(f.get('theater_stats', {}).get('total_spectators', 0) for f in films)
+    
+    best_film = ''
+    best_quality = 0
+    for f in films:
+        q = f.get('quality_score', f.get('pre_imdb_score', 0))
+        if q > best_quality:
+            best_quality = q
+            best_film = f.get('title', '')
+    
+    avg_quality = sum(f.get('quality_score', f.get('pre_imdb_score', 50)) for f in films) / max(1, total_films)
+    
+    # Challenge stats
+    wins = await db.game_challenges.count_documents({'$or': [{'challenger_id': uid}, {'challenged_id': uid}], 'winner_id': uid})
+    losses = await db.game_challenges.count_documents({'$or': [{'challenger_id': uid}, {'challenged_id': uid}], 'winner_id': {'$ne': uid, '$exists': True}})
+    
+    # Online status (active in last 10 minutes)
+    import datetime as dt
+    ten_min_ago = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=10)
+    is_online = (target.get('last_active') or dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)) > ten_min_ago
+    
+    return {
+        'user_id': uid,
+        'nickname': target.get('nickname', ''),
+        'production_house_name': target.get('production_house_name', ''),
+        'avatar_url': target.get('avatar_url', ''),
+        'level': target.get('level', 1),
+        'fame': target.get('fame', 0),
+        'is_online': is_online,
+        'total_films': total_films,
+        'total_revenue': total_revenue,
+        'total_spectators': total_spectators,
+        'average_quality': round(avg_quality, 1),
+        'best_film': best_film,
+        'challenge_stats': {'wins': wins, 'losses': losses},
+    }

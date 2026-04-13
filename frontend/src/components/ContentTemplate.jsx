@@ -325,6 +325,13 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           {castInfo.director && (
             <div className="ct2-info-director">Regia di: {castInfo.director}</div>
           )}
+          {film.producer_nickname && (
+            <div className="ct2-info-director" style={{ cursor: 'pointer', opacity: 0.7 }}
+              onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
+              data-testid="ct-production-house">
+              {film.production_house_name || film.producer_nickname}
+            </div>
+          )}
           {castInfo.actors.length > 0 && (
             <div className="ct2-info-cast">
               {isAnime ? 'Disegnatori' : 'Cast'}: {castInfo.actors.map(a => a.name).join(', ')}

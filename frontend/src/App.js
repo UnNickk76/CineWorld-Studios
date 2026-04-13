@@ -1379,6 +1379,126 @@ const TopNavbar = () => {
 // Password Recovery Page
 
 // ==================== ROUTING ====================
+
+// ═══ PLAYER PROFILE POPUP — Stats + Messaggia + Sfida Minigiochi ═══
+const MINIGAMES_LIST = [
+  { id: 'trivia', name: 'Trivia Cinema', icon: '🎬' },
+  { id: 'guess_poster', name: 'Indovina il Poster', icon: '🖼' },
+  { id: 'box_office', name: 'Box Office Quiz', icon: '💰' },
+  { id: 'director_match', name: 'Abbina il Regista', icon: '🎭' },
+  { id: 'speed_cast', name: 'Speed Casting', icon: '⚡' },
+];
+
+const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
+  const confirm = useConfirm();
+  const p = data.profile;
+  const [showGames, setShowGames] = useState(false);
+  const [challengeLoading, setChallengeLoading] = useState('');
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+
+  const handleMessage = async () => {
+    const ok = await confirm({ title: `Messaggia ${p.nickname}?`, subtitle: 'Verrai portato nella chat privata.', confirmLabel: 'Vai alla chat', cancelLabel: 'Annulla' });
+    if (ok) { onClose(); navigate(`/chat?dm=${data.userId}`); }
+  };
+
+  const handleChallenge = async (gameId) => {
+    const ok = await confirm({ title: `Sfidare ${p.nickname}?`, subtitle: `Gioco: ${MINIGAMES_LIST.find(g => g.id === gameId)?.name}`, confirmLabel: 'Sfida!', cancelLabel: 'Annulla' });
+    if (!ok) return;
+    setChallengeLoading(gameId);
+    try {
+      await api.post('/api/games/challenge', { opponent_id: data.userId, game_id: gameId, bet_amount: 0 });
+      toast.success(`Sfida inviata a ${p.nickname}!`);
+      setShowGames(false);
+    } catch (e) { toast.error(e.message || 'Errore invio sfida'); }
+    setChallengeLoading('');
+  };
+
+  const avatarSrc = p.avatar_url?.startsWith('data:') ? p.avatar_url : p.avatar_url?.startsWith('/') ? `${BACKEND_URL}${p.avatar_url}` : p.avatar_url;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center px-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60" />
+      <div className="relative w-full max-w-sm bg-[#111113] rounded-2xl border border-yellow-500/20 overflow-hidden" onClick={e => e.stopPropagation()} data-testid="player-profile-popup">
+        {/* Header with avatar */}
+        <div className="relative p-4 bg-gradient-to-b from-yellow-500/10 to-transparent">
+          <button onClick={onClose} className="absolute top-2 right-2 text-gray-500"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-full border-2 border-yellow-500/40 overflow-hidden bg-gray-800 flex items-center justify-center flex-shrink-0">
+              {avatarSrc ? <img src={avatarSrc} alt="" className="w-full h-full object-cover" /> : <span className="text-yellow-400 font-bold text-xl">{(p.nickname || '?')[0]}</span>}
+            </div>
+            <div>
+              <h3 className="font-['Bebas_Neue'] text-xl text-yellow-400 tracking-wide">{p.nickname}</h3>
+              {p.production_house_name && <p className="text-[10px] text-gray-400">{p.production_house_name}</p>}
+              <div className="flex items-center gap-2 mt-0.5">
+                {p.level && <span className="text-[8px] font-bold text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded px-1 py-0.5">LV {p.level}</span>}
+                {p.fame != null && <span className="text-[8px] text-amber-400/70 bg-amber-500/10 border border-amber-500/15 rounded px-1 py-0.5">Fama {p.fame?.toLocaleString()}</span>}
+                <span className={`w-2 h-2 rounded-full ${p.is_online ? 'bg-green-400' : 'bg-gray-600'}`} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats grid */}
+        <div className="px-4 pb-2">
+          <div className="grid grid-cols-4 gap-1.5">
+            {[
+              { label: 'Film', value: p.total_films || 0, color: 'text-yellow-400' },
+              { label: 'Incassi', value: p.total_revenue ? `$${p.total_revenue >= 1e6 ? `${(p.total_revenue/1e6).toFixed(1)}M` : `${Math.floor(p.total_revenue/1000)}K`}` : '$0', color: 'text-green-400' },
+              { label: 'Spettatori', value: p.total_spectators ? (p.total_spectators >= 1e6 ? `${(p.total_spectators/1e6).toFixed(1)}M` : `${Math.floor(p.total_spectators/1000)}K`) : '0', color: 'text-cyan-400' },
+              { label: 'Qualità', value: `${Math.round(p.average_quality || 0)}%`, color: 'text-blue-400' },
+            ].map(s => (
+              <div key={s.label} className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+                <p className={`text-[11px] font-bold ${s.color}`}>{s.value}</p>
+                <p className="text-[7px] text-gray-600">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          {p.best_film && (
+            <div className="mt-1.5 flex items-center gap-2 px-2 py-1 bg-white/[0.02] rounded border border-white/5">
+              <Film className="w-3 h-3 text-yellow-500/50" />
+              <p className="text-[8px] text-gray-400">Miglior Film: <span className="text-white font-bold">{p.best_film}</span></p>
+            </div>
+          )}
+          {p.challenge_stats && (
+            <div className="mt-1 flex items-center gap-2 px-2 py-1 bg-white/[0.02] rounded border border-white/5">
+              <Swords className="w-3 h-3 text-pink-400/50" />
+              <p className="text-[8px] text-gray-400">Sfide: <span className="text-green-400">{p.challenge_stats.wins || 0}W</span> / <span className="text-red-400">{p.challenge_stats.losses || 0}L</span></p>
+            </div>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="px-4 pb-3 space-y-1.5">
+          {!showGames ? (
+            <div className="flex gap-2">
+              <button onClick={handleMessage} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500/20 transition-colors text-[10px] font-bold" data-testid="popup-message-btn">
+                <MessageCircle className="w-3.5 h-3.5" /> Messaggia
+              </button>
+              <button onClick={() => setShowGames(true)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-pink-500/10 border border-pink-500/25 text-pink-400 hover:bg-pink-500/20 transition-colors text-[10px] font-bold" data-testid="popup-challenge-btn">
+                <Swords className="w-3.5 h-3.5" /> Sfida
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-[9px] text-gray-400 font-bold">Scegli minigioco:</p>
+              {MINIGAMES_LIST.map(g => (
+                <button key={g.id} onClick={() => handleChallenge(g.id)} disabled={challengeLoading === g.id}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5 hover:bg-pink-500/10 hover:border-pink-500/20 transition-colors active:scale-[0.98]" data-testid={`challenge-game-${g.id}`}>
+                  <span className="text-sm">{g.icon}</span>
+                  <span className="text-[10px] text-white font-bold">{g.name}</span>
+                  {challengeLoading === g.id && <Loader2 className="w-3 h-3 animate-spin ml-auto text-pink-400" />}
+                </button>
+              ))}
+              <button onClick={() => setShowGames(false)} className="w-full text-[9px] text-gray-500 py-1">Indietro</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 const ProtectedRoute = ({ children }) => {
   const { user, loading, api } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -1392,6 +1512,21 @@ const ProtectedRoute = ({ children }) => {
   const [showAutonomy, setShowAutonomy] = useState(false);
   const [showGameTutorial, setShowGameTutorial] = useState(false);
   const [showDashboardTour, setShowDashboardTour] = useState(false);
+
+  // Listen for player popup events from ContentTemplate and other components
+  useEffect(() => {
+    const handler = (e) => {
+      const nickname = e.detail?.nickname;
+      if (nickname && api) {
+        setPopupData({ loading: true });
+        api.get(`/auth/player-profile/${nickname}`).then(r => {
+          setPopupData({ profile: r.data || r, userId: (r.data || r).user_id, loading: false });
+        }).catch(() => setPopupData(null));
+      }
+    };
+    window.addEventListener('open-player-popup', handler);
+    return () => window.removeEventListener('open-player-popup', handler);
+  }, [api]);
   
   // Fetch Velion mode from backend
   const [tutorialCompleted, setTutorialCompleted] = useState(true);
@@ -1621,6 +1756,11 @@ const ProtectedRoute = ({ children }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ═══ PLAYER PROFILE POPUP ═══ */}
+      {popupData && !popupData.loading && popupData.profile && (
+        <PlayerProfilePopup data={popupData} onClose={() => setPopupData(null)} navigate={navigate} api={api} user={user} />
+      )}
 
       {/* ═══ BOTTOM NAVBAR MOBILE ═══ */}
       <MobileBottomNav />

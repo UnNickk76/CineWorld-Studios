@@ -595,8 +595,8 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
   }, {});
 
   const hasPoster = film.pipeline_flags?.has_poster;
-  const hasScreenplay = film.pipeline_flags?.has_screenplay;
-  const canPropose = title.length > 2 && genre && preTrama.length >= 50;
+  const hasScreenplay = film.pipeline_flags?.has_screenplay || (film.screenplay_content && film.screenplay_content.length > 10);
+  const canPropose = title.length > 2 && genre && (preTrama.length >= 50 || hasScreenplay);
 
   return (
     <PhaseWrapper title="L'Idea" subtitle="Dai forma al tuo film" icon={Sparkles} color="amber">

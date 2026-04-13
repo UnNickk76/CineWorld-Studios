@@ -2391,10 +2391,16 @@ async def complete_ciak_v2(pid: str, user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
     postprod_end = now + timedelta(minutes=30)
 
+    # Calculate cumulative production quality based on prep investment
+    prep_cost = project.get('costs_paid', {}).get('prep', 0)
+    prep_quality = min(100, 30 + prep_cost / 5000)  # More investment = higher quality base
+    
     extra = {
         'shooting_completed': True,
         'shooting_events': events,
         'pipeline_metrics.shooting_event_bonus': event_bonus,
+        'pipeline_metrics.prep_quality': prep_quality,
+        'pipeline_metrics.shooting_quality': min(100, 40 + event_bonus * 3 + random.randint(0, 20)),
         'postproduction_started_at': now.isoformat(),
         'pipeline_timers.postprod_start': now.isoformat(),
         'pipeline_timers.postprod_end': postprod_end.isoformat(),
@@ -2453,9 +2459,14 @@ async def complete_finalcut_v2(pid: str, user: dict = Depends(get_current_user))
         if datetime.now(timezone.utc) < end_dt:
             raise HTTPException(400, "Post-produzione ancora in corso")
 
+    # Calculate post-production quality
+    speedup_malus = project.get('pipeline_metrics', {}).get('speedup_malus', 0)
+    postprod_quality = max(20, 70 - speedup_malus * 8 + random.randint(-5, 15))
+    
     extra = {
         'postproduction_completed': True,
         'postproduction_completed_at': _now(),
+        'pipeline_metrics.postprod_quality': postprod_quality,
     }
     film = await _advance(pid, user['id'], 'sponsorship', extra, 'selection')
     return {'film': film}
@@ -2537,13 +2548,30 @@ async def save_marketing_v2(pid: str, req: SaveMarketingV2, user: dict = Depends
         'pipeline_metrics.marketing_hype': total_hype,
     }
     
-    # Calculate quality score now so it's available before release
-    cast_q = project.get('pipeline_metrics', {}).get('cast_quality', 50)
-    screenplay_q = project.get('pipeline_metrics', {}).get('screenplay_quality', 50)
-    poster_q = project.get('pipeline_metrics', {}).get('poster_quality', 50)
-    base_q = (cast_q * 0.35 + screenplay_q * 0.3 + poster_q * 0.15 + total_hype * 0.2)
+    # Calculate quality using ALL pipeline metrics from every step
     import random
-    quality_score = round(min(10, max(1, base_q / 10 + random.uniform(-0.5, 0.5))), 1)
+    metrics = project.get('pipeline_metrics', {})
+    hype = metrics.get('hype_score', 30)
+    cast_q = metrics.get('cast_quality', 40)
+    screenplay_q = metrics.get('screenplay_quality', 40)
+    prep_q = metrics.get('prep_quality', 40)
+    shooting_q = metrics.get('shooting_quality', 40)
+    postprod_q = metrics.get('postprod_quality', 50)
+    poster_q = metrics.get('poster_quality', 40)
+    event_bonus = metrics.get('shooting_event_bonus', 0)
+    
+    composite = (
+        hype * 0.08 +
+        cast_q * 0.20 +
+        screenplay_q * 0.15 +
+        prep_q * 0.10 +
+        shooting_q * 0.15 +
+        postprod_q * 0.12 +
+        poster_q * 0.05 +
+        total_hype * 0.15
+    ) + event_bonus * 0.5
+    
+    quality_score = round(min(10, max(1, composite / 10 + random.uniform(-0.3, 0.3))), 1)
     update['quality_score'] = quality_score
     update['pre_imdb_score'] = quality_score * 10
     
@@ -3920,7 +3948,10 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
     if ff > 0:
         quality_score = max(5, round(quality_score * (1 - ff)))
 
-    # Tier
+    # Normalize to 0-10 scale for consistency with pipeline
+    quality_score_10 = round(min(10, max(1, quality_score / 10)), 1)
+
+    # Tier (uses 0-100 scale internally)
     if quality_score >= 85: tier = 'masterpiece'
     elif quality_score >= 70: tier = 'excellent'
     elif quality_score >= 55: tier = 'good'
@@ -3955,7 +3986,8 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
         'subgenre': project.get('subgenre', ''),
         'subgenres': project.get('subgenres', []),
         'status': 'in_theaters',
-        'quality_score': quality_score,
+        'quality_score': quality_score_10,
+        'pre_imdb_score': quality_score,
         'tier': tier,
         'budget': total_cost,
         'total_budget': total_cost,
@@ -4042,7 +4074,8 @@ async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
 
     return {
         'film': film_doc,
-        'quality_score': quality_score,
+        'quality_score': quality_score_10,
+        'pre_imdb_score': quality_score,
         'tier': tier,
         'opening_day_revenue': opening_day,
         'xp_reward': xp_reward,

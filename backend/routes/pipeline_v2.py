@@ -2536,8 +2536,19 @@ async def save_marketing_v2(pid: str, req: SaveMarketingV2, user: dict = Depends
         'costs_paid.marketing': total_cost,
         'pipeline_metrics.marketing_hype': total_hype,
     }
+    
+    # Calculate quality score now so it's available before release
+    cast_q = project.get('pipeline_metrics', {}).get('cast_quality', 50)
+    screenplay_q = project.get('pipeline_metrics', {}).get('screenplay_quality', 50)
+    poster_q = project.get('pipeline_metrics', {}).get('poster_quality', 50)
+    base_q = (cast_q * 0.35 + screenplay_q * 0.3 + poster_q * 0.15 + total_hype * 0.2)
+    import random
+    quality_score = round(min(10, max(1, base_q / 10 + random.uniform(-0.5, 0.5))), 1)
+    update['quality_score'] = quality_score
+    update['pre_imdb_score'] = quality_score * 10
+    
     film = await _update_project(pid, update)
-    return {'film': film, 'cost': total_cost, 'hype_boost': total_hype}
+    return {'film': film, 'cost': total_cost, 'hype_boost': total_hype, 'quality_score': quality_score}
 
 @router.post("/films/{pid}/choose-premiere")
 async def choose_premiere_v2(pid: str, user: dict = Depends(get_current_user)):

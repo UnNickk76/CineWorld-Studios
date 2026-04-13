@@ -1841,6 +1841,8 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
     setLoading('');
   };
 
+  const marketingSaved = Array.isArray(film.marketing_packages) && film.marketing_packages.length > 0;
+
   const saveMarketing = async () => {
     setLoading('marketing');
     try {
@@ -1916,8 +1918,8 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
           {marketingPkgs.map((pkg, i) => {
             const sel = selectedMarketing.some(m => m.id === pkg.id);
             return (
-              <button key={i} onClick={() => toggleMarketing(pkg)}
-                className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-colors ${sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'}`}>
+              <button key={i} onClick={() => !marketingSaved && toggleMarketing(pkg)} disabled={marketingSaved}
+                className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-colors ${sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'} ${marketingSaved ? 'opacity-50' : ''}`}>
                 <Megaphone className={`w-4 h-4 flex-shrink-0 ${sel ? 'text-green-400' : 'text-gray-600'}`} />
                 <div className="flex-1">
                   <p className={`text-[10px] font-bold ${sel ? 'text-green-400' : 'text-gray-300'}`}>{pkg.name}</p>
@@ -1927,7 +1929,7 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
             );
           })}
 
-          {selectedMarketing.length > 0 && (
+          {selectedMarketing.length > 0 && !marketingSaved && (
             <button onClick={saveMarketing} disabled={loading === 'marketing'}
               className="w-full text-[10px] py-2 rounded-lg bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="save-marketing-btn">
               Attiva Marketing (${selectedMarketing.reduce((a, m) => a + (m.cost || 0), 0).toLocaleString()})

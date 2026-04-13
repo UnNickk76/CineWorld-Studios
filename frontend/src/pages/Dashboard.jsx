@@ -32,6 +32,46 @@ const posterSrc = (url) => {
   return url;
 };
 
+
+const RiCinemaShowcase = ({ api, navigate }) => {
+  const [events, setEvents] = useState([]);
+  useEffect(() => {
+    const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+    const token = localStorage.getItem('cineworld_token');
+    fetch(`${BACKEND}/api/ri-cinema/showcase`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setEvents(d?.events || [])).catch(() => {});
+  }, []);
+  if (events.length === 0) return null;
+  const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+  return (
+    <div className="px-1 mb-4" data-testid="ri-cinema-showcase">
+      <h2 className="text-sm font-bold text-white mb-2 flex items-center gap-1.5">
+        <Film className="w-3.5 h-3.5 text-amber-400" />
+        Evento Ri-Cinema
+        <span className="text-[8px] text-amber-400/60 bg-amber-500/10 px-1.5 py-0.5 rounded font-normal">{events.length} attivi</span>
+      </h2>
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        {events.map(ev => (
+          <div key={ev.id} className="flex-shrink-0 w-[110px] rounded-lg border border-amber-500/20 bg-[#111113] overflow-hidden cursor-pointer active:scale-95 transition-transform"
+            onClick={() => navigate(`/films`)}>
+            <div className="relative h-[140px] bg-gray-800">
+              {ev.poster_url && <img src={ev.poster_url?.startsWith('/') ? `${BACKEND}${ev.poster_url}` : ev.poster_url} alt="" className="w-full h-full object-cover" />}
+              {ev.is_cult && <span className="absolute top-1 left-1 text-[7px] bg-yellow-500/90 text-black font-black px-1 rounded">CULT</span>}
+              <span className="absolute bottom-1 right-1 text-[7px] bg-black/70 text-amber-400 font-bold px-1 rounded">{ev.day_number}/{ev.days}gg</span>
+            </div>
+            <div className="p-1.5">
+              <p className="text-[8px] font-bold text-white truncate">{ev.film_title}</p>
+              <p className="text-[7px] text-gray-500 truncate">{ev.host_name}</p>
+              <p className="text-[7px] text-cyan-400">{(ev.total_spectators || 0).toLocaleString()} spett.</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+
 const Dashboard = () => {
   const { user, api, refreshUser } = useContext(AuthContext);
   const { language } = useTranslations();
@@ -340,6 +380,9 @@ const Dashboard = () => {
           <div className="mb-4 rounded-xl glow-gold" data-testid="dashboard-la-prima">
             <LaPrimaSection compact />
           </div>
+
+          {/* 1.5 Evento Ri-Cinema */}
+          <RiCinemaShowcase api={api} navigate={navigate} />
 
           {/* 2. Eventi WOW */}
           {eventiWow.length > 0 && (

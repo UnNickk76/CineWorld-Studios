@@ -2117,6 +2117,19 @@ async def expire_old_challenges():
     except Exception as e:
         logger.error(f"[CHALLENGES] Expire error: {e}")
 
+
+async def process_ri_cinema():
+    """Check auto Ri-Cinema events and process active ones."""
+    try:
+        import ri_cinema as rc
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        await rc.check_auto_events(_db)
+        await rc.process_active_events(_db)
+    except Exception as e:
+        logger.error(f"[RI-CINEMA] Error: {e}")
+
     except Exception as e:
         logger.error(f"[THEATER] Migration error: {e}")
 

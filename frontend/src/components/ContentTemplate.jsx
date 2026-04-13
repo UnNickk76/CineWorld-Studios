@@ -431,6 +431,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const [loading, setLoading] = useState(true);
   const [virtualAudience, setVirtualAudience] = useState(null);
   const [showCast, setShowCast] = useState(false);
+  const [showCinemaModal, setShowCinemaModal] = useState(false);
 
   const isSeries = contentType === 'series' || contentType === 'anime';
   const isAnime = contentType === 'anime' || film?.type === 'anime' || film?.content_type === 'anime';
@@ -619,7 +620,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
       )}
 
-      <div style={{border:"2px solid #00ffff",background:"rgba(0,255,255,0.08)",padding:"10px",marginTop:"8px",textAlign:"center",fontWeight:"bold",color:"#00ffff",borderRadius:"8px"}}>{hasCinemaDays && hasCinemaRemain ? 'IN SALA - ' + cinemaDays + ' giorni - ' + cinemaRemain + ' rimanenti' : hasCinemaDays ? 'IN SALA - ' + cinemaDays + ' giorni' : 'IN SALA - dati cinema in aggiornamento'}</div>
+      <div style={{border:"2px solid #00ffff",background:"rgba(0,255,255,0.08)",padding:"10px",marginTop:"8px",textAlign:"center",fontWeight:"bold",color:"#00ffff",borderRadius:"8px",cursor:"pointer"}} onClick={() => setShowCinemaModal(true)}>{hasCinemaDays && hasCinemaRemain ? 'IN SALA - ' + cinemaDays + ' giorni - ' + cinemaRemain + ' rimanenti' : hasCinemaDays ? 'IN SALA - ' + cinemaDays + ' giorni' : 'IN SALA - dati cinema in aggiornamento'}</div>
 
       {/* 6. JOURNALIST REVIEWS (green boxes) */}
       <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>
@@ -671,6 +672,18 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
       {/* Cast Popup */}
       <CastPopup open={showCast} onClose={setShowCast} cast={film?.cast} />
+
+      {/* Cinema Stats Modal */}
+      {showCinemaModal && (
+        <div style={{position:"fixed",top:0,left:0,width:"100%",height:"100%",background:"rgba(0,0,0,0.8)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={() => setShowCinemaModal(false)}>
+          <div style={{background:"#111",borderRadius:"12px",padding:"20px",width:"85%",maxWidth:"400px",color:"#fff",textAlign:"center"}} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{marginBottom:"10px",color:"#00ffff"}}>Dati Cinema</h3>
+            <p style={{margin:"6px 0"}}>{'Giorni al cinema: ' + (hasCinemaDays ? '' + cinemaDays : 'N/D')}</p>
+            <p style={{margin:"6px 0"}}>{'Giorni rimanenti: ' + (hasCinemaRemain ? '' + cinemaRemain : 'N/D')}</p>
+            <button style={{marginTop:"15px",padding:"8px 15px",borderRadius:"8px",border:"none",background:"#00ffff",color:"#000",fontWeight:"bold",cursor:"pointer"}} onClick={() => setShowCinemaModal(false)}>Chiudi</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

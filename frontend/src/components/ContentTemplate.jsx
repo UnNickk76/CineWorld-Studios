@@ -582,6 +582,15 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         )}
         <Clock size={13} />
         <span className="ct2-data-duration">{durationStr || '~110m'}</span>
+        {(film.pipeline_state === 'released' || film.pipeline_state === 'out_of_theaters') && typeof film.theater_stats === 'object' && film.theater_stats !== null && (
+          <>
+            <span className="ct2-data-sep">|</span>
+            <span style={{color:'#facc15',fontSize:11,fontWeight:'bold'}}>{'' + (parseInt(film.theater_stats.days_in_theater) || 0) + 'gg'}</span>
+            {film.pipeline_state === 'released' && <span style={{color:'#9ca3af',fontSize:10}}>{'/' + (parseInt(film.theater_stats.days_remaining) || 0) + 'r'}</span>}
+            {parseInt(film.theater_stats.days_extended) > 0 && <span style={{color:'#4ade80',fontSize:10,fontWeight:'bold'}}>{'+' + parseInt(film.theater_stats.days_extended)}</span>}
+            {parseInt(film.theater_stats.days_reduced) > 0 && <span style={{color:'#f87171',fontSize:10,fontWeight:'bold'}}>{'-' + parseInt(film.theater_stats.days_reduced)}</span>}
+          </>
+        )}
         {trendPos && (
           <>
             <span className="ct2-data-sep">|</span>

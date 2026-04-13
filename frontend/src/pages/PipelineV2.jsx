@@ -2728,7 +2728,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
           {velionDateTip && (
             <div className="mt-1.5 px-2.5 py-2 bg-cyan-500/5 border border-cyan-500/15 rounded-lg">
               <p className="text-[9px] text-cyan-400 font-bold mb-0.5">Consiglio di Velion:</p>
-              <p className="text-[8px] text-gray-400">Ogni data genera un diverso livello di aspettativa. Attesa pi\u00f9 lunga = pi\u00f9 hype ma anche pi\u00f9 rischio! "Immediato" \u00e8 sicuro ma senza bonus. Sperimenta!</p>
+              <p className="text-[8px] text-gray-400">Ogni data genera un diverso livello di aspettativa. Attesa lunga = hype maggiore ma anche rischio! "Immediato" è sicuro ma senza bonus. Sperimenta!</p>
             </div>
           )}
         </div>
@@ -2795,7 +2795,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
         {velionZoneTip && (
           <div className="px-2.5 py-2 bg-cyan-500/5 border border-cyan-500/15 rounded-lg">
             <p className="text-[9px] text-cyan-400 font-bold mb-0.5">Consiglio di Velion:</p>
-            <p className="text-[8px] text-gray-400">"Mondiale" raggiunge tutti ma costa di pi\u00f9. Seleziona zone specifiche per risparmiare e concentrare gli incassi dove il genere funziona meglio!</p>
+            <p className="text-[8px] text-gray-400">"Mondiale" raggiunge tutti ma costa di più. Seleziona zone specifiche per risparmiare e concentrare gli incassi dove il genere funziona meglio!</p>
           </div>
         )}
 

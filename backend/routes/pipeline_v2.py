@@ -2907,6 +2907,19 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
         'scheduled_at': _now(),
     }
 
+    # Calculate quality_score if missing (MUST happen before release)
+    if not project.get('quality_score'):
+        import random as _rnd
+        metrics = project.get('pipeline_metrics', {})
+        cast_q = metrics.get('cast_quality', 50)
+        screenplay_q = metrics.get('screenplay_quality', 50)
+        poster_q = metrics.get('poster_quality', 50)
+        marketing_q = metrics.get('marketing_hype', 30)
+        base_q = (cast_q * 0.35 + screenplay_q * 0.3 + poster_q * 0.15 + marketing_q * 0.2)
+        quality_score = round(min(10, max(1, base_q / 10 + _rnd.uniform(-0.5, 0.5))), 1)
+        await db.film_projects.update_one({'id': pid}, {'$set': {'quality_score': quality_score, 'pre_imdb_score': quality_score * 10}})
+        logging.info(f"[RELEASE] Calculated quality_score for {pid}: {quality_score}")
+
     # Theater duration
     theater_weeks = max(1, min(4, body.theater_weeks))
     release_date = _now()

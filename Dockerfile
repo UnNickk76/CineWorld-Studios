@@ -1,15 +1,15 @@
 FROM node:20-alpine AS frontend-build
 RUN apk add --no-cache python3 make g++
 WORKDIR /app/frontend
-COPY frontend/ ./
-RUN rm -rf node_modules package-lock.json
-RUN npm install --legacy-peer-deps
+COPY frontend/package.json frontend/yarn.lock* frontend/craco.config.js ./
+COPY frontend/src ./src
+COPY frontend/public ./public
+COPY frontend/.env ./.env
+RUN yarn install --frozen-lockfile 2>/dev/null || yarn install
 ENV CI=false
 ENV GENERATE_SOURCEMAP=false
 ENV NODE_OPTIONS=--max_old_space_size=4096
-ENV ENABLE_HEALTH_CHECK=false
-ENV REACT_APP_BACKEND_URL=""
-RUN npm run build
+RUN yarn build
 
 FROM python:3.11-slim
 WORKDIR /app

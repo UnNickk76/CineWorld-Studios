@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import {
   Film, Star, Flame, Users, DollarSign, Heart, ChevronRight, X, Play,
   Building, Sparkles, BookOpen, Clapperboard, Zap, Loader2,
-  Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye, Ticket
+  Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye
 } from 'lucide-react';
 import '../styles/content-template.css';
 
@@ -489,16 +489,6 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
 
-  // Theater status — safe primitives only
-  const ts = film?.theater_stats || {};
-  const isInTheater = film?.pipeline_state === 'released' || Number(film?.cinemas_showing || 0) > 0 || Number(film?.cinema_count || 0) > 0;
-  const isOutTheater = film?.pipeline_state === 'out_of_theaters';
-  const theaterDays = Number(ts.days_in_theater) || 0;
-  const theaterRemaining = Number(ts.days_remaining) || 0;
-  const theaterExtended = Number(ts.days_extended) || 0;
-  const theaterReduced = Number(ts.days_reduced) || 0;
-  const [showTheaterPanel, setShowTheaterPanel] = useState(false);
-
   return (
     <div className={`ct2-root ${isSeries ? 'ct2-series' : ''}`} data-testid="content-template">
       {/* BACK */}
@@ -579,9 +569,8 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
       )}
 
-      {/* 5. DATA BAR (fuschia) + THEATER DAYS */}
-      <div className="ct2-data-bar" data-testid="ct-data-bar" onClick={() => { if (isInTheater || isOutTheater) setShowTheaterPanel(p => !p); }}
-        style={{ cursor: (isInTheater || isOutTheater) ? 'pointer' : 'default' }}>
+      {/* 5. DATA BAR (fuschia) */}
+      <div className="ct2-data-bar" data-testid="ct-data-bar">
         <span className="ct2-data-type">{typeLabel}</span>
         <span className="ct2-data-sep">|</span>
         {imdb && (
@@ -593,20 +582,6 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         )}
         <Clock size={13} />
         <span className="ct2-data-duration">{durationStr || '~110m'}</span>
-        {/* Theater days info */}
-        {(isInTheater || isOutTheater) && (
-          <>
-            <span className="ct2-data-sep">|</span>
-            <Ticket size={12} className="text-yellow-400" />
-            <span style={{ color: '#facc15', fontSize: 11, fontWeight: 'bold' }}>{theaterDays}gg</span>
-            {isInTheater && theaterRemaining > 0 && (
-              <span style={{ color: '#9ca3af', fontSize: 10 }}>/{theaterRemaining}r</span>
-            )}
-            {theaterExtended > 0 && <span style={{ color: '#4ade80', fontSize: 10, fontWeight: 'bold' }}>+{theaterExtended}</span>}
-            {theaterReduced > 0 && <span style={{ color: '#f87171', fontSize: 10, fontWeight: 'bold' }}>-{theaterReduced}</span>}
-            <span style={{ color: '#6b7280', fontSize: 9 }}>▼</span>
-          </>
-        )}
         {trendPos && (
           <>
             <span className="ct2-data-sep">|</span>
@@ -624,9 +599,8 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         )}
       </div>
 
-      {/* 5b. THEATER EXPANDABLE PANEL */}
-      {showTheaterPanel && (() => { try { return <TheaterInfoBar film={film} />; } catch { return null; } })()}
-      {film.in_tv_programming && (
+      {/* PROSSIMAMENTE IN TV badge */}
+      {film.in_tv_programming === true && (
         <div className="mx-4 mb-1 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center">
           <span className="text-[9px] font-bold text-blue-400">PROSSIMAMENTE IN TV</span>
         </div>

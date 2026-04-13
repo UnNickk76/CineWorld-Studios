@@ -2695,6 +2695,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
           <p className="text-[9px] text-gray-500 uppercase font-bold mb-1.5">Data di uscita</p>
           <div className="grid grid-cols-4 gap-1">
             {dateOptions.map(d => {
+              const isPremiere = film.release_type === 'premiere' || film.pipeline_state === 'premiere_live';
               const disabled = d.direct_only && isPremiere;
               const selected = selectedDate === d.id;
               return (

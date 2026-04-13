@@ -314,6 +314,8 @@ function formatDuration(film, contentType) {
   const cat = film?.duration_category;
   const catLabels = { cortometraggio: '~30m', feature_breve: '~60m', standard: '~110m', extended: '~170m', kolossal: '~240m' };
   if (cat && catLabels[cat]) return catLabels[cat];
+  // Default fallback for films without duration data
+  if (film?.pipeline_state && film.pipeline_state !== 'draft') return '~110m';
   return null;
 }
 
@@ -573,12 +575,12 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         <h1 className="ct2-title">{film.title}</h1>
       </div>
       {/* Production House — clickable */}
-      {(film.production_house_name || film.producer_nickname) && (
+      {(film.production_house_name || film.producer_nickname || film.user_id) && (
         <div className="px-4 -mt-1 mb-1">
           <button className="text-[10px] text-amber-400/70 italic hover:text-amber-300 transition-colors"
-            onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
+            onClick={(e) => { e.stopPropagation(); if (film.producer_nickname) window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
             data-testid="ct-production-house-title">
-            una produzione <span className="font-bold not-italic">{film.production_house_name || film.producer_nickname}</span>
+            una produzione <span className="font-bold not-italic">{film.production_house_name || film.producer_nickname || 'Indipendente'}</span>
           </button>
         </div>
       )}

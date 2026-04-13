@@ -434,6 +434,9 @@ async def create_v2_film(req: CreateFilmV2, user: dict = Depends(get_current_use
         'created_at': now,
         'updated_at': now,
         'status': 'draft',
+        'producer_nickname': user.get('nickname', ''),
+        'production_house_name': user.get('production_house_name', ''),
+        'duration_category': 'standard',
     }
     await db.film_projects.insert_one({**project})
     project.pop('_id', None)

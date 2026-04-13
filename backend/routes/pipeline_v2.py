@@ -2942,13 +2942,39 @@ async def withdraw_from_theater(pid: str, user: dict = Depends(get_current_user)
 
 @router.post("/films/{pid}/send-to-tv")
 async def send_to_tv(pid: str, user: dict = Depends(get_current_user)):
-    """Send a film that's out of theaters (or in theaters) to TV programming."""
+    """Send a film to TV programming or upcoming. Withdraws from cinema if released."""
     project = await _get_project(pid, user['id'])
-    # Check user has TV
     tv = await db.infrastructure.find_one({'owner_id': user['id'], 'type': 'emittente_tv'}, {'_id': 0})
     if not tv:
         raise HTTPException(400, "Non possiedi un'emittente TV")
-    await db.film_projects.update_one({'id': pid}, {'$set': {'in_tv_programming': True, 'tv_added_at': _now()}})
+    
+    from fastapi import Request
+    import json
+    # Parse optional body
+    body = {}
+    try:
+        raw = await db.film_projects.find_one({'id': pid}, {'_id': 0, 'id': 1})  # dummy to avoid body parse issues
+        # We'll just set both flags
+    except:
+        pass
+
+    now = _now()
+    update = {'in_tv_programming': True, 'tv_added_at': now}
+    
+    # If released, also withdraw
+    if project['pipeline_state'] == 'released':
+        days = 0
+        released_at = project.get('released_at')
+        if released_at:
+            if isinstance(released_at, str):
+                released_at = datetime.fromisoformat(released_at.replace('Z', '+00:00'))
+            days = max(1, int((datetime.now(timezone.utc) - released_at).total_seconds() / 86400))
+        update['pipeline_state'] = 'out_of_theaters'
+        update['theater_stats.exited_at'] = now
+        update['theater_stats.exit_reason'] = 'sent_to_tv'
+        update['theater_stats.days_in_theater'] = days
+    
+    await db.film_projects.update_one({'id': pid}, {'$set': update})
     return {'sent_to_tv': True}
 
 

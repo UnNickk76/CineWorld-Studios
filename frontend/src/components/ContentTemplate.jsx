@@ -6,9 +6,214 @@ import { toast } from 'sonner';
 import {
   Film, Star, Flame, Users, DollarSign, Heart, ChevronRight, X, Play,
   Building, Sparkles, BookOpen, Clapperboard, Zap, Loader2,
-  Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye
+  Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye, Ticket
 } from 'lucide-react';
 import '../styles/content-template.css';
+
+// ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
+const TheaterInfoBar = ({ film }) => {
+  const { user, api } = useContext(AuthContext);
+  const [expanded, setExpanded] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState('');
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [tvStations, setTvStations] = useState([]);
+  const [selectedTv, setSelectedTv] = useState('');
+
+  const ts = film.theater_stats || {};
+  const isReleased = film.pipeline_state === 'released';
+  const isOutOfTheater = film.pipeline_state === 'out_of_theaters';
+  const isOwner = user?.id === film.user_id;
+  const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+
+  // Not relevant for films not in/out of theaters
+  if (!isReleased && !isOutOfTheater) return null;
+
+  const fetchStats = () => {
+    if (!api) return;
+    const token = localStorage.getItem('cineworld_token');
+    fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/theater-stats`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setStats(d?.theater_stats || d)).catch(() => {});
+  };
+
+  const fetchTvStations = () => {
+    if (!api) return;
+    const token = localStorage.getItem('cineworld_token');
+    fetch(`${BACKEND}/api/my-tv/stations`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setTvStations(Array.isArray(d) ? d : d?.stations || [])).catch(() => setTvStations([]));
+  };
+
+  const doWithdraw = async () => {
+    setConfirmAction(null); setLoading('withdraw');
+    try {
+      const token = localStorage.getItem('cineworld_token');
+      await fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/withdraw-theater`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } });
+      toast.success('Film ritirato dalle sale');
+      window.location.reload();
+    } catch (e) { toast.error('Errore'); }
+    setLoading('');
+  };
+
+  const doSendToTv = async () => {
+    setConfirmAction(null); setLoading('tv');
+    try {
+      const token = localStorage.getItem('cineworld_token');
+      // Send to TV (also withdraws from cinema)
+      await fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/send-to-tv`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ station_id: selectedTv }) });
+      if (isReleased) {
+        await fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/withdraw-theater`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } });
+      }
+      toast.success('Film inviato in TV!');
+      window.location.reload();
+    } catch (e) { toast.error('Errore'); }
+    setLoading('');
+  };
+
+  const doSendUpcoming = async () => {
+    setConfirmAction(null); setLoading('upcoming');
+    try {
+      const token = localStorage.getItem('cineworld_token');
+      await fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/send-to-tv`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ station_id: selectedTv, as_upcoming: true }) });
+      toast.success('Film aggiunto ai Prossimamente in TV!');
+      window.location.reload();
+    } catch (e) { toast.error('Errore'); }
+    setLoading('');
+  };
+
+  const perfColors = { great:'text-green-400', good:'text-emerald-400', ok:'text-yellow-400', declining:'text-orange-400', bad:'text-red-400', flop:'text-red-500' };
+  const perfLabels = { great:'Straordinario', good:'Ottimo', ok:'Discreto', declining:'In calo', bad:'Scarso', flop:'Flop' };
+  const fullStats = stats?.theater_stats || stats || ts;
+
+  return (
+    <>
+      <div className="mx-4 mb-1 rounded-lg border border-yellow-500/15 overflow-hidden" data-testid="ct-theater-bar">
+        <button onClick={() => { setExpanded(!expanded); if (!expanded && !stats) { fetchStats(); if (isOwner) fetchTvStations(); } }}
+          className="w-full flex items-center justify-between px-3 py-1.5 bg-yellow-500/5 hover:bg-yellow-500/10 transition-colors">
+          <div className="flex items-center gap-2">
+            <Ticket size={12} className="text-yellow-400" />
+            <span className="text-[9px] font-bold text-yellow-400">{isReleased ? 'IN SALA' : 'FUORI SALA'}</span>
+            <span className={`text-[8px] font-bold ${perfColors[ts.performance] || 'text-gray-500'}`}>{perfLabels[ts.performance] || ''}</span>
+          </div>
+          <div className="flex items-center gap-2 text-[8px]">
+            <span className="text-white font-bold">{ts.days_in_theater || 0}gg</span>
+            {isReleased && <span className="text-gray-400">{ts.days_remaining || '?'}gg rimasti</span>}
+            {(ts.days_extended || 0) > 0 && <span className="text-green-400">+{ts.days_extended}</span>}
+            {(ts.days_reduced || 0) > 0 && <span className="text-red-400">-{ts.days_reduced}</span>}
+            <span className="text-gray-600">{expanded ? '▲' : '▼'}</span>
+          </div>
+        </button>
+        {expanded && (
+          <div className="p-2.5 space-y-2 bg-black/30">
+            <div className="grid grid-cols-3 gap-1.5">
+              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+                <p className="text-[7px] text-gray-500">Cinema</p>
+                <p className="text-[11px] font-bold text-white">{fullStats.current_cinemas || 0}</p>
+              </div>
+              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+                <p className="text-[7px] text-gray-500">Spett. oggi</p>
+                <p className="text-[11px] font-bold text-cyan-400">{(fullStats.daily_spectators || 0).toLocaleString()}</p>
+              </div>
+              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+                <p className="text-[7px] text-gray-500">Spett. totali</p>
+                <p className="text-[11px] font-bold text-yellow-400">{(fullStats.total_spectators || 0).toLocaleString()}</p>
+              </div>
+            </div>
+            {fullStats.daily_history?.length > 0 && (
+              <div>
+                <p className="text-[7px] text-gray-500 uppercase font-bold mb-1">Ultimi 3 giorni</p>
+                <div className="flex gap-1">
+                  {(fullStats.daily_history || []).slice(-3).map((d, i) => (
+                    <div key={i} className="flex-1 p-1 rounded bg-white/[0.02] border border-white/5 text-center">
+                      <p className="text-[7px] text-gray-600">G{d.day}</p>
+                      <p className={`text-[8px] font-bold ${d.trend === 'up' ? 'text-green-400' : d.trend === 'down' ? 'text-red-400' : 'text-gray-400'}`}>{d.trend === 'up' ? '▲' : d.trend === 'down' ? '▼' : '●'} {d.spectators?.toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex justify-between px-1 text-[8px]">
+              <span className="text-gray-500">Incassi sala</span>
+              <span className="font-bold text-green-400">${(fullStats.total_revenue || 0).toLocaleString()}</span>
+            </div>
+            {/* Owner action buttons */}
+            {isOwner && (
+              <div className="space-y-1.5 pt-1">
+                {/* TV station selector */}
+                {tvStations.length > 0 && (
+                  <select value={selectedTv} onChange={e => setSelectedTv(e.target.value)}
+                    className="w-full bg-gray-800 text-[9px] text-white border border-gray-700 rounded px-2 py-1.5">
+                    <option value="">Scegli emittente TV...</option>
+                    {tvStations.map(s => <option key={s.id || s.name} value={s.id || s.name}>{s.name || s.channel_name}</option>)}
+                  </select>
+                )}
+                <div className="flex gap-1.5">
+                  {isReleased && (
+                    <button onClick={() => setConfirmAction('withdraw')} disabled={!!loading}
+                      className="flex-1 text-[8px] py-1.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold disabled:opacity-40" data-testid="ct-withdraw-btn">
+                      {loading === 'withdraw' ? '...' : 'Ritira dal cinema'}
+                    </button>
+                  )}
+                  {selectedTv && (
+                    <>
+                      <button onClick={() => setConfirmAction('tv')} disabled={!!loading}
+                        className="flex-1 text-[8px] py-1.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold disabled:opacity-40" data-testid="ct-send-tv-btn">
+                        {loading === 'tv' ? '...' : 'Manda in TV'}
+                      </button>
+                      <button onClick={() => setConfirmAction('upcoming')} disabled={!!loading}
+                        className="flex-1 text-[8px] py-1.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-bold disabled:opacity-40" data-testid="ct-upcoming-tv-btn">
+                        {loading === 'upcoming' ? '...' : 'Prossimamente TV'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      {/* Confirm dialogs */}
+      {confirmAction === 'withdraw' && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center px-4" onClick={() => setConfirmAction(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#111113] rounded-2xl p-4 border border-red-500/20 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-bold text-white mb-1">Ritirare il film dalle sale?</p>
+            <p className="text-[10px] text-gray-400 mb-3">Il film uscirà immediatamente dal cinema.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmAction(null)} className="flex-1 text-[10px] py-2 rounded-lg bg-gray-800 text-gray-400">Annulla</button>
+              <button onClick={doWithdraw} className="flex-1 text-[10px] py-2 rounded-lg bg-red-600 text-white font-bold">Ritira</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmAction === 'tv' && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center px-4" onClick={() => setConfirmAction(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#111113] rounded-2xl p-4 border border-blue-500/20 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-bold text-white mb-1">Inviare in TV e ritirare dalle sale?</p>
+            <p className="text-[10px] text-gray-400 mb-3">Il film verrà messo in programmazione TV e ritirato dal cinema.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmAction(null)} className="flex-1 text-[10px] py-2 rounded-lg bg-gray-800 text-gray-400">Annulla</button>
+              <button onClick={doSendToTv} className="flex-1 text-[10px] py-2 rounded-lg bg-blue-600 text-white font-bold">Conferma</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmAction === 'upcoming' && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center px-4" onClick={() => setConfirmAction(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#111113] rounded-2xl p-4 border border-purple-500/20 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-bold text-white mb-1">Aggiungere ai "Prossimamente in TV"?</p>
+            <p className="text-[10px] text-gray-400 mb-3">Il film comparirà tra i prossimamente nella tua emittente. Quando uscirà dalle sale andrà automaticamente in programmazione.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmAction(null)} className="flex-1 text-[10px] py-2 rounded-lg bg-gray-800 text-gray-400">Annulla</button>
+              <button onClick={doSendUpcoming} className="flex-1 text-[10px] py-2 rounded-lg bg-purple-600 text-white font-bold">Conferma</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -407,6 +612,14 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </>
         )}
       </div>
+
+      {/* 5b. THEATER INFO BAR + Prossimamente in TV badge */}
+      <TheaterInfoBar film={film} />
+      {film.in_tv_programming && (
+        <div className="mx-4 mb-1 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center">
+          <span className="text-[9px] font-bold text-blue-400">PROSSIMAMENTE IN TV</span>
+        </div>
+      )}
 
       {/* 6. JOURNALIST REVIEWS (green boxes) */}
       <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>

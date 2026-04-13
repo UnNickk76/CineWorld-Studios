@@ -357,11 +357,18 @@ function getEventHeadlines(film) {
   const ev = film?.release_event || film?.news_events;
   if (!ev) return [];
   if (typeof ev === 'string') return [ev];
-  if (ev.name || ev.description || ev.text) return [ev.description || ev.name || ev.text || ''];
+  if (typeof ev === 'number') return [String(ev)];
+  // Object with text fields
+  if (typeof ev === 'object' && !Array.isArray(ev)) {
+    const txt = ev.description || ev.name || ev.text || ev.title;
+    return txt ? [String(txt)] : [];
+  }
   if (Array.isArray(ev)) {
     return ev.slice(0, 2).map(e => {
       if (typeof e === 'string') return e;
-      return e?.description || e?.name || e?.text || e?.title || '';
+      if (typeof e === 'number') return String(e);
+      if (e && typeof e === 'object') return String(e?.description || e?.name || e?.text || e?.title || '');
+      return '';
     }).filter(Boolean);
   }
   return [];
@@ -372,11 +379,11 @@ function CastPopup({ open, onClose, cast }) {
   const members = [];
   if (cast) {
     if (Array.isArray(cast)) {
-      cast.forEach((a) => members.push({ ...a, role: a.role_in_film || a.role || 'Attore' }));
-    } else {
-      if (cast.director) members.push({ ...cast.director, role: 'Regista' });
+      cast.forEach((a) => { if (a && typeof a === 'object') members.push({ ...a, role: a.role_in_film || a.role || 'Attore' }); });
+    } else if (typeof cast === 'object') {
+      if (cast.director && typeof cast.director === 'object') members.push({ ...cast.director, role: 'Regista' });
       if (Array.isArray(cast.actors)) {
-        cast.actors.forEach((a) => members.push({ ...a, role: a.role_in_film || a.role || 'Attore' }));
+        cast.actors.forEach((a) => { if (a && typeof a === 'object') members.push({ ...a, role: a.role_in_film || a.role || 'Attore' }); });
       }
       Object.entries(cast).forEach(([key, val]) => {
         if (key !== 'director' && key !== 'actors' && val?.name) {
@@ -644,7 +651,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
         <div className="ct2-public-lines">
           {perception.map((line, i) => <div key={i} className="ct2-public-line">{line}</div>)}
-          {events.map((ev, i) => <div key={`ev${i}`} className="ct2-event-line">{ev}</div>)}
+          {events.map((ev, i) => <div key={`ev${i}`} className="ct2-event-line">{typeof ev === 'string' ? ev : String(ev || '')}</div>)}
           {perception.length === 0 && events.length === 0 && (
             <div className="ct2-public-line">Nessun dato disponibile</div>
           )}

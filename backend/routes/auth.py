@@ -930,7 +930,16 @@ async def get_player_profile(nickname: str, user: dict = Depends(get_current_use
     
     total_films = len(films)
     total_revenue = sum(f.get('box_office', {}).get('total', 0) if isinstance(f.get('box_office'), dict) else 0 for f in films)
-    total_spectators = sum(f.get('theater_stats', {}).get('total_spectators', 0) for f in films)
+    total_spectators = 0
+    for f in films:
+        ts = f.get('theater_stats', {}).get('total_spectators', 0)
+        if ts > 0:
+            total_spectators += ts
+        else:
+            bo = f.get('box_office', {})
+            rev = bo.get('total', 0) if isinstance(bo, dict) else 0
+            if rev > 0:
+                total_spectators += int(rev / 11)
     
     best_film = ''
     best_quality = 0

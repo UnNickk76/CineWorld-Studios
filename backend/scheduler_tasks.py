@@ -2103,9 +2103,9 @@ async def check_theater_life():
             except Exception as e:
                 logger.error(f"[THEATER] Failed to release {f['id']}: {e}")
         
-        # Cleanup: fix bugged films stuck in release_pending with released_at
+        # Cleanup: fix bugged films stuck in release_pending with released_at AND release_schedule
         bugged = await _db.film_projects.find(
-            {'pipeline_state': 'release_pending', 'released_at': {'$exists': True}, 'scheduled_release_at': {'$exists': False}},
+            {'pipeline_state': 'release_pending', 'released_at': {'$exists': True}, 'scheduled_release_at': {'$exists': False}, 'release_schedule': {'$exists': True, '$ne': None}},
             {'_id': 0, 'id': 1, 'user_id': 1}
         ).to_list(100)
         for f in bugged:

@@ -229,6 +229,9 @@ const NotificationsPage = () => {
               <Check className="w-3.5 h-3.5 mr-1" /> Segna tutto
             </Button>
           )}
+          <Button size="sm" variant="outline" className="h-8 text-xs text-red-400 border-red-500/30" onClick={async () => { if(window.confirm('Svuotare tutte le notifiche?')) { await api.post('/admin/recovery/clear-my-notifications'); loadNotifications(); toast.success('Notifiche svuotate'); }}} data-testid="clear-all-notifs">
+            Svuota
+          </Button>
         </div>
       </div>
 

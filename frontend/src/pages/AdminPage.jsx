@@ -2555,6 +2555,12 @@ export default function AdminPage() {
         {activeTab === 'donations' && isAdmin && <GuestCleanupPanel api={api} />}
         {/* CityTastesAdmin temporarily disabled - investigating deploy issue */}
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
+        {activeTab === 'maintenance' && isAdmin && (
+          <Card className="bg-[#111113] border-white/5 mt-3"><CardContent className="p-3">
+            <p className="text-xs font-bold text-orange-400 mb-2">Pulizia Eventi</p>
+            <button onClick={async () => { if(window.confirm('Cancellare TUTTI gli eventi?')) { await api.post('/admin/recovery/clear-events'); toast.success('Eventi cancellati'); }}} className="w-full text-[10px] py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 font-bold">Cancella tutti gli eventi</button>
+          </CardContent></Card>
+        )}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}
         {activeTab === 'reset' && isAdmin && <ResetGamePanel api={api} />}

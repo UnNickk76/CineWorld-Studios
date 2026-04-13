@@ -99,11 +99,17 @@ function formatDuration(film, contentType) {
     return null;
   }
   const min = film?.duration_minutes;
-  if (!min) return null;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  if (min) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  }
+  // Fallback: estimate from duration_category
+  const cat = film?.duration_category;
+  const catLabels = { cortometraggio: '~30m', feature_breve: '~60m', standard: '~110m', extended: '~170m', kolossal: '~240m' };
+  if (cat && catLabels[cat]) return catLabels[cat];
+  return null;
 }
 
 // === CAST EXTRACTOR (top 4-5, sorted by fame then value) ===
@@ -361,6 +367,16 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       <div className="ct2-title-row" data-testid="ct-title">
         <h1 className="ct2-title">{film.title}</h1>
       </div>
+      {/* Production House — clickable */}
+      {(film.production_house_name || film.producer_nickname) && (
+        <div className="px-4 -mt-1 mb-1">
+          <button className="text-[10px] text-amber-400/70 italic hover:text-amber-300 transition-colors"
+            onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
+            data-testid="ct-production-house-title">
+            una produzione <span className="font-bold not-italic">{film.production_house_name || film.producer_nickname}</span>
+          </button>
+        </div>
+      )}
 
       {/* 5. DATA BAR (fuschia) */}
       <div className="ct2-data-bar" data-testid="ct-data-bar">

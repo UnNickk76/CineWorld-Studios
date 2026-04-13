@@ -22,7 +22,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import {
   Film, Sparkles, ChevronRight, Globe, Loader2, DollarSign, TrendingUp, Heart,
   Clapperboard, MapPin, Building, Tv, Star, Menu as MenuIcon,
-  Store, Pen, Gamepad2, Trophy, Target, Award, Radio
+  Store, Pen, Gamepad2, Trophy, Target, Award, Radio, Users
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -314,6 +314,22 @@ const Dashboard = () => {
                       <div><p className="text-sm font-bold text-white">{Math.round(batchData.stats.average_quality)}%</p><p className="text-[8px] text-gray-500">Qualità</p></div>
                       <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
                     </div>
+                  </div>
+                )}
+
+                {/* Extra stats — Spettatori + Best Film */}
+                {batchData?.stats && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5">
+                      <Users className="w-4 h-4 text-cyan-400/70" />
+                      <div><p className="text-sm font-bold text-white">{batchData.stats.total_spectators ? (batchData.stats.total_spectators >= 1000000 ? `${(batchData.stats.total_spectators/1000000).toFixed(1)}M` : batchData.stats.total_spectators >= 1000 ? `${Math.floor(batchData.stats.total_spectators/1000)}K` : batchData.stats.total_spectators) : '0'}</p><p className="text-[8px] text-gray-500">Spettatori Totali</p></div>
+                    </div>
+                    {batchData.stats.best_film && (
+                      <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5">
+                        <Award className="w-4 h-4 text-yellow-400/70" />
+                        <div><p className="text-[10px] font-bold text-white truncate">{batchData.stats.best_film}</p><p className="text-[8px] text-gray-500">Miglior Film</p></div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

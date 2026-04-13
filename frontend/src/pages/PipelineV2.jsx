@@ -333,6 +333,129 @@ const SPEEDUP_TIERS = [
   { pct: 100, label: 'MAX',  color: 'red' },
 ];
 
+
+// ═══ THEATER STATS PANEL — expandable stats, Withdraw & Send to TV ═══
+const TheaterStatsPanel = ({ film, api, onRefresh, toast }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [loading, setLoading] = useState('');
+  const isOwner = true; // shown only to owner
+  const ts = film.theater_stats || {};
+  const isReleased = film.pipeline_state === 'released';
+
+  // Fetch full stats on expand
+  useEffect(() => {
+    if (expanded && !stats) {
+      api.get(`/films/${film.id}/theater-stats`).then(d => setStats(d?.theater_stats || d)).catch(() => {});
+    }
+  }, [expanded, film.id, api, stats]);
+
+  const doWithdraw = async () => {
+    setConfirmAction(null); setLoading('withdraw');
+    try {
+      await api.post(`/films/${film.id}/withdraw-theater`);
+      toast({ title: 'Film ritirato dalle sale' }); onRefresh();
+    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    setLoading('');
+  };
+  const doSendTV = async () => {
+    setConfirmAction(null); setLoading('tv');
+    try {
+      await api.post(`/films/${film.id}/send-to-tv`);
+      // Also withdraw from theater
+      if (isReleased) await api.post(`/films/${film.id}/withdraw-theater`).catch(() => {});
+      toast({ title: 'Film inviato in TV e ritirato dalle sale!' }); onRefresh();
+    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    setLoading('');
+  };
+
+  const perfColors = { great:'text-green-400', good:'text-emerald-400', ok:'text-yellow-400', declining:'text-orange-400', bad:'text-red-400', flop:'text-red-500' };
+  const perfLabels = { great:'Straordinario', good:'Ottimo', ok:'Discreto', declining:'In calo', bad:'Scarso', flop:'Flop' };
+  const trendIcon = (t) => t === 'up' ? '▲' : t === 'down' ? '▼' : '●';
+  const trendColor = (t) => t === 'up' ? 'text-green-400' : t === 'down' ? 'text-red-400' : 'text-gray-400';
+
+  const fullStats = stats?.theater_stats || ts;
+
+  return (
+    <div className="rounded-lg border border-yellow-500/20 overflow-hidden">
+      {/* Compact bar — always visible */}
+      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between px-3 py-2 bg-yellow-500/5 hover:bg-yellow-500/10 transition-colors" data-testid="theater-stats-toggle">
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-bold text-yellow-400">{isReleased ? 'IN SALA' : 'FUORI SALA'}</span>
+          <span className={`text-[8px] font-bold ${perfColors[ts.performance] || 'text-gray-400'}`}>{perfLabels[ts.performance] || '—'}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[8px]">
+          <span className="text-gray-400">{ts.days_in_theater || 0}gg in sala</span>
+          {isReleased && <span className="text-yellow-400/70">{ts.days_remaining || 0}gg rimasti</span>}
+          {(ts.days_extended || 0) > 0 && <span className="text-green-400">+{ts.days_extended}gg</span>}
+          {(ts.days_reduced || 0) > 0 && <span className="text-red-400">-{ts.days_reduced}gg</span>}
+          <span className="text-gray-600">{expanded ? '▲' : '▼'}</span>
+        </div>
+      </button>
+
+      {/* Expanded stats */}
+      {expanded && (
+        <div className="p-3 space-y-2 bg-gray-900/50">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[7px] text-gray-500">Cinema</p>
+              <p className="text-[11px] font-bold text-white">{fullStats.current_cinemas || 0}</p>
+            </div>
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[7px] text-gray-500">Spettatori oggi</p>
+              <p className="text-[11px] font-bold text-cyan-400">{(fullStats.daily_spectators || 0).toLocaleString()}</p>
+            </div>
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[7px] text-gray-500">Spettatori totali</p>
+              <p className="text-[11px] font-bold text-yellow-400">{(fullStats.total_spectators || 0).toLocaleString()}</p>
+            </div>
+          </div>
+
+          {/* Last 3 days trend */}
+          {fullStats.daily_history?.length > 0 && (
+            <div>
+              <p className="text-[7px] text-gray-500 uppercase font-bold mb-1">Andamento ultimi 3 giorni</p>
+              <div className="flex gap-1">
+                {fullStats.daily_history.slice(-3).map((d, i) => (
+                  <div key={i} className="flex-1 p-1.5 rounded bg-white/[0.02] border border-white/5 text-center">
+                    <p className="text-[7px] text-gray-600">Giorno {d.day}</p>
+                    <p className={`text-[9px] font-bold ${trendColor(d.trend)}`}>{trendIcon(d.trend)} {d.spectators?.toLocaleString()}</p>
+                    <p className="text-[6px] text-gray-600">{d.cinemas} cinema</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Revenue */}
+          <div className="flex justify-between items-center px-1">
+            <span className="text-[8px] text-gray-500">Incassi sala totali</span>
+            <span className="text-[10px] font-bold text-green-400">${(fullStats.total_revenue || 0).toLocaleString()}</span>
+          </div>
+
+          {/* Owner action buttons */}
+          {isOwner && isReleased && (
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setConfirmAction('withdraw')} disabled={!!loading}
+                className="flex-1 text-[9px] py-2 rounded-lg bg-red-500/10 border border-red-500/25 text-red-400 hover:bg-red-500/20 font-bold disabled:opacity-40" data-testid="withdraw-theater-btn">
+                {loading === 'withdraw' ? '...' : 'Ritira dalle sale'}
+              </button>
+              <button onClick={() => setConfirmAction('tv')} disabled={!!loading}
+                className="flex-1 text-[9px] py-2 rounded-lg bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500/20 font-bold disabled:opacity-40" data-testid="send-to-tv-btn">
+                {loading === 'tv' ? '...' : 'Manda in TV'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      <CineConfirm open={confirmAction === 'withdraw'} title="Ritirare il film dalle sale?" confirmLabel="Ritira" onConfirm={doWithdraw} onCancel={() => setConfirmAction(null)} />
+      <CineConfirm open={confirmAction === 'tv'} title="Inviare in TV e ritirare dalle sale?" confirmLabel="Conferma" onConfirm={doSendTV} onCancel={() => setConfirmAction(null)} />
+    </div>
+  );
+};
+
+
 const SpeedupPanel = ({ film, onRefresh, toast }) => {
   const [costs, setCosts] = useState(null);
   const [loading, setLoading] = useState('');
@@ -2491,6 +2614,9 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
             </div>
           )}
 
+          {/* ═══ THEATER STATS — In Sala ═══ */}
+          {(state === 'released' || state === 'out_of_theaters') && <TheaterStatsPanel film={film} api={api} onRefresh={onRefresh} toast={toast} />}
+
           {/* ═══ SERIE/ANIME — Episodi + Stagioni ═══ */}
           {(film.content_type === 'serie_tv' || film.content_type === 'anime') && (
             <EpisodeManager film={film} onRefresh={onRefresh} toast={toast} />
@@ -3201,6 +3327,7 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
   const [genre, setGenre] = useState('drama');
   const [subgenres, setSubgenres] = useState([]);
   const [contentType, setContentType] = useState('film');
+  const [durationCat, setDurationCat] = useState('standard');
   const [episodeCount, setEpisodeCount] = useState(12);
   const [creating, setCreating] = useState(false);
   const [showCinematic, setShowCinematic] = useState(false);
@@ -3246,6 +3373,10 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
     try {
       const payload = { title: title.trim(), genre, subgenres, content_type: contentType };
       const res = await api.post('/films', payload);
+      // Set duration category for films
+      if (!isSeries && durationCat) {
+        await api.post(`/films/${res.film.id}/set-duration`, { category: durationCat }).catch(() => {});
+      }
       if (isSeries && episodeCount >= 8 && episodeCount <= 24) {
         await api.post(`/films/${res.film.id}/set-episodes`, { episode_count: episodeCount }).catch(() => {});
       }
@@ -3481,6 +3612,30 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
               })}
             </div>
           </div>
+
+
+          {/* Duration category — solo per Film */}
+          {!isSeries && (
+            <div>
+              <label className="text-[8px] text-gray-500 uppercase tracking-wider font-bold block mb-1">Durata Film</label>
+              <div className="grid grid-cols-5 gap-1">
+                {[
+                  { id: 'cortometraggio', label: 'Corto', sub: '20-45min', rev: '0.45x' },
+                  { id: 'feature_breve', label: 'Breve', sub: '46-70min', rev: '0.7x' },
+                  { id: 'standard', label: 'Standard', sub: '71-140min', rev: '1x' },
+                  { id: 'extended', label: 'Extended', sub: '141-210min', rev: '1.3x' },
+                  { id: 'kolossal', label: 'Kolossal', sub: '211-280min', rev: '1.6x' },
+                ].map(d => (
+                  <button key={d.id} onClick={() => setDurationCat(d.id)} data-testid={`duration-${d.id}`}
+                    className={`text-center py-1.5 px-1 rounded-lg border text-[8px] transition-colors ${durationCat === d.id ? 'bg-amber-500/15 border-amber-500/40 text-amber-400' : 'bg-gray-800/40 border-gray-700 text-gray-500 hover:border-gray-500'}`}>
+                    <div className="font-bold">{d.label}</div>
+                    <div className="text-[6px] opacity-60">{d.sub}</div>
+                    <div className="text-[6px] text-yellow-500/50">{d.rev}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Episode count — solo per Serie/Anime */}
           {isSeries && (

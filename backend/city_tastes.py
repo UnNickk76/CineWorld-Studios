@@ -315,13 +315,30 @@ async def get_city_tips(db, genre, subgenres, content_type='film', count=6):
 
 async def calculate_city_bonus(db, city_ids_or_zones, genre, subgenres, content_type='film'):
     """Calculate revenue multiplier for a release based on city tastes."""
+    # Map release zone IDs to city_tastes zone IDs
+    ZONE_MAP = {
+        'europa_ovest': 'europe_west', 'europa_est': 'europe_east', 'scandinavia': 'scandinavia',
+        'mediterraneo': 'europe_west', 'usa_canada': 'north_america', 'messico_centro': 'north_america',
+        'sud_america': 'south_america', 'est_asia': 'east_asia', 'sud_est_asia': 'east_asia',
+        'india': 'south_asia', 'medio_oriente': 'middle_east', 'nord_africa': 'middle_east',
+        'africa_sub': 'africa', 'oceania': 'oceania', 'world': None,
+    }
+    mapped_zones = set()
+    has_world = False
+    for z in city_ids_or_zones:
+        if z == 'world':
+            has_world = True
+        mapped = ZONE_MAP.get(z, z)
+        if mapped:
+            mapped_zones.add(mapped)
+
     cities = await db.city_tastes.find({'enabled': True}, {'_id': 0}).to_list(100)
     if not cities:
-        return 1.0  # neutral fallback
+        return 1.0
     total_mult = 0
     matched = 0
     for c in cities:
-        if c['city_id'] in city_ids_or_zones or c['zone'] in city_ids_or_zones:
+        if has_world or c['city_id'] in city_ids_or_zones or c.get('zone') in mapped_zones:
             tastes = c.get('current_tastes', c.get('personality', {}))
             sat = c.get('saturation', {})
             main_taste = tastes.get(genre, 0.5)

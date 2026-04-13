@@ -925,7 +925,7 @@ const ResetGamePanel = ({ api }) => {
     setConfirmAction(null);
     setLoading(type);
     try {
-      const r = await api.post('/api/admin/recovery/reset-game', { type });
+      const r = await api.post('/admin/recovery/reset-game', { type });
       setResult(r.data || r);
       toast.success('Reset completato');
     } catch (e) { toast.error(e?.response?.data?.detail || e.message || 'Errore'); }

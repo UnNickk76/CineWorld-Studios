@@ -491,6 +491,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
   return (
     <div className={`ct2-root ${isSeries ? 'ct2-series' : ''}`} data-testid="content-template">
+      <div style={{position:"sticky",top:0,zIndex:9999,background:"#ff00ff",color:"#000",padding:"6px",fontSize:"12px",textAlign:"center",fontWeight:"bold"}}>BUILD TEST - 13 APRILE ORE 13:50</div>
       {/* BACK */}
       <button className="ct2-back" onClick={() => navigate(-1)} data-testid="ct-close" aria-label="Indietro">
         <X size={18} />
@@ -642,6 +643,8 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           <span className="text-[9px] font-bold text-blue-400">PROSSIMAMENTE IN TV</span>
         </div>
       )}
+
+      <div style={{border:"3px solid #00ffff",background:"rgba(0,255,255,0.1)",padding:"10px",marginTop:"8px",textAlign:"center",fontWeight:"bold",color:"#00ffff"}}>DEBUG CINEMA BAR - 13 APRILE</div>
 
       {/* 6. JOURNALIST REVIEWS (green boxes) */}
       <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>

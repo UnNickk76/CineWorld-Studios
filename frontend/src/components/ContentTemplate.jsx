@@ -489,6 +489,19 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
 
+  // Cinema days — safe local variables, no hooks, no effects
+  const _ts = (film && typeof film.theater_stats === 'object' && film.theater_stats !== null) ? film.theater_stats : null;
+  const _cinemaDays = _ts ? (Number.isFinite(Number(_ts.days_in_theater)) ? Number(_ts.days_in_theater) : null) : null;
+  const _cinemaRemain = _ts ? (Number.isFinite(Number(_ts.days_remaining)) ? Number(_ts.days_remaining) : null) : null;
+  // Fallback: calculate from released_at if theater_stats missing
+  const _relDate = film?.released_at || (film?.release_schedule && typeof film.release_schedule === 'object' ? film.release_schedule.scheduled_at : null);
+  const _calcDays = (() => { try { if (_relDate) { const d = Math.floor((Date.now() - new Date(String(_relDate)).getTime()) / 86400000); return d >= 0 ? d : null; } return null; } catch(e) { return null; } })();
+  const _calcRemain = (() => { try { if (_calcDays !== null) { const tw = Number.isFinite(Number(film?.theater_weeks)) ? Number(film.theater_weeks) : 3; return Math.max(0, tw * 7 - _calcDays); } return null; } catch(e) { return null; } })();
+  const cinemaDays = _cinemaDays !== null ? _cinemaDays : _calcDays;
+  const cinemaRemain = _cinemaRemain !== null ? _cinemaRemain : _calcRemain;
+  const hasCinemaDays = Number.isFinite(cinemaDays);
+  const hasCinemaRemain = Number.isFinite(cinemaRemain);
+
   return (
     <div className={`ct2-root ${isSeries ? 'ct2-series' : ''}`} data-testid="content-template">
       {/* BACK */}
@@ -606,7 +619,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
       )}
 
-      <div style={{border:"2px solid #00ffff",background:"rgba(0,255,255,0.08)",padding:"10px",marginTop:"8px",textAlign:"center",fontWeight:"bold",color:"#00ffff",borderRadius:"8px"}}>IN SALA - 3 giorni - 7 rimanenti</div>
+      <div style={{border:"2px solid #00ffff",background:"rgba(0,255,255,0.08)",padding:"10px",marginTop:"8px",textAlign:"center",fontWeight:"bold",color:"#00ffff",borderRadius:"8px"}}>{hasCinemaDays && hasCinemaRemain ? 'IN SALA - ' + cinemaDays + ' giorni - ' + cinemaRemain + ' rimanenti' : hasCinemaDays ? 'IN SALA - ' + cinemaDays + ' giorni' : 'IN SALA - dati cinema in aggiornamento'}</div>
 
       {/* 6. JOURNALIST REVIEWS (green boxes) */}
       <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>

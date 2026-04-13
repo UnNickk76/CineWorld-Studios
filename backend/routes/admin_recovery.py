@@ -161,3 +161,34 @@ async def clean_guest_data(user: dict = Depends(get_current_user)):
     users_del = await db.users.delete_many({'is_guest': True})
     logging.info(f"[ADMIN] Cleaned guest data: {users_del.deleted_count} users, {films_del.deleted_count} films")
     return {'deleted_users': users_del.deleted_count, 'deleted_films': films_del.deleted_count, 'deleted_infra': infra_del.deleted_count}
+
+
+@router.post("/migrate-film-fields")
+async def migrate_film_fields(user: dict = Depends(get_current_user)):
+    """Add missing producer_nickname, production_house_name, duration_category to ALL films."""
+    if user.get('role') != 'admin':
+        raise HTTPException(403, "Solo admin")
+    
+    films = await db.film_projects.find(
+        {'$or': [{'producer_nickname': {'$exists': False}}, {'production_house_name': {'$exists': False}}, {'duration_category': {'$exists': False}}]},
+        {'_id': 0, 'id': 1, 'user_id': 1}
+    ).to_list(5000)
+    
+    migrated = 0
+    # Cache users
+    user_cache = {}
+    for f in films:
+        uid = f.get('user_id')
+        if uid not in user_cache:
+            u = await db.users.find_one({'id': uid}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+            user_cache[uid] = u or {}
+        u = user_cache[uid]
+        await db.film_projects.update_one({'id': f['id']}, {'$set': {
+            'producer_nickname': u.get('nickname', ''),
+            'production_house_name': u.get('production_house_name', ''),
+            'duration_category': 'standard',
+        }})
+        migrated += 1
+    
+    logging.info(f"[ADMIN] Migrated {migrated} films with producer/duration fields")
+    return {'migrated': migrated}

@@ -340,6 +340,12 @@ async def list_v2_films(user: dict = Depends(get_current_user)):
 @router.get("/films/{project_id}")
 async def get_v2_film(project_id: str, user: dict = Depends(get_current_user)):
     film = await _get_project(project_id, user['id'])
+    # Ensure producer fields
+    if not film.get('producer_nickname') or not film.get('production_house_name'):
+        owner = await db.users.find_one({'id': film.get('user_id')}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+        if owner:
+            film['producer_nickname'] = film.get('producer_nickname') or owner.get('nickname', '')
+            film['production_house_name'] = film.get('production_house_name') or owner.get('production_house_name', '')
     return {'film': film}
 
 @router.get("/locations")
@@ -434,6 +440,9 @@ async def create_v2_film(req: CreateFilmV2, user: dict = Depends(get_current_use
         'created_at': now,
         'updated_at': now,
         'status': 'draft',
+        'producer_nickname': user.get('nickname', ''),
+        'production_house_name': user.get('production_house_name', ''),
+        'duration_category': 'standard',
     }
     await db.film_projects.insert_one({**project})
     project.pop('_id', None)

@@ -20,7 +20,6 @@ const ADMIN_TABS = [
   { id: 'deletions', label: 'Cancellazioni', icon: Trash2 },
   { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
   { id: 'donations', label: 'Donazioni', icon: Heart },
-  { id: 'city_tastes', label: 'Gusti Città', icon: Star },
   { id: 'tutorial', label: 'Tutorial Manager', icon: BookOpen },
   { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
@@ -878,7 +877,7 @@ function ReportsTab({ api }) {
 
 /* ─── Maintenance Tab (Rewritten — Advanced) ─── */
 
-function DonationsTab({ api }) {
+const DonationsTab = ({ api }) => {
   const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -917,7 +916,7 @@ function DonationsTab({ api }) {
 function MaintenanceTab({ api }) {
 
 
-function CityTastesAdmin({ api }) {
+const CityTastesAdmin = ({ api }) => {
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [testResult, setTestResult] = useState(null);
@@ -2475,7 +2474,7 @@ export default function AdminPage() {
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
         {activeTab === 'donations' && isAdmin && <DonationsTab api={api} />}
         {activeTab === 'donations' && isAdmin && <GuestCleanupPanel api={api} />}
-        {activeTab === 'city_tastes' && isAdmin && <CityTastesAdmin api={api} />}
+        {/* CityTastesAdmin temporarily disabled - investigating deploy issue */}
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}

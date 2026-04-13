@@ -6,39 +6,35 @@ import { toast } from 'sonner';
 import {
   Film, Star, Flame, Users, DollarSign, Heart, ChevronRight, X, Play,
   Building, Sparkles, BookOpen, Clapperboard, Zap, Loader2,
-  Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye, Ticket
+  Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye
 } from 'lucide-react';
 import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
 const TheaterInfoBar = ({ film }) => {
-  const { user, api } = useContext(AuthContext);
-  const [expanded, setExpanded] = useState(false);
-  const [stats, setStats] = useState(null);
+  const authCtx = useContext(AuthContext) || {};
+  const user = authCtx.user;
   const [loading, setLoading] = useState('');
+  const [stats, setStats] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
   const [tvStations, setTvStations] = useState([]);
   const [selectedTv, setSelectedTv] = useState('');
 
-  const ts = film.theater_stats || {};
-  const isReleased = film.pipeline_state === 'released';
-  const isOutOfTheater = film.pipeline_state === 'out_of_theaters';
-  const isOwner = user?.id === film.user_id;
+  const ts = film?.theater_stats || {};
+  const isReleased = film?.pipeline_state === 'released' || (Number(film?.cinemas_showing) > 0) || (Number(film?.cinema_count) > 0);
+  const isOwner = user?.id === film?.user_id;
   const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
 
-  // Not relevant for films not in/out of theaters
-  if (!isReleased && !isOutOfTheater) return null;
-
   const fetchStats = () => {
-    if (!api) return;
     const token = localStorage.getItem('cineworld_token');
+    if (!token || !film?.id) return;
     fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/theater-stats`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.json()).then(d => setStats(d?.theater_stats || d)).catch(() => {});
   };
 
   const fetchTvStations = () => {
-    if (!api) return;
     const token = localStorage.getItem('cineworld_token');
+    if (!token) return;
     fetch(`${BACKEND}/api/my-tv/stations`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.json()).then(d => setTvStations(Array.isArray(d) ? d : d?.stations || [])).catch(() => setTvStations([]));
   };
@@ -84,94 +80,75 @@ const TheaterInfoBar = ({ film }) => {
   const perfLabels = { great:'Straordinario', good:'Ottimo', ok:'Discreto', declining:'In calo', bad:'Scarso', flop:'Flop' };
   const fullStats = stats?.theater_stats || stats || ts;
 
+  // Auto-fetch stats on mount
+  useEffect(() => {
+    if (!stats) { fetchStats(); if (isOwner) fetchTvStations(); }
+  }, [film.id]);
+
   return (
-    <>
-      <div className="mx-4 mb-1 rounded-lg border border-yellow-500/15 overflow-hidden" data-testid="ct-theater-bar">
-        <button onClick={() => { setExpanded(!expanded); if (!expanded && !stats) { fetchStats(); if (isOwner) fetchTvStations(); } }}
-          className="w-full flex items-center justify-between px-3 py-1.5 bg-yellow-500/5 hover:bg-yellow-500/10 transition-colors">
-          <div className="flex items-center gap-2">
-            <Ticket size={12} className="text-yellow-400" />
-            <span className="text-[9px] font-bold text-yellow-400">{isReleased ? 'IN SALA' : 'FUORI SALA'}</span>
-            <span className={`text-[8px] font-bold ${perfColors[ts.performance] || 'text-gray-500'}`}>{perfLabels[ts.performance] || ''}</span>
-          </div>
-          <div className="flex items-center gap-2 text-[8px]">
-            <span className="text-white font-bold">{ts.days_in_theater || 0}gg</span>
-            {isReleased && <span className="text-gray-400">{ts.days_remaining || '?'}gg rimasti</span>}
-            {(ts.days_extended || 0) > 0 && <span className="text-green-400">+{ts.days_extended}</span>}
-            {(ts.days_reduced || 0) > 0 && <span className="text-red-400">-{ts.days_reduced}</span>}
-            <span className="text-gray-600">{expanded ? '▲' : '▼'}</span>
-          </div>
-        </button>
-        {expanded && (
-          <div className="p-2.5 space-y-2 bg-black/30">
-            <div className="grid grid-cols-3 gap-1.5">
-              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
-                <p className="text-[7px] text-gray-500">Cinema</p>
-                <p className="text-[11px] font-bold text-white">{fullStats.current_cinemas || 0}</p>
-              </div>
-              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
-                <p className="text-[7px] text-gray-500">Spett. oggi</p>
-                <p className="text-[11px] font-bold text-cyan-400">{(fullStats.daily_spectators || 0).toLocaleString()}</p>
-              </div>
-              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
-                <p className="text-[7px] text-gray-500">Spett. totali</p>
-                <p className="text-[11px] font-bold text-yellow-400">{(fullStats.total_spectators || 0).toLocaleString()}</p>
-              </div>
-            </div>
-            {fullStats.daily_history?.length > 0 && (
-              <div>
-                <p className="text-[7px] text-gray-500 uppercase font-bold mb-1">Ultimi 3 giorni</p>
-                <div className="flex gap-1">
-                  {(fullStats.daily_history || []).slice(-3).map((d, i) => (
-                    <div key={i} className="flex-1 p-1 rounded bg-white/[0.02] border border-white/5 text-center">
-                      <p className="text-[7px] text-gray-600">G{d.day}</p>
-                      <p className={`text-[8px] font-bold ${d.trend === 'up' ? 'text-green-400' : d.trend === 'down' ? 'text-red-400' : 'text-gray-400'}`}>{d.trend === 'up' ? '▲' : d.trend === 'down' ? '▼' : '●'} {d.spectators?.toLocaleString()}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="flex justify-between px-1 text-[8px]">
-              <span className="text-gray-500">Incassi sala</span>
-              <span className="font-bold text-green-400">${(fullStats.total_revenue || 0).toLocaleString()}</span>
-            </div>
-            {/* Owner action buttons */}
-            {isOwner && (
-              <div className="space-y-1.5 pt-1">
-                {/* TV station selector */}
-                {tvStations.length > 0 && (
-                  <select value={selectedTv} onChange={e => setSelectedTv(e.target.value)}
-                    className="w-full bg-gray-800 text-[9px] text-white border border-gray-700 rounded px-2 py-1.5">
-                    <option value="">Scegli emittente TV...</option>
-                    {tvStations.map(s => <option key={s.id || s.name} value={s.id || s.name}>{s.name || s.channel_name}</option>)}
-                  </select>
-                )}
-                <div className="flex gap-1.5">
-                  {isReleased && (
-                    <button onClick={() => setConfirmAction('withdraw')} disabled={!!loading}
-                      className="flex-1 text-[8px] py-1.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold disabled:opacity-40" data-testid="ct-withdraw-btn">
-                      {loading === 'withdraw' ? '...' : 'Ritira dal cinema'}
-                    </button>
-                  )}
-                  {selectedTv && (
-                    <>
-                      <button onClick={() => setConfirmAction('tv')} disabled={!!loading}
-                        className="flex-1 text-[8px] py-1.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold disabled:opacity-40" data-testid="ct-send-tv-btn">
-                        {loading === 'tv' ? '...' : 'Manda in TV'}
-                      </button>
-                      <button onClick={() => setConfirmAction('upcoming')} disabled={!!loading}
-                        className="flex-1 text-[8px] py-1.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-bold disabled:opacity-40" data-testid="ct-upcoming-tv-btn">
-                        {loading === 'upcoming' ? '...' : 'Prossimamente TV'}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+    <div className="mx-4 mb-1 rounded-lg border border-yellow-500/15 bg-black/30 p-2.5 space-y-2" data-testid="ct-theater-panel">
+      <div className="grid grid-cols-3 gap-1.5">
+        <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+          <p className="text-[7px] text-gray-500">Cinema</p>
+          <p className="text-[11px] font-bold text-white">{Number(fullStats.current_cinemas) || 0}</p>
+        </div>
+        <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+          <p className="text-[7px] text-gray-500">Spett. oggi</p>
+          <p className="text-[11px] font-bold text-cyan-400">{Number(fullStats.daily_spectators || 0).toLocaleString()}</p>
+        </div>
+        <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+          <p className="text-[7px] text-gray-500">Spett. totali</p>
+          <p className="text-[11px] font-bold text-yellow-400">{Number(fullStats.total_spectators || 0).toLocaleString()}</p>
+        </div>
       </div>
-      {/* Confirm dialogs */}
+      {fullStats.daily_history?.length > 0 && (
+        <div>
+          <p className="text-[7px] text-gray-500 uppercase font-bold mb-1">Ultimi 3 giorni</p>
+          <div className="flex gap-1">
+            {(fullStats.daily_history || []).slice(-3).map((d, i) => (
+              <div key={i} className="flex-1 p-1 rounded bg-white/[0.02] border border-white/5 text-center">
+                <p className="text-[7px] text-gray-600">G{d.day}</p>
+                <p className={`text-[8px] font-bold ${d.trend === 'up' ? 'text-green-400' : d.trend === 'down' ? 'text-red-400' : 'text-gray-400'}`}>{d.trend === 'up' ? '▲' : d.trend === 'down' ? '▼' : '●'} {d.spectators?.toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="flex justify-between px-1 text-[8px]">
+        <span className="text-gray-500">Incassi sala</span>
+        <span className="font-bold text-green-400">${Number(fullStats.total_revenue || 0).toLocaleString()}</span>
+      </div>
+      {isOwner && (
+        <div className="space-y-1.5 pt-1">
+          {tvStations.length > 0 && (
+            <select value={selectedTv} onChange={e => setSelectedTv(e.target.value)}
+              className="w-full bg-gray-800 text-[9px] text-white border border-gray-700 rounded px-2 py-1.5">
+              <option value="">Scegli emittente TV...</option>
+              {tvStations.map(s => <option key={s.id || s.name} value={s.id || s.name}>{s.name || s.channel_name}</option>)}
+            </select>
+          )}
+          <div className="flex gap-1.5">
+            {isReleased && (
+              <button onClick={() => setConfirmAction('withdraw')} disabled={!!loading}
+                className="flex-1 text-[8px] py-1.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold disabled:opacity-40" data-testid="ct-withdraw-btn">
+                {loading === 'withdraw' ? '...' : 'Ritira dal cinema'}
+              </button>
+            )}
+            {selectedTv && (
+              <>
+                <button onClick={() => setConfirmAction('tv')} disabled={!!loading}
+                  className="flex-1 text-[8px] py-1.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold disabled:opacity-40" data-testid="ct-send-tv-btn">
+                  {loading === 'tv' ? '...' : 'Manda in TV'}
+                </button>
+                <button onClick={() => setConfirmAction('upcoming')} disabled={!!loading}
+                  className="flex-1 text-[8px] py-1.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-bold disabled:opacity-40" data-testid="ct-upcoming-tv-btn">
+                  {loading === 'upcoming' ? '...' : 'Prossimamente TV'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {confirmAction === 'withdraw' && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center px-4" onClick={() => setConfirmAction(null)}>
           <div className="absolute inset-0 bg-black/60" />
@@ -190,7 +167,7 @@ const TheaterInfoBar = ({ film }) => {
           <div className="absolute inset-0 bg-black/60" />
           <div className="relative bg-[#111113] rounded-2xl p-4 border border-blue-500/20 max-w-sm w-full" onClick={e => e.stopPropagation()}>
             <p className="text-sm font-bold text-white mb-1">Inviare in TV e ritirare dalle sale?</p>
-            <p className="text-[10px] text-gray-400 mb-3">Il film verrà messo in programmazione TV e ritirato dal cinema.</p>
+            <p className="text-[10px] text-gray-400 mb-3">Il film verrà ritirato dal cinema e messo in programmazione TV.</p>
             <div className="flex gap-2">
               <button onClick={() => setConfirmAction(null)} className="flex-1 text-[10px] py-2 rounded-lg bg-gray-800 text-gray-400">Annulla</button>
               <button onClick={doSendToTv} className="flex-1 text-[10px] py-2 rounded-lg bg-blue-600 text-white font-bold">Conferma</button>
@@ -202,8 +179,8 @@ const TheaterInfoBar = ({ film }) => {
         <div className="fixed inset-0 z-[90] flex items-center justify-center px-4" onClick={() => setConfirmAction(null)}>
           <div className="absolute inset-0 bg-black/60" />
           <div className="relative bg-[#111113] rounded-2xl p-4 border border-purple-500/20 max-w-sm w-full" onClick={e => e.stopPropagation()}>
-            <p className="text-sm font-bold text-white mb-1">Aggiungere ai "Prossimamente in TV"?</p>
-            <p className="text-[10px] text-gray-400 mb-3">Il film comparirà tra i prossimamente nella tua emittente. Quando uscirà dalle sale andrà automaticamente in programmazione.</p>
+            <p className="text-sm font-bold text-white mb-1">Aggiungere ai Prossimamente in TV?</p>
+            <p className="text-[10px] text-gray-400 mb-3">Quando uscirà dalle sale andrà automaticamente in programmazione.</p>
             <div className="flex gap-2">
               <button onClick={() => setConfirmAction(null)} className="flex-1 text-[10px] py-2 rounded-lg bg-gray-800 text-gray-400">Annulla</button>
               <button onClick={doSendUpcoming} className="flex-1 text-[10px] py-2 rounded-lg bg-purple-600 text-white font-bold">Conferma</button>
@@ -211,7 +188,7 @@ const TheaterInfoBar = ({ film }) => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 
@@ -314,6 +291,8 @@ function formatDuration(film, contentType) {
   const cat = film?.duration_category;
   const catLabels = { cortometraggio: '~30m', feature_breve: '~60m', standard: '~110m', extended: '~170m', kolossal: '~240m' };
   if (cat && catLabels[cat]) return catLabels[cat];
+  // Default fallback for films without duration data
+  if (film?.pipeline_state && film.pipeline_state !== 'draft') return '~110m';
   return null;
 }
 
@@ -378,26 +357,33 @@ function getEventHeadlines(film) {
   const ev = film?.release_event || film?.news_events;
   if (!ev) return [];
   if (typeof ev === 'string') return [ev];
-  if (ev.name || ev.description || ev.text) return [ev.description || ev.name || ev.text || ''];
+  if (typeof ev === 'number') return [String(ev)];
+  // Object with text fields
+  if (typeof ev === 'object' && !Array.isArray(ev)) {
+    const txt = ev.description || ev.name || ev.text || ev.title;
+    return txt ? [String(txt)] : [];
+  }
   if (Array.isArray(ev)) {
     return ev.slice(0, 2).map(e => {
       if (typeof e === 'string') return e;
-      return e?.description || e?.name || e?.text || e?.title || '';
+      if (typeof e === 'number') return String(e);
+      if (e && typeof e === 'object') return String(e?.description || e?.name || e?.text || e?.title || '');
+      return '';
     }).filter(Boolean);
   }
   return [];
 }
 
 // === SUB-POPUP: Cast & Crew ===
-function CastPopup({ open, onClose, cast }) {
+const CastPopup = ({ open, onClose, cast }) => {
   const members = [];
   if (cast) {
     if (Array.isArray(cast)) {
-      cast.forEach((a) => members.push({ ...a, role: a.role_in_film || a.role || 'Attore' }));
-    } else {
-      if (cast.director) members.push({ ...cast.director, role: 'Regista' });
+      cast.forEach((a) => { if (a && typeof a === 'object') members.push({ ...a, role: a.role_in_film || a.role || 'Attore' }); });
+    } else if (typeof cast === 'object') {
+      if (cast.director && typeof cast.director === 'object') members.push({ ...cast.director, role: 'Regista' });
       if (Array.isArray(cast.actors)) {
-        cast.actors.forEach((a) => members.push({ ...a, role: a.role_in_film || a.role || 'Attore' }));
+        cast.actors.forEach((a) => { if (a && typeof a === 'object') members.push({ ...a, role: a.role_in_film || a.role || 'Attore' }); });
       }
       Object.entries(cast).forEach(([key, val]) => {
         if (key !== 'director' && key !== 'actors' && val?.name) {
@@ -573,12 +559,12 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         <h1 className="ct2-title">{film.title}</h1>
       </div>
       {/* Production House — clickable */}
-      {(film.production_house_name || film.producer_nickname) && (
+      {(film.production_house_name || film.producer_nickname || film.user_id) && (
         <div className="px-4 -mt-1 mb-1">
           <button className="text-[10px] text-amber-400/70 italic hover:text-amber-300 transition-colors"
-            onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
+            onClick={(e) => { e.stopPropagation(); if (film.producer_nickname) window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
             data-testid="ct-production-house-title">
-            una produzione <span className="font-bold not-italic">{film.production_house_name || film.producer_nickname}</span>
+            una produzione <span className="font-bold not-italic">{film.production_house_name || film.producer_nickname || 'Indipendente'}</span>
           </button>
         </div>
       )}
@@ -595,7 +581,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </>
         )}
         <Clock size={13} />
-        <span className="ct2-data-duration">{durationStr || ''}</span>
+        <span className="ct2-data-duration">{durationStr || '~110m'}</span>
         {trendPos && (
           <>
             <span className="ct2-data-sep">|</span>
@@ -613,9 +599,45 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         )}
       </div>
 
-      {/* 5b. THEATER INFO BAR + Prossimamente in TV badge */}
-      <TheaterInfoBar film={film} />
-      {film.in_tv_programming && (
+      {/* CINEMA STATS BAR — separate, celeste, with expand arrow */}
+      {(() => {
+        try {
+          const cinemas = parseInt(film.cinemas_showing) || parseInt(film.cinema_count) || 0;
+          const isInCinema = cinemas > 0 || film.pipeline_state === 'released' || film.pipeline_state === 'in_theaters';
+          const isOut = film.pipeline_state === 'out_of_theaters' || film.pipeline_state === 'completed';
+          if (!isInCinema && !isOut) return null;
+          let days = 0, remain = 0, ext = 0, red = 0;
+          const ts = (typeof film.theater_stats === 'object' && film.theater_stats) ? film.theater_stats : null;
+          if (ts) {
+            days = parseInt(ts.days_in_theater) || 0;
+            remain = parseInt(ts.days_remaining) || 0;
+            ext = parseInt(ts.days_extended) || 0;
+            red = parseInt(ts.days_reduced) || 0;
+          } else {
+            const rel = film.released_at || (film.release_schedule ? film.release_schedule.scheduled_at : null);
+            if (rel) { try { days = Math.max(0, Math.floor((Date.now() - new Date(rel).getTime()) / 86400000)); } catch(e) {} }
+            remain = Math.max(0, (parseInt(film.theater_weeks) || 3) * 7 - days);
+          }
+          return (
+            <div className="mx-4 mt-1 mb-1 px-3 py-1.5 rounded-lg flex items-center justify-between"
+              style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', cursor: 'pointer' }}
+              onClick={() => window.dispatchEvent(new CustomEvent('open-cinema-stats', { detail: { filmId: film.id } }))}
+              data-testid="cinema-stats-bar">
+              <div className="flex items-center gap-2">
+                <span style={{fontSize:10,fontWeight:'bold',color: isInCinema ? '#38bdf8' : '#9ca3af'}}>{isInCinema ? 'AL CINEMA' : 'FUORI SALA'}</span>
+                <span style={{fontSize:11,fontWeight:'bold',color:'#facc15'}}>{'' + days + 'gg'}</span>
+                {isInCinema && <span style={{fontSize:10,color:'#9ca3af'}}>{'/ ' + remain + ' rimasti'}</span>}
+                {ext > 0 && <span style={{fontSize:10,fontWeight:'bold',color:'#4ade80'}}>{'+' + ext}</span>}
+                {red > 0 && <span style={{fontSize:10,fontWeight:'bold',color:'#f87171'}}>{'-' + red}</span>}
+              </div>
+              <span style={{fontSize:12,color:'#38bdf8'}}>&#9660;</span>
+            </div>
+          );
+        } catch(e) { return null; }
+      })()}
+
+      {/* PROSSIMAMENTE IN TV badge */}
+      {film.in_tv_programming === true && (
         <div className="mx-4 mb-1 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center">
           <span className="text-[9px] font-bold text-blue-400">PROSSIMAMENTE IN TV</span>
         </div>
@@ -640,7 +662,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
         <div className="ct2-public-lines">
           {perception.map((line, i) => <div key={i} className="ct2-public-line">{line}</div>)}
-          {events.map((ev, i) => <div key={`ev${i}`} className="ct2-event-line">{ev}</div>)}
+          {events.map((ev, i) => <div key={`ev${i}`} className="ct2-event-line">{typeof ev === 'string' ? ev : String(ev || '')}</div>)}
           {perception.length === 0 && events.length === 0 && (
             <div className="ct2-public-line">Nessun dato disponibile</div>
           )}

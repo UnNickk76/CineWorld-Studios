@@ -2615,7 +2615,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
           )}
 
           {/* ═══ THEATER STATS — In Sala ═══ */}
-          {(state === 'released' || state === 'out_of_theaters') && <TheaterStatsPanel film={film} api={api} onRefresh={onRefresh} toast={toast} />}
+          {/* Theater stats temporarily disabled */}
 
           {/* ═══ SERIE/ANIME — Episodi + Stagioni ═══ */}
           {(film.content_type === 'serie_tv' || film.content_type === 'anime') && (

@@ -489,6 +489,22 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
 
+  // Theater info — all pre-converted to safe strings
+  const _ps = film?.pipeline_state || '';
+  const _isTheater = _ps === 'released' || _ps === 'out_of_theaters';
+  const _ts = (typeof film?.theater_stats === 'object' && film?.theater_stats !== null) ? film.theater_stats : {};
+  const _tDays = '' + (parseInt(_ts.days_in_theater) || 0);
+  const _tRemain = '' + (parseInt(_ts.days_remaining) || 0);
+  const _tExt = parseInt(_ts.days_extended) || 0;
+  const _tRed = parseInt(_ts.days_reduced) || 0;
+  const _tCinemas = '' + (parseInt(_ts.current_cinemas) || 0);
+  const _tSpecDay = '' + (parseInt(_ts.daily_spectators) || 0);
+  const _tSpecTot = '' + (parseInt(_ts.total_spectators) || 0);
+  const _tRev = '' + (parseInt(_ts.total_revenue) || 0);
+  const _tPerf = typeof _ts.performance === 'string' ? _ts.performance : '';
+  const [_showT, _setShowT] = useState(false);
+  const _isOwner = film?.user_id === user?.id;
+
   return (
     <div className={`ct2-root ${isSeries ? 'ct2-series' : ''}`} data-testid="content-template">
       {/* BACK */}
@@ -603,6 +619,57 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       {film.in_tv_programming === true && (
         <div className="mx-4 mb-1 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center">
           <span className="text-[9px] font-bold text-blue-400">PROSSIMAMENTE IN TV</span>
+        </div>
+      )}
+
+      {/* THEATER INFO — separate safe section */}
+      {_isTheater && (
+        <div className="mx-4 mb-1">
+          <button onClick={() => _setShowT(p => !p)} className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg border border-yellow-500/15 bg-yellow-500/5">
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-bold text-yellow-400">{_ps === 'released' ? 'IN SALA' : 'FUORI SALA'}</span>
+              {_tPerf !== '' && <span className="text-[8px] font-bold" style={{color: _tPerf === 'great' ? '#4ade80' : _tPerf === 'good' ? '#34d399' : _tPerf === 'declining' ? '#fb923c' : _tPerf === 'bad' || _tPerf === 'flop' ? '#f87171' : '#facc15'}}>{_tPerf === 'great' ? 'Straordinario' : _tPerf === 'good' ? 'Ottimo' : _tPerf === 'ok' ? 'Discreto' : _tPerf === 'declining' ? 'In calo' : _tPerf === 'bad' ? 'Scarso' : _tPerf === 'flop' ? 'Flop' : ''}</span>}
+            </div>
+            <div className="flex items-center gap-2 text-[8px]">
+              <span className="text-white font-bold">{_tDays}gg</span>
+              {_ps === 'released' && <span className="text-gray-400">{_tRemain}gg rimasti</span>}
+              {_tExt > 0 && <span className="text-green-400 font-bold">{'+' + _tExt}</span>}
+              {_tRed > 0 && <span className="text-red-400 font-bold">{'-' + _tRed}</span>}
+              <span className="text-gray-600">{_showT ? '\u25B2' : '\u25BC'}</span>
+            </div>
+          </button>
+          {_showT && (
+            <div className="mt-1 p-2.5 rounded-lg border border-yellow-500/10 bg-black/30 space-y-2">
+              <div className="grid grid-cols-3 gap-1.5">
+                <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+                  <p className="text-[7px] text-gray-500">Cinema</p>
+                  <p className="text-[11px] font-bold text-white">{_tCinemas}</p>
+                </div>
+                <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+                  <p className="text-[7px] text-gray-500">Spett. oggi</p>
+                  <p className="text-[11px] font-bold text-cyan-400">{_tSpecDay}</p>
+                </div>
+                <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+                  <p className="text-[7px] text-gray-500">Spett. totali</p>
+                  <p className="text-[11px] font-bold text-yellow-400">{_tSpecTot}</p>
+                </div>
+              </div>
+              <div className="flex justify-between px-1 text-[8px]">
+                <span className="text-gray-500">Incassi sala</span>
+                <span className="font-bold text-green-400">{'$' + _tRev}</span>
+              </div>
+              {_isOwner && (
+                <div className="flex gap-1.5 pt-1">
+                  {_ps === 'released' && (
+                    <button onClick={() => { if(window.confirm('Ritirare il film dalle sale?')) { fetch(process.env.REACT_APP_BACKEND_URL+'/api/pipeline-v2/films/'+film.id+'/withdraw-theater',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('cineworld_token'),'Content-Type':'application/json'}}).then(()=>window.location.reload()); }}}
+                      className="flex-1 text-[8px] py-1.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold">Ritira dal cinema</button>
+                  )}
+                  <button onClick={() => { if(window.confirm('Inviare in TV?')) { fetch(process.env.REACT_APP_BACKEND_URL+'/api/pipeline-v2/films/'+film.id+'/send-to-tv',{method:'POST',headers:{'Authorization':'Bearer '+localStorage.getItem('cineworld_token'),'Content-Type':'application/json'}}).then(()=>window.location.reload()); }}}
+                    className="flex-1 text-[8px] py-1.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold">Manda in TV</button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

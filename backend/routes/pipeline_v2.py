@@ -39,7 +39,7 @@ V2_STATES = {
     'sponsorship', 'marketing',
     'premiere_setup', 'premiere_live',
     'release_pending',
-    'released', 'completed',
+    'released', 'out_of_theaters', 'completed',
     'discarded',
 }
 
@@ -58,7 +58,8 @@ V2_TRANSITIONS = {
     'premiere_setup':   {'premiere_live', 'release_pending', 'discarded'},
     'premiere_live':    {'release_pending'},
     'release_pending':  {'released'},
-    'released':         {'completed'},
+    'released':         {'out_of_theaters', 'completed'},
+    'out_of_theaters':  {'completed'},
     'completed':        set(),
     'discarded':        set(),
 }
@@ -281,6 +282,33 @@ async def _advance(project_id: str, user_id: str, target: str, extra_data: dict 
             }
         )
         updated = await db.film_projects.find_one({'id': project_id}, {'_id': 0})
+
+        # Generate cinematic city impact notifications on release
+        if target == 'released':
+            try:
+                import city_tastes as ct
+                genre = updated.get('genre', 'drama')
+                content_type = updated.get('content_type', 'film')
+                title = updated.get('title', '')
+                zones = updated.get('release_schedule', {}).get('zones', [])
+                cities = await db.city_tastes.find({'enabled': True}, {'_id': 0}).to_list(100)
+                notifs = []
+                for c in cities:
+                    if c['zone'] in zones or c['city_id'] in zones or 'world' in zones:
+                        tastes = c.get('current_tastes', c.get('personality', {}))
+                        sat = c.get('saturation', {})
+                        eff = ct.effective_taste(tastes.get(genre, 0.5), sat.get(genre, 0))
+                        if eff >= 0.65 or eff <= 0.3:
+                            msg = ct.get_notification_phrase(c['name'], title, content_type, eff)
+                            notifs.append({'type': 'city_impact', 'message': msg, 'city': c['name'], 'level': ct.get_taste_level(eff), 'created_at': now, 'read': False})
+                if notifs:
+                    # Store max 3 most impactful notifications
+                    notifs.sort(key=lambda x: {'fermento':0,'forte':1,'freddo':2,'discreto':3,'tiepido':4}.get(x['level'],5))
+                    for n in notifs[:3]:
+                        await db.notifications.insert_one({**n, 'user_id': user_id, 'film_id': project_id})
+            except Exception as e:
+                logging.warning(f"[CITY_IMPACT] Notification error: {e}")
+
         return updated
     except Exception as e:
         await db.film_projects.update_one(
@@ -492,9 +520,10 @@ async def generate_poster_v2(pid: str, req: PosterV2Request, user: dict = Depend
         style = CLASSIC_POSTER_STYLES.get(req.classic_style, CLASSIC_POSTER_STYLES.get('noir', {}))
         poster_url = style.get('preview_url', f'/posters/classic_{req.classic_style}.jpg')
     else:
-        # AI poster generation
+        # AI poster generation → saved to MongoDB via poster_storage for persistence
         try:
-            import base64, os, uuid as _uuid
+            import os, uuid as _uuid
+            import poster_storage
             from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
             api_key = os.environ.get('EMERGENT_LLM_KEY', '')
             genre_label = project.get('genre', 'drama')
@@ -508,13 +537,9 @@ async def generate_poster_v2(pid: str, req: PosterV2Request, user: dict = Depend
             img_gen = OpenAIImageGeneration(api_key=api_key)
             images = await img_gen.generate_images(prompt=prompt_text, model="gpt-image-1", number_of_images=1)
             if images and len(images) > 0:
-                posters_dir = '/app/frontend/public/posters/ai'
-                os.makedirs(posters_dir, exist_ok=True)
-                fname = f"{pid}_{_uuid.uuid4().hex[:6]}.png"
-                fpath = os.path.join(posters_dir, fname)
-                with open(fpath, 'wb') as f:
-                    f.write(images[0])
-                poster_url = f"/posters/ai/{fname}"
+                fname = f"{pid}_{_uuid.uuid4().hex[:6]}.jpg"
+                await poster_storage.save_poster(fname, images[0], 'image/png')
+                poster_url = f"/api/posters/{fname}"
             else:
                 poster_url = f"/posters/placeholder_{project['genre']}.jpg"
         except Exception as e:
@@ -529,6 +554,105 @@ async def generate_poster_v2(pid: str, req: PosterV2Request, user: dict = Depend
     update['costs_paid.poster'] = cost
     film = await _update_project(pid, update)
     return {'film': film, 'poster_url': poster_url}
+
+
+# ═══════════════════════════════════════════════════════════════
+#  ASYNC POSTER GENERATION — Job-based, no timeout
+# ═══════════════════════════════════════════════════════════════
+import asyncio as _asyncio
+
+async def _run_poster_generation(job_id: str, prompt: str, filename: str, collection: str, doc_id: str, id_field: str, regen_count: int):
+    """Background task: generate poster, save, update status."""
+    try:
+        import os
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        api_key = os.environ.get('EMERGENT_LLM_KEY', '')
+        img_gen = OpenAIImageGeneration(api_key=api_key)
+
+        images = await img_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+
+        if images and len(images) > 0:
+            # Save via poster_storage (MongoDB + disk cache)
+            import poster_storage
+            await poster_storage.save_poster(filename, images[0], 'image/png')
+            poster_url = f"/api/posters/{filename}"
+
+            # Update the content document
+            coll = db[collection]
+            await coll.update_one(
+                {id_field: doc_id},
+                {'$set': {'poster_url': poster_url, 'poster_regen_count': regen_count, 'pipeline_flags.has_poster': True}}
+            )
+
+            # Update job status
+            await db.poster_jobs.update_one(
+                {'job_id': job_id},
+                {'$set': {'status': 'completed', 'poster_url': poster_url, 'completed_at': _now()}}
+            )
+        else:
+            await db.poster_jobs.update_one({'job_id': job_id}, {'$set': {'status': 'failed', 'error': 'Empty result'}})
+
+    except Exception as e:
+        logging.error(f"[POSTER-JOB] {job_id} failed: {e}")
+        await db.poster_jobs.update_one({'job_id': job_id}, {'$set': {'status': 'failed', 'error': str(e)}})
+
+
+@router.post("/films/{pid}/regenerate-poster")
+async def regenerate_poster_v2(pid: str, user: dict = Depends(get_current_user)):
+    """Start async poster generation for a film. Returns job_id immediately."""
+    project = await _get_project(pid, user['id'])
+    regen_count = project.get('poster_regen_count', 0)
+    if regen_count >= 3:
+        raise HTTPException(400, "Limite rigenerazioni raggiunto (max 3)")
+
+    import uuid as _uuid
+    job_id = _uuid.uuid4().hex[:12]
+    genre_label = project.get('genre', 'drama')
+    subs = ', '.join(project.get('subgenres', []))
+    prompt = (
+        f"Professional cinematic movie poster, portrait orientation 2:3 ratio, for the film '{project['title']}'. "
+        f"Genre: {genre_label}. Subgenres: {subs or 'N/A'}. "
+        f"Film title '{project['title']}' displayed prominently with professional typography. "
+        f"Dramatic lighting, Hollywood quality, style matching the genre."
+    )
+    filename = f"film_{pid}_r{regen_count + 1}.png"
+
+    # Create job record
+    await db.poster_jobs.insert_one({
+        'job_id': job_id, 'user_id': user['id'], 'content_id': pid,
+        'content_type': 'film', 'status': 'processing',
+        'created_at': _now(), 'poster_url': None, 'error': None,
+    })
+
+    # Fire and forget
+    _asyncio.create_task(_run_poster_generation(
+        job_id, prompt, filename, 'film_projects', pid, 'id', regen_count + 1
+    ))
+
+    return {'job_id': job_id, 'status': 'processing'}
+
+
+
+@router.get("/production-counts")
+async def get_production_counts(user: dict = Depends(get_current_user)):
+    """Get count of active projects by type for badge display."""
+    active_states = {'draft', 'idea', 'proposed', 'hype_setup', 'hype_live', 'casting_live',
+                     'prep', 'shooting', 'postproduction', 'sponsorship', 'marketing',
+                     'premiere_setup', 'premiere_live', 'release_pending'}
+    films = await db.film_projects.count_documents({
+        'user_id': user['id'], 'pipeline_state': {'$in': list(active_states)}
+    })
+    series = await db.tv_series.count_documents({
+        'user_id': user['id'], 'type': 'tv_series',
+        'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']}
+    })
+    anime = await db.tv_series.count_documents({
+        'user_id': user['id'], 'type': 'anime',
+        'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']}
+    })
+    return {'total': films + series + anime, 'film': films, 'series': series, 'anime': anime}
+
+
 
 class ScreenplayV2Request(BaseModel):
     mode: str = 'ai_auto'
@@ -995,16 +1119,23 @@ async def _generate_agency_proposals(project, agencies, user_id):
         roles.append(('animator', 12))     # Disegnatori from director pool
         roles.append(('voice_actor', 15))  # Doppiatori from actor pool
 
-    # Fetch per role, sorted by genre compatibility
+    # Fetch per role, sorted by genre compatibility, FILTERED by player level
+    player_level = player.get('level', 1) if player else 1
+    player_fame_val = player.get('fame', 0) if player else 0
+    # Base fame cap: players at low levels get mostly lower-fame NPCs
+    # Allow 2 "star" picks (high fame) per pool, rest capped
+    fame_cap_base = min(40 + player_level * 2 + player_fame_val * 0.05, 95)
+    fame_cap_star = min(60 + player_level * 3 + player_fame_val * 0.1, 100)
+
     for role_type, count in roles:
-        # Map anime roles to existing NPC pools
         query_role = role_type
         if role_type == 'animator':
             query_role = 'director'
         elif role_type == 'voice_actor':
             query_role = 'actor'
 
-        sample_size = count * 3
+        sample_size = count * 4
+        # Fetch a larger pool to filter
         cursor = db.people.aggregate([
             {'$match': {'role_type': query_role}},
             {'$sample': {'size': sample_size}},
@@ -1012,7 +1143,32 @@ async def _generate_agency_proposals(project, agencies, user_id):
         ])
         candidates = await cursor.to_list(sample_size)
         candidates.sort(key=_score_npc, reverse=True)
-        for i, npc in enumerate(candidates[:count]):
+
+        # Split: up to 2 star candidates (above base cap), rest within cap
+        stars_added = 0
+        filtered = []
+        for npc in candidates:
+            npc_fame = npc.get('fame', 30)
+            if not isinstance(npc_fame, (int, float)):
+                npc_fame = 30
+            if npc_fame > fame_cap_base and stars_added < 2:
+                if npc_fame <= fame_cap_star:
+                    filtered.append(npc)
+                    stars_added += 1
+            elif npc_fame <= fame_cap_base:
+                filtered.append(npc)
+            if len(filtered) >= count:
+                break
+
+        # If not enough, add remaining regardless
+        if len(filtered) < count:
+            for npc in candidates:
+                if npc not in filtered:
+                    filtered.append(npc)
+                if len(filtered) >= count:
+                    break
+
+        for i, npc in enumerate(filtered[:count]):
             proposals.append(_map_npc(npc, role_type, i))
 
     random.shuffle(proposals)
@@ -1842,6 +1998,120 @@ async def renegotiate_cast_v2(pid: str, req: SelectCastV2, user: dict = Depends(
         },
     }
 
+
+@router.post("/films/{pid}/auto-cast")
+async def auto_complete_cast(pid: str, user: dict = Depends(get_current_user)):
+    """Auto-fill all cast roles with appropriate NPCs. Cost: $2M + 10 CP (free for guests)."""
+    project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] != 'casting_live':
+        raise HTTPException(400, "Non in fase casting")
+
+    is_guest = user.get('is_guest', False)
+    COST_FUNDS = 2_000_000
+    COST_CP = 10
+
+    if not is_guest:
+        u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1, 'cinepass': 1})
+        if u.get('funds', 0) < COST_FUNDS:
+            raise HTTPException(400, f"Servono ${COST_FUNDS:,} (hai ${u.get('funds',0):,})")
+        if u.get('cinepass', 0) < COST_CP:
+            raise HTTPException(400, f"Servono {COST_CP} crediti (hai {u.get('cinepass',0)})")
+        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -COST_FUNDS, 'cinepass': -COST_CP}})
+
+    # Get player level for scaling
+    player = await db.users.find_one({'id': user['id']}, {'_id': 0, 'level': 1, 'fame': 1})
+    player_level = player.get('level', 1) if player else 1
+    player_fame = player.get('fame', 0) if player else 0
+    genre = project.get('genre', 'drama')
+    ct = project.get('content_type', 'film')
+
+    # Calculate appropriate fame range for NPCs based on player level
+    # 2 high-quality picks, rest proportional
+    base_max_fame = min(500 + player_level * 30 + player_fame * 0.3, 10000)
+    high_max_fame = base_max_fame * 2.5  # 2 star picks can be much better
+
+    proposals = project.get('cast_proposals', [])
+    if not proposals:
+        raise HTTPException(400, "Nessuna proposta disponibile. Attendi le proposte dall'agenzia.")
+
+    # Group proposals by role_type
+    by_role = {}
+    for i, p in enumerate(proposals):
+        r = p.get('role_type', p.get('role', 'actor'))
+        if r == 'writer': r = 'screenwriter'
+        by_role.setdefault(r, []).append((i, p))
+
+    # Sort each role group by genre compatibility score
+    def npc_score(p):
+        skills = p.get('skills', {})
+        return sum(skills.values()) + (p.get('fame', 0) or 0) * 0.3
+
+    # Select roles: 1 director, 1 composer, 1 screenwriter, 5 actors
+    cast = project.get('cast', {'director': None, 'screenwriters': [], 'actors': [], 'composer': None})
+    if 'screenwriter' in cast and cast['screenwriter'] and not cast.get('screenwriters'):
+        cast['screenwriters'] = [cast['screenwriter']]
+    cast.setdefault('screenwriters', [])
+    cast.setdefault('actors', [])
+
+    used_indices = set()
+    star_picks = 0  # Track high-quality picks (max 2)
+
+    def pick_best(role_key, max_fame_limit):
+        nonlocal star_picks
+        candidates = by_role.get(role_key, [])
+        # Filter by fame and unused
+        valid = [(i, p) for i, p in candidates if i not in used_indices and (p.get('fame', 0) or 0) <= max_fame_limit and p.get('status') != 'rejected']
+        if not valid:
+            valid = [(i, p) for i, p in candidates if i not in used_indices and p.get('status') != 'rejected']
+        if not valid:
+            return None
+        valid.sort(key=lambda x: npc_score(x[1]), reverse=True)
+        idx, chosen = valid[0]
+        used_indices.add(idx)
+        return chosen
+
+    # Director (1) - can be star pick
+    if not cast.get('director'):
+        d = pick_best('director', high_max_fame if star_picks < 2 else base_max_fame)
+        if d:
+            cast['director'] = d
+            if (d.get('fame', 0) or 0) > base_max_fame: star_picks += 1
+
+    # Composer (1)
+    if not cast.get('composer'):
+        c = pick_best('composer', base_max_fame)
+        if c: cast['composer'] = c
+
+    # Screenwriter (1)
+    if len(cast.get('screenwriters', [])) < 1:
+        s = pick_best('screenwriter', base_max_fame)
+        if s: cast['screenwriters'].append(s)
+
+    # Actors (fill to 5) - first 1 can be star pick
+    ACTOR_ROLES = ['protagonista', 'antagonista', 'spalla', 'comico', 'drammatico']
+    actor_count = len(cast.get('actors', []))
+    for role_name in ACTOR_ROLES:
+        if actor_count >= 5:
+            break
+        fame_limit = high_max_fame if star_picks < 2 else base_max_fame
+        a = pick_best('actor', fame_limit)
+        if a:
+            a['cast_role'] = role_name
+            cast['actors'].append(a)
+            if (a.get('fame', 0) or 0) > base_max_fame: star_picks += 1
+            actor_count += 1
+
+    # Calculate quality
+    quality_data = _calc_cast_quality(cast, genre, project.get('subgenres', []), ct)
+
+    update = {
+        'cast': cast,
+        'pipeline_metrics.cast_quality': quality_data.get('total', 0),
+    }
+    film = await _update_project(pid, update)
+    return {'film': film, 'auto_cast': True, 'star_picks': star_picks, 'cost_funds': 0 if is_guest else COST_FUNDS, 'cost_cp': 0 if is_guest else COST_CP}
+
+
 @router.post("/films/{pid}/lock-cast")
 async def lock_cast_v2(pid: str, user: dict = Depends(get_current_user)):
     """Lock cast and advance: casting_live → prep. Idempotent. Validates + snapshot."""
@@ -2364,14 +2634,39 @@ async def complete_premiere_v2(pid: str, user: dict = Depends(get_current_user))
         if datetime.now(timezone.utc) < end_dt:
             raise HTTPException(400, "Premiere ancora in corso")
 
-    # Calculate premiere impact
+    # Calculate premiere impact with city taste bonus
     premiere = project.get('premiere', {})
     prestige = premiere.get('prestige', 70)
-    impact = int(prestige * 0.3 + random.randint(-5, 10))
+    base_impact = int(prestige * 0.3 + random.randint(-5, 10))
+
+    # City taste bonus for LaPrima
+    city_bonus = 0
+    try:
+        import city_tastes as ct_mod
+        premiere_city = premiere.get('city', '')
+        genre = project.get('genre', 'drama')
+        subgenres = project.get('subgenres', [])
+        content_type = project.get('content_type', 'film')
+        # Find matching city by name
+        city_doc = await db.city_tastes.find_one({'name': premiere_city, 'enabled': True}, {'_id': 0})
+        if city_doc:
+            tastes = city_doc.get('current_tastes', city_doc.get('personality', {}))
+            sat = city_doc.get('saturation', {})
+            eff = ct_mod.effective_taste(tastes.get(genre, 0.5), sat.get(genre, 0))
+            if eff >= 0.7:
+                city_bonus = int(base_impact * 0.25)  # +25% if city loves the genre
+            elif eff <= 0.3:
+                city_bonus = int(base_impact * -0.15)  # -15% if city is cold
+            await ct_mod.add_saturation(db, city_doc['city_id'], genre, 0.06)
+    except Exception as e:
+        logging.warning(f"[CITY_TASTES] Premiere bonus error: {e}")
+
+    impact = base_impact + city_bonus
 
     extra = {
         'premiere.outcome_score': impact,
         'premiere.completed': True,
+        'premiere.city_bonus': city_bonus,
         'pipeline_metrics.premiere_bonus': impact,
         'release_type': 'premiere',
     }
@@ -2437,15 +2732,45 @@ RELEASE_ZONES = {
 }
 
 RELEASE_DATE_OPTIONS = {
-    'immediate': {'label': 'Immediato',   'days': 0, 'hype_mult': 0.70, 'direct_only': True},
-    '24h':       {'label': 'Tra 24 ore',  'days': 1, 'hype_mult': 0.85, 'direct_only': True},
-    '2d':        {'label': '2 giorni',    'days': 2, 'hype_mult': 0.95, 'direct_only': False},
-    '3d':        {'label': '3 giorni',    'days': 3, 'hype_mult': 1.05, 'direct_only': False},
-    '4d':        {'label': '4 giorni',    'days': 4, 'hype_mult': 1.10, 'direct_only': False},
-    '5d':        {'label': '5 giorni',    'days': 5, 'hype_mult': 1.05, 'direct_only': False},
-    '6d':        {'label': '6 giorni',    'days': 6, 'hype_mult': 0.95, 'direct_only': False},
-    '7d':        {'label': '7 giorni',    'days': 7, 'hype_mult': 0.85, 'direct_only': False},
+    '6h':        {'label': '6 ore',       'days': 0.25, 'hype_mult': 0.60, 'direct_only': True},
+    '12h':       {'label': '12 ore',      'days': 0.5,  'hype_mult': 0.75, 'direct_only': True},
+    'immediate': {'label': 'Immediato',   'days': 0,    'hype_mult': 0.70, 'direct_only': True},
+    '24h':       {'label': 'Tra 24 ore',  'days': 1,    'hype_mult': 0.85, 'direct_only': True},
+    '2d':        {'label': '2 giorni',    'days': 2,    'hype_mult': 0.95, 'direct_only': False},
+    '3d':        {'label': '3 giorni',    'days': 3,    'hype_mult': 1.05, 'direct_only': False},
+    '4d':        {'label': '4 giorni',    'days': 4,    'hype_mult': 1.10, 'direct_only': False},
+    '5d':        {'label': '5 giorni',    'days': 5,    'hype_mult': 1.05, 'direct_only': False},
+    '6d':        {'label': '6 giorni',    'days': 6,    'hype_mult': 0.95, 'direct_only': False},
 }
+
+# Zone hype bonuses based on distribution scope
+ZONE_HYPE_BONUSES = {
+    1: 0.05,   # 1 zona = +5%
+    2: 0.10,   # 2 zone = +10%
+    3: 0.12,   # 3 zone = +12%
+    4: 0.15,   # 4 zone = +15%
+    5: 0.18,   # 5+ zone = +18%
+}
+
+def _calc_release_hype(base_hype_mult: float, zone_count: int, has_world: bool, quality: float) -> float:
+    """Calculate final hype multiplier with randomness + zone impact."""
+    # Base randomness: ±10%
+    randomness = 0.9 + random.random() * 0.2
+
+    # Zone bonus
+    if has_world:
+        zone_bonus = 1.20  # mondiale = +20%
+    else:
+        zone_bonus = 1.0 + ZONE_HYPE_BONUSES.get(min(zone_count, 5), 0.18)
+
+    # Quality factor: high quality films benefit more from waiting
+    quality_factor = 1.0
+    if quality >= 80 and base_hype_mult >= 1.0:
+        quality_factor = 1.05  # bonus per film di qualità che aspettano
+    elif quality < 40 and base_hype_mult < 0.85:
+        quality_factor = 0.95  # penalità doppia per film scarsi usciti troppo presto
+
+    return round(base_hype_mult * randomness * zone_bonus * quality_factor, 3)
 
 
 @router.get("/release-zones")
@@ -2457,6 +2782,7 @@ async def get_release_zones():
             'id': zid, 'name': z['name'], 'continent': z['continent'],
             'countries': z['countries'], 'funds': z['funds'], 'cp': z['cp'],
             'rev_mult': z['rev_mult'],
+            'hype_bonus': '+20%' if zid == 'world' else f"+{int(ZONE_HYPE_BONUSES.get(1, 5))}%",
         })
     dates = []
     for did, d in RELEASE_DATE_OPTIONS.items():
@@ -2470,6 +2796,7 @@ async def get_release_zones():
 class ScheduleReleaseBody(BaseModel):
     date_option: str
     zones: list
+    theater_weeks: int = 3
 
 
 @router.post("/films/{pid}/schedule-release")
@@ -2522,7 +2849,26 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
 
     # Calculate total revenue multiplier from zones
     rev_mult = sum(RELEASE_ZONES[z]['rev_mult'] for z in selected_zones)
-    hype_mult = date_opt['hype_mult']
+    hype_mult_base = date_opt['hype_mult']
+
+    # Smart hype calculation with randomness + zone impact
+    quality = project.get('quality_score', project.get('pre_imdb_score', 50))
+    final_hype_mult = _calc_release_hype(hype_mult_base, len(selected_zones), has_world, quality)
+
+    # City taste bonus — dynamic city preferences affect revenue
+    try:
+        import city_tastes as ct
+        genre = project.get('genre', 'drama')
+        subgenres = project.get('subgenres', [])
+        content_type = project.get('content_type', 'film')
+        city_mult = await ct.calculate_city_bonus(db, selected_zones, genre, subgenres, content_type)
+        # Add saturation for each matching city
+        cities = await db.city_tastes.find({'enabled': True, '$or': [{'zone': {'$in': selected_zones}}, {'city_id': {'$in': selected_zones}}]}, {'_id': 0, 'city_id': 1}).to_list(100)
+        for c in cities:
+            await ct.add_saturation(db, c['city_id'], genre, 0.04)
+    except Exception as e:
+        logging.warning(f"[CITY_TASTES] Bonus calc failed: {e}")
+        city_mult = 1.0
 
     schedule = {
         'date_option': body.date_option,
@@ -2532,21 +2878,104 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
         'zone_names': [RELEASE_ZONES[z]['name'] for z in selected_zones],
         'funds_cost': total_funds,
         'cp_cost': total_cp,
-        'rev_mult': round(rev_mult, 2),
-        'hype_mult': hype_mult,
+        'rev_mult': round(rev_mult * city_mult, 2),
+        'city_taste_mult': city_mult,
+        'hype_mult': final_hype_mult,
+        'hype_mult_base': hype_mult_base,
         'scheduled_at': _now(),
     }
+
+    # Theater duration
+    theater_weeks = max(1, min(4, body.theater_weeks))
+    release_date = _now()
+    theater_end = (datetime.fromisoformat(release_date) + timedelta(weeks=theater_weeks)).isoformat() if isinstance(release_date, str) else (release_date + timedelta(weeks=theater_weeks)).isoformat()
 
     await db.film_projects.update_one(
         {'id': pid},
         {'$set': {
             'release_schedule': schedule,
+            'theater_weeks': theater_weeks,
+            'theater_end_date': theater_end,
+            'released_at': release_date,
             'costs_paid.release_distribution': total_funds,
             'costs_paid.release_cp': total_cp,
         }}
     )
 
-    return {'schedule': schedule, 'funds_charged': total_funds, 'cp_charged': total_cp}
+    return {'schedule': schedule, 'funds_charged': total_funds, 'cp_charged': total_cp, 'theater_weeks': theater_weeks}
+
+@router.get("/films/{pid}/theater-stats")
+async def get_theater_stats(pid: str, user: dict = Depends(get_current_user)):
+    """Get detailed theater statistics for a released film."""
+    project = await _get_project(pid, user['id'])
+    stats = project.get('theater_stats', {})
+    released_at = project.get('released_at') or project.get('release_schedule', {}).get('scheduled_at')
+    end_date = project.get('theater_end_date')
+    return {
+        'theater_stats': stats,
+        'theater_weeks': project.get('theater_weeks', 3),
+        'released_at': released_at,
+        'theater_end_date': end_date,
+        'pipeline_state': project.get('pipeline_state'),
+    }
+
+@router.post("/films/{pid}/withdraw-theater")
+async def withdraw_from_theater(pid: str, user: dict = Depends(get_current_user)):
+    """Manually withdraw a film from theaters."""
+    project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] != 'released':
+        raise HTTPException(400, "Film non in sala")
+    now = _now()
+    days = 0
+    released_at = project.get('released_at')
+    if released_at:
+        if isinstance(released_at, str):
+            released_at = datetime.fromisoformat(released_at.replace('Z', '+00:00'))
+        days = max(1, int((datetime.now(timezone.utc) - released_at).total_seconds() / 86400))
+    await db.film_projects.update_one({'id': pid}, {'$set': {
+        'pipeline_state': 'out_of_theaters',
+        'theater_stats.exited_at': now,
+        'theater_stats.exit_reason': 'manual',
+        'theater_stats.days_in_theater': days,
+    }})
+    return {'withdrawn': True, 'days_in_theater': days}
+
+@router.post("/films/{pid}/send-to-tv")
+async def send_to_tv(pid: str, user: dict = Depends(get_current_user)):
+    """Send a film to TV programming or upcoming. Withdraws from cinema if released."""
+    project = await _get_project(pid, user['id'])
+    tv = await db.infrastructure.find_one({'owner_id': user['id'], 'type': 'emittente_tv'}, {'_id': 0})
+    if not tv:
+        raise HTTPException(400, "Non possiedi un'emittente TV")
+    
+    from fastapi import Request
+    import json
+    # Parse optional body
+    body = {}
+    try:
+        raw = await db.film_projects.find_one({'id': pid}, {'_id': 0, 'id': 1})  # dummy to avoid body parse issues
+        # We'll just set both flags
+    except:
+        pass
+
+    now = _now()
+    update = {'in_tv_programming': True, 'tv_added_at': now}
+    
+    # If released, also withdraw
+    if project['pipeline_state'] == 'released':
+        days = 0
+        released_at = project.get('released_at')
+        if released_at:
+            if isinstance(released_at, str):
+                released_at = datetime.fromisoformat(released_at.replace('Z', '+00:00'))
+            days = max(1, int((datetime.now(timezone.utc) - released_at).total_seconds() / 86400))
+        update['pipeline_state'] = 'out_of_theaters'
+        update['theater_stats.exited_at'] = now
+        update['theater_stats.exit_reason'] = 'sent_to_tv'
+        update['theater_stats.days_in_theater'] = days
+    
+    await db.film_projects.update_one({'id': pid}, {'$set': update})
+    return {'sent_to_tv': True}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -3661,11 +4090,13 @@ async def unified_speedup_v2(pid: str, req: SpeedupRequest, user: dict = Depends
     base_credits = SPEEDUP_BASE_CREDITS[pct]
     credit_cost = _calc_speedup_cost(base_credits, project)
 
-    # Check CinePass
-    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1})
-    available = u.get('cinepass', 0) if u else 0
-    if available < credit_cost:
-        raise HTTPException(400, f"Servono {credit_cost} crediti (hai {available})")
+    # Check CinePass (skip for guest users)
+    is_guest = user.get('is_guest', False)
+    if not is_guest:
+        u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'cinepass': 1})
+        available = u.get('cinepass', 0) if u else 0
+        if available < credit_cost:
+            raise HTTPException(400, f"Servono {credit_cost} crediti (hai {available})")
 
     # Get current timer
     timers = project.get('pipeline_timers', {})
@@ -3818,24 +4249,86 @@ async def edit_step_v2(pid: str, req: EditStepRequest, user: dict = Depends(get_
 
 @router.post("/films/{pid}/discard")
 async def discard_film_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Discard film at any stage"""
+    """Discard film at any stage — auto-lists on marketplace"""
     project = await _get_project(pid, user['id'])
     if project['pipeline_state'] in ('released', 'completed', 'discarded'):
         raise HTTPException(400, "Non puoi scartare un film gia rilasciato o completato")
 
+    # Calculate sale price: proportional to invested costs, discounted
+    total_cost = project.get('total_cost', 0) or 0
+    costs_paid = project.get('costs_paid', {})
+    invested = sum(v for v in costs_paid.values() if isinstance(v, (int, float)))
+    if invested == 0:
+        invested = total_cost
+    # Sale price = 40-60% of invested, minimum $10,000
+    discount = 0.5 + random.uniform(-0.1, 0.1)
+    sale_price = max(10000, int(invested * discount))
+
+    # Map V2 state to legacy status for marketplace compatibility
+    state_map = {
+        'draft': 'proposed', 'idea': 'proposed', 'proposed': 'proposed',
+        'hype_setup': 'proposed', 'hype_live': 'proposed',
+        'casting_live': 'casting', 'prep': 'pre_production',
+        'shooting': 'shooting', 'postproduction': 'shooting',
+        'sponsorship': 'pre_production', 'marketing': 'pre_production',
+    }
+    status_before = state_map.get(project['pipeline_state'], 'proposed')
+
+    now = _now()
     await db.film_projects.update_one(
         {'id': pid},
         {'$set': {
             'pipeline_state': 'discarded',
-            'pipeline_substate': 'abandoned',
+            'pipeline_substate': 'marketplace',
             'pipeline_ui_step': -1,
             'pipeline_locked': False,
-            'discarded_at': _now(),
-            'updated_at': _now(),
+            'discarded_at': now,
+            'updated_at': now,
+            'available_for_purchase': True,
+            'sale_price': sale_price,
+            'discarded_by': user['id'],
+            'status_before_discard': status_before,
+            'status': status_before,
         },
-        '$push': {'pipeline_history': {'from': project['pipeline_state'], 'to': 'discarded', 'at': _now()}}}
+        '$push': {'pipeline_history': {'from': project['pipeline_state'], 'to': 'discarded', 'at': now}}}
     )
-    return {'success': True, 'message': 'Film scartato'}
+    return {'success': True, 'message': f'Film scartato e messo in vendita a ${sale_price:,}', 'sale_price': sale_price}
+
+
+@router.post("/films/{pid}/admin-force-complete")
+async def admin_force_complete(pid: str, user: dict = Depends(get_current_user)):
+    """Admin: force-complete a film stuck in any pipeline state."""
+    if user.get('nickname') != 'NeoMorpheus' and user.get('role') != 'admin':
+        raise HTTPException(403, "Solo admin")
+    project = await db.film_projects.find_one({'id': pid}, {'_id': 0})
+    if not project:
+        raise HTTPException(404, "Progetto non trovato")
+
+    now = _now()
+    quality = project.get('quality_score') or project.get('pre_imdb_score', 60)
+    if quality < 10:
+        quality = quality * 10  # pre_imdb_score is 0-10, quality_score is 0-100
+    imdb = round(max(1.0, min(10.0, quality / 10)), 1)
+
+    update = {
+        'pipeline_state': 'completed',
+        'pipeline_substate': 'released',
+        'status': 'completed',
+        'pipeline_ui_step': 9,
+        'quality_score': quality,
+        'imdb_rating': imdb,
+        'released_at': now,
+        'completed_at': now,
+        'updated_at': now,
+        'release_schedule': {
+            'date_option': 'immediate', 'days': 0,
+            'zones': ['world'], 'zone_names': ['Mondiale'],
+            'hype_mult': 1.0, 'rev_mult': 3.5,
+        },
+    }
+    await db.film_projects.update_one({'id': pid}, {'$set': update})
+    return {'success': True, 'message': f'Film "{project.get("title")}" completato forzatamente', 'quality': quality, 'imdb': imdb}
+
 
 @router.post("/admin/diagnose")
 async def admin_diagnose_v2(user: dict = Depends(get_current_user)):

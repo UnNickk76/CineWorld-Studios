@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 import { PlayerBadge } from '../components/PlayerBadge';
+import AdminFilmRecovery from '../components/AdminFilmRecovery';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
@@ -18,9 +19,12 @@ const ADMIN_TABS = [
   { id: 'reports', label: 'Segnalazioni', icon: Flag },
   { id: 'deletions', label: 'Cancellazioni', icon: Trash2 },
   { id: 'maintenance', label: 'Manutenzione', icon: Wrench },
+  { id: 'donations', label: 'Donazioni', icon: Heart },
+  { id: 'city_tastes', label: 'Gusti Città', icon: Star },
   { id: 'tutorial', label: 'Tutorial Manager', icon: BookOpen },
   { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
+  { id: 'recovery', label: 'Anti-Limbo', icon: AlertTriangle },
 ];
 
 const COADMIN_TABS = [
@@ -873,7 +877,176 @@ function ReportsTab({ api }) {
 }
 
 /* ─── Maintenance Tab (Rewritten — Advanced) ─── */
+
+function DonationsTab({ api }) {
+  const [enabled, setEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    api.get('/admin/settings').then(r => { setEnabled(r.data.donations_enabled); setLoading(false); }).catch(() => setLoading(false));
+  }, [api]);
+  const toggle = async () => {
+    const newVal = !enabled;
+    await api.post('/admin/toggle-donations', { enabled: newVal });
+    setEnabled(newVal);
+    toast.success(newVal ? 'Donazioni abilitate' : 'Donazioni disabilitate');
+  };
+  return (
+    <Card className="bg-[#111113] border-white/5" data-testid="donations-tab">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2"><Heart className="w-4 h-4 text-pink-400" /> Gestione Donazioni</CardTitle>
+        <p className="text-[10px] text-gray-500">Abilita/disabilita il sistema donazioni PayPal</p>
+      </CardHeader>
+      <CardContent>
+        {loading ? <p className="text-xs text-gray-500">Caricamento...</p> : (
+          <div className="flex items-center justify-between p-3 bg-white/[0.03] rounded-lg border border-white/5">
+            <div>
+              <p className="text-sm font-semibold text-white">Donazioni PayPal</p>
+              <p className="text-[10px] text-gray-500">{enabled ? 'Il cuore rosa e il banner donazioni sono visibili' : 'Donazioni nascoste per tutti gli utenti'}</p>
+            </div>
+            <Button size="sm" className={`h-8 text-xs ${enabled ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`} onClick={toggle}>
+              {enabled ? 'Disattiva' : 'Attiva'}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
 function MaintenanceTab({ api }) {
+
+
+function CityTastesAdmin({ api }) {
+  const [cities, setCities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [testResult, setTestResult] = useState(null);
+  const [testCity, setTestCity] = useState('roma');
+  const [testGenre, setTestGenre] = useState('comedy');
+
+  const load = () => {
+    api.get('/city-tastes/admin/cities').then(r => { setCities(r.data?.cities || []); setLoading(false); }).catch(() => setLoading(false));
+  };
+  useEffect(load, [api]);
+
+  const LEVEL_COLORS = { fermento: 'text-green-400', forte: 'text-emerald-400', discreto: 'text-yellow-400', tiepido: 'text-orange-400', freddo: 'text-red-400' };
+  const getLevel = (v) => v >= 0.85 ? 'fermento' : v >= 0.7 ? 'forte' : v >= 0.5 ? 'discreto' : v >= 0.35 ? 'tiepido' : 'freddo';
+
+  return (
+    <div className="space-y-3" data-testid="city-tastes-admin">
+      <Card className="bg-[#111113] border-white/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2"><Star className="w-4 h-4 text-yellow-400" /> Gusti Città — Sistema Dinamico</CardTitle>
+          <p className="text-[10px] text-gray-500">{cities.length} città attive. I gusti evolvono ogni 5-25 giorni.</p>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex gap-2">
+            <Button size="sm" className="h-7 text-[10px] bg-purple-600 hover:bg-purple-700" onClick={async () => {
+              await api.post('/city-tastes/admin/evolve');
+              toast.success('Gusti evoluti!'); load();
+            }}>Forza Evoluzione</Button>
+            <Button size="sm" className="h-7 text-[10px] bg-red-600 hover:bg-red-700" onClick={async () => {
+              await api.post('/city-tastes/admin/seed');
+              toast.success('Città re-seedate!'); load();
+            }}>Reset Seed</Button>
+          </div>
+
+          {/* Test Tool */}
+          <div className="p-2 bg-white/[0.02] rounded border border-white/5">
+            <p className="text-[9px] text-gray-400 mb-1 font-bold">Test Città vs Genere</p>
+            <div className="flex gap-1 items-center">
+              <select value={testCity} onChange={e => setTestCity(e.target.value)} className="bg-gray-800 text-[9px] text-white border border-gray-700 rounded px-1 py-1 flex-1">
+                {cities.map(c => <option key={c.city_id} value={c.city_id}>{c.name}</option>)}
+              </select>
+              <select value={testGenre} onChange={e => setTestGenre(e.target.value)} className="bg-gray-800 text-[9px] text-white border border-gray-700 rounded px-1 py-1 flex-1">
+                {['action','comedy','drama','horror','romance','sci_fi','thriller','anime','fantasy','documentary','crime','noir','superhero','spy','musical','adventure','war','western','experimental','historical','mystery','biography','sport','family'].map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+              <Button size="sm" className="h-6 text-[9px] px-2" onClick={async () => {
+                const r = await api.get(`/city-tastes/admin/test/${testCity}/${testGenre}`);
+                setTestResult(r.data);
+              }}>Test</Button>
+            </div>
+            {testResult && (
+              <div className="mt-1 p-1.5 bg-black/30 rounded text-[8px] space-y-0.5">
+                <p className="text-white">{testResult.city} + {testResult.genre}: <span className={LEVEL_COLORS[testResult.level]}>{testResult.level}</span></p>
+                <p className="text-gray-500">Base: {testResult.personality_base} | Attuale: {testResult.raw_taste} | Saturazione: {testResult.saturation} | Effettivo: {testResult.effective} | Moltiplicatore: {testResult.multiplier}x | Trend: {testResult.trend}</p>
+                <p className="text-cyan-400/70 italic">"{testResult.phrase}"</p>
+              </div>
+            )}
+          </div>
+
+          {/* Cities Grid */}
+          {loading ? <p className="text-xs text-gray-500">Caricamento...</p> : (
+            <div className="grid grid-cols-1 gap-1 max-h-[300px] overflow-y-auto">
+              {cities.map(c => {
+                const topGenres = Object.entries(c.current_tastes || {}).sort((a, b) => b[1] - a[1]).slice(0, 3);
+                return (
+                  <div key={c.city_id} className="flex items-center justify-between p-1.5 bg-white/[0.02] rounded border border-white/5">
+                    <div className="flex-1">
+                      <span className="text-[10px] font-bold text-white">{c.name}</span>
+                      <span className="text-[8px] text-gray-600 ml-1">({c.zone})</span>
+                    </div>
+                    <div className="flex gap-1">
+                      {topGenres.map(([g, v]) => (
+                        <span key={g} className={`text-[7px] px-1 py-0.5 rounded ${LEVEL_COLORS[getLevel(v)]} bg-white/5`}>{g}:{v.toFixed(2)}</span>
+                      ))}
+                    </div>
+                    <button onClick={async () => { await api.post(`/city-tastes/admin/toggle/${c.city_id}`); load(); }}
+                      className={`ml-1 text-[7px] px-1 py-0.5 rounded ${c.enabled ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {c.enabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+
+function GuestCleanupPanel({ api }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [cleaning, setCleaning] = useState(false);
+  useEffect(() => {
+    api.get('/admin/recovery/guest-orphans').then(r => { setData(r.data); setLoading(false); }).catch(() => setLoading(false));
+  }, [api]);
+  const clean = async () => {
+    setCleaning(true);
+    try {
+      const r = await api.post('/admin/recovery/clean-guests');
+      toast.success(`Eliminati ${r.data.deleted_users} guest, ${r.data.deleted_films} film, ${r.data.deleted_infra} infrastrutture`);
+      setData({ guests: [], total_guests: 0, total_films: 0 });
+    } catch (e) { toast.error(e.message || 'Errore'); }
+    setCleaning(false);
+  };
+  if (loading) return <Card className="bg-[#111113] border-white/5 mt-3"><CardContent className="p-3"><p className="text-xs text-gray-500">Caricamento...</p></CardContent></Card>;
+  if (!data || data.total_guests === 0) return null; // Hide if no orphans
+  return (
+    <Card className="bg-[#111113] border-white/5 mt-3" data-testid="guest-cleanup-panel">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2"><Trash2 className="w-4 h-4 text-red-400" /> Pulizia Dati Guest</CardTitle>
+        <p className="text-[10px] text-gray-500">Sessioni guest orfane rimaste in memoria</p>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between p-3 bg-red-500/5 rounded-lg border border-red-500/15">
+          <div>
+            <p className="text-sm font-semibold text-white">{data.total_guests} guest orfani</p>
+            <p className="text-[10px] text-gray-500">{data.total_films} film associati</p>
+          </div>
+          <Button size="sm" className="h-8 text-xs bg-red-600 hover:bg-red-700" onClick={clean} disabled={cleaning}>
+            {cleaning ? 'Eliminazione...' : 'Pulisci tutto'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
   const [username, setUsername] = useState('');
   const [projects, setProjects] = useState([]);
   const [stats, setStats] = useState(null);
@@ -2300,8 +2473,12 @@ export default function AdminPage() {
         {activeTab === 'reports' && <ReportsTab api={api} />}
         {activeTab === 'deletions' && isAdmin && <DeletionsTab api={api} />}
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
+        {activeTab === 'donations' && isAdmin && <DonationsTab api={api} />}
+        {activeTab === 'donations' && isAdmin && <GuestCleanupPanel api={api} />}
+        {activeTab === 'city_tastes' && isAdmin && <CityTastesAdmin api={api} />}
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
+        {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}
         {activeTab === 'migration' && isAdmin && <MigrationTab api={api} />}
         {activeTab === 'tutorial' && isAdmin && <TutorialManagerTab api={api} />}
       </div>

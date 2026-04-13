@@ -4,7 +4,7 @@ import {
   Plus, Sparkles, Camera, Clapperboard, Megaphone, Award, Ticket,
   MapPin, Palette, FileText, Lock, Users, Music, Wand2, Play,
   Timer, TrendingUp, DollarSign, Building2, Globe, Heart, Send,
-  Pencil, Tv, BarChart3, PlayCircle
+  Pencil, Tv, BarChart3, PlayCircle, RefreshCw
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { useToast } from '../hooks/use-toast';
@@ -333,10 +333,134 @@ const SPEEDUP_TIERS = [
   { pct: 100, label: 'MAX',  color: 'red' },
 ];
 
+
+// ═══ THEATER STATS PANEL — expandable stats, Withdraw & Send to TV ═══
+const TheaterStatsPanel = ({ film, api, onRefresh, toast }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [loading, setLoading] = useState('');
+  const isOwner = true; // shown only to owner
+  const ts = film.theater_stats || {};
+  const isReleased = film.pipeline_state === 'released';
+
+  // Fetch full stats on expand
+  useEffect(() => {
+    if (expanded && !stats) {
+      api.get(`/films/${film.id}/theater-stats`).then(d => setStats(d?.theater_stats || d)).catch(() => {});
+    }
+  }, [expanded, film.id, api, stats]);
+
+  const doWithdraw = async () => {
+    setConfirmAction(null); setLoading('withdraw');
+    try {
+      await api.post(`/films/${film.id}/withdraw-theater`);
+      toast({ title: 'Film ritirato dalle sale' }); onRefresh();
+    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    setLoading('');
+  };
+  const doSendTV = async () => {
+    setConfirmAction(null); setLoading('tv');
+    try {
+      await api.post(`/films/${film.id}/send-to-tv`);
+      // Also withdraw from theater
+      if (isReleased) await api.post(`/films/${film.id}/withdraw-theater`).catch(() => {});
+      toast({ title: 'Film inviato in TV e ritirato dalle sale!' }); onRefresh();
+    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    setLoading('');
+  };
+
+  const perfColors = { great:'text-green-400', good:'text-emerald-400', ok:'text-yellow-400', declining:'text-orange-400', bad:'text-red-400', flop:'text-red-500' };
+  const perfLabels = { great:'Straordinario', good:'Ottimo', ok:'Discreto', declining:'In calo', bad:'Scarso', flop:'Flop' };
+  const trendIcon = (t) => t === 'up' ? '▲' : t === 'down' ? '▼' : '●';
+  const trendColor = (t) => t === 'up' ? 'text-green-400' : t === 'down' ? 'text-red-400' : 'text-gray-400';
+
+  const fullStats = stats?.theater_stats || ts;
+
+  return (
+    <div className="rounded-lg border border-yellow-500/20 overflow-hidden">
+      {/* Compact bar — always visible */}
+      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between px-3 py-2 bg-yellow-500/5 hover:bg-yellow-500/10 transition-colors" data-testid="theater-stats-toggle">
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] font-bold text-yellow-400">{isReleased ? 'IN SALA' : 'FUORI SALA'}</span>
+          <span className={`text-[8px] font-bold ${perfColors[ts.performance] || 'text-gray-400'}`}>{perfLabels[ts.performance] || '—'}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[8px]">
+          <span className="text-gray-400">{ts.days_in_theater || 0}gg in sala</span>
+          {isReleased && <span className="text-yellow-400/70">{ts.days_remaining || 0}gg rimasti</span>}
+          {(ts.days_extended || 0) > 0 && <span className="text-green-400">+{ts.days_extended}gg</span>}
+          {(ts.days_reduced || 0) > 0 && <span className="text-red-400">-{ts.days_reduced}gg</span>}
+          <span className="text-gray-600">{expanded ? '▲' : '▼'}</span>
+        </div>
+      </button>
+
+      {/* Expanded stats */}
+      {expanded && (
+        <div className="p-3 space-y-2 bg-gray-900/50">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[7px] text-gray-500">Cinema</p>
+              <p className="text-[11px] font-bold text-white">{fullStats.current_cinemas || 0}</p>
+            </div>
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[7px] text-gray-500">Spettatori oggi</p>
+              <p className="text-[11px] font-bold text-cyan-400">{(fullStats.daily_spectators || 0).toLocaleString()}</p>
+            </div>
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[7px] text-gray-500">Spettatori totali</p>
+              <p className="text-[11px] font-bold text-yellow-400">{(fullStats.total_spectators || 0).toLocaleString()}</p>
+            </div>
+          </div>
+
+          {/* Last 3 days trend */}
+          {fullStats.daily_history?.length > 0 && (
+            <div>
+              <p className="text-[7px] text-gray-500 uppercase font-bold mb-1">Andamento ultimi 3 giorni</p>
+              <div className="flex gap-1">
+                {fullStats.daily_history.slice(-3).map((d, i) => (
+                  <div key={i} className="flex-1 p-1.5 rounded bg-white/[0.02] border border-white/5 text-center">
+                    <p className="text-[7px] text-gray-600">Giorno {d.day}</p>
+                    <p className={`text-[9px] font-bold ${trendColor(d.trend)}`}>{trendIcon(d.trend)} {d.spectators?.toLocaleString()}</p>
+                    <p className="text-[6px] text-gray-600">{d.cinemas} cinema</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Revenue */}
+          <div className="flex justify-between items-center px-1">
+            <span className="text-[8px] text-gray-500">Incassi sala totali</span>
+            <span className="text-[10px] font-bold text-green-400">${(fullStats.total_revenue || 0).toLocaleString()}</span>
+          </div>
+
+          {/* Owner action buttons */}
+          {isOwner && isReleased && (
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setConfirmAction('withdraw')} disabled={!!loading}
+                className="flex-1 text-[9px] py-2 rounded-lg bg-red-500/10 border border-red-500/25 text-red-400 hover:bg-red-500/20 font-bold disabled:opacity-40" data-testid="withdraw-theater-btn">
+                {loading === 'withdraw' ? '...' : 'Ritira dalle sale'}
+              </button>
+              <button onClick={() => setConfirmAction('tv')} disabled={!!loading}
+                className="flex-1 text-[9px] py-2 rounded-lg bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500/20 font-bold disabled:opacity-40" data-testid="send-to-tv-btn">
+                {loading === 'tv' ? '...' : 'Manda in TV'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      <CineConfirm open={confirmAction === 'withdraw'} title="Ritirare il film dalle sale?" confirmLabel="Ritira" onConfirm={doWithdraw} onCancel={() => setConfirmAction(null)} />
+      <CineConfirm open={confirmAction === 'tv'} title="Inviare in TV e ritirare dalle sale?" confirmLabel="Conferma" onConfirm={doSendTV} onCancel={() => setConfirmAction(null)} />
+    </div>
+  );
+};
+
+
 const SpeedupPanel = ({ film, onRefresh, toast }) => {
   const [costs, setCosts] = useState(null);
   const [loading, setLoading] = useState('');
   const [confirmPct, setConfirmPct] = useState(null);
+  const isGuest = JSON.parse(localStorage.getItem('cineworld_user') || '{}').is_guest;
 
   useEffect(() => {
     api.get(`/films/${film.id}/speedup-costs`).then(d => setCosts(d.costs || {})).catch(() => {});
@@ -348,7 +472,7 @@ const SpeedupPanel = ({ film, onRefresh, toast }) => {
     try {
       const res = await api.post(`/films/${film.id}/speedup`, { percentage: pct });
       onRefresh();
-      toast({ title: `Accelerato del ${pct}%! (-${res.credits_spent} crediti)` });
+      toast({ title: `Accelerato del ${pct}%!${isGuest ? '' : ` (-${res.credits_spent} crediti)`}` });
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
     setLoading('');
   };
@@ -371,13 +495,16 @@ const SpeedupPanel = ({ film, onRefresh, toast }) => {
           return (
             <button
               key={t.pct}
-              onClick={() => setConfirmPct(t.pct)}
+              onClick={() => isGuest ? doSpeedup(t.pct) : setConfirmPct(t.pct)}
               disabled={!!loading}
               className={`flex flex-col items-center py-2 px-1 rounded-lg border transition-colors disabled:opacity-40 ${colors[t.color]}`}
               data-testid={`speedup-${t.pct}`}
             >
               <span className="text-[10px] font-bold">{isLoading ? '...' : t.label}</span>
-              <span className="text-[7px] opacity-70 mt-0.5">{cost} cr</span>
+              {isGuest
+                ? <span className="text-[7px] mt-0.5"><s className="opacity-40">{cost} cr</s> <span className="text-green-400 font-bold">GRATIS</span></span>
+                : <span className="text-[7px] opacity-70 mt-0.5">{cost} cr</span>
+              }
             </button>
           );
         })}
@@ -549,8 +676,90 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
           <span className="text-[9px] text-gray-400 uppercase font-bold flex items-center gap-1"><Palette className="w-3 h-3" /> Locandina</span>
           {hasPoster && <Badge className="bg-emerald-500/15 text-emerald-400 text-[7px] border-emerald-500/20">Creata</Badge>}
         </div>
-        {film.poster_url && <img src={film.poster_url} alt="" className="w-full max-w-[160px] mx-auto rounded-lg border border-gray-700" />}
-        {!hasPoster && (
+        {/* Poster display with async regen */}
+        {film.poster_url ? (
+          <div className="relative group">
+            <img src={film.poster_url} alt="" className={`w-full max-w-[160px] mx-auto rounded-lg border border-gray-700 transition-opacity ${loading === 'regen-poster' ? 'opacity-30' : ''}`} />
+            {loading === 'regen-poster' && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+                <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-[8px] text-yellow-400">Generazione in corso...</span>
+              </div>
+            )}
+            {(film.poster_regen_count || 0) < 3 ? (
+              <button
+                onClick={async () => {
+                  setLoading('regen-poster');
+                  try {
+                    const res = await api.post(`/films/${film.id}/regenerate-poster`);
+                    const jobId = res.data.job_id;
+                    // Poll for completion
+                    const poll = setInterval(async () => {
+                      try {
+                        const st = await api.get(`/poster-status/${jobId}`);
+                        if (st.data.status === 'completed') {
+                          clearInterval(poll);
+                          setFilm(prev => ({ ...prev, poster_url: st.data.poster_url + '?t=' + Date.now(), poster_regen_count: (prev.poster_regen_count || 0) + 1 }));
+                          toast({ title: 'Locandina rigenerata!' });
+                          setLoading(null);
+                        } else if (st.data.status === 'failed') {
+                          clearInterval(poll);
+                          toast({ title: st.data.error || 'Errore, riprova', variant: 'destructive' });
+                          setLoading(null);
+                        }
+                      } catch { /* continue polling */ }
+                    }, 2000);
+                    // Failsafe: stop after 40s
+                    setTimeout(() => { clearInterval(poll); setLoading(null); }, 40000);
+                  } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); setLoading(null); }
+                }}
+                disabled={loading === 'regen-poster'}
+                className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/60 border border-yellow-500/30 text-yellow-400 text-[8px] flex items-center gap-0.5 opacity-0 group-hover:opacity-100 hover:bg-black/80 transition-all disabled:opacity-30"
+                data-testid="regen-poster-btn"
+              >
+                <RefreshCw className="w-2.5 h-2.5" /> Rigenera
+              </button>
+            ) : (
+              <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-gray-500 text-[7px]">Max 3 rigenerate</span>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-4">
+            <Film className="w-8 h-8 text-gray-600" />
+            <p className="text-[9px] text-gray-500">Locandina non disponibile</p>
+            <button
+              onClick={async () => {
+                setLoading('regen-poster');
+                try {
+                  const res = await api.post(`/films/${film.id}/regenerate-poster`);
+                  const jobId = res.data.job_id;
+                  const poll = setInterval(async () => {
+                    try {
+                      const st = await api.get(`/poster-status/${jobId}`);
+                      if (st.data.status === 'completed') {
+                        clearInterval(poll);
+                        setFilm(prev => ({ ...prev, poster_url: st.data.poster_url, poster_regen_count: 1, pipeline_flags: { ...prev.pipeline_flags, has_poster: true } }));
+                        toast({ title: 'Locandina generata!' });
+                        setLoading(null);
+                      } else if (st.data.status === 'failed') {
+                        clearInterval(poll);
+                        toast({ title: st.data.error || 'Errore', variant: 'destructive' });
+                        setLoading(null);
+                      }
+                    } catch { /* continue */ }
+                  }, 2000);
+                  setTimeout(() => { clearInterval(poll); setLoading(null); }, 40000);
+                } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); setLoading(null); }
+              }}
+              disabled={loading === 'regen-poster'}
+              className="px-3 py-1.5 rounded-lg bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[10px] flex items-center gap-1 hover:bg-yellow-500/25 transition-colors disabled:opacity-50"
+              data-testid="gen-poster-btn"
+            >
+              {loading === 'regen-poster' ? <><div className="w-3 h-3 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" /> Generazione...</> : <><Sparkles className="w-3 h-3" /> Genera Locandina</>}
+            </button>
+          </div>
+        )}
+        {!hasPoster && !film.poster_url && (
           <div className="flex gap-1.5">
             <button onClick={() => generatePoster('ai_auto')} disabled={loading === 'poster'}
               className="flex-1 text-[9px] py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50" data-testid="poster-ai-auto">
@@ -583,6 +792,7 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
             <div className="flex gap-1.5">
               {['ai_auto', 'ai_custom', 'manual'].map(m => (
                 <button key={m} onClick={() => setScreenplayMode(m)}
+                  data-testid={`screenplay-${m.replace('_','-')}`}
                   className={`flex-1 text-[9px] py-1.5 rounded-lg border transition-colors ${screenplayMode === m ? 'bg-purple-500/15 border-purple-500/40 text-purple-400' : 'bg-gray-800/50 border-gray-700 text-gray-500'}`}>
                   {m === 'ai_auto' ? 'AI Auto' : m === 'ai_custom' ? 'AI Custom' : 'Manuale'}
                 </button>
@@ -1015,6 +1225,7 @@ const ChemistryPanel = ({ film, loading, setLoading, toast }) => {
 
 const CastPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState('');
+  const isGuest = JSON.parse(localStorage.getItem('cineworld_user') || '{}').is_guest;
   const [activeTab, setActiveTab] = useState('director');
   const [expandedProposal, setExpandedProposal] = useState(null);
   const [rejectInfo, setRejectInfo] = useState(null);
@@ -1319,6 +1530,20 @@ const CastPhase = ({ film, onRefresh, toast }) => {
         })}
         {tabProposals.length === 0 && <p className="text-[9px] text-gray-600 italic text-center py-4">Nessuna proposta {tabInfo?.label?.toLowerCase()}</p>}
       </div>
+
+      {/* Auto-Complete Cast */}
+      <button onClick={async () => {
+        setLoading('autocast');
+        try {
+          const r = await api.post(`/films/${film.id}/auto-cast`);
+          toast({ title: 'Cast completato automaticamente!' });
+          onRefresh();
+        } catch (e) { toast({ title: e.message || 'Errore', variant: 'destructive' }); }
+        setLoading('');
+      }} disabled={loading === 'autocast' || canLock}
+        className="w-full text-[10px] py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-30 font-bold mb-1.5" data-testid="auto-cast-btn">
+        {loading === 'autocast' ? 'Completamento...' : (<>Completa Cast Auto — {isGuest ? <><s className="opacity-50">$2M + 10cr</s> GRATIS</> : '$2M + 10cr'}</>)}
+      </button>
 
       {/* Lock */}
       <button onClick={lockCast} disabled={!canLock || loading === 'lock'}
@@ -1742,6 +1967,7 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
   const [cities, setCities] = useState([]);
   const [selectedCity, setSelectedCity] = useState('');
   const [duration, setDuration] = useState(24);
+  const [cityTips, setCityTips] = useState(null);
   const state = film.pipeline_state;
   const timers = film.pipeline_timers || {};
   const { remaining, done } = useCountdown(timers.premiere_end);
@@ -1749,6 +1975,11 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
   useEffect(() => {
     if (state === 'premiere_setup') {
       api.get(`/films/${film.id}/premiere-cities`).then(d => setCities(d.cities || [])).catch(() => {});
+      // Fetch Velion city tips for LaPrima
+      const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+      const token = localStorage.getItem('cineworld_token');
+      fetch(`${BACKEND}/api/city-tastes/la-prima-tips/${film.id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json()).then(d => setCityTips(d)).catch(() => {});
     }
   }, [film.id, state]);
 
@@ -1804,6 +2035,22 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
               ))}
             </div>
           </div>
+          {/* Velion City Intelligence for LaPrima */}
+          {cityTips?.tips?.length > 0 && selectedCity && (
+            <div className="p-2 bg-gradient-to-br from-yellow-500/5 to-cyan-500/5 border border-yellow-500/15 rounded-lg">
+              <p className="text-[9px] text-yellow-400 font-bold mb-1">Velion — Consigli Premiere</p>
+              {cityTips.intro && <p className="text-[8px] text-gray-400 mb-1.5">{cityTips.intro}</p>}
+              {cityTips.tips.filter(t => t.name === selectedCity).map(tip => {
+                const colors = { fermento: 'text-green-400', forte: 'text-emerald-400', discreto: 'text-yellow-400', tiepido: 'text-orange-400', freddo: 'text-red-400' };
+                return (
+                  <div key={tip.city_id} className="flex items-start gap-2">
+                    <span className={`text-[9px] font-bold ${colors[tip.level] || 'text-gray-400'}`}>{tip.name}:</span>
+                    <p className="text-[8px] text-gray-400">{tip.phrase}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <div>
             <label className="text-[9px] text-gray-500 uppercase font-bold">Durata: {duration}h</label>
             <input type="range" min={2} max={48} value={duration} onChange={e => setDuration(+e.target.value)}
@@ -2231,18 +2478,24 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
   const [scheduled, setScheduled] = useState(film.release_schedule || null);
   const [epCount, setEpCount] = useState(film.episode_count || 12);
   const [epSaved, setEpSaved] = useState(!!film.episode_count);
+  const [cityTips, setCityTips] = useState(null);
+  const [theaterWeeks, setTheaterWeeks] = useState(film.theater_weeks || 3);
   const state = film.pipeline_state;
-  const isPremiere = film.release_type === 'premiere';
   const canRelease = state === 'release_pending';
   const canSchedule = state === 'premiere_live' || state === 'release_pending';
   const isSeries = film.content_type === 'serie_tv' || film.content_type === 'anime';
 
   useEffect(() => {
-    api.get('/pipeline-v2/release-zones').then(res => {
-      setZones(res.zones || []);
-      setDateOptions(res.dates || []);
+    api.get('/release-zones').then(r => {
+      setZones(r?.zones || []);
+      setDateOptions(r?.dates || []);
     }).catch(() => {});
-  }, []);
+    // Fetch Velion city tips
+    const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+    const token = localStorage.getItem('cineworld_token');
+    fetch(`${BACKEND}/api/city-tastes/tips/${film.id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setCityTips(d)).catch(() => {});
+  }, [film.id]);
 
   useEffect(() => {
     if (film.release_schedule) {
@@ -2267,6 +2520,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
         return prev.includes(zid) ? without : [...without, zid];
       });
     }
+    if (!velionZoneTip) setVelionZoneTip(true);
   };
 
   const continents = {};
@@ -2276,6 +2530,15 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
   });
   const worldZone = zones.find(z => z.id === 'world');
 
+  const [velionDateTip, setVelionDateTip] = useState(false);
+  const [velionZoneTip, setVelionZoneTip] = useState(false);
+
+  // Show Velion tips on first date selection
+  const handleDateSelect = (dateId) => {
+    setSelectedDate(dateId);
+    if (!velionDateTip) setVelionDateTip(true);
+  };
+
   const scheduleRelease = async () => {
     if (!selectedDate || activeZones.length === 0) {
       toast({ title: 'Seleziona data e almeno una zona', variant: 'destructive' }); return;
@@ -2283,10 +2546,10 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
     setLoading('schedule');
     try {
       const res = await api.post(`/films/${film.id}/schedule-release`, {
-        date_option: selectedDate, zones: activeZones,
+        date_option: selectedDate, zones: activeZones, theater_weeks: theaterWeeks,
       });
-      setScheduled(res.schedule);
-      toast({ title: `Distribuzione programmata! -$${res.funds_charged?.toLocaleString()} / -${res.cp_charged} CP` });
+      setScheduled(res.data?.schedule || res.data);
+      toast({ title: `Distribuzione programmata!` });
       onRefresh();
     } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); }
     finally { setLoading(''); }
@@ -2296,17 +2559,17 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
     setLoading('release');
     try {
       const res = await api.post(`/films/${film.id}/release`);
-      if (res.scheduled) {
-        toast({ title: `Film programmato per uscita tra ${res.days} giorni in ${res.zones?.join(', ')}` });
+      if (res.data?.scheduled) {
+        toast({ title: `Film programmato per uscita` });
         onRefresh(); setLoading('');
       } else {
-        setResult(res);
+        setResult(res.data);
         if (!film.release_sequence_played) {
           setShowReleaseOverlay(true);
         } else {
           setLoading('');
           onRefresh();
-          toast({ title: `${film.title} rilasciato! Quality: ${res.quality_score || '?'}` });
+          toast({ title: `${film.title} rilasciato! Quality: ${res.data?.quality_score || '?'}` });
         }
       }
     } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); setLoading(''); }
@@ -2350,6 +2613,9 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
               </div>
             </div>
           )}
+
+          {/* ═══ THEATER STATS — In Sala ═══ */}
+          {(state === 'released' || state === 'out_of_theaters') && <TheaterStatsPanel film={film} api={api} onRefresh={onRefresh} toast={toast} />}
 
           {/* ═══ SERIE/ANIME — Episodi + Stagioni ═══ */}
           {(film.content_type === 'serie_tv' || film.content_type === 'anime') && (
@@ -2433,7 +2699,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
               const selected = selectedDate === d.id;
               return (
                 <button key={d.id} disabled={disabled}
-                  onClick={() => !disabled && setSelectedDate(d.id)}
+                  onClick={() => !disabled && handleDateSelect(d.id)}
                   className={`py-1.5 px-1 rounded-md text-[9px] font-bold border transition-all ${
                     disabled ? 'opacity-20 cursor-not-allowed border-gray-800 text-gray-600' :
                     selected ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' :
@@ -2446,12 +2712,11 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
               );
             })}
           </div>
-          {dateInfo && (
-            <div className="mt-1 flex items-center gap-2 text-[8px]">
-              <span className="text-gray-500">Hype:</span>
-              <span className={dateInfo.hype_mult >= 1 ? 'text-green-400' : 'text-orange-400'}>
-                x{dateInfo.hype_mult} {dateInfo.hype_mult >= 1.05 ? '(ottimo!)' : dateInfo.hype_mult < 0.9 ? '(basso)' : ''}
-              </span>
+          {/* Hype multiplier hidden from player */}
+          {velionDateTip && (
+            <div className="mt-1.5 px-2.5 py-2 bg-cyan-500/5 border border-cyan-500/15 rounded-lg">
+              <p className="text-[9px] text-cyan-400 font-bold mb-0.5">Consiglio di Velion:</p>
+              <p className="text-[8px] text-gray-400">Ogni data genera un diverso livello di aspettativa. Attesa pi\u00f9 lunga = pi\u00f9 hype ma anche pi\u00f9 rischio! "Immediato" \u00e8 sicuro ma senza bonus. Sperimenta!</p>
             </div>
           )}
         </div>
@@ -2515,6 +2780,38 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
           </div>
         </div>
 
+        {velionZoneTip && (
+          <div className="px-2.5 py-2 bg-cyan-500/5 border border-cyan-500/15 rounded-lg">
+            <p className="text-[9px] text-cyan-400 font-bold mb-0.5">Consiglio di Velion:</p>
+            <p className="text-[8px] text-gray-400">"Mondiale" raggiunge tutti ma costa di pi\u00f9. Seleziona zone specifiche per risparmiare e concentrare gli incassi dove il genere funziona meglio!</p>
+          </div>
+        )}
+
+        {/* Velion City Intelligence */}
+        {cityTips?.city_tips?.length > 0 && (selectedDate || selectedZones.length > 0) && (
+          <div className="p-2.5 bg-gradient-to-br from-cyan-500/5 to-purple-500/5 border border-cyan-500/15 rounded-lg space-y-2">
+            <p className="text-[9px] text-cyan-400 font-bold flex items-center gap-1">Velion — Intelligence Citt\u00e0</p>
+            {cityTips.date_tips && (
+              <div className="space-y-0.5">
+                {cityTips.date_tips.map((t, i) => (
+                  <p key={i} className="text-[8px] text-gray-400">{t}</p>
+                ))}
+              </div>
+            )}
+            <div className="space-y-1 mt-1">
+              {cityTips.city_tips.slice(0, 5).map(tip => {
+                const colors = { fermento: 'text-green-400', forte: 'text-emerald-400', discreto: 'text-yellow-400', tiepido: 'text-orange-400', freddo: 'text-red-400' };
+                return (
+                  <div key={tip.city_id} className="flex items-start gap-2">
+                    <span className={`text-[8px] font-bold ${colors[tip.level] || 'text-gray-400'} flex-shrink-0 w-16`}>{tip.name}</span>
+                    <p className="text-[7px] text-gray-500 leading-relaxed">{tip.phrase}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Cost Summary */}
         {(selectedDate && activeZones.length > 0) && (
           <div className="p-2 rounded-lg bg-gray-800/50 border border-gray-700/30 flex items-center justify-between">
@@ -2531,6 +2828,21 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
           <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15 text-center">
             <p className="text-[8px] text-emerald-400 font-bold">Distribuzione programmata</p>
             <p className="text-[8px] text-gray-400">{scheduled.date_label} — {scheduled.zone_names?.join(', ')}</p>
+          </div>
+        )}
+
+        {/* Theater Duration Slider */}
+        {canSchedule && !scheduled && (
+          <div className="p-2 rounded-lg bg-gray-800/50 border border-gray-700/30">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[9px] text-gray-400">Durata programmazione in sala</span>
+              <span className="text-[11px] font-bold text-yellow-400">{theaterWeeks * 7} giorni</span>
+            </div>
+            <input type="range" min={1} max={4} step={1} value={theaterWeeks} onChange={e => setTheaterWeeks(+e.target.value)}
+              className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-500" data-testid="theater-weeks-slider" />
+            <div className="flex justify-between text-[7px] text-gray-600 mt-0.5">
+              <span>7gg</span><span>14gg</span><span>21gg</span><span>28gg</span>
+            </div>
           </div>
         )}
 
@@ -3015,6 +3327,7 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
   const [genre, setGenre] = useState('drama');
   const [subgenres, setSubgenres] = useState([]);
   const [contentType, setContentType] = useState('film');
+  const [durationCat, setDurationCat] = useState('standard');
   const [episodeCount, setEpisodeCount] = useState(12);
   const [creating, setCreating] = useState(false);
   const [showCinematic, setShowCinematic] = useState(false);
@@ -3060,6 +3373,10 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
     try {
       const payload = { title: title.trim(), genre, subgenres, content_type: contentType };
       const res = await api.post('/films', payload);
+      // Set duration category for films
+      if (!isSeries && durationCat) {
+        await api.post(`/films/${res.film.id}/set-duration`, { category: durationCat }).catch(() => {});
+      }
       if (isSeries && episodeCount >= 8 && episodeCount <= 24) {
         await api.post(`/films/${res.film.id}/set-episodes`, { episode_count: episodeCount }).catch(() => {});
       }
@@ -3295,6 +3612,30 @@ const CreateFilmView = ({ onBack, onCreated, toast }) => {
               })}
             </div>
           </div>
+
+
+          {/* Duration category — solo per Film */}
+          {!isSeries && (
+            <div>
+              <label className="text-[8px] text-gray-500 uppercase tracking-wider font-bold block mb-1">Durata Film</label>
+              <div className="grid grid-cols-5 gap-1">
+                {[
+                  { id: 'cortometraggio', label: 'Corto', sub: '20-45min', rev: '0.45x' },
+                  { id: 'feature_breve', label: 'Breve', sub: '46-70min', rev: '0.7x' },
+                  { id: 'standard', label: 'Standard', sub: '71-140min', rev: '1x' },
+                  { id: 'extended', label: 'Extended', sub: '141-210min', rev: '1.3x' },
+                  { id: 'kolossal', label: 'Kolossal', sub: '211-280min', rev: '1.6x' },
+                ].map(d => (
+                  <button key={d.id} onClick={() => setDurationCat(d.id)} data-testid={`duration-${d.id}`}
+                    className={`text-center py-1.5 px-1 rounded-lg border text-[8px] transition-colors ${durationCat === d.id ? 'bg-amber-500/15 border-amber-500/40 text-amber-400' : 'bg-gray-800/40 border-gray-700 text-gray-500 hover:border-gray-500'}`}>
+                    <div className="font-bold">{d.label}</div>
+                    <div className="text-[6px] opacity-60">{d.sub}</div>
+                    <div className="text-[6px] text-yellow-500/50">{d.rev}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Episode count — solo per Serie/Anime */}
           {isSeries && (

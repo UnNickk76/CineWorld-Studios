@@ -509,11 +509,36 @@ button:active {
   50% { box-shadow: 0 0 14px rgba(180,100,255,0.35); }
 }
 
-/* Side menu open: translate navbars too */
-body[data-sidemenu="open"] .sidemenu-translate {
-  transform: translateX(25%);
-  transition: transform 300ms ease;
+/* ═══ Side menu PUSH — shifts all content right when open ═══ */
+:root {
+  --side-menu-w: clamp(82px, 24vw, 110px);
 }
+
+body[data-sidemenu="open"] {
+  overflow-x: auto;
+}
+
+/* Fixed navbars: shift left/right to maintain full width but scroll */
 .sidemenu-translate {
-  transition: transform 300ms ease;
+  transition: left 300ms ease, right 300ms ease;
+}
+body[data-sidemenu="open"] .sidemenu-translate {
+  left: var(--side-menu-w) !important;
+  right: calc(-1 * var(--side-menu-w)) !important;
+  overflow-x: auto;
+}
+
+/* Main content area: push right */
+.main-content-push {
+  transition: margin-left 300ms ease;
+}
+body[data-sidemenu="open"] .main-content-push {
+  margin-left: var(--side-menu-w);
+  width: 100vw;
+}
+
+/* ═══ Sticky page header back arrow pulse ═══ */
+@keyframes headerArrowPulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 6px rgba(255,215,0,0.6)); }
 }

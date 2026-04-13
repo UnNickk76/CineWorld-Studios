@@ -1,0 +1,178 @@
+/* ═══════════════════════════════════════════
+   Film Strip Side Menu — Realistic Film Reel
+   ═══════════════════════════════════════════ */
+
+@keyframes filmScroll {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+/* ═══ STRIP BACKGROUND ═══ */
+.film-strip-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.film-strip-bg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 200%;
+  will-change: transform;
+  animation: filmScroll 25s linear infinite;
+  background:
+    linear-gradient(to right, #0d0906 0px, #0d0906 14px, transparent 14px),
+    linear-gradient(to left, #0d0906 0px, #0d0906 14px, transparent 14px),
+    linear-gradient(to right,
+      transparent 14px,
+      rgba(90, 70, 30, 0.15) 14px,
+      rgba(90, 70, 30, 0.15) 15px,
+      transparent 15px,
+      transparent calc(100% - 15px),
+      rgba(90, 70, 30, 0.15) calc(100% - 15px),
+      rgba(90, 70, 30, 0.15) calc(100% - 14px),
+      transparent calc(100% - 14px)
+    );
+  background-color: #090705;
+}
+
+/* ═══ SPROCKET HOLES ═══ */
+.film-perfs {
+  position: absolute;
+  top: 0;
+  width: 14px;
+  height: 200%;
+  z-index: 5;
+  pointer-events: none;
+  will-change: transform;
+  animation: filmScroll 25s linear infinite;
+}
+
+.film-perfs-left { left: 0; }
+.film-perfs-right { right: 0; }
+
+.film-perfs-left::before,
+.film-perfs-right::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 5px;
+  height: 200%;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 10px,
+      rgba(210, 190, 130, 0.65) 10px,
+      rgba(210, 190, 130, 0.65) 17px,
+      transparent 17px,
+      transparent 44px
+    );
+  border-radius: 0.5px;
+}
+
+.film-perfs-left::before { left: 4px; }
+.film-perfs-right::before { right: 4px; }
+
+.film-perfs-left::after,
+.film-perfs-right::after {
+  content: '';
+  position: absolute;
+  top: 22px;
+  width: 3px;
+  height: 200%;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 15px,
+      rgba(190, 165, 90, 0.4) 15px,
+      rgba(190, 165, 90, 0.4) 19px,
+      transparent 19px,
+      transparent 44px
+    );
+  border-radius: 0.5px;
+}
+
+.film-perfs-left::after { left: 2px; }
+.film-perfs-right::after { right: 2px; }
+
+/* ═══ CENTRAL CONTENT AREA ═══ */
+.film-content-area {
+  position: relative;
+  z-index: 3;
+  margin-left: 16px;
+  margin-right: 16px;
+  overflow: hidden;
+}
+
+/* ═══ FILM FRAME BUTTONS ═══ */
+.film-frame-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 50px;
+  padding: 6px 2px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  box-sizing: border-box;
+  background: rgba(16, 13, 7, 0.5);
+  border: none;
+  border-top: 1px solid rgba(80, 65, 25, 0.15);
+  border-bottom: 1px solid rgba(60, 48, 18, 0.1);
+  box-shadow:
+    inset 0 1px 4px rgba(0, 0, 0, 0.45),
+    inset 0 -1px 4px rgba(0, 0, 0, 0.35),
+    inset 2px 0 3px rgba(0, 0, 0, 0.2),
+    inset -2px 0 3px rgba(0, 0, 0, 0.2);
+  border-radius: 0;
+  margin: 0;
+}
+
+.film-frame-btn:hover {
+  background: rgba(24, 20, 10, 0.65);
+}
+
+.film-frame-btn:active {
+  background: rgba(30, 25, 12, 0.75);
+  transform: scale(0.97);
+}
+
+.film-frame-btn::before,
+.film-frame-btn::after {
+  content: none;
+}
+
+/* ═══ EXIT BUTTON (sticky bottom) ═══ */
+.film-exit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 8px 4px;
+  background: rgba(180, 40, 40, 0.5);
+  border: none;
+  border-top: 1px solid rgba(200, 60, 60, 0.25);
+  color: #e05050;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+  box-sizing: border-box;
+}
+
+.film-exit-btn:hover {
+  background: rgba(200, 50, 50, 0.65);
+}
+
+.film-exit-btn:active {
+  background: rgba(220, 60, 60, 0.75);
+}

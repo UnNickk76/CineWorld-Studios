@@ -141,22 +141,54 @@ function EventCard({ event, onDone }) {
             animate={{ opacity: 1 }}
             transition={{ delay: 2.5, duration: 0.4 }}
           >
-            {event.revenue_mod !== 0 && (
+            {event.revenue_mod !== 0 && !isNaN(event.revenue_mod) && (
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${event.revenue_mod > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                {event.revenue_mod > 0 ? '+' : ''}{Math.round(event.revenue_mod * 100)}% incassi
+                {event.revenue_mod > 0 ? '+' : ''}{Math.round((event.revenue_mod || 0) * 100)}% incassi
               </span>
             )}
-            {event.hype_mod !== 0 && (
+            {event.hype_mod !== 0 && !isNaN(event.hype_mod) && (
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${event.hype_mod > 0 ? 'bg-cyan-500/20 text-cyan-400' : 'bg-red-500/20 text-red-400'}`}>
-                {event.hype_mod > 0 ? '+' : ''}{event.hype_mod} hype
+                {event.hype_mod > 0 ? '+' : ''}{event.hype_mod || 0} hype
               </span>
             )}
-            {event.fame_mod !== 0 && (
+            {event.fame_mod !== 0 && !isNaN(event.fame_mod) && (
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${event.fame_mod > 0 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
                 {event.fame_mod > 0 ? '+' : ''}{event.fame_mod} fama
               </span>
             )}
           </motion.div>
+
+          {/* Film details card — mini locandina + info */}
+          {(event.film_poster || event.film_title) && (
+            <motion.div
+              className="mt-3 p-2.5 rounded-lg bg-black/40 border border-white/10 flex gap-2.5"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 3.0, duration: 0.4 }}
+            >
+              {event.film_poster && (
+                <img src={event.film_poster?.startsWith('/') ? (process.env.REACT_APP_BACKEND_URL || '') + event.film_poster : event.film_poster}
+                  alt="" className="w-[50px] h-[75px] object-cover rounded flex-shrink-0 border border-white/10"
+                  onError={e => { e.target.style.display = 'none'; }} />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-white truncate">{event.film_title}</p>
+                {event.film_quality > 0 && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-[9px] text-yellow-400 font-bold">IMDb {(event.film_quality / 10).toFixed(1)}</span>
+                    <div className="flex">
+                      {[1,2,3,4,5].map(s => (
+                        <span key={s} className={`text-[8px] ${(event.film_quality / 20) >= s ? 'text-yellow-400' : 'text-gray-600'}`}>★</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {event.film_producer && (
+                  <p className="text-[8px] text-gray-500 mt-0.5">Prodotto da {event.film_producer}</p>
+                )}
+              </div>
+            </motion.div>
+          )}
 
           {/* Tap to close hint */}
           <motion.p

@@ -81,6 +81,9 @@ from routes.casting_agency import router as casting_agency_router
 from routes.film_pipeline import router as film_pipeline_router
 from routes.pipeline_v2 import router as pipeline_v2_router
 from routes.series_pipeline import router as series_pipeline_router
+from routes.admin_recovery import router as admin_recovery_router
+from routes.city_tastes import router as city_tastes_router
+from routes.ri_cinema import router as ri_cinema_router
 from routes.sequel_pipeline import router as sequel_pipeline_router
 from routes.emittente_tv import router as emittente_tv_router
 from routes.tv_stations import router as tv_stations_router
@@ -3313,15 +3316,26 @@ async def get_release_cinematic(film_id: str, user: dict = Depends(get_current_u
 async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
-        # Fallback: check film_projects for auto-released/completed films
-        film = await db.film_projects.find_one({'id': film_id, 'status': 'completed'}, {'_id': 0})
+        # Fallback: check film_projects for ANY status (not just completed)
+        film = await db.film_projects.find_one({'id': film_id}, {'_id': 0})
         if film:
-            # Provide defaults for film_projects that may lack some fields
             film.setdefault('owner_id', film.get('user_id'))
             film.setdefault('owner_nickname', '')
     if not film:
         raise HTTPException(status_code=404, detail="Film non trovato")
     
+    # Map pipeline_state to status for ContentTemplate
+    if film.get('pipeline_state'):
+        ps = film['pipeline_state']
+        if ps == 'premiere_live' or ps == 'premiere_setup':
+            film['status'] = 'premiere_live'
+        elif ps in ('release_pending', 'released', 'completed'):
+            film['status'] = ps
+        elif ps in ('hype_setup', 'hype_live'):
+            film['status'] = 'coming_soon'
+        elif ps != 'discarded':
+            film['status'] = 'in_production'
+
     # Calculate and add cineboard_score
     film['cineboard_score'] = calculate_cineboard_score(film)
     
@@ -3358,6 +3372,12 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film.setdefault('advanced_factors', {})
     film.setdefault('soundtrack_rating', None)
     film.setdefault('critic_reviews', [])
+    film.setdefault('duration_category', None)
+    film.setdefault('duration_minutes', None)
+    film.setdefault('short_plot', None)
+    film.setdefault('trend_score', 0)
+    film.setdefault('trend_position', None)
+    film.setdefault('trend_delta', None)
     
     return film
 
@@ -7508,16 +7528,17 @@ async def startup_event():
     )
 
     # Trend scores: every 6 hours
-    from scheduler_tasks import update_trend_scores
-    scheduler.add_job(
-        update_trend_scores,
-        IntervalTrigger(hours=6),
-        id='update_trend_scores',
-        replace_existing=True
-    )
-
+    from scheduler_tasks import update_trend_scores, evolve_city_tastes, seed_city_tastes_if_needed, check_theater_life, migrate_theater_films, expire_old_challenges, process_ri_cinema
+    scheduler.add_job(update_trend_scores, IntervalTrigger(hours=6), id='update_trend_scores', replace_existing=True)
+    scheduler.add_job(evolve_city_tastes, IntervalTrigger(hours=6), id='evolve_city_tastes', replace_existing=True)
+    scheduler.add_job(check_theater_life, IntervalTrigger(hours=1), id='check_theater_life', replace_existing=True)
+    scheduler.add_job(expire_old_challenges, IntervalTrigger(minutes=2), id='expire_old_challenges', replace_existing=True)
+    scheduler.add_job(process_ri_cinema, IntervalTrigger(hours=2), id='process_ri_cinema', replace_existing=True)
     scheduler.start()
     logging.info("APScheduler started with background jobs for autonomous game operations")
+    import asyncio
+    asyncio.create_task(seed_city_tastes_if_needed())
+    asyncio.create_task(migrate_theater_films())
 
 async def fix_decimal_skills_in_db():
     """Fix any existing cast members that have decimal skill values."""
@@ -8618,6 +8639,18 @@ async def contact_creator(data: ContactCreatorRequest, user: dict = Depends(get_
 # ==================== CUSTOM FESTIVALS (Player-Created) ====================
 # Original code commented out below
 # ==================== LIVE CEREMONY SYSTEM ====================
+@api_router.get("/leaderboard/global")
+async def api_get_global_leaderboard(limit: int = 50, user: dict = Depends(get_current_user)):
+    return await get_global_leaderboard(limit)
+
+@api_router.get("/leaderboard/local/{country}")
+async def api_get_local_leaderboard(country: str, limit: int = 50, user: dict = Depends(get_current_user)):
+    """Get local leaderboard by country — fallback to global filtered."""
+    result = await get_global_leaderboard(limit * 3)
+    all_users = result.get('leaderboard', [])
+    local = [u for u in all_users if u.get('country') == country][:limit]
+    return {'leaderboard': local}
+
 async def get_global_leaderboard(limit: int = 50):
     """Get global leaderboard."""
     users = await db.users.find(
@@ -9884,6 +9917,9 @@ app.include_router(pvp_cinema_router, prefix="/api")
 velion_init(db, JWT_SECRET)
 app.include_router(velion_router)
 app.include_router(cast_router, prefix="/api")
+app.include_router(admin_recovery_router)
+app.include_router(city_tastes_router)
+app.include_router(ri_cinema_router)
 app.include_router(admin_migration_router)
 app.include_router(users_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
@@ -10010,6 +10046,19 @@ async def serve_trailer(filename: str):
         raise HTTPException(status_code=404, detail=f"Trailer non trovato: {filename}")
     return TrailerFileResponse(trailer_path, media_type="video/mp4")
 
+@app.get("/api/poster-status/{job_id}")
+async def get_poster_job_status(job_id: str):
+    """Check status of async poster generation job."""
+    job = await db.poster_jobs.find_one({'job_id': job_id}, {'_id': 0})
+    if not job:
+        raise HTTPException(404, "Job non trovato")
+    return {
+        'job_id': job['job_id'],
+        'status': job['status'],
+        'poster_url': job.get('poster_url'),
+        'error': job.get('error'),
+    }
+
 @app.get("/api/posters/{filename}")
 async def serve_poster(filename: str):
     """Serve poster files from disk cache or MongoDB. Tries alternate extensions."""
@@ -10107,7 +10156,8 @@ if not os.path.exists("uploads"):
 
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/api/static", StaticFiles(directory="/app/backend/static"), name="static")
-app.mount("/api/posters", StaticFiles(directory="/app/backend/assets/posters"), name="posters")
+# Poster serving handled by @app.get("/api/posters/{filename}") endpoint in server.py
+app.mount("/api/backgrounds", StaticFiles(directory="/app/backend/assets/backgrounds"), name="backgrounds")
 
 app.add_middleware(
     CORSMiddleware,

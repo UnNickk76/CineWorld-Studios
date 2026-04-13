@@ -107,23 +107,24 @@ export function LaPrimaSection({ compact = false }) {
         {events.map((ev) => (
           <div
             key={ev.film_id}
-            className="flex-shrink-0 w-[140px] rounded-lg bg-[#0E0E10] border border-red-500/10 hover:border-red-500/30 transition-all cursor-pointer overflow-hidden"
-            onClick={() => setSelectedFilmId(ev.film_id)}
+            className="flex-shrink-0 w-[100px] rounded-lg bg-[#0E0E10] border border-amber-500/20 hover:border-amber-500/40 transition-all cursor-pointer overflow-hidden"
+            style={{ boxShadow: '0 0 12px rgba(212,175,55,0.12)' }}
+            onClick={() => navigate(`/films/${ev.film_id}`)}
             data-testid={`la-prima-event-${ev.film_id}`}
           >
-            {/* Poster */}
-            <div className="relative w-full h-[80px]">
+            {/* Poster 2:3 */}
+            <div className="relative aspect-[2/3] overflow-hidden">
               {posterSrc(ev.poster_url) ? (
                 <img
                   src={posterSrc(ev.poster_url)}
                   alt={ev.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-transform active:scale-105"
                   loading="lazy"
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
               ) : (
-                <div className="w-full h-full bg-red-500/10 flex items-center justify-center">
-                  <Film className="w-6 h-6 text-red-400/30" />
+                <div className="w-full h-full bg-gradient-to-b from-amber-500/10 to-black flex items-center justify-center">
+                  <Film className="w-8 h-8 text-amber-400/30" />
                 </div>
               )}
               {/* LIVE badge */}
@@ -131,37 +132,29 @@ export function LaPrimaSection({ compact = false }) {
                 <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
                 <span className="text-[7px] font-bold text-white">LIVE</span>
               </div>
-              {/* Gradient overlay */}
-              <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#0E0E10] to-transparent" />
+              {/* LA PRIMA badge */}
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-4 pb-1 px-1.5">
+                <span className="text-[7px] font-bold text-amber-400 tracking-wider">LA PRIMA</span>
+              </div>
             </div>
 
-            {/* Info compact */}
-            <div className="px-2 pb-2 pt-0.5">
-              <h4 className="text-[11px] font-semibold truncate leading-tight">{ev.title}</h4>
-              <div className="flex items-center gap-1 mt-0.5">
-                <MapPin className="w-2.5 h-2.5 text-amber-400 flex-shrink-0" />
-                <span className="text-[8px] text-amber-400 truncate">{ev.city}</span>
-                {ev.time_remaining && (
-                  <>
-                    <Clock className="w-2.5 h-2.5 text-gray-500 flex-shrink-0 ml-0.5" />
-                    <span className="text-[8px] text-gray-500 truncate">{ev.time_remaining}</span>
-                  </>
-                )}
+            {/* Info */}
+            <div className="px-1.5 pb-1.5 pt-1">
+              <h4 className="text-[9px] font-semibold truncate leading-tight">{ev.title}</h4>
+              <div className="flex items-center gap-0.5 mt-0.5">
+                <MapPin className="w-2 h-2 text-amber-400 flex-shrink-0" />
+                <span className="text-[7px] text-amber-400 truncate">{ev.city}</span>
+              </div>
+              {/* Progress bar */}
+              <div className="mt-1 h-1 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-red-500 transition-all" style={{ width: `${Math.min(100, Math.max(5, (ev.spectators_total || 0) / Math.max(1, ev.target_spectators || 1000) * 100))}%` }} />
               </div>
               {/* Stats */}
-              <div className="flex items-center gap-1.5 mt-1">
-                <div className="flex items-center gap-0.5" data-testid={`spectators-current-${ev.film_id}`}>
-                  <Eye className="w-2.5 h-2.5 text-cyan-400" />
-                  <span className="text-[9px] font-bold text-cyan-400">{formatNumber(ev.spectators_current)}</span>
-                </div>
-                <div className="flex items-center gap-0.5" data-testid={`spectators-total-${ev.film_id}`}>
-                  <Users className="w-2.5 h-2.5 text-purple-400" />
-                  <span className="text-[9px] font-bold text-purple-400">{formatNumber(ev.spectators_total)}</span>
-                </div>
-                <div className="flex items-center gap-0.5" data-testid={`hype-live-${ev.film_id}`}>
-                  <Flame className="w-2.5 h-2.5 text-orange-400" />
-                  <span className="text-[9px] font-bold text-orange-400">{ev.hype_live}</span>
-                </div>
+              <div className="flex items-center gap-1 mt-0.5">
+                <Eye className="w-2 h-2 text-cyan-400" />
+                <span className="text-[7px] font-bold text-cyan-400">{formatNumber(ev.spectators_current)}</span>
+                <Flame className="w-2 h-2 text-orange-400 ml-auto" />
+                <span className="text-[7px] font-bold text-orange-400">{ev.hype_live}</span>
               </div>
             </div>
           </div>

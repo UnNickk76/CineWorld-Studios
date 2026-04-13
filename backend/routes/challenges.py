@@ -16,6 +16,16 @@ import logging
 
 router = APIRouter()
 
+@router.get("/challenges/pending")
+async def get_pending_challenges(user: dict = Depends(get_current_user)):
+    """Get pending challenges for the current user."""
+    now = datetime.now(timezone.utc).isoformat()
+    challenges = await db.challenges.find(
+        {'opponent_id': user['id'], 'status': 'pending', 'expires_at': {'$gt': now}},
+        {'_id': 0}
+    ).to_list(10)
+    return {'challenges': challenges}
+
 # ==================== DAILY/WEEKLY CHALLENGES ====================
 
 # Challenges

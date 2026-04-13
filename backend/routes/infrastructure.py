@@ -1598,3 +1598,137 @@ async def get_infrastructure_influence(infra_id: str, user: dict = Depends(get_c
         'combined_active': active_films + active_series > 0,
         'combo_multiplier': 1.5 if (active_films + active_series) > 0 else 1.0,
     }
+
+
+# ═══════════════════════════════════════════════════════════════
+#  PARCO STUDIO 3D — Background AI Generation
+# ═══════════════════════════════════════════════════════════════
+
+INFRA_BG_PROMPTS = {
+    'cinema': 'cinematic movie theater interior, large screen glowing softly, empty red velvet seats, warm ambient lighting, realistic, no people, depth of field, background',
+    'drive_in': 'cinematic drive-in theater at dusk, large outdoor screen, empty parking lot, sunset sky, vintage american style, realistic, no people, depth of field',
+    'multiplex_small': 'small modern shopping mall cinema lobby, neon movie posters on walls, popcorn machine, warm lights, realistic, no people, depth of field',
+    'multiplex_medium': 'medium multiplex cinema complex interior, multiple screen entrances, elegant modern design, soft lighting, realistic, no people, depth of field',
+    'multiplex_large': 'massive IMAX cinema hall interior, giant curved screen, premium seating, dramatic blue lighting, realistic, no people, depth of field',
+    'vip_cinema': 'luxury VIP private cinema room, leather recliners, gold accent lighting, champagne bar, opulent design, cinematic, no people, depth of field',
+    'cinema_museum': 'elegant cinema museum interior, vintage film projectors display, old movie props in glass cases, warm museum lighting, cinematic, no people',
+    'film_festival_venue': 'grand film festival venue exterior at night, red carpet entrance, spotlights in sky, elegant architecture, cinematic, no people, depth of field',
+    'theme_park': 'cinematic theme park entrance at golden hour, movie-themed rides visible, palm trees, warm lighting, fantasy atmosphere, no people, depth of field',
+    'production_studio': 'large film production studio interior, professional cameras and lighting rigs, green screen, director chairs, cinematic, no people, depth of field',
+    'studio_serie_tv': 'television series production set, multiple camera setup, living room stage set, warm studio lights, cinematic, no people, depth of field',
+    'studio_anime': 'anime production studio interior, drawing tablets and screens showing storyboards, colorful posters on walls, soft lighting, cinematic, no people',
+    'emittente_tv': 'modern TV broadcasting control room, multiple screens showing channels, mixing console, blue ambient glow, cinematic, no people, depth of field',
+    'cinema_school': 'acting school rehearsal room, wooden stage, theater curtains, dramatic spotlights, vintage feeling, cinematic, no people, depth of field',
+    'talent_scout_actors': 'talent agency office, elegant desk with headshots and contracts, city view through window, warm lamp lighting, cinematic, no people',
+    'talent_scout_screenwriters': 'screenplay writing office, typewriter on mahogany desk, stacked scripts, film noir atmosphere, moody lamp light, cinematic, no people',
+    'pvp_operative': 'cinematic dark operations room, tactical screens on wall, dim red alert lighting, military style command center, no people, depth of field',
+    'pvp_investigative': 'noir detective investigation room, cork board with photos and strings, single desk lamp, venetian blinds shadows, cinematic, no people',
+    'pvp_legal': 'elegant law office interior, dark wood bookshelves with legal volumes, brass lamp on desk, serious atmosphere, cinematic, no people',
+}
+
+INFRA_BG_NAMES = {
+    'cinema': 'Cinema', 'drive_in': 'Drive-In', 'multiplex_small': 'Multiplex S',
+    'multiplex_medium': 'Multiplex M', 'multiplex_large': 'Multiplex IMAX', 'vip_cinema': 'VIP Cinema',
+    'cinema_museum': 'Museo Cinema', 'film_festival_venue': 'Festival Venue', 'theme_park': 'Parco Tematico',
+    'production_studio': 'Studio Produzione', 'studio_serie_tv': 'Studio Serie TV', 'studio_anime': 'Studio Anime',
+    'emittente_tv': 'Emittente TV', 'cinema_school': 'Scuola Recitazione',
+    'talent_scout_actors': 'Scout Attori', 'talent_scout_screenwriters': 'Scout Sceneggiatori',
+    'pvp_operative': 'Div. Operativa', 'pvp_investigative': 'Div. Investigativa', 'pvp_legal': 'Div. Legale',
+}
+
+
+class GenerateBackgroundRequest(BaseModel):
+    infra_type: str
+
+
+@router.get("/infrastructure/parco-studio/backgrounds")
+async def get_parco_studio_backgrounds(user: dict = Depends(get_current_user)):
+    """Get all generated backgrounds for the user's Parco Studio."""
+    bg_doc = await db.parco_studio_backgrounds.find_one({'user_id': user['id']}, {'_id': 0})
+    backgrounds = bg_doc.get('backgrounds', {}) if bg_doc else {}
+    base_map_url = bg_doc.get('base_map_url') if bg_doc else None
+
+    # Get owned infrastructure types
+    owned = await db.infrastructure.find({'owner_id': user['id']}, {'_id': 0, 'type': 1, 'id': 1, 'name': 1}).to_list(100)
+    owned_types = set()
+    owned_map = {}
+    for o in owned:
+        owned_types.add(o['type'])
+        if o['type'] not in owned_map:
+            owned_map[o['type']] = o
+
+    result = {}
+    for infra_type in INFRA_BG_PROMPTS:
+        result[infra_type] = {
+            'name': INFRA_BG_NAMES.get(infra_type, infra_type),
+            'image_url': backgrounds.get(infra_type, {}).get('image_url'),
+            'owned': infra_type in owned_types,
+            'infra_id': owned_map.get(infra_type, {}).get('id'),
+        }
+
+    return {'backgrounds': result, 'base_map_url': base_map_url}
+
+
+@router.post("/infrastructure/parco-studio/generate-base-map")
+async def generate_parco_studio_base_map(user: dict = Depends(get_current_user)):
+    """Base map is now static for all users."""
+    return {'image_url': '/parco-studio-map.png', 'cached': True}
+
+
+@router.post("/infrastructure/parco-studio/generate-background")
+async def generate_parco_studio_background(req: GenerateBackgroundRequest, user: dict = Depends(get_current_user)):
+    """Generate AI background for a specific infrastructure type."""
+    if req.infra_type not in INFRA_BG_PROMPTS:
+        raise HTTPException(400, f"Tipo infrastruttura non valido: {req.infra_type}")
+
+    # Check if already generated
+    bg_doc = await db.parco_studio_backgrounds.find_one({'user_id': user['id']}, {'_id': 0})
+    if bg_doc and bg_doc.get('backgrounds', {}).get(req.infra_type, {}).get('image_url'):
+        return {'image_url': bg_doc['backgrounds'][req.infra_type]['image_url'], 'cached': True}
+
+    # Generate with AI
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(500, "LLM key non configurata")
+
+        image_gen = OpenAIImageGeneration(api_key=api_key)
+        prompt = INFRA_BG_PROMPTS[req.infra_type]
+        images = await image_gen.generate_images(prompt=prompt, model='gpt-image-1', number_of_images=1)
+
+        if not images or len(images) == 0:
+            raise HTTPException(500, "Generazione immagine fallita")
+
+        # Save to file
+        filename = f"{user['id']}_{req.infra_type}.png"
+        filepath = f"/app/backend/assets/backgrounds/{filename}"
+        with open(filepath, 'wb') as f:
+            f.write(images[0])
+
+        image_url = f"/api/backgrounds/{filename}"
+
+        # Save URL in DB
+        await db.parco_studio_backgrounds.update_one(
+            {'user_id': user['id']},
+            {'$set': {
+                f'backgrounds.{req.infra_type}': {
+                    'image_url': image_url,
+                    'generated_at': datetime.now(timezone.utc).isoformat(),
+                },
+                'updated_at': datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True
+        )
+
+        return {'image_url': image_url, 'cached': False}
+
+    except ImportError:
+        raise HTTPException(500, "Libreria AI non disponibile")
+    except Exception as e:
+        logging.error(f"[PARCO-STUDIO] Error generating background: {e}")
+        raise HTTPException(500, f"Errore generazione: {str(e)}")

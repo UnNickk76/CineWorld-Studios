@@ -6,9 +6,214 @@ import { toast } from 'sonner';
 import {
   Film, Star, Flame, Users, DollarSign, Heart, ChevronRight, X, Play,
   Building, Sparkles, BookOpen, Clapperboard, Zap, Loader2,
-  Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye
+  Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye, Ticket
 } from 'lucide-react';
 import '../styles/content-template.css';
+
+// ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
+const TheaterInfoBar = ({ film }) => {
+  const { user, api } = useContext(AuthContext);
+  const [expanded, setExpanded] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState('');
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [tvStations, setTvStations] = useState([]);
+  const [selectedTv, setSelectedTv] = useState('');
+
+  const ts = film.theater_stats || {};
+  const isReleased = film.pipeline_state === 'released';
+  const isOutOfTheater = film.pipeline_state === 'out_of_theaters';
+  const isOwner = user?.id === film.user_id;
+  const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+
+  // Not relevant for films not in/out of theaters
+  if (!isReleased && !isOutOfTheater) return null;
+
+  const fetchStats = () => {
+    if (!api) return;
+    const token = localStorage.getItem('cineworld_token');
+    fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/theater-stats`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setStats(d?.theater_stats || d)).catch(() => {});
+  };
+
+  const fetchTvStations = () => {
+    if (!api) return;
+    const token = localStorage.getItem('cineworld_token');
+    fetch(`${BACKEND}/api/my-tv/stations`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setTvStations(Array.isArray(d) ? d : d?.stations || [])).catch(() => setTvStations([]));
+  };
+
+  const doWithdraw = async () => {
+    setConfirmAction(null); setLoading('withdraw');
+    try {
+      const token = localStorage.getItem('cineworld_token');
+      await fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/withdraw-theater`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } });
+      toast.success('Film ritirato dalle sale');
+      window.location.reload();
+    } catch (e) { toast.error('Errore'); }
+    setLoading('');
+  };
+
+  const doSendToTv = async () => {
+    setConfirmAction(null); setLoading('tv');
+    try {
+      const token = localStorage.getItem('cineworld_token');
+      // Send to TV (also withdraws from cinema)
+      await fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/send-to-tv`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ station_id: selectedTv }) });
+      if (isReleased) {
+        await fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/withdraw-theater`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } });
+      }
+      toast.success('Film inviato in TV!');
+      window.location.reload();
+    } catch (e) { toast.error('Errore'); }
+    setLoading('');
+  };
+
+  const doSendUpcoming = async () => {
+    setConfirmAction(null); setLoading('upcoming');
+    try {
+      const token = localStorage.getItem('cineworld_token');
+      await fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/send-to-tv`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ station_id: selectedTv, as_upcoming: true }) });
+      toast.success('Film aggiunto ai Prossimamente in TV!');
+      window.location.reload();
+    } catch (e) { toast.error('Errore'); }
+    setLoading('');
+  };
+
+  const perfColors = { great:'text-green-400', good:'text-emerald-400', ok:'text-yellow-400', declining:'text-orange-400', bad:'text-red-400', flop:'text-red-500' };
+  const perfLabels = { great:'Straordinario', good:'Ottimo', ok:'Discreto', declining:'In calo', bad:'Scarso', flop:'Flop' };
+  const fullStats = stats?.theater_stats || stats || ts;
+
+  return (
+    <>
+      <div className="mx-4 mb-1 rounded-lg border border-yellow-500/15 overflow-hidden" data-testid="ct-theater-bar">
+        <button onClick={() => { setExpanded(!expanded); if (!expanded && !stats) { fetchStats(); if (isOwner) fetchTvStations(); } }}
+          className="w-full flex items-center justify-between px-3 py-1.5 bg-yellow-500/5 hover:bg-yellow-500/10 transition-colors">
+          <div className="flex items-center gap-2">
+            <Ticket size={12} className="text-yellow-400" />
+            <span className="text-[9px] font-bold text-yellow-400">{isReleased ? 'IN SALA' : 'FUORI SALA'}</span>
+            <span className={`text-[8px] font-bold ${perfColors[ts.performance] || 'text-gray-500'}`}>{perfLabels[ts.performance] || ''}</span>
+          </div>
+          <div className="flex items-center gap-2 text-[8px]">
+            <span className="text-white font-bold">{ts.days_in_theater || 0}gg</span>
+            {isReleased && <span className="text-gray-400">{ts.days_remaining || '?'}gg rimasti</span>}
+            {(ts.days_extended || 0) > 0 && <span className="text-green-400">+{ts.days_extended}</span>}
+            {(ts.days_reduced || 0) > 0 && <span className="text-red-400">-{ts.days_reduced}</span>}
+            <span className="text-gray-600">{expanded ? '▲' : '▼'}</span>
+          </div>
+        </button>
+        {expanded && (
+          <div className="p-2.5 space-y-2 bg-black/30">
+            <div className="grid grid-cols-3 gap-1.5">
+              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+                <p className="text-[7px] text-gray-500">Cinema</p>
+                <p className="text-[11px] font-bold text-white">{fullStats.current_cinemas || 0}</p>
+              </div>
+              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+                <p className="text-[7px] text-gray-500">Spett. oggi</p>
+                <p className="text-[11px] font-bold text-cyan-400">{(fullStats.daily_spectators || 0).toLocaleString()}</p>
+              </div>
+              <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+                <p className="text-[7px] text-gray-500">Spett. totali</p>
+                <p className="text-[11px] font-bold text-yellow-400">{(fullStats.total_spectators || 0).toLocaleString()}</p>
+              </div>
+            </div>
+            {fullStats.daily_history?.length > 0 && (
+              <div>
+                <p className="text-[7px] text-gray-500 uppercase font-bold mb-1">Ultimi 3 giorni</p>
+                <div className="flex gap-1">
+                  {(fullStats.daily_history || []).slice(-3).map((d, i) => (
+                    <div key={i} className="flex-1 p-1 rounded bg-white/[0.02] border border-white/5 text-center">
+                      <p className="text-[7px] text-gray-600">G{d.day}</p>
+                      <p className={`text-[8px] font-bold ${d.trend === 'up' ? 'text-green-400' : d.trend === 'down' ? 'text-red-400' : 'text-gray-400'}`}>{d.trend === 'up' ? '▲' : d.trend === 'down' ? '▼' : '●'} {d.spectators?.toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex justify-between px-1 text-[8px]">
+              <span className="text-gray-500">Incassi sala</span>
+              <span className="font-bold text-green-400">${(fullStats.total_revenue || 0).toLocaleString()}</span>
+            </div>
+            {/* Owner action buttons */}
+            {isOwner && (
+              <div className="space-y-1.5 pt-1">
+                {/* TV station selector */}
+                {tvStations.length > 0 && (
+                  <select value={selectedTv} onChange={e => setSelectedTv(e.target.value)}
+                    className="w-full bg-gray-800 text-[9px] text-white border border-gray-700 rounded px-2 py-1.5">
+                    <option value="">Scegli emittente TV...</option>
+                    {tvStations.map(s => <option key={s.id || s.name} value={s.id || s.name}>{s.name || s.channel_name}</option>)}
+                  </select>
+                )}
+                <div className="flex gap-1.5">
+                  {isReleased && (
+                    <button onClick={() => setConfirmAction('withdraw')} disabled={!!loading}
+                      className="flex-1 text-[8px] py-1.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold disabled:opacity-40" data-testid="ct-withdraw-btn">
+                      {loading === 'withdraw' ? '...' : 'Ritira dal cinema'}
+                    </button>
+                  )}
+                  {selectedTv && (
+                    <>
+                      <button onClick={() => setConfirmAction('tv')} disabled={!!loading}
+                        className="flex-1 text-[8px] py-1.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold disabled:opacity-40" data-testid="ct-send-tv-btn">
+                        {loading === 'tv' ? '...' : 'Manda in TV'}
+                      </button>
+                      <button onClick={() => setConfirmAction('upcoming')} disabled={!!loading}
+                        className="flex-1 text-[8px] py-1.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-bold disabled:opacity-40" data-testid="ct-upcoming-tv-btn">
+                        {loading === 'upcoming' ? '...' : 'Prossimamente TV'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      {/* Confirm dialogs */}
+      {confirmAction === 'withdraw' && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center px-4" onClick={() => setConfirmAction(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#111113] rounded-2xl p-4 border border-red-500/20 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-bold text-white mb-1">Ritirare il film dalle sale?</p>
+            <p className="text-[10px] text-gray-400 mb-3">Il film uscirà immediatamente dal cinema.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmAction(null)} className="flex-1 text-[10px] py-2 rounded-lg bg-gray-800 text-gray-400">Annulla</button>
+              <button onClick={doWithdraw} className="flex-1 text-[10px] py-2 rounded-lg bg-red-600 text-white font-bold">Ritira</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmAction === 'tv' && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center px-4" onClick={() => setConfirmAction(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#111113] rounded-2xl p-4 border border-blue-500/20 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-bold text-white mb-1">Inviare in TV e ritirare dalle sale?</p>
+            <p className="text-[10px] text-gray-400 mb-3">Il film verrà messo in programmazione TV e ritirato dal cinema.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmAction(null)} className="flex-1 text-[10px] py-2 rounded-lg bg-gray-800 text-gray-400">Annulla</button>
+              <button onClick={doSendToTv} className="flex-1 text-[10px] py-2 rounded-lg bg-blue-600 text-white font-bold">Conferma</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmAction === 'upcoming' && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center px-4" onClick={() => setConfirmAction(null)}>
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#111113] rounded-2xl p-4 border border-purple-500/20 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-bold text-white mb-1">Aggiungere ai "Prossimamente in TV"?</p>
+            <p className="text-[10px] text-gray-400 mb-3">Il film comparirà tra i prossimamente nella tua emittente. Quando uscirà dalle sale andrà automaticamente in programmazione.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmAction(null)} className="flex-1 text-[10px] py-2 rounded-lg bg-gray-800 text-gray-400">Annulla</button>
+              <button onClick={doSendUpcoming} className="flex-1 text-[10px] py-2 rounded-lg bg-purple-600 text-white font-bold">Conferma</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -76,6 +281,19 @@ function generateReviews(quality, hype, contentType) {
 
 const toStr = (v) => typeof v === 'string' ? v : (v?.text || v?.content || '');
 
+// Clean markdown artifacts from screenplay/plot text
+const cleanText = (text) => {
+  if (!text) return '';
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold** → bold
+    .replace(/\*([^*]+)\*/g, '$1')        // *italic* → italic
+    .replace(/^#{1,3}\s+/gm, '')          // # headers
+    .replace(/^[-*]\s+/gm, '')            // bullet points
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [link](url) → link
+    .replace(/\n{3,}/g, '\n\n')           // multiple newlines
+    .trim();
+};
+
 // === DURATION FORMATTER ===
 function formatDuration(film, contentType) {
   if (contentType === 'series' || contentType === 'anime') {
@@ -86,24 +304,35 @@ function formatDuration(film, contentType) {
     return null;
   }
   const min = film?.duration_minutes;
-  if (!min) return null;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  if (min) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  }
+  // Fallback: estimate from duration_category
+  const cat = film?.duration_category;
+  const catLabels = { cortometraggio: '~30m', feature_breve: '~60m', standard: '~110m', extended: '~170m', kolossal: '~240m' };
+  if (cat && catLabels[cat]) return catLabels[cat];
+  return null;
 }
 
 // === CAST EXTRACTOR (top 4-5, sorted by fame then value) ===
-function extractCastInfo(cast) {
+function extractCastInfo(cast, film) {
   let director = null;
   let actors = [];
 
-  if (!cast) return { director: null, actors: [] };
+  // Director from film.director (old format) or cast.director (V2)
+  if (film?.director?.name) {
+    director = film.director.name;
+  }
+
+  if (!cast) return { director, actors: [] };
 
   if (Array.isArray(cast)) {
     actors = cast.filter(a => a && a.name);
   } else if (typeof cast === 'object') {
-    if (cast.director?.name) director = cast.director.name;
+    if (!director && cast.director?.name) director = cast.director.name;
     if (Array.isArray(cast.actors)) {
       actors = cast.actors.filter(a => a && a.name);
     }
@@ -225,16 +454,26 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
     setLoading(true);
     try {
       const endpoint = isSeries ? `/series/${filmId}` : `/films/${filmId}`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
       const [filmRes, vaRes] = await Promise.all([
-        api.get(endpoint),
-        isSeries ? Promise.resolve({ data: null }) : api.get(`/films/${filmId}/virtual-audience`).catch(() => ({ data: null })),
+        api.get(endpoint, { signal: controller.signal }),
+        isSeries ? Promise.resolve({ data: null }) : api.get(`/films/${filmId}/virtual-audience`, { signal: controller.signal }).catch(() => ({ data: null })),
       ]);
+      clearTimeout(timeout);
       const data = filmRes.data;
       if (data && !data.detail) {
         setFilm(data);
         setVirtualAudience(vaRes.data);
       }
-    } catch { /* silent */ }
+    } catch {
+      // Fallback: try getting just the basic film data
+      try {
+        const endpoint = isSeries ? `/series/${filmId}` : `/films/${filmId}`;
+        const res = await api.get(endpoint);
+        if (res.data && !res.data.detail) setFilm(res.data);
+      } catch { /* truly failed */ }
+    }
     finally { setLoading(false); }
   }, [api, filmId, isSeries]);
 
@@ -253,13 +492,13 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
   const statusInfo = getStatusInfo(film, contentType);
   const reviews = generateReviews(film.quality_score, film.popularity_score, contentType);
-  const castInfo = extractCastInfo(film.cast);
+  const castInfo = extractCastInfo(film.cast, film);
   const imdb = film.imdb_rating || (film.quality_score ? (film.quality_score / 10).toFixed(1) : null);
   const durationStr = formatDuration(film, contentType);
-  const shortPlot = film.short_plot || null;
+  const shortPlot = film.short_plot ? cleanText(film.short_plot) : null;
   const trendPos = film.trend_position;
   const trendDelta = film.trend_delta;
-  const screenplay = toStr(film.screenplay) || toStr(film.pre_screenplay) || toStr(film.description) || '';
+  const screenplay = cleanText(toStr(film.screenplay) || toStr(film.pre_screenplay) || toStr(film.description) || '');
   const perception = getPublicPerception(film);
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
@@ -274,9 +513,16 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       {/* 1. STATUS BAR */}
       <div className={`ct2-status-bar ${statusInfo.cls}`} data-testid="ct-status-bar">
         <span className="ct2-status-label">{statusInfo.label}</span>
+        {statusInfo.label === 'LaPrima!' && (
+          <div className="ct2-laprima-progress">
+            <div className="ct2-laprima-bar">
+              <div className="ct2-laprima-fill" style={{ width: `${Math.min(100, Math.max(5, (film.spectators_total || film.cumulative_attendance || 0) / Math.max(1, film.target_spectators || 5000) * 100))}%` }} />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 2. POSTER + SHORT PLOT */}
+      {/* 2. POSTER + INFO BOX */}
       <div className="ct2-top-block" data-testid="ct-top-block">
         <div className="ct2-poster" data-testid="ct-poster">
           {posterSrc(film.poster_url) ? (
@@ -286,7 +532,39 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           )}
         </div>
         <div className="ct2-short-plot" data-testid="ct-short-plot">
-          {shortPlot || 'Trama non disponibile'}
+          <div className="ct2-info-title">{film.title}</div>
+          {castInfo.director && (
+            <div className="ct2-info-director">Regia di: {castInfo.director}</div>
+          )}
+          {film.producer_nickname && (
+            <div className="ct2-info-director" style={{ cursor: 'pointer', opacity: 0.7 }}
+              onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
+              data-testid="ct-production-house">
+              {film.production_house_name || film.producer_nickname}
+            </div>
+          )}
+          {castInfo.actors.length > 0 && (
+            <div className="ct2-info-cast">
+              {isAnime ? 'Disegnatori' : 'Cast'}: {castInfo.actors.map(a => a.name).join(', ')}
+            </div>
+          )}
+          {shortPlot ? (
+            <div className="ct2-info-plot">{shortPlot}</div>
+          ) : screenplay ? (
+            <div className="ct2-info-plot">{(() => {
+              let text = screenplay;
+              text = text.replace(/^(Titolo|Logline|Genere|Sottogenere|Ambientazione|Tono|Cast|Regia|Sceneggiatura)[:\s].+$/gmi, '');
+              text = text.replace(/^(ATTO|ACT|SCENA|SCENE|INT\.|EXT\.)[:\s].*/gmi, '');
+              text = text.trim();
+              // If screenplay is already short (≤5 lines), use it as-is
+              const lines = text.split('\n').filter(l => l.trim());
+              if (lines.length <= 5) return text;
+              // Otherwise extract first narrative paragraphs
+              const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 30);
+              const plot = paragraphs.slice(0, 2).join(' ').trim();
+              return plot.substring(0, 400).trim() + (plot.length > 400 ? '...' : '');
+            })()}</div>
+          ) : null}
         </div>
       </div>
 
@@ -294,19 +572,16 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       <div className="ct2-title-row" data-testid="ct-title">
         <h1 className="ct2-title">{film.title}</h1>
       </div>
-
-      {/* 4. DIRECTOR + CAST */}
-      <div className="ct2-cast-row" data-testid="ct-cast-row">
-        {castInfo.director && (
-          <div className="ct2-director">Regia di: <strong>{castInfo.director}</strong></div>
-        )}
-        {castInfo.actors.length > 0 && (
-          <div className="ct2-cast-names" onClick={() => setShowCast(true)} data-testid="ct-cast-btn">
-            Cast: {castInfo.actors.map(a => a.name).join(', ')}
-            <ChevronRight size={14} className="ct2-cast-chevron" />
-          </div>
-        )}
-      </div>
+      {/* Production House — clickable */}
+      {(film.production_house_name || film.producer_nickname) && (
+        <div className="px-4 -mt-1 mb-1">
+          <button className="text-[10px] text-amber-400/70 italic hover:text-amber-300 transition-colors"
+            onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
+            data-testid="ct-production-house-title">
+            una produzione <span className="font-bold not-italic">{film.production_house_name || film.producer_nickname}</span>
+          </button>
+        </div>
+      )}
 
       {/* 5. DATA BAR (fuschia) */}
       <div className="ct2-data-bar" data-testid="ct-data-bar">
@@ -320,7 +595,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </>
         )}
         <Clock size={13} />
-        <span className="ct2-data-duration">{durationStr || 'Durata non disponibile'}</span>
+        <span className="ct2-data-duration">{durationStr || ''}</span>
         {trendPos && (
           <>
             <span className="ct2-data-sep">|</span>
@@ -337,6 +612,14 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </>
         )}
       </div>
+
+      {/* 5b. THEATER INFO BAR + Prossimamente in TV badge */}
+      <TheaterInfoBar film={film} />
+      {film.in_tv_programming && (
+        <div className="mx-4 mb-1 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center">
+          <span className="text-[9px] font-bold text-blue-400">PROSSIMAMENTE IN TV</span>
+        </div>
+      )}
 
       {/* 6. JOURNALIST REVIEWS (green boxes) */}
       <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>

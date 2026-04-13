@@ -2054,3 +2054,86 @@ async def update_trend_scores():
 
     except Exception as e:
         logger.error(f"[TREND] Error updating trend scores: {e}")
+
+
+async def evolve_city_tastes():
+    """Evolve city taste preferences. Runs every 6 hours, only evolves cities whose timer expired."""
+    try:
+        import city_tastes as ct
+        evolved = await ct.maybe_evolve_cities(db)
+        if evolved:
+            logger.info(f"[CITY_TASTES] Evolved {evolved} cities")
+    except Exception as e:
+        logger.error(f"[CITY_TASTES] Error: {e}")
+
+async def seed_city_tastes_if_needed():
+    """Seed city tastes on first startup."""
+    try:
+        import city_tastes as ct
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        count = await ct.seed_cities(_db)
+        logger.info(f"[CITY_TASTES] Cities in DB: {count}")
+    except Exception as e:
+        logger.error(f"[CITY_TASTES] Seed error: {e}")
+
+async def check_theater_life():
+    """Check all films in theaters — process daily stats, extensions, exits."""
+    try:
+        import theater_life
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        await theater_life.check_all_theaters(_db)
+    except Exception as e:
+        logger.error(f"[THEATER] Error: {e}")
+
+async def migrate_theater_films():
+    """One-time migration for old released films without theater_end_date."""
+    try:
+        import theater_life
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        await theater_life.migrate_old_released_films(_db)
+    except Exception as e:
+        logger.error(f"[THEATER] Migration error: {e}")
+
+async def expire_old_challenges():
+    """Expire challenges that weren't responded to within 5 minutes."""
+    try:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        result = await _db.challenges.update_many(
+            {'status': 'pending', 'expires_at': {'$lt': now}},
+            {'$set': {'status': 'expired'}}
+        )
+        if result.modified_count:
+            logger.info(f"[CHALLENGES] Expired {result.modified_count} old challenges")
+    except Exception as e:
+        logger.error(f"[CHALLENGES] Expire error: {e}")
+
+
+async def process_ri_cinema():
+    """Check auto Ri-Cinema events and process active ones."""
+    try:
+        import ri_cinema as rc
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        await rc.check_auto_events(_db)
+        await rc.process_active_events(_db)
+    except Exception as e:
+        logger.error(f"[RI-CINEMA] Error: {e}")
+
+    except Exception as e:
+        logger.error(f"[THEATER] Migration error: {e}")
+
+        count = await ct.seed_cities(_db)
+        logger.info(f"[CITY_TASTES] Cities in DB: {count}")
+    except Exception as e:
+        logger.error(f"[CITY_TASTES] Seed error: {e}")

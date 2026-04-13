@@ -8,7 +8,7 @@ import {
   Film, Home, Users, MessageSquare, BarChart3, User, LogOut, Plus, Heart, 
   Globe, Calendar, DollarSign, Star, Clapperboard, Camera, MapPin, Sparkles,
   Send, Image, ChevronRight, ChevronDown, ChevronLeft, Menu, X, Settings, 
-  Gamepad2, Trophy, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Trash2,
+  Gamepad2, Trophy, RefreshCw, AlertTriangle, TrendingUp, TrendingDown, Trash2, Coins,
   Check, XCircle, Newspaper, MessageCircle, Building, Building2, GraduationCap,
   Award, Crown, Landmark, Car, ShoppingBag, Ticket, Popcorn, ChevronUp, Lock,
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff, Play,
@@ -28,6 +28,7 @@ import { ScrollArea } from './components/ui/scroll-area';
 import { Slider } from './components/ui/slider';
 import { Textarea } from './components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from './components/ui/dialog';
+import './styles/film-strip-menu.css';
 import { Label } from './components/ui/label';
 import { Calendar as CalendarComponent } from './components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './components/ui/popover';
@@ -77,6 +78,7 @@ const FilmPipeline = React.lazy(() => import('./pages/FilmPipeline'));
 const PipelineV2 = React.lazy(() => import('./pages/PipelineV2'));
 const FriendsPage = React.lazy(() => import('./pages/FriendsPage'));
 const InfrastructurePage = React.lazy(() => import('./pages/InfrastructurePage'));
+const ParcoStudioPage = React.lazy(() => import('./pages/ParcoStudioPage'));
 const ActingSchool = React.lazy(() => import('./pages/ActingSchool'));
 const LeaderboardPage = React.lazy(() => import('./pages/LeaderboardPage'));
 const MajorPage = React.lazy(() => import('./pages/MajorPage'));
@@ -394,6 +396,428 @@ const GuestRegisterBadge = ({ onRegister }) => {
   );
 };
 
+// ═══════════════════════════════════════════════════════════════
+//  MOBILE BOTTOM NAV — 11 items + Comandi Rapidi
+// ═══════════════════════════════════════════════════════════════
+const MobileBottomNav = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { setIsOpen: setShowProductionMenu } = useProductionMenu();
+  const [showQuickCommands, setShowQuickCommands] = useState(false);
+  const [showIMiei, setShowIMiei] = useState(false);
+
+  const items = [
+    { path: '/dashboard', icon: Home, label: 'Home', testid: 'bn-home' },
+    { path: null, icon: Film, label: 'I Miei', testid: 'bn-films', action: () => { setShowIMiei(!showIMiei); setShowQuickCommands(false); }, imiei: true },
+    { path: '/social', icon: Globe, label: 'CineBoard', testid: 'bn-cineboard' },
+    { path: '/leaderboard', icon: BarChart3, label: 'Classifiche', testid: 'bn-classifiche' },
+    { path: '/festivals', icon: Medal, label: 'Festival', testid: 'bn-festival' },
+    { path: null, icon: Heart, label: 'Dona', testid: 'bn-dona', action: () => window.open('https://www.paypal.me/UnNickk', '_blank'), donate: true },
+    { path: '/journal', icon: Newspaper, label: 'CineJournal', testid: 'bn-journal' },
+    { path: '/marketplace', icon: Store, label: 'Mercato', testid: 'bn-mercato' },
+    { path: '/minigiochi', icon: Gamepad2, label: 'Minigiochi', testid: 'bn-minigiochi' },
+    { path: '/event-history', icon: Sparkles, label: 'Eventi', testid: 'bn-eventi' },
+    { path: null, icon: Zap, label: 'Rapidi', testid: 'bn-rapidi', action: () => setShowQuickCommands(!showQuickCommands), quick: true },
+  ];
+
+  const quickCommands = [
+    { icon: Pen, label: 'Sceneggiature', path: '/emerging-screenplays' },
+    { icon: Tv, label: 'Le mie TV', path: '/my-tv' },
+    { icon: Building, label: 'Infrastrutture', path: '/infrastructure' },
+    { icon: Target, label: 'Arena', path: '/pvp-arena' },
+    { icon: Coins, label: 'Contest', path: '/games' },
+    { icon: BookOpen, label: 'Saghe', path: '/sagas' },
+    { icon: Star, label: 'Stelle', path: '/stars' },
+    { icon: User, label: 'Profilo', path: '/profile' },
+  ];
+
+  return (
+    <>
+      {/* I Miei Popup — Film / Serie TV / Anime */}
+      <AnimatePresence>
+        {showIMiei && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 z-[55] sm:hidden" onClick={() => setShowIMiei(false)} />
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 400 }}
+              className="fixed bottom-[52px] left-1 z-[56] sm:hidden w-36" data-testid="imiei-panel"
+            >
+              <div className="bg-[#111113] border border-white/10 rounded-xl overflow-hidden shadow-2xl">
+                <p className="text-[9px] text-yellow-500/60 uppercase tracking-widest font-semibold px-3 pt-2 pb-1">I Miei Contenuti</p>
+                {[
+                  { icon: Film, label: 'Film', path: '/films' },
+                  { icon: Tv, label: 'Serie TV', path: '/sagas?type=tv_series' },
+                  { icon: Sparkles, label: 'Anime', path: '/sagas?type=anime' },
+                ].map(c => (
+                  <button key={c.path}
+                    className={`w-full flex items-center gap-2.5 py-2.5 px-3 text-[11px] transition-all ${location.pathname === c.path ? 'bg-yellow-500/15 text-yellow-400' : 'text-gray-300 hover:bg-white/5'}`}
+                    onClick={() => { navigate(c.path); setShowIMiei(false); }}
+                    data-testid={`imiei-${c.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <c.icon className="w-4 h-4 text-yellow-500/70" />
+                    <span>{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Quick Commands Popup */}
+      <AnimatePresence>
+        {showQuickCommands && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 z-[55] sm:hidden" onClick={() => setShowQuickCommands(false)} />
+            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 400 }}
+              className="fixed bottom-[52px] left-1 right-1 z-[56] sm:hidden" data-testid="quick-commands-panel"
+            >
+              <div className="bg-[#111113] border border-white/10 rounded-xl p-2 shadow-2xl">
+                <p className="text-[9px] text-yellow-500/60 uppercase tracking-widest font-semibold px-2 mb-1.5">Comandi Rapidi</p>
+                <div className="grid grid-cols-4 gap-1">
+                  {quickCommands.map(c => (
+                    <button key={c.path}
+                      className={`flex flex-col items-center gap-0.5 py-2 rounded-lg transition-all ${location.pathname === c.path ? 'bg-yellow-500/15 text-yellow-400' : 'text-gray-400 hover:bg-white/5'}`}
+                      onClick={() => { navigate(c.path); setShowQuickCommands(false); }}
+                      data-testid={`qc-${c.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <c.icon className="w-4 h-4" />
+                      <span className="text-[7px] leading-tight">{c.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Bottom Nav Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 sm:hidden sidemenu-translate"
+        style={{ height: 'calc(3.2rem + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        data-testid="mobile-bottom-nav"
+      >
+        <div className="flex items-center justify-between h-full px-0.5">
+          {items.map(item => {
+            const isActive = item.path && location.pathname === item.path;
+            return (
+              <button key={item.testid}
+                className={`flex flex-col items-center justify-center gap-0 flex-1 min-w-0 py-0.5 rounded transition-colors ${
+                  item.donate ? 'text-pink-400 animate-pulse' :
+                  item.highlight ? 'text-yellow-400' :
+                  item.quick ? (showQuickCommands ? 'text-yellow-400' : 'text-orange-400/70') :
+                  item.imiei ? (showIMiei ? 'text-yellow-400' : (isActive ? 'text-yellow-400' : 'text-gray-500')) :
+                  isActive ? 'text-yellow-400' : 'text-gray-500'
+                }`}
+                style={item.donate ? { animationDuration: '2s' } : {}}
+                onClick={() => item.action ? item.action() : navigate(item.path)}
+                data-testid={item.testid}
+              >
+                <item.icon className="w-3.5 h-3.5" />
+                <span className="text-[6.5px] leading-tight mt-0.5 truncate w-full text-center">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  GLOBAL SIDE MENU — Works on all pages
+// ═══════════════════════════════════════════════════════════════
+const GlobalSideMenu = () => {
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const { api, user } = useContext(AuthContext);
+  const { setIsOpen: openProductionMenu } = useProductionMenu();
+  const [categories, setCategories] = useState({ has_strutture: false, has_agenzia: false, has_strategico: false });
+  const [menuBadges, setMenuBadges] = useState({ produci: 0, contest: false });
+
+  useEffect(() => {
+    if (open && api) {
+      api.get('/infrastructure/owned-categories').then(r => setCategories(r.data)).catch(() => {});
+    }
+  }, [open, api]);
+
+  // Load badge counts on mount + when menu opens
+  useEffect(() => {
+    if (!api) return;
+    const loadBadges = () => {
+      api.get('/pipeline-v2/production-counts').then(r => setMenuBadges(prev => ({ ...prev, produci: r.data?.total || 0 }))).catch(() => {});
+      api.get('/games/active-contests').then(r => {
+        const contests = Array.isArray(r.data) ? r.data : (r.data?.contests || []);
+        setMenuBadges(prev => ({ ...prev, contest: contests.length > 0 }));
+      }).catch(() => {});
+    };
+    loadBadges();
+    if (open) loadBadges();
+  }, [open, api]);
+
+  // Listen for global toggle
+  useEffect(() => {
+    const toggle = () => setOpen(p => { const next = !p; if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} return next; });
+    const openEv = () => { setOpen(true); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} };
+    const closeEv = () => { setOpen(false); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(10); } catch {} };
+    window.addEventListener('global-sidemenu-toggle', toggle);
+    window.addEventListener('global-sidemenu-open', openEv);
+    window.addEventListener('global-sidemenu-close', closeEv);
+    // Legacy compat
+    window.addEventListener('dashboard-toggle-menu', toggle);
+    return () => {
+      window.removeEventListener('global-sidemenu-toggle', toggle);
+      window.removeEventListener('global-sidemenu-open', openEv);
+      window.removeEventListener('global-sidemenu-close', closeEv);
+      window.removeEventListener('dashboard-toggle-menu', toggle);
+      delete document.body.dataset.sidemenu;
+    };
+  }, []);
+
+  // Expose badge state for CIACK indicator + push body attribute
+  useEffect(() => {
+    window.__sideMenuOpen = open;
+    window.__menuHasBadge = menuBadges.produci > 0 || menuBadges.contest;
+    window.dispatchEvent(new Event('menu-badge-update'));
+    // Toggle body data attribute for CSS push
+    if (open) {
+      document.body.dataset.sidemenu = 'open';
+    } else {
+      delete document.body.dataset.sidemenu;
+      // Reset horizontal scroll when menu closes
+      if (window.scrollX > 0) window.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+  }, [open, menuBadges]);
+
+  const go = (path) => { setOpen(false); navigate(path); };
+  const goProduci = () => { setOpen(false); openProductionMenu(true); };
+
+  const menuItems = [
+    { icon: Camera, label: "Produci", action: goProduci, badge: menuBadges.produci > 0 },
+    { icon: Pen, label: "Sceneggiature", action: () => go('/emerging-screenplays') },
+    { icon: Store, label: "Mercato", action: () => go('/marketplace') },
+    { icon: Tv, label: "Le mie TV", action: () => go('/my-tv') },
+    { icon: Building, label: "Infrastrutture", action: () => go('/infrastructure') },
+    ...(categories.has_strutture ? [{ icon: Building2, label: "Strutture", action: () => go('/strutture') }] : []),
+    ...(categories.has_agenzia ? [{ icon: Users, label: "Agenzia", action: () => go('/agenzia') }] : []),
+    ...(categories.has_strategico ? [{ icon: Shield, label: "Strategico", action: () => go('/strategico') }] : []),
+    { icon: Gamepad2, label: "Minigiochi", action: () => go('/minigiochi') },
+    { icon: Coins, label: "Contest", action: () => go('/games'), badge: menuBadges.contest },
+    { icon: Target, label: "Arena", action: () => go('/pvp-arena') },
+    { icon: Award, label: "Festival", action: () => go('/festivals') },
+  ];
+
+  return (
+    <>
+      <div
+        className={`fixed top-0 left-0 h-full w-[24%] min-w-[82px] max-w-[110px] z-[48] transform transition-transform duration-300 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        data-testid="global-side-menu"
+        style={{ background: '#050505', overflow: 'hidden', touchAction: 'pan-y' }}
+      >
+        {/* LAYER 1: Animated film strip background */}
+        <div className="film-strip-bg" aria-hidden="true" />
+        {/* LAYER 2: Sprocket holes — z-5, always on top */}
+        <div className="film-perfs film-perfs-left" aria-hidden="true" />
+        <div className="film-perfs film-perfs-right" aria-hidden="true" />
+
+        {/* LAYER 3: Central content area — margin 16px from edges */}
+        <div className="film-content-area flex flex-col h-full" style={{ paddingTop: '48px' }}>
+
+          {/* TOP FIXED: Funds + CinePass + Admin */}
+          <div className="flex-shrink-0 pb-1 space-y-1">
+            <div className="flex gap-0.5">
+              <div className="flex-1 flex items-center justify-center gap-0.5 py-1 rounded border border-yellow-500/25 bg-yellow-500/8" data-testid="menu-funds">
+                <DollarSign className="w-2.5 h-2.5 text-yellow-500" />
+                <span className="text-yellow-500 font-bold text-[8px]">
+                  {user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
+                </span>
+              </div>
+              <div className="flex-1 flex items-center justify-center gap-0.5 py-1 rounded border border-cyan-500/25 bg-cyan-500/8" data-testid="menu-cinepass">
+                <Ticket className="w-2.5 h-2.5 text-cyan-400" />
+                <span className="text-cyan-400 font-bold text-[8px]">{user?.cinepass ?? 100}</span>
+              </div>
+            </div>
+            {(user?.nickname === 'NeoMorpheus' || user?.role === 'CO_ADMIN') && (
+              <button onClick={() => { setOpen(false); navigate('/admin'); }}
+                className="w-full flex items-center justify-center gap-1 py-1.5 rounded bg-red-600/80 hover:bg-red-600 text-white text-[9px] font-bold transition-colors"
+                data-testid="menu-admin-panel">
+                <Settings className="w-3 h-3" />
+                <span>ADMIN</span>
+              </button>
+            )}
+          </div>
+
+          {/* MIDDLE: Scrollable frames */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'none' }}>
+            {menuItems.map(item => (
+              <button key={item.label} className="film-frame-btn relative" onClick={item.action}
+                data-testid={`global-menu-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                <item.icon className="mb-0.5 text-yellow-500/80 mx-auto" style={{ width: 16, height: 16 }} />
+                <span className="text-[8.5px] text-center leading-tight text-gray-300/80 block w-full">{item.label}</span>
+                {item.badge && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
+              </button>
+            ))}
+            {/* Titoli di Coda */}
+            <button onClick={() => { setOpen(false); window.dispatchEvent(new Event('open-titoli-di-coda')); }}
+              className="film-frame-btn" data-testid="menu-titoli-di-coda">
+              <Menu className="w-3.5 h-3.5 mb-0.5 text-gray-400 mx-auto" />
+              <span className="text-[8px] text-center leading-tight text-gray-400 block w-full">Titoli di Coda</span>
+            </button>
+          </div>
+
+          {/* BOTTOM FIXED: Banner donazioni + Esci */}
+          <div className="flex-shrink-0" style={{ paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
+            {/* Banner donazioni arancione */}
+            <div className="mx-1 mb-1 px-2 py-1.5 rounded bg-gradient-to-r from-orange-600/30 to-amber-600/20 border border-orange-500/25 cursor-pointer"
+              onClick={() => { setOpen(false); window.open('https://www.paypal.me/UnNickk', '_blank'); }}
+              data-testid="menu-donate-banner">
+              <p className="text-[8px] font-bold text-orange-300 text-center leading-tight">Sostieni CineWorld</p>
+              <p className="text-[6px] text-orange-400/60 text-center">Il tuo supporto conta!</p>
+            </div>
+            {/* Esci */}
+            <button onClick={() => { setOpen(false); window.dispatchEvent(new Event('confirm-logout')); }}
+              className="film-exit-btn" data-testid="menu-esci">
+              <LogOut className="w-3 h-3" />
+              <span>Esci</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  SWIPE — Solo dashboard: destra apre menu, sinistra chiude
+// ═══════════════════════════════════════════════════════════════
+
+const SwipeNavigator = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    let startX = 0, startY = 0, startTarget = null;
+
+    const isScrollable = (el) => {
+      let n = el;
+      while (n && n !== document.body) {
+        if (n.scrollWidth > n.clientWidth + 2) {
+          const s = window.getComputedStyle(n);
+          if (s.overflowX === 'auto' || s.overflowX === 'scroll') return true;
+        }
+        n = n.parentElement;
+      }
+      return false;
+    };
+
+    const onStart = (e) => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; startTarget = e.target; };
+    const onEnd = (e) => {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+      if (isScrollable(startTarget)) return;
+
+      const menuOpen = !!window.__sideMenuOpen;
+      if (menuOpen && dx < 0) { window.dispatchEvent(new Event('global-sidemenu-close')); return; }
+      if (!menuOpen && location.pathname === '/dashboard' && dx > 0) { window.dispatchEvent(new Event('global-sidemenu-open')); }
+    };
+
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchend', onEnd, { passive: true });
+    return () => { document.removeEventListener('touchstart', onStart); document.removeEventListener('touchend', onEnd); };
+  }, [location.pathname]);
+
+  return null;
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  TITOLI DI CODA — Full navigation grid (replaces hamburger)
+// ═══════════════════════════════════════════════════════════════
+const TitoliDiCoda = ({ open, setOpen, navItems, user, navigate, logout, language, t, levelInfo, setShowGameTutorial }) => {
+  // Listen for open event from side menu
+  useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener('open-titoli-di-coda', handler);
+    return () => window.removeEventListener('open-titoli-di-coda', handler);
+  }, [setOpen]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center" data-testid="titoli-di-coda">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
+      <div className="relative w-full max-w-md bg-[#0F0F10] border-t border-white/10 rounded-t-2xl max-h-[85vh] overflow-hidden flex flex-col" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        {/* Header - FIXED */}
+        <div className="flex-shrink-0 bg-[#0F0F10]/95 backdrop-blur-md z-10 flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <Clapperboard className="w-5 h-5 text-yellow-500" />
+            <span className="font-['Bebas_Neue'] text-base tracking-widest text-gray-300">Titoli di Coda</span>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400" onClick={() => setOpen(false)}>
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* SCROLLABLE content */}
+        <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+          {/* User info */}
+          <div className="px-4 py-3 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                <User className="w-4 h-4 text-yellow-500" />
+              </div>
+              <div>
+                <p className="text-white text-xs font-bold">{user?.nickname || 'Player'}</p>
+                {levelInfo && <p className="text-[9px] text-gray-400">Lv.{levelInfo.level} {levelInfo.title}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Navigation grid */}
+          <div className="p-3">
+            <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold mb-2 px-1">Navigazione</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              {navItems.filter(i => !i.locked).map(item => (
+                <button key={item.path}
+                  className="flex flex-col items-center gap-1 py-2.5 rounded-lg border border-white/5 text-gray-400 text-[8px] hover:bg-white/5 hover:text-white transition-all"
+                  onClick={() => { navigate(item.path); setOpen(false); }}
+                >
+                  <item.icon className="w-4 h-4" />
+                  <span className="truncate w-full text-center px-0.5">{typeof item.label === 'string' && item.label.length > 12 ? item.label.slice(0, 12) + '..' : item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="px-3 pb-3 space-y-1.5">
+            <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-gray-400 text-[10px] hover:bg-white/5 transition-colors"
+              onClick={() => { navigate('/profile'); setOpen(false); }}>
+              <User className="w-3.5 h-3.5" /> Profilo
+            </button>
+            <button className="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-gray-400 text-[10px] hover:bg-white/5 transition-colors"
+              onClick={() => { setShowGameTutorial(true); setOpen(false); }}>
+              <HelpCircle className="w-3.5 h-3.5" /> Tutorial
+            </button>
+          </div>
+        </div>
+
+        {/* Footer FIXED - Esci SOPRA banner donazioni */}
+        <div className="flex-shrink-0 px-3 pb-2 pt-1 border-t border-white/5 bg-[#0F0F10]">
+          <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-red-400 text-[10px] font-bold hover:bg-red-500/15 transition-colors border border-red-500/20"
+            onClick={() => { setOpen(false); window.dispatchEvent(new Event('confirm-logout')); }}
+            data-testid="titoli-esci">
+            <LogOut className="w-3.5 h-3.5" /> Esci dal gioco
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const TopNavbar = () => {
   const { user, logout, api } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
@@ -477,12 +901,21 @@ const TopNavbar = () => {
   const { isOpen: showProductionMenu, setIsOpen: setShowProductionMenu } = useProductionMenu();
   const [showCineboardMenu, setShowCineboardMenu] = useState(false);
   const [showFilmsMenu, setShowFilmsMenu] = useState(false);
+  const [prodCounts, setProdCounts] = useState({ total: 0, film: 0, series: 0, anime: 0 });
   const [loginReward, setLoginReward] = useState(null); // Login Coming Soon reward popup
   const [showGuestConvertModal, setShowGuestConvertModal] = useState(false);
   const [guestConvertForm, setGuestConvertForm] = useState({ email: '', password: '', nickname: '', production_house_name: '' });
   const [guestConverting, setGuestConverting] = useState(false);
 
   // Guest conversion timer - show modal after 20 minutes (only if tutorial completed)
+  // Fetch production counts for badge
+  useEffect(() => {
+    if (api && user) {
+      api.get('/pipeline-v2/production-counts').then(r => setProdCounts(r.data)).catch(() => {});
+      const iv = setInterval(() => { api.get('/pipeline-v2/production-counts').then(r => setProdCounts(r.data)).catch(() => {}); }, 60000);
+      return () => clearInterval(iv);
+    }
+  }, [api, user]);
   useEffect(() => {
     if (!user?.is_guest) return;
     if (!user?.tutorial_completed) return; // Don't show during tutorial
@@ -718,7 +1151,7 @@ const TopNavbar = () => {
     { path: '/stars', icon: Star, label: 'discovered_stars' },
     { path: '/festivals', icon: Award, label: 'festivals' },
     { path: '/social', icon: Globe, label: 'cineboard' },
-    { path: '/games', icon: Trophy, label: 'contests' },
+    { path: '/games', icon: Coins, label: 'contests' },
     { path: '/minigiochi', icon: Gamepad2, label: language === 'it' ? 'Minigiochi + Sfide' : 'Minigames + VS' },
     { path: '/leaderboard', icon: BarChart3, label: 'leaderboard' },
     { path: '/pvp-arena', icon: Target, label: 'Arena' },
@@ -739,1434 +1172,380 @@ const TopNavbar = () => {
 
   return (
     <nav className="fixed top-0 left-0 right-0 bg-[#0F0F10] border-b border-white/10 z-50 sidemenu-translate" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-      <div className="max-w-7xl mx-auto h-14 px-2 sm:px-3 flex items-center justify-between">
-        {/* Left section: Logo */}
-        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-          {/* Back Button - Always visible on non-Dashboard pages */}
-          {canGoBack && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="flex h-8 w-8 p-0 text-gray-400 hover:text-white"
-              onClick={() => navigate(-1)}
-              data-testid="back-btn"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-          )}
-          
-          <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => { if (location.pathname === '/dashboard') { window.dispatchEvent(new Event('dashboard-toggle-menu')); } else { navigate('/dashboard'); } }} data-testid="logo">
-            <Clapperboard className="w-6 h-6 sm:w-7 sm:h-7 text-yellow-500" />
-            <span className="font-['Bebas_Neue'] text-base sm:text-lg tracking-wide hidden sm:block">CineWorld</span>
-          </div>
-        </div>
-
-        {/* Center: Desktop Navigation (limited items) - Hidden on mobile */}
-        <div className="hidden lg:flex items-center gap-0.5 flex-1 justify-center overflow-hidden">
-          {navItems.slice(0, 8).map(item => (
-            <Button
-              key={item.path}
-              variant={location.pathname === item.path ? "default" : "ghost"}
-              size="sm"
-              className={`gap-1 px-2 h-8 flex-shrink-0 ${location.pathname === item.path ? 'bg-yellow-500 text-black hover:bg-yellow-400' : 'text-gray-400 hover:text-white'}`}
-              onClick={() => navigate(item.path)}
-              data-testid={`nav-${item.label}`}
-            >
-              <item.icon className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline text-xs">{t(item.label)}</span>
-            </Button>
-          ))}
-        </div>
-
-        {/* Right section: Quick Icons + Mobile Menu */}
-        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
-          {/* Festival/TV Button - Only visible when a live festival is starting */}
-          {festivalNotifications.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 text-yellow-400 animate-pulse`}
-            onClick={() => navigate(`/festivals?live=${festivalNotifications[0].festival_id}`)}
-            data-testid="festival-tv-btn"
-            title={festivalNotifications[0].message || 'Festival Live'}
-          >
-            <Tv className="w-4 h-4" />
-            {festivalNotifications[0].type === 'starting' && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
-            )}
+      <div className="max-w-7xl mx-auto h-11 px-0.5 flex items-center justify-between">
+        {/* 8 icone principali: CIACK HOME PRODUCI ARENA LE MIE TV MAJOR CHAT NOTIFICHE */}
+        <div className="flex items-center gap-0 w-full justify-between">
+          {/* CIACK */}
+          <Button variant="ghost" size="sm" className="relative flex flex-col h-7 w-7 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
+            onClick={() => { window.dispatchEvent(new Event('global-sidemenu-toggle')); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
+            data-testid="ciack-btn" aria-label="Menu">
+            <Clapperboard className="w-4 h-4" />
+            <ChevronDown className="w-2 h-2 opacity-50 -mt-0.5 animate-bounce" style={{ animationDuration: '2s' }} />
+            {(prodCounts.total > 0) && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
           </Button>
-          )}
-          
-          {/* Major */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
-            onClick={() => navigate('/major')}
-            data-testid="major-btn"
-            title="Major"
-          >
-            <Crown className="w-4 h-4" />
+          {/* HOME */}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}`}
+            onClick={() => navigate('/dashboard')} data-testid="home-btn" aria-label="Home">
+            <Home className="w-3.5 h-3.5" />
           </Button>
-          
-          {/* CineBoard/Social - Popup Menu */}
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${showCineboardMenu || location.pathname === '/social' ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
-              onClick={() => setShowCineboardMenu(!showCineboardMenu)}
-              data-testid="cineboard-btn"
-              title="CineBoard"
-            >
-              <Trophy className="w-4 h-4" />
-            </Button>
-            <AnimatePresence>
-              {showCineboardMenu && (
-                <>
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[60]"
-                    onClick={() => setShowCineboardMenu(false)}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-                    className="fixed top-14 left-2 right-2 sm:absolute sm:top-full sm:left-auto sm:right-0 sm:w-48 mt-1 z-[61]"
-                    data-testid="cineboard-menu"
-                  >
-                    <div className="bg-[#111113] border border-white/10 rounded-xl p-2 shadow-2xl space-y-1">
-                      <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold px-2 mb-1">Classifiche</p>
-                      <button
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                          location.pathname === '/social' && !location.search ? 'bg-green-500/20 text-green-400' : 'text-gray-300 hover:bg-white/5'
-                        }`}
-                        onClick={() => { navigate('/social'); setShowCineboardMenu(false); }}
-                        data-testid="cineboard-menu-film"
-                      >
-                        <Film className="w-4 h-4 text-yellow-400" />
-                        <div className="text-left"><span className="block">Film</span><span className="text-[9px] opacity-50">Top 50, Giornaliera, Settimanale</span></div>
-                      </button>
-                      <button
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                          location.search?.includes('view=series') ? 'bg-blue-500/20 text-blue-400' : 'text-gray-300 hover:bg-white/5'
-                        }`}
-                        onClick={() => { navigate('/social?view=series'); setShowCineboardMenu(false); }}
-                        data-testid="cineboard-menu-series"
-                      >
-                        <Tv className="w-4 h-4 text-blue-400" />
-                        <div className="text-left"><span className="block">Serie TV</span><span className="text-[9px] opacity-50">Trend Settimanale</span></div>
-                      </button>
-                      <button
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                          location.search?.includes('view=anime') ? 'bg-orange-500/20 text-orange-400' : 'text-gray-300 hover:bg-white/5'
-                        }`}
-                        onClick={() => { navigate('/social?view=anime'); setShowCineboardMenu(false); }}
-                        data-testid="cineboard-menu-anime"
-                      >
-                        <Sparkles className="w-4 h-4 text-orange-400" />
-                        <div className="text-left"><span className="block">Anime</span><span className="text-[9px] opacity-50">Trend Settimanale</span></div>
-                      </button>
-                      <div className="border-t border-white/5 my-1" />
-                      <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold px-2 mb-1">Emittenti TV</p>
-                      <button
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                          location.search?.includes('view=tv-alltime') ? 'bg-red-500/20 text-red-400' : 'text-gray-300 hover:bg-white/5'
-                        }`}
-                        onClick={() => { navigate('/social?view=tv-alltime'); setShowCineboardMenu(false); }}
-                        data-testid="cineboard-menu-tv-alltime"
-                      >
-                        <Radio className="w-4 h-4 text-red-400" />
-                        <div className="text-left"><span className="block">Più Viste</span><span className="text-[9px] opacity-50">Di Sempre</span></div>
-                      </button>
-                      <button
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                          location.search?.includes('view=tv-weekly') ? 'bg-red-500/20 text-red-400' : 'text-gray-300 hover:bg-white/5'
-                        }`}
-                        onClick={() => { navigate('/social?view=tv-weekly'); setShowCineboardMenu(false); }}
-                        data-testid="cineboard-menu-tv-weekly"
-                      >
-                        <Radio className="w-4 h-4 text-red-400" />
-                        <div className="text-left"><span className="block">Share Settimanale</span><span className="text-[9px] opacity-50">Top Share</span></div>
-                      </button>
-                      <button
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                          location.search?.includes('view=tv-daily') ? 'bg-red-500/20 text-red-400' : 'text-gray-300 hover:bg-white/5'
-                        }`}
-                        onClick={() => { navigate('/social?view=tv-daily'); setShowCineboardMenu(false); }}
-                        data-testid="cineboard-menu-tv-daily"
-                      >
-                        <Radio className="w-4 h-4 text-red-400" />
-                        <div className="text-left"><span className="block">Share Giornaliero</span><span className="text-[9px] opacity-50">Live (ogni 5 min)</span></div>
-                      </button>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
-          
-          {/* Cinema Journal */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/journal' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
-            onClick={() => navigate('/journal')}
-            data-testid="journal-nav-btn"
-            title={language === 'it' ? 'Giornale del Cinema' : 'Cinema Journal'}
-          >
-            <Newspaper className="w-4 h-4" />
-          </Button>
-
-          {/* EVENTI */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/event-history' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
-            onClick={() => navigate('/event-history')}
-            data-testid="event-history-nav-btn"
-            title="Eventi"
-          >
-            <Sparkles className="w-4 h-4" />
-            {unreadEvents > 0 && (
-              <span
-                className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full px-1 leading-none animate-pulse"
-                data-testid="unread-events-badge"
-              >
-                {unreadEvents > 99 ? '99+' : unreadEvents}
+          {/* PRODUCI — gold, pulse when active */}
+          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 text-yellow-500 hover:text-yellow-400 ${prodCounts.total > 0 ? 'animate-pulse' : ''}`}
+            style={prodCounts.total > 0 ? { animationDuration: '2.5s' } : {}}
+            onClick={() => setShowProductionMenu(!showProductionMenu)} data-testid="top-nav-produci" aria-label="Produci">
+            <Camera className="w-3.5 h-3.5" />
+            {prodCounts.total > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[10px] h-2.5 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">
+                {prodCounts.total > 9 ? '9+' : prodCounts.total}
               </span>
             )}
           </Button>
-          
-          {/* Minigiochi - Always visible */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/minigiochi' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
-            onClick={() => navigate('/minigiochi')}
-            data-testid="challenges-nav-btn"
-            title="Minigiochi + Sfide"
-          >
-            <Gamepad2 className="w-4 h-4" />
+          {/* ARENA */}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
+            onClick={() => navigate('/pvp-arena')} data-testid="top-nav-arena" aria-label="Arena">
+            <Target className="w-3.5 h-3.5" />
           </Button>
-
-          
-          {/* Chat */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
-            onClick={() => navigate('/chat')}
-            data-testid="chat-nav-btn"
-            title="Chat"
-          >
-            <MessageSquare className="w-4 h-4" />
+          {/* LE MIE TV */}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/my-tv' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            onClick={() => navigate('/my-tv')} data-testid="top-nav-tv" aria-label="Le Mie TV">
+            <Tv className="w-3.5 h-3.5" />
           </Button>
-          
-          {/* Notifications - Always visible */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
-            onClick={() => navigate('/notifications')}
-            data-testid="notifications-btn"
-          >
-            <Bell className="w-4 h-4" />
+          {/* MAJOR */}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
+            onClick={() => navigate('/major')} data-testid="top-nav-major" aria-label="Major">
+            <Crown className="w-3.5 h-3.5" />
+          </Button>
+          {/* INFRA */}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/infrastructure' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            onClick={() => navigate('/infrastructure')} data-testid="top-nav-infra" aria-label="Infrastrutture">
+            <Building className="w-3.5 h-3.5" />
+          </Button>
+          {/* 3D PARCO STUDIO */}
+          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/parco-studio' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            onClick={() => navigate('/parco-studio')} data-testid="top-nav-parco3d" aria-label="Parco Studio 3D">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
+          </Button>
+          {/* CHAT */}
+          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
+            onClick={() => navigate('/chat')} data-testid="top-nav-chat" aria-label="Chat">
+            <MessageSquare className="w-3.5 h-3.5" />
+          </Button>
+          {/* NOTIFICHE */}
+          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+            onClick={() => navigate('/notifications')} data-testid="top-nav-notifiche" aria-label="Notifiche">
+            <Bell className="w-3.5 h-3.5" />
             {notificationCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
                 {notificationCount > 9 ? '9+' : notificationCount}
               </span>
             )}
           </Button>
-
-          {/* Tutorial - Colore evidenziato */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 text-lime-400/70 hover:text-lime-400`}
-            onClick={() => setShowGameTutorial(true)}
-            data-testid="tutorial-nav-btn"
-            title="Tutorial"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </Button>
-
-          {/* Funds - Compact */}
-          <div className="flex items-center gap-0.5 bg-yellow-500/10 px-1 sm:px-2 py-0.5 sm:py-1 rounded border border-yellow-500/20">
-            <DollarSign className="w-3 h-3 text-yellow-500" />
-            <span className="text-yellow-500 font-bold text-[9px] sm:text-xs" data-testid="user-funds">
-              ${user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
+          {/* Funds */}
+          <div className="flex items-center bg-yellow-500/10 px-0.5 py-0 rounded border border-yellow-500/20 flex-shrink-0">
+            <DollarSign className="w-2 h-2 text-yellow-500" />
+            <span className="text-yellow-500 font-bold text-[7px]" data-testid="user-funds">
+              {user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
             </span>
           </div>
-
           {/* CinePass */}
-          <div className="flex items-center gap-0.5 bg-cyan-500/10 px-1 sm:px-2 py-0.5 sm:py-1 rounded border border-cyan-500/20" data-testid="cinepass-badge">
-            <Ticket className="w-3 h-3 text-cyan-400" />
-            <span className="text-cyan-400 font-bold text-[9px] sm:text-xs" data-testid="cinepass-balance">
-              {user?.cinepass ?? 100}
-            </span>
+          <div className="flex items-center bg-cyan-500/10 px-0.5 py-0 rounded border border-cyan-500/20 flex-shrink-0">
+            <Ticket className="w-2 h-2 text-cyan-400" />
+            <span className="text-cyan-400 font-bold text-[7px]" data-testid="cinepass-balance">{user?.cinepass ?? 100}</span>
           </div>
-          
-          {/* Online Users */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`relative h-7 w-7 sm:h-8 sm:w-8 p-0 ${showOnlineUsersPanel ? 'text-green-400' : 'text-gray-400 hover:text-green-400'}`}
-            onClick={() => setShowOnlineUsersPanel(true)}
-            data-testid="online-users-btn"
-            title={language === 'it' ? 'Utenti Online' : 'Online Users'}
-          >
-            <Users className="w-4 h-4" />
-            {onlineUsersCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 px-0.5 bg-green-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
-                {onlineUsersCount > 9 ? '9+' : onlineUsersCount}
-              </span>
-            )}
-          </Button>
-          
-          {/* Level Badge - Hidden on mobile */}
-          {levelInfo && (
-            <div className="hidden lg:flex items-center gap-1.5 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20 cursor-pointer" onClick={() => navigate('/profile')}>
-              <Star className="w-3 h-3 text-purple-400" />
-              <span className="text-purple-400 font-bold text-xs">Lv.{levelInfo.level}</span>
-            </div>
-          )}
-
-          {/* Lingua: Solo italiano */}
-
-          {/* Profile Avatar - Hidden on mobile */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" className="hidden md:flex p-1 h-8 w-8" data-testid="profile-menu">
-                <Avatar className="w-7 h-7 border border-yellow-500/30">
-                  <AvatarImage src={user?.avatar_url} />
-                  <AvatarFallback className="bg-yellow-500/20 text-yellow-500 text-xs">
-                    {user?.nickname?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-48 bg-[#1A1A1A] border-white/10 p-2">
-              <div className="space-y-1">
-                <div className="border-b border-white/10 pb-2 mb-2">
-                  <p className="font-semibold text-sm">{user?.production_house_name || user?.nickname}</p>
-                  <p className="text-xs text-gray-400">{user?.nickname}</p>
-                  {levelInfo && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <Badge className="bg-purple-500/20 text-purple-400 text-[10px] h-4">Lv.{levelInfo.level}</Badge>
-                      <Badge className="bg-yellow-500/20 text-yellow-400 text-[10px] h-4">Fame {user?.fame?.toFixed(0) || 50}</Badge>
-                    </div>
-                  )}
-                </div>
-                <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8" onClick={() => navigate('/profile')} data-testid="profile-btn">
-                  <User className="w-3.5 h-3.5" /> {t('profile')}
-                </Button>
-                {user?.nickname === 'NeoMorpheus' && (
-                  <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10" onClick={() => navigate('/creator-board')} data-testid="creator-board-btn">
-                    <Mail className="w-3.5 h-3.5" /> Creator Board
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={logout} data-testid="logout-btn">
-                  <LogOut className="w-3.5 h-3.5" /> {t('logout')}
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          {/* HAMBURGER MENU - Visible on all screen sizes */}
-          <Button 
-            variant="ghost" 
-            className="flex items-center justify-center p-1 h-8 w-8 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10" 
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            data-testid="mobile-menu-btn"
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5 text-white" /> : <Menu className="w-5 h-5 text-white" />}
+          {/* Online Users — opens panel */}
+          <Button variant="ghost" size="sm" className="flex h-7 w-7 p-0 text-green-400/70 hover:text-green-400 flex-shrink-0"
+            onClick={() => setShowOnlineUsersPanel(!showOnlineUsersPanel)} data-testid="top-nav-online" aria-label="Utenti Online">
+            <Users className="w-3.5 h-3.5" />
           </Button>
         </div>
       </div>
-
-      {/* Menu Dropdown - Visible on all screens */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-14 left-0 right-0 bg-[#0a0a0a] border-b border-white/10 shadow-2xl max-h-[80vh] overflow-y-auto pb-32"
-          >
-            {/* Mobile User Info Header */}
-            <div className="flex items-center justify-between px-3 py-3 bg-[#111111] border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <Avatar className="w-10 h-10 border-2 border-yellow-500/50">
-                  <AvatarImage src={user?.avatar_url} />
-                  <AvatarFallback className="bg-yellow-500/20 text-yellow-500">
-                    {user?.nickname?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-semibold text-sm text-white">{user?.production_house_name || user?.nickname}</p>
-                  <div className="flex items-center gap-2">
-                    {levelInfo && (
-                      <Badge className="bg-purple-500/20 text-purple-400 text-[10px] h-4">Lv.{levelInfo.level}</Badge>
-                    )}
-                    <span className="text-[10px] text-gray-400">{gameDate}</span>
-                  </div>
-                </div>
-              </div>
-              {/* Lingua: Solo italiano */}
-            </div>
-            
-            {/* Admin Panel - Sticky banner (admin only) */}
-            {(user?.nickname === 'NeoMorpheus' || user?.role === 'CO_ADMIN') && (
-              <button
-                onClick={() => { navigate('/admin'); setMobileMenuOpen(false); }}
-                className="sticky top-0 z-10 w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-red-600 to-orange-600 text-white text-xs font-bold tracking-wide"
-                data-testid="admin-panel-top-btn"
-              >
-                <Shield className="w-4 h-4" />
-                {user?.role === 'CO_ADMIN' ? 'CO-ADMIN PANEL' : 'ADMIN PANEL'}
-              </button>
-            )}
-
-            {/* Mobile Navigation Grid - Compact 50% */}
-            <div className="grid grid-cols-3 gap-1.5 p-2 bg-[#0a0a0a]">
-              {navItems.map(item => (
-                <Button
-                  key={item.path + item.label}
-                  variant={location.pathname === item.path ? "default" : "ghost"}
-                  size="sm"
-                  className={`flex flex-col items-center gap-0.5 h-10 py-1 px-1 relative rounded-lg ${
-                    item.frozen ? 'opacity-35 cursor-not-allowed bg-[#1a1a1a] border border-amber-500/10' :
-                    item.disabled ? 'opacity-40 cursor-not-allowed' :
-                    item.locked ? 'opacity-50 bg-[#1a1a1a] text-gray-500 border border-white/5' :
-                    location.pathname === item.path 
-                      ? 'bg-yellow-500 text-black hover:bg-yellow-400' 
-                      : 'bg-[#1a1a1a] hover:bg-[#252525] text-gray-300 border border-white/5'
-                  }`}
-                  onClick={() => { 
-                    if (item.disabled || item.frozen) return;
-                    if (item.locked) { navigate('/infrastructure'); setMobileMenuOpen(false); return; }
-                    navigate(item.path); setMobileMenuOpen(false); 
-                  }}
-                >
-                  {item.locked && <Lock className="w-2 h-2 absolute top-0.5 right-0.5 text-gray-600" />}
-                  {item.frozen && <span className="absolute -top-0.5 right-0 text-[5px] text-amber-400 font-bold bg-amber-500/15 px-1 rounded">SOSPESO</span>}
-                  <item.icon className="w-3 h-3" />
-                  <span className="text-[7px] font-medium truncate w-full text-center leading-tight">{item.pauseLabel || t(item.label)}</span>
-                  {item.notificationCount > 0 && (
-                    <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
-                  )}
-                </Button>
-              ))}
-            </div>
-            
-            {/* Velion Assistant Control */}
-            <div className="px-4 py-2.5 border-t border-white/10 bg-[#111111]">
-              <VelionMenuControl />
-            </div>
-
-            {/* Tutorial Button */}
-            <div className="px-4 py-2 border-t border-white/10 bg-[#111111]">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-yellow-400 hover:bg-yellow-500/10 gap-2"
-                onClick={() => { setShowGameTutorial(true); setMobileMenuOpen(false); }}
-                data-testid="menu-tutorial-btn"
-              >
-                <HelpCircle className="w-4 h-4" />
-                <span className="text-sm">Tutorial</span>
-              </Button>
-              <div className="grid grid-cols-2 gap-1.5 mt-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="justify-start text-cyan-400 hover:bg-cyan-500/10 gap-1.5 h-8 text-xs"
-                  onClick={() => { window.dispatchEvent(new Event('velion-tutorial-open')); setMobileMenuOpen(false); }}
-                  data-testid="menu-velion-tutorial-btn"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Tutorial Velion</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="justify-start text-amber-400 hover:bg-amber-500/10 gap-1.5 h-8 text-xs"
-                  onClick={() => { window.dispatchEvent(new Event('pipeline-tutorial-open')); setMobileMenuOpen(false); }}
-                  data-testid="menu-pipeline-tutorial-btn"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                  <span>Pipeline Film</span>
-                </Button>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start text-yellow-400 hover:bg-yellow-500/10 gap-2 mt-1"
-                onClick={() => { navigate('/event-history'); setMobileMenuOpen(false); }}
-                data-testid="menu-event-history-btn"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span className="text-sm">Eventi</span>
-              </Button>
-            </div>
-
-            {/* Mobile Quick Actions - Solid Dark */}
-            <div className="flex items-center justify-around p-3 border-t border-white/10 bg-[#111111]">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="flex flex-col items-center gap-1 h-14 px-3 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded-xl"
-                onClick={() => { navigate('/major'); setMobileMenuOpen(false); }}
-              >
-                <Crown className="w-5 h-5" />
-                <span className="text-[10px] font-medium">Major</span>
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="flex flex-col items-center gap-1 h-14 px-4 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-xl"
-                onClick={() => { navigate('/friends'); setMobileMenuOpen(false); }}
-              >
-                <UserPlus className="w-5 h-5" />
-                <span className="text-[10px] font-medium">{language === 'it' ? 'Amici' : 'Friends'}</span>
-              </Button>
-              {donationsEnabled && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="flex flex-col items-center gap-1 h-14 px-4 text-pink-400 hover:text-pink-300 hover:bg-pink-500/10 rounded-xl"
-                onClick={() => { setShowDonateDialog(true); setMobileMenuOpen(false); }}
-                data-testid="menu-donate-btn"
-              >
-                <Heart className="w-5 h-5" />
-                <span className="text-[10px] font-medium">Dona</span>
-              </Button>
-              )}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="flex flex-col items-center gap-1 h-14 px-4 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded-xl"
-                onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }}
-              >
-                <User className="w-5 h-5" />
-                <span className="text-[10px] font-medium">{language === 'it' ? 'Profilo' : 'Profile'}</span>
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="flex flex-col items-center gap-1 h-14 px-4 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl"
-                onClick={() => { logout(); setMobileMenuOpen(false); }}
-              >
-                <LogOut className="w-5 h-5" />
-                <span className="text-[10px] font-medium">{language === 'it' ? 'Esci' : 'Logout'}</span>
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Donate Fixed Button - Above bottom nav - HIDDEN on chat page */}
-      {donationsEnabled && location.pathname !== '/chat' && (
-      <button
-        className="fixed bottom-[58px] left-0 right-0 z-40 flex sm:hidden items-center justify-center gap-1.5 py-1.5 bg-pink-500/10 backdrop-blur-sm border-t border-pink-500/15 text-pink-400/70 hover:text-pink-300 hover:bg-pink-500/15 transition-all sidemenu-translate"
-        onClick={() => setShowDonateDialog(true)}
-        data-testid="fixed-donate-btn"
-      >
-        <Heart className="w-3 h-3" />
-        <span className="text-[10px] font-medium tracking-wide">Supporta lo sviluppo</span>
-      </button>
-      )}
-
-      {/* Films Menu Overlay */}
-      <AnimatePresence>
-        {showFilmsMenu && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-[55] sm:hidden" onClick={() => setShowFilmsMenu(false)} />
-            <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ type: 'spring', damping: 25, stiffness: 350 }} className="fixed bottom-[58px] left-2 right-2 z-[56] sm:hidden" data-testid="films-menu">
-              <div className="bg-[#111113] border border-white/10 rounded-2xl p-3 shadow-2xl">
-                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold text-center mb-2">I Miei Contenuti</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <button className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all ${location.pathname === '/films' && !location.search ? 'bg-yellow-500 text-black' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/20'}`}
-                    onClick={() => { navigate('/films'); setShowFilmsMenu(false); }} data-testid="films-menu-film">
-                    <Film className="w-5 h-5" />
-                    <span className="text-[10px] font-bold">Film</span>
-                  </button>
-                  <button className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all ${location.search?.includes('view=series') ? 'bg-blue-500 text-white' : 'bg-blue-500/10 text-blue-400 border border-blue-500/25 hover:bg-blue-500/20'}`}
-                    onClick={() => { navigate('/films?view=series'); setShowFilmsMenu(false); }} data-testid="films-menu-series">
-                    <Tv className="w-5 h-5" />
-                    <span className="text-[10px] font-bold">Serie TV</span>
-                  </button>
-                  <button className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all ${location.search?.includes('view=anime') ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-400 border border-orange-500/25 hover:bg-orange-500/20'}`}
-                    onClick={() => { navigate('/films?view=anime'); setShowFilmsMenu(false); }} data-testid="films-menu-anime">
-                    <Sparkles className="w-5 h-5" />
-                    <span className="text-[10px] font-bold">Anime</span>
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Production Menu Overlay */}
-      <AnimatePresence>
-        {showProductionMenu && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 z-[55] sm:hidden"
-              onClick={() => setShowProductionMenu(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 40 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-              className="fixed bottom-[58px] left-2 right-2 z-[56] sm:hidden"
-              data-testid="production-menu"
-            >
-              <div className="bg-[#111113] border border-white/10 rounded-2xl p-3 shadow-2xl">
-                <div className="flex items-center justify-between mb-2.5">
-                  <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Produci</p>
-                  {(() => {
-                    const locked = [!productionUnlocks?.has_studio_serie_tv, !productionUnlocks?.has_studio_anime, !productionUnlocks?.has_emittente_tv].filter(Boolean).length;
-                    return locked > 0 ? (
-                      <span className="text-[9px] bg-yellow-500/15 text-yellow-400 px-2 py-0.5 rounded-full font-medium" data-testid="unlockable-count">
-                        {locked} da sbloccare
-                      </span>
-                    ) : null;
-                  })()}
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {/* Film - Always available */}
-                  <button
-                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all relative ${['/create-film'].includes(location.pathname) ? 'bg-yellow-500 text-black' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/25 hover:bg-yellow-500/20'}`}
-                    onClick={() => { navigate('/create-film'); setShowProductionMenu(false); }}
-                    data-testid="prod-menu-film"
-                  >
-                    {productionUnlocks?.pipeline_counts?.film > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[8px] font-bold flex items-center justify-center">{productionUnlocks.pipeline_counts.film}</span>}
-                    <Camera className="w-5 h-5" />
-                    <span className="text-[10px] font-bold leading-tight">Film</span>
-                  </button>
-                  {/* Sequel - Always available */}
-                  <button
-                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all ${location.pathname === '/create-sequel' ? 'bg-amber-600 text-white' : 'bg-amber-600/10 text-amber-500 border border-amber-600/25 hover:bg-amber-600/20'}`}
-                    onClick={() => { navigate('/create-sequel'); setShowProductionMenu(false); }}
-                    data-testid="prod-menu-sequel"
-                  >
-                    <Copy className="w-5 h-5" />
-                    <span className="text-[10px] font-bold leading-tight">Sequel</span>
-                  </button>
-                  {/* Serie TV */}
-                  <button
-                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all relative ${
-                      productionUnlocks?.has_studio_serie_tv 
-                        ? (location.pathname === '/create-series' ? 'bg-blue-500 text-white' : 'bg-blue-500/10 text-blue-400 border border-blue-500/25 hover:bg-blue-500/20')
-                        : 'bg-white/[0.03] text-gray-600 border border-white/5 cursor-not-allowed'
-                    }`}
-                    onClick={() => {
-                      if (productionUnlocks?.has_studio_serie_tv) { navigate('/create-series'); setShowProductionMenu(false); }
-                      else { navigate('/infrastructure'); setShowProductionMenu(false); }
-                    }}
-                    data-testid="prod-menu-series"
-                  >
-                    {!productionUnlocks?.has_studio_serie_tv && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
-                    {productionUnlocks?.has_studio_serie_tv && productionUnlocks?.pipeline_counts?.series > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[8px] font-bold flex items-center justify-center">{productionUnlocks.pipeline_counts.series}</span>}
-                    <Tv className="w-5 h-5" />
-                    <span className="text-[10px] font-bold leading-tight">Serie TV</span>
-                  </button>
-                  {/* Anime */}
-                  <button
-                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all relative ${
-                      productionUnlocks?.has_studio_anime
-                        ? (location.pathname === '/create-anime' ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-400 border border-orange-500/25 hover:bg-orange-500/20')
-                        : 'bg-white/[0.03] text-gray-600 border border-white/5 cursor-not-allowed'
-                    }`}
-                    onClick={() => {
-                      if (productionUnlocks?.has_studio_anime) { navigate('/create-anime'); setShowProductionMenu(false); }
-                      else { navigate('/infrastructure'); setShowProductionMenu(false); }
-                    }}
-                    data-testid="prod-menu-anime"
-                  >
-                    {!productionUnlocks?.has_studio_anime && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
-                    {productionUnlocks?.has_studio_anime && productionUnlocks?.pipeline_counts?.anime > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[8px] font-bold flex items-center justify-center">{productionUnlocks.pipeline_counts.anime}</span>}
-                    <Sparkles className="w-5 h-5" />
-                    <span className="text-[10px] font-bold leading-tight">Anime</span>
-                  </button>
-                  {/* La Tua TV */}
-                  <button
-                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all relative ${
-                      productionUnlocks?.has_emittente_tv
-                        ? (location.pathname === '/my-tv' ? 'bg-emerald-500 text-white' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20')
-                        : 'bg-white/[0.03] text-gray-600 border border-white/5 cursor-not-allowed'
-                    }`}
-                    onClick={() => {
-                      if (productionUnlocks?.has_emittente_tv) { navigate('/my-tv'); setShowProductionMenu(false); }
-                      else { navigate('/infrastructure'); setShowProductionMenu(false); }
-                    }}
-                    data-testid="prod-menu-tv"
-                  >
-                    {!productionUnlocks?.has_emittente_tv && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
-                    <Radio className="w-5 h-5" />
-                    <span className="text-[10px] font-bold leading-tight">La Tua TV</span>
-                  </button>
-                  {/* Empty cell for alignment */}
-                  <div></div>
-                  {/* Casting Agency */}
-                  <button
-                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all relative ${
-                      productionUnlocks?.has_production_studio
-                        ? (location.pathname === '/casting-agency' ? 'bg-purple-500 text-white' : 'bg-purple-500/10 text-purple-400 border border-purple-500/25 hover:bg-purple-500/20')
-                        : 'bg-white/[0.03] text-gray-600 border border-white/5 cursor-not-allowed'
-                    }`}
-                    onClick={() => {
-                      if (productionUnlocks?.has_production_studio) { navigate('/casting-agency'); setShowProductionMenu(false); }
-                      else { navigate('/infrastructure'); setShowProductionMenu(false); }
-                    }}
-                    data-testid="prod-menu-casting-agency"
-                  >
-                    {!productionUnlocks?.has_production_studio && <Lock className="w-3 h-3 absolute top-1 right-1 text-gray-600" />}
-                    <UserCheck className="w-5 h-5" />
-                    <span className="text-[10px] font-bold leading-tight">Agenzia</span>
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Mobile Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0F0F10]/95 backdrop-blur-md border-t border-white/10 z-50 flex sm:hidden items-center justify-around px-0 sidemenu-translate" style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }} data-testid="mobile-bottom-nav">
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/dashboard')} onMouseEnter={() => handleNavHover('/dashboard')} onTouchStart={() => handleNavHover('/dashboard')} data-testid="bottom-nav-home">
-          <Clapperboard className="w-4 h-4" />
-          <span className="text-[8px]">Home</span>
-        </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/films' ? 'text-yellow-400' : showFilmsMenu ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => setShowFilmsMenu(!showFilmsMenu)} onMouseEnter={() => handleNavHover('/my-films')} onTouchStart={() => handleNavHover('/my-films')} data-testid="bottom-nav-films">
-          <Film className="w-4 h-4" />
-          <span className="text-[8px]">I Miei</span>
-        </button>
-        {/* PRODUCI! - Opens production menu */}
-        <button 
-          className={`flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 rounded-xl min-w-0 transition-all ${showProductionMenu ? 'bg-yellow-500 text-black' : ['/create-film','/create-series','/create-anime','/my-tv'].includes(location.pathname) ? 'bg-yellow-500 text-black' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40'}`}
-          onClick={() => setShowProductionMenu(!showProductionMenu)}
-          data-testid="bottom-nav-produci"
-          style={{ minWidth: '72px' }}
-        >
-          {showProductionMenu ? <X className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
-          <span className="text-[9px] font-bold">Produci!</span>
-        </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/marketplace' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/marketplace')} onMouseEnter={() => handleNavHover('/marketplace')} data-testid="bottom-nav-mercato">
-          <Store className="w-4 h-4" />
-          <span className="text-[8px]">Mercato</span>
-        </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/infrastructure' ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/infrastructure')} data-testid="bottom-nav-infra">
-          <Building className="w-4 h-4" />
-          <span className="text-[8px]">Infra</span>
-        </button>
-        <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-500'}`} onClick={() => navigate('/pvp-arena')} onMouseEnter={() => handleNavHover('/pvp-arena')} data-testid="bottom-nav-arena">
-          <Disc className="w-4 h-4" />
-          <span className="text-[8px]">Arena</span>
-        </button>
-        {productionUnlocks?.has_emittente_tv && (
-          <button className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg min-w-0 ${location.pathname.startsWith('/my-tv') || location.pathname.startsWith('/tv-station') ? 'text-yellow-400' : 'text-gray-500'}`} onClick={() => navigate('/my-tv')} data-testid="bottom-nav-tv">
-            <Tv className="w-4 h-4" />
-            <span className="text-[8px]">La Mia TV</span>
-          </button>
-        )}
-      </div>
-
-      {/* Notification Popup Toasts - Slide from top with vibration */}
-      <AnimatePresence>
-        {popupNotifications.map((notif, i) => {
-          const severityStyles = {
-            critical: 'border-red-500/40 bg-gradient-to-r from-red-950/95 to-red-900/80',
-            important: 'border-yellow-500/40 bg-gradient-to-r from-yellow-950/95 to-yellow-900/80',
-            positive: 'border-green-500/40 bg-gradient-to-r from-green-950/95 to-green-900/80',
-          };
-          const severityIcons = {
-            critical: <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />,
-            important: <Clock className="w-5 h-5 text-yellow-400 flex-shrink-0" />,
-            positive: <Sparkles className="w-5 h-5 text-green-400 flex-shrink-0" />,
-          };
-          const glowColor = {
-            critical: '0 0 20px rgba(239,68,68,0.15)',
-            important: '0 0 20px rgba(234,179,8,0.15)',
-            positive: '0 0 20px rgba(34,197,94,0.15)',
-          };
-          const sev = notif.severity || 'positive';
-          // Trigger vibration on mount
-          if (i === 0 && typeof navigator !== 'undefined' && navigator.vibrate) {
-            try { navigator.vibrate(sev === 'critical' ? [50, 50, 50] : [25]); } catch {}
-          }
-          return (
-            <motion.div
-              key={notif.id}
-              initial={{ opacity: 0, y: -80, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -60, scale: 0.9 }}
-              transition={{ type: 'spring', damping: 22, stiffness: 350, delay: i * 0.12 }}
-              className={`fixed z-[100] left-3 right-3 sm:left-auto sm:right-3 sm:max-w-sm cursor-pointer backdrop-blur-lg border rounded-xl p-3 shadow-2xl ${severityStyles[sev] || severityStyles.positive}`}
-              style={{ top: `${64 + i * 76}px`, boxShadow: glowColor[sev] || glowColor.positive }}
-              onClick={() => {
-                setPopupNotifications(prev => prev.filter(p => p.id !== notif.id));
-                api.post(`/notifications/${notif.id}/read`).catch(() => {});
-                const navPath = notif.link;
-                if (navPath) { navigate(navPath); } else { navigate('/notifications'); }
-              }}
-              data-testid={`popup-notification-${notif.id}`}
-            >
-              <div className="flex items-start gap-2.5">
-                <div className={`p-1.5 rounded-lg ${sev === 'critical' ? 'bg-red-500/20' : sev === 'important' ? 'bg-yellow-500/20' : 'bg-green-500/20'}`}>
-                  {severityIcons[sev] || severityIcons.positive}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-xs text-white leading-tight">{notif.title}</p>
-                  <p className="text-[10px] text-gray-300/80 mt-0.5 leading-snug line-clamp-2">{notif.message}</p>
-                </div>
-                <button
-                  className="text-gray-600 hover:text-white p-0.5 flex-shrink-0 transition-colors"
-                  onClick={(e) => { e.stopPropagation(); setPopupNotifications(prev => prev.filter(p => p.id !== notif.id)); }}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
-
-      {/* Online Users Panel */}
-      <Dialog open={showOnlineUsersPanel} onOpenChange={(open) => { setShowOnlineUsersPanel(open); if(!open) { setSelectedUserProfile(null); setSelectedOnlineUser(null); setProfileGenreFilter(null); } }}>
-        <DialogContent className="max-w-md max-h-[85vh] overflow-hidden bg-[#111] border-green-500/30 p-0">
-          {/* If viewing a user's profile */}
-          {selectedUserProfile ? (
-            <div className="flex flex-col h-[80vh]">
-              {/* Sticky header with back + friend request + challenge */}
-              <div className="sticky top-0 z-10 bg-[#111] border-b border-white/10 p-3 flex items-center gap-2">
-                <Button size="sm" variant="ghost" onClick={() => { setSelectedUserProfile(null); setSelectedOnlineUser(null); setProfileGenreFilter(null); }} className="h-7 w-7 p-0 text-gray-400">
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-                <div className="flex-1">
-                  <p className="font-bold text-sm">{selectedUserProfile.user?.nickname}</p>
-                  <p className="text-[10px] text-gray-500">{selectedUserProfile.user?.production_house_name}</p>
-                </div>
-                {!selectedUserProfile.is_own_profile && (
-                  <div className="flex gap-1.5">
-                    {friendshipStatus?.status === 'friends' ? (
-                      <Button 
-                        size="sm"
-                        variant="outline"
-                        className="border-red-500/30 text-red-400 hover:bg-red-500/10 h-7 px-2 text-[10px]"
-                        onClick={() => removeFriend(selectedUserProfile.user?.id)}
-                        disabled={sendingFriendReq === selectedUserProfile.user?.id}
-                        data-testid="profile-remove-friend-btn"
-                      >
-                        {sendingFriendReq === selectedUserProfile.user?.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><UserCheck className="w-3 h-3 mr-1" />{language === 'it' ? 'Rimuovi' : 'Remove'}</>}
-                      </Button>
-                    ) : friendshipStatus?.status === 'pending_sent' ? (
-                      <Button size="sm" variant="outline" className="border-gray-500/30 text-gray-400 h-7 px-2 text-[10px]" disabled>
-                        <Clock className="w-3 h-3 mr-1" /> {language === 'it' ? 'In attesa' : 'Pending'}
-                      </Button>
-                    ) : (
-                      <Button 
-                        size="sm"
-                        className="bg-cyan-500 hover:bg-cyan-600 text-black h-7 px-2 text-[10px] font-bold"
-                        onClick={() => sendFriendRequest(selectedUserProfile.user?.id)}
-                        disabled={sendingFriendReq === selectedUserProfile.user?.id}
-                        data-testid="profile-add-friend-btn"
-                      >
-                        {sendingFriendReq === selectedUserProfile.user?.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><UserPlus className="w-3 h-3 mr-1" />{language === 'it' ? 'Amicizia' : 'Add'}</>}
-                      </Button>
-                    )}
-                    <Button 
-                      size="sm"
-                      className="bg-pink-500 hover:bg-pink-600 text-white h-7 px-2 text-[10px] font-bold"
-                      onClick={() => { setShowOnlineUsersPanel(false); setSelectedUserProfile(null); navigate('/minigiochi'); }}
-                      data-testid="profile-challenge-btn"
-                    >
-                      <Swords className="w-3 h-3 mr-1" /> 1v1
-                    </Button>
-                  </div>
-                )}
-              </div>
-              
-              {/* Profile content scrollable */}
-              <ScrollArea className="flex-1">
-                <div className="p-4 space-y-4">
-                  {/* User avatar + level */}
-                  <div className="flex items-center gap-4">
-                    <Avatar className="w-16 h-16 ring-2 ring-green-500">
-                      <AvatarImage src={selectedUserProfile.user?.avatar_url} />
-                      <AvatarFallback className="bg-green-500/20 text-green-400 text-xl font-bold">{selectedUserProfile.user?.nickname?.[0]}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-purple-500/20 text-purple-400">Lv.{selectedUserProfile.stats?.level || 1}</Badge>
-                        {selectedUserProfile.is_online && <Badge className="bg-green-500/20 text-green-400 text-[9px]">ONLINE</Badge>}
-                      </div>
-                      <p className="text-gray-400 text-xs mt-1">{selectedUserProfile.user?.bio || ''}</p>
-                    </div>
-                  </div>
-                  
-                  {/* Stats grid */}
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { label: language === 'it' ? 'Film' : 'Films', value: selectedUserProfile.stats?.total_films || 0, color: 'text-blue-400' },
-                      { label: language === 'it' ? 'Incassi' : 'Revenue', value: `$${((selectedUserProfile.stats?.total_revenue || 0)/1000000).toFixed(1)}M`, color: 'text-green-400' },
-                      { label: language === 'it' ? 'Qualità Media' : 'Avg Quality', value: selectedUserProfile.stats?.avg_quality || 0, color: 'text-yellow-400' },
-                      { label: 'XP', value: selectedUserProfile.stats?.xp || 0, color: 'text-purple-400' },
-                      { label: language === 'it' ? 'Premi' : 'Awards', value: selectedUserProfile.stats?.awards_count || 0, color: 'text-amber-400' },
-                      { label: 'Fame', value: selectedUserProfile.stats?.fame || 0, color: 'text-pink-400' },
-                    ].map((stat, i) => (
-                      <div key={i} className="bg-white/5 rounded-lg p-2 text-center">
-                        <p className={`font-bold text-sm ${stat.color}`}>{stat.value}</p>
-                        <p className="text-[10px] text-gray-500">{stat.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Genre breakdown */}
-                  {selectedUserProfile.genre_breakdown && Object.keys(selectedUserProfile.genre_breakdown).length > 0 && (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Generi preferiti' : 'Favorite Genres'}</p>
-                      <div className="flex flex-wrap gap-1">
-                        {Object.entries(selectedUserProfile.genre_breakdown).sort((a,b) => b[1]-a[1]).slice(0,5).map(([genre, count]) => (
-                          <Badge 
-                            key={genre} 
-                            className={`text-[10px] cursor-pointer transition-colors ${profileGenreFilter === genre ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
-                            onClick={() => setProfileGenreFilter(profileGenreFilter === genre ? null : genre)}
-                            data-testid={`profile-genre-${genre}`}
-                          >
-                            {genre}: {count}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Filtered films by genre */}
-                  {profileGenreFilter && selectedUserProfile.recent_films?.length > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs text-gray-400 font-semibold">{language === 'it' ? `Film ${profileGenreFilter}` : `${profileGenreFilter} Films`}</p>
-                        <button className="text-[10px] text-yellow-400 hover:underline" onClick={() => setProfileGenreFilter(null)}>
-                          {language === 'it' ? 'Mostra tutti' : 'Show all'}
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        {selectedUserProfile.recent_films.filter(f => f.genre?.toLowerCase() === profileGenreFilter.toLowerCase()).map(film => (
-                          <div key={film.id} className="flex items-center gap-2 bg-white/5 rounded-lg p-2 cursor-pointer hover:bg-white/10" onClick={() => { setShowOnlineUsersPanel(false); navigate(`/films/${film.id}`); }}>
-                            {film.poster_url ? (
-                              <img src={film.poster_url} alt="" className="w-10 h-14 rounded object-cover" />
-                            ) : (
-                              <div className="w-10 h-14 rounded bg-gray-700 flex items-center justify-center"><Film className="w-4 h-4 text-gray-500" /></div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold truncate">{film.title}</p>
-                              <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                                <span>{film.genre}</span>
-                                <span>Q: {film.quality_score?.toFixed(0)}</span>
-                                {film.film_tier && film.film_tier !== 'normal' && (
-                                  <Badge className="bg-yellow-500/20 text-yellow-400 text-[8px] h-3">{film.film_tier}</Badge>
-                                )}
-                              </div>
-                            </div>
-                            <span className="text-green-400 text-[10px] font-bold">${((film.total_revenue || film.revenue || 0)/1000000).toFixed(1)}M</span>
-                          </div>
-                        ))}
-                        {selectedUserProfile.recent_films.filter(f => f.genre?.toLowerCase() === profileGenreFilter.toLowerCase()).length === 0 && (
-                          <p className="text-[10px] text-gray-500 text-center py-2">{language === 'it' ? 'Nessun film in questa categoria' : 'No films in this category'}</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Recent films - only show when no genre filter */}
-                  {!profileGenreFilter && selectedUserProfile.recent_films?.length > 0 && (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Film recenti' : 'Recent Films'}</p>
-                      <div className="space-y-2">
-                        {selectedUserProfile.recent_films.slice(0, 6).map(film => (
-                          <div key={film.id} className="flex items-center gap-2 bg-white/5 rounded-lg p-2 cursor-pointer hover:bg-white/10" onClick={() => { setShowOnlineUsersPanel(false); navigate(`/films/${film.id}`); }}>
-                            {film.poster_url ? (
-                              <img src={film.poster_url} alt="" className="w-10 h-14 rounded object-cover" />
-                            ) : (
-                              <div className="w-10 h-14 rounded bg-gray-700 flex items-center justify-center"><Film className="w-4 h-4 text-gray-500" /></div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold truncate">{film.title}</p>
-                              <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                                <span>{film.genre}</span>
-                                <span>Q: {film.quality_score?.toFixed(0)}</span>
-                                {film.film_tier && film.film_tier !== 'normal' && (
-                                  <Badge className="bg-yellow-500/20 text-yellow-400 text-[8px] h-3">{film.film_tier}</Badge>
-                                )}
-                              </div>
-                            </div>
-                            <span className="text-green-400 text-[10px] font-bold">${((film.total_revenue || film.revenue || 0)/1000000).toFixed(1)}M</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
-          ) : (
-            /* Online + Offline users list */
-            <div className="flex flex-col h-[80vh]">
-              <DialogHeader className="p-4 pb-2 border-b border-white/10">
-                <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2 text-green-400">
-                  <Users className="w-5 h-5" /> {language === 'it' ? 'GIOCATORI' : 'PLAYERS'}
-                  <Badge className="bg-green-500/20 text-green-400 ml-2">{allPlayersList.filter(u => u.is_online).length} online</Badge>
-                </DialogTitle>
-              </DialogHeader>
-              
-              <ScrollArea className="flex-1">
-                <div className="p-3 space-y-1">
-                  {/* Online players */}
-                  {allPlayersList.filter(u => u.is_online).length > 0 && (
-                    <p className="text-[10px] text-green-400 uppercase tracking-wider font-bold px-1 py-1">{language === 'it' ? 'Online' : 'Online'} ({allPlayersList.filter(u => u.is_online).length})</p>
-                  )}
-                  {allPlayersList.filter(u => u.is_online).map(p => (
-                    <div 
-                      key={p.id} 
-                      className="flex items-center gap-3 p-2 rounded-lg bg-green-500/5 hover:bg-green-500/10 cursor-pointer transition-all"
-                      onClick={() => viewUserProfile(p.id)}
-                      data-testid={`player-online-${p.id}`}
-                    >
-                      <div className="relative">
-                        <Avatar className="w-9 h-9">
-                          <AvatarImage src={p.avatar_url} />
-                          <AvatarFallback className="bg-green-500/20 text-green-400 font-bold text-xs">{(p.nickname || '?')[0]}</AvatarFallback>
-                        </Avatar>
-                        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#111]"></span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate">{p.nickname}</p>
-                        <p className="text-[10px] text-gray-500 truncate">{p.production_house_name || ''}</p>
-                      </div>
-                      {p.level && <Badge className="bg-purple-500/20 text-purple-400 text-[9px]">Lv.{p.level}</Badge>}
-                      <ChevronRight className="w-4 h-4 text-gray-600" />
-                    </div>
-                  ))}
-                  
-                  {/* Offline players */}
-                  {allPlayersList.filter(u => !u.is_online).length > 0 && (
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold px-1 py-1 mt-3 border-t border-white/5 pt-2">{language === 'it' ? 'Offline' : 'Offline'} ({allPlayersList.filter(u => !u.is_online).length})</p>
-                  )}
-                  {allPlayersList.filter(u => !u.is_online).map(p => (
-                    <div 
-                      key={p.id} 
-                      className="flex items-center gap-3 p-2 rounded-lg bg-white/[0.02] hover:bg-white/5 cursor-pointer transition-all opacity-70"
-                      onClick={() => viewUserProfile(p.id)}
-                      data-testid={`player-offline-${p.id}`}
-                    >
-                      <div className="relative">
-                        <Avatar className="w-9 h-9">
-                          <AvatarImage src={p.avatar_url} />
-                          <AvatarFallback className="bg-gray-700 text-gray-400 font-bold text-xs">{(p.nickname || '?')[0]}</AvatarFallback>
-                        </Avatar>
-                        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-gray-600 rounded-full border-2 border-[#111]"></span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate text-gray-400">{p.nickname}</p>
-                        <p className="text-[10px] text-gray-600 truncate">{p.production_house_name || ''}</p>
-                      </div>
-                      <span className="text-[9px] text-gray-500 whitespace-nowrap">{timeAgo(p.last_active) || 'Offline'}</span>
-                      {p.level && <Badge className="bg-gray-700/50 text-gray-500 text-[9px]">Lv.{p.level}</Badge>}
-                      <ChevronRight className="w-4 h-4 text-gray-700" />
-                    </div>
-                  ))}
-
-                  {allPlayersList.length === 0 && (
-                    <div className="text-center py-12 text-gray-500">
-                      <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                      <p>{language === 'it' ? 'Nessun giocatore trovato' : 'No players found'}</p>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
-          
-          {loadingProfile && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-20">
-              <RefreshCw className="w-8 h-8 text-green-400 animate-spin" />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Global Player Popup - Opens from any nickname click */}
-      <Dialog open={!!popupData} onOpenChange={(open) => { if(!open) { setPopupData(null); setPopupView('stats'); setPopupGenreFilter(null); } }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-hidden bg-[#111] border-cyan-500/30 p-0">
-          {popupData?.profile ? (
-            <div className="flex flex-col max-h-[80vh]">
-              {/* Sticky header with actions */}
-              <div className="sticky top-0 z-10 bg-[#111] border-b border-white/10 p-3 flex items-center gap-2">
-                <Avatar className="w-10 h-10 ring-2 ring-cyan-500">
-                  <AvatarImage src={popupData.profile.user?.avatar_url} />
-                  <AvatarFallback className="bg-cyan-500/20 text-cyan-400 font-bold">{popupData.profile.user?.nickname?.[0]}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm truncate">{popupData.profile.user?.nickname}</p>
-                  <p className="text-[10px] text-gray-500 truncate">{popupData.profile.user?.production_house_name}</p>
-                </div>
-              </div>
-              
-              {/* Action buttons - sticky */}
-              <div className="sticky top-[52px] z-10 bg-[#111]/95 backdrop-blur-md border-b border-white/10 p-2 flex gap-1.5 justify-center flex-wrap">
-                {popupData.friendStatus?.status === 'friends' ? (
-                  <Button 
-                    size="sm" variant="outline"
-                    className="border-red-500/30 text-red-400 hover:bg-red-500/10 h-7 px-3 text-[10px]"
-                    onClick={() => removeFriend(popupData.profile.user?.id)}
-                    disabled={sendingFriendReq === popupData.profile.user?.id}
-                    data-testid="global-remove-friend-btn"
-                  >
-                    {sendingFriendReq === popupData.profile.user?.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><UserCheck className="w-3 h-3 mr-1" />{language === 'it' ? 'Rimuovi Amico' : 'Remove Friend'}</>}
-                  </Button>
-                ) : popupData.friendStatus?.status === 'pending_sent' ? (
-                  <Button size="sm" variant="outline" className="border-gray-500/30 text-gray-400 h-7 px-3 text-[10px]" disabled>
-                    <Clock className="w-3 h-3 mr-1" /> {language === 'it' ? 'Richiesta Inviata' : 'Request Sent'}
-                  </Button>
-                ) : (
-                  <Button 
-                    size="sm"
-                    className="bg-cyan-500 hover:bg-cyan-600 text-black h-7 px-3 text-[10px] font-bold"
-                    onClick={() => sendFriendRequest(popupData.profile.user?.id)}
-                    disabled={sendingFriendReq === popupData.profile.user?.id}
-                    data-testid="global-add-friend-btn"
-                  >
-                    {sendingFriendReq === popupData.profile.user?.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><UserPlus className="w-3 h-3 mr-1" />{language === 'it' ? 'Richiedi Amicizia' : 'Add Friend'}</>}
-                  </Button>
-                )}
-                <Button 
-                  size="sm"
-                  className="bg-pink-500 hover:bg-pink-600 text-white h-7 px-3 text-[10px] font-bold"
-                  onClick={() => { setPopupData(null); setPopupView('stats'); navigate('/minigiochi'); }}
-                  data-testid="global-challenge-btn"
-                >
-                  <Swords className="w-3 h-3 mr-1" /> {language === 'it' ? 'Sfida 1v1' : '1v1 Challenge'}
-                </Button>
-                <Button 
-                  size="sm" variant="outline"
-                  className="border-white/10 text-gray-300 h-7 px-3 text-[10px]"
-                  onClick={() => { setPopupData(null); setPopupView('stats'); navigate('/chat'); }}
-                  data-testid="global-message-btn"
-                >
-                  <MessageSquare className="w-3 h-3 mr-1" /> {language === 'it' ? 'Messaggio' : 'Message'}
-                </Button>
-                <Button 
-                  size="sm"
-                  className={`h-7 px-3 text-[10px] font-bold ${popupView === 'studio' ? 'bg-yellow-500 text-black' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'}`}
-                  onClick={() => setPopupView(popupView === 'studio' ? 'stats' : 'studio')}
-                  data-testid="global-visit-studio-btn"
-                >
-                  <Building className="w-3 h-3 mr-1" /> {language === 'it' ? 'Visita Studio' : 'Visit Studio'}
-                </Button>
-              </div>
-              
-              {/* Profile content */}
-              <ScrollArea className="flex-1">
-                {popupView === 'stats' ? (
-                <div className="p-4 space-y-4">
-                  {/* Stats grid */}
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { label: language === 'it' ? 'Film' : 'Films', value: popupData.profile.stats?.total_films || 0, color: 'text-blue-400' },
-                      { label: language === 'it' ? 'Incassi' : 'Revenue', value: `$${((popupData.profile.stats?.total_revenue || 0)/1000000).toFixed(1)}M`, color: 'text-green-400' },
-                      { label: language === 'it' ? 'Qualità' : 'Quality', value: popupData.profile.stats?.avg_quality || 0, color: 'text-yellow-400' },
-                      { label: 'XP', value: popupData.profile.stats?.xp || 0, color: 'text-purple-400' },
-                      { label: language === 'it' ? 'Premi' : 'Awards', value: popupData.profile.stats?.awards_count || 0, color: 'text-amber-400' },
-                      { label: 'Lv.', value: popupData.profile.stats?.level || 1, color: 'text-cyan-400' },
-                    ].map((stat, i) => (
-                      <div key={i} className="bg-white/5 rounded-lg p-2 text-center">
-                        <p className={`font-bold text-sm ${stat.color}`}>{stat.value}</p>
-                        <p className="text-[10px] text-gray-500">{stat.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* Recent films */}
-                  {popupData.profile.recent_films?.length > 0 && (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Film recenti' : 'Recent Films'}</p>
-                      <div className="space-y-1.5">
-                        {popupData.profile.recent_films.slice(0, 5).map(film => (
-                          <div key={film.id} className="flex items-center gap-2 bg-white/5 rounded-lg p-2 cursor-pointer hover:bg-white/10" onClick={() => { setPopupData(null); setPopupView('stats'); navigate(`/films/${film.id}`); }}>
-                            {film.poster_url ? (
-                              <img src={film.poster_url} alt="" className="w-8 h-12 rounded object-cover" />
-                            ) : (
-                              <div className="w-8 h-12 rounded bg-gray-700 flex items-center justify-center"><Film className="w-3 h-3 text-gray-500" /></div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold truncate">{film.title}</p>
-                              <p className="text-[10px] text-gray-500">{film.genre} - Q:{film.quality_score?.toFixed(0)}</p>
-                            </div>
-                            <span className="text-green-400 text-[10px]">${((film.total_revenue||0)/1000000).toFixed(1)}M</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                ) : (
-                <div className="p-4 space-y-4">
-                  {/* STUDIO VIEW - Dashboard style */}
-                  {/* Financial Overview */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-green-500/10 rounded-lg p-2 text-center border border-green-500/20">
-                      <p className="text-lg font-bold text-green-400">${((popupData.profile.stats?.total_revenue || 0)/1000000).toFixed(1)}M</p>
-                      <p className="text-[9px] text-gray-400">{language === 'it' ? 'Box Office' : 'Box Office'}</p>
-                    </div>
-                    <div className="bg-blue-500/10 rounded-lg p-2 text-center border border-blue-500/20">
-                      <p className="text-lg font-bold text-blue-400">{popupData.profile.stats?.total_films || 0}</p>
-                      <p className="text-[9px] text-gray-400">{language === 'it' ? 'Film Prodotti' : 'Films Made'}</p>
-                    </div>
-                    <div className="bg-yellow-500/10 rounded-lg p-2 text-center border border-yellow-500/20">
-                      <p className="text-lg font-bold text-yellow-400">{popupData.profile.stats?.avg_quality || 0}%</p>
-                      <p className="text-[9px] text-gray-400">{language === 'it' ? 'Qualità Media' : 'Avg Quality'}</p>
-                    </div>
-                  </div>
-                  
-                  {/* Genre breakdown */}
-                  {popupData.profile.genre_breakdown && Object.keys(popupData.profile.genre_breakdown).length > 0 && (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Generi Prodotti' : 'Genres'}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {Object.entries(popupData.profile.genre_breakdown).map(([genre, count]) => (
-                          <Badge 
-                            key={genre} 
-                            className={`text-[10px] cursor-pointer transition-colors ${popupGenreFilter === genre ? 'bg-yellow-500/30 text-yellow-300 border border-yellow-500/50' : 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30'}`}
-                            onClick={() => setPopupGenreFilter(popupGenreFilter === genre ? null : genre)}
-                            data-testid={`popup-genre-${genre}`}
-                          >
-                            {genre}: {count}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Filtered films by genre */}
-                  {popupGenreFilter && popupData.profile.all_films?.length > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs text-gray-400 font-semibold">{language === 'it' ? `Film ${popupGenreFilter}` : `${popupGenreFilter} Films`}</p>
-                        <button className="text-[10px] text-yellow-400 hover:underline" onClick={() => setPopupGenreFilter(null)}>
-                          {language === 'it' ? 'Mostra tutti' : 'Show all'}
-                        </button>
-                      </div>
-                      <div className="space-y-1.5">
-                        {popupData.profile.all_films.filter(f => f.genre?.toLowerCase() === popupGenreFilter.toLowerCase()).map(film => (
-                          <div key={film.id} className="flex items-center gap-2 bg-white/5 rounded-lg p-2 cursor-pointer hover:bg-white/10" onClick={() => { setPopupData(null); setPopupView('stats'); navigate(`/films/${film.id}`); }}>
-                            {film.poster_url ? (
-                              <img src={film.poster_url} alt="" className="w-8 h-12 rounded object-cover" />
-                            ) : (
-                              <div className="w-8 h-12 rounded bg-gray-700 flex items-center justify-center"><Film className="w-3 h-3 text-gray-500" /></div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold truncate">{film.title}</p>
-                              <p className="text-[10px] text-gray-500">{film.genre} - Q:{film.quality_score?.toFixed(0)}</p>
-                            </div>
-                            <span className="text-green-400 text-[10px]">${((film.total_revenue||0)/1000000).toFixed(1)}M</span>
-                          </div>
-                        ))}
-                        {popupData.profile.all_films.filter(f => f.genre?.toLowerCase() === popupGenreFilter.toLowerCase()).length === 0 && (
-                          <p className="text-[10px] text-gray-500 text-center py-2">{language === 'it' ? 'Nessun film in questa categoria' : 'No films in this category'}</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Best film */}
-                  {popupData.profile.best_film && (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Miglior Film' : 'Best Film'}</p>
-                      <div className="flex items-center gap-3 bg-yellow-500/10 rounded-lg p-2 border border-yellow-500/20 cursor-pointer hover:bg-yellow-500/15" onClick={() => { setPopupData(null); setPopupView('stats'); navigate(`/films/${popupData.profile.best_film.id}`); }}>
-                        {popupData.profile.best_film.poster_url ? (
-                          <img src={popupData.profile.best_film.poster_url} alt="" className="w-10 h-14 rounded object-cover" />
-                        ) : (
-                          <div className="w-10 h-14 rounded bg-gray-700 flex items-center justify-center"><Crown className="w-4 h-4 text-yellow-500" /></div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold truncate">{popupData.profile.best_film.title}</p>
-                          <p className="text-[10px] text-gray-400">{popupData.profile.best_film.genre}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-green-400 text-sm font-bold">${((popupData.profile.best_film.revenue || popupData.profile.best_film.total_revenue || 0)/1000000).toFixed(1)}M</p>
-                          <p className="text-[9px] text-gray-400">Q:{popupData.profile.best_film.quality_score?.toFixed(0)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* All Films Grid */}
-                  {popupData.profile.all_films?.length > 0 && (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Tutti i Film' : 'All Films'} ({popupData.profile.all_films.length})</p>
-                      <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
-                        {popupData.profile.all_films.map(film => (
-                          <div key={film.id} className="cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setPopupData(null); setPopupView('stats'); navigate(`/films/${film.id}`); }}>
-                            <div className="aspect-[2/3] rounded overflow-hidden bg-gray-800">
-                              {film.poster_url ? (
-                                <img src={film.poster_url} alt={film.title} className="w-full h-full object-cover" loading="lazy" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center"><Film className="w-4 h-4 text-gray-600" /></div>
-                              )}
-                            </div>
-                            <p className="text-[8px] font-semibold truncate mt-0.5">{film.title}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Awards */}
-                  {popupData.profile.awards?.length > 0 && (
-                    <div>
-                      <p className="text-xs text-gray-400 mb-2 font-semibold">{language === 'it' ? 'Premi Vinti' : 'Awards Won'} ({popupData.profile.awards.length})</p>
-                      <div className="space-y-1">
-                        {popupData.profile.awards.slice(0, 5).map((award, i) => (
-                          <div key={i} className="flex items-center gap-2 bg-amber-500/10 rounded p-1.5 border border-amber-500/20">
-                            <Award className="w-3 h-3 text-amber-400 shrink-0" />
-                            <p className="text-[10px] truncate">{award.award_name || award.name || 'Award'}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                )}
-              </ScrollArea>
-            </div>
-          ) : (
-            <div className="p-8 flex items-center justify-center">
-              <RefreshCw className="w-8 h-8 text-cyan-400 animate-spin" />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Donate Dialog */}
-      <Dialog open={showDonateDialog} onOpenChange={setShowDonateDialog}>
-        <DialogContent className="max-w-sm bg-[#111] border-pink-500/30 p-0 overflow-hidden">
-          <div className="bg-gradient-to-b from-pink-500/20 to-transparent p-6 text-center">
-            <Heart className="w-12 h-12 text-pink-400 mx-auto mb-3" />
-            <DialogTitle className="font-['Bebas_Neue'] text-2xl text-pink-300 mb-1">Supporta CineWorld</DialogTitle>
-            <p className="text-xs text-gray-400 leading-relaxed">
-              Il tuo contributo ci aiuta a sviluppare nuove funzionalità e migliorare il gioco. Ogni donazione conta!
-            </p>
-          </div>
-          <div className="px-6 pb-6 space-y-3">
-            <a
-              href="https://www.paypal.me/UnNickk"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-[#0070ba] hover:bg-[#005ea6] text-white font-semibold text-sm transition-colors"
-              data-testid="donate-paypal-btn"
-              onClick={() => setShowDonateDialog(false)}
-            >
-              <DollarSign className="w-4 h-4" />
-              Dona con PayPal
-            </a>
-            <p className="text-[10px] text-gray-500 text-center leading-relaxed">
-              Donazione libera - scegli tu l'importo. Verrai reindirizzato su PayPal per completare la donazione in sicurezza.
-            </p>
-            <button
-              className="w-full text-center text-[10px] text-gray-600 hover:text-gray-400 py-1 transition-colors"
-              onClick={() => setShowDonateDialog(false)}
-            >
-              Magari un'altra volta
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Guest Conversion Modal */}
-      <Dialog open={showGuestConvertModal} onOpenChange={setShowGuestConvertModal}>
-        <DialogContent className="max-w-[340px] bg-[#0c0c0e] border-yellow-500/20 p-0 overflow-hidden rounded-2xl" data-testid="guest-convert-modal">
-          <GuestConvertModalContent
-            user={user}
-            api={api}
-            form={guestConvertForm}
-            setForm={setGuestConvertForm}
-            converting={guestConverting}
-            setConverting={setGuestConverting}
-            onSuccess={() => { refreshUser(); setShowGuestConvertModal(false); }}
-            onDismiss={() => setShowGuestConvertModal(false)}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Guest Registration Button - always visible for guest users */}
-      {user?.is_guest && (
-        <GuestRegisterBadge onRegister={() => setShowGuestConvertModal(true)} />
-      )}
-
-      {showDonatePopup && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowDonatePopup(false)}>
-          <div 
-            className="relative bg-[#111] border border-yellow-500/30 rounded-2xl max-w-sm w-[90%] mx-4 overflow-hidden shadow-2xl shadow-yellow-500/10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close X */}
-            <button
-              className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-colors"
-              onClick={() => setShowDonatePopup(false)}
-              data-testid="donate-popup-close"
-            >
-              <X className="w-4 h-4" />
-            </button>
-            
-            {/* Content */}
-            <div className="p-6 pt-8 text-center">
-              <Heart className="w-14 h-14 text-pink-400 mx-auto mb-4" />
-              <h2 className="font-['Bebas_Neue'] text-2xl text-white mb-3 leading-tight">
-                Aiutaci a far crescere<br/>
-                <span className="text-yellow-400">il NOSTRO gioco</span>
-              </h2>
-              <p className="text-sm text-gray-400 leading-relaxed mb-6">
-                CineWorld esiste grazie a voi. Con il tuo supporto possiamo continuare a sviluppare nuove funzionalità e rendere il gioco sempre migliore per tutti.
-              </p>
-              
-              {/* Donate button */}
-              <a
-                href="https://www.paypal.me/UnNickk"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-base transition-colors"
-                data-testid="donate-popup-btn"
-                onClick={() => setShowDonatePopup(false)}
-              >
-                <Heart className="w-5 h-5" />
-                Dona Ora
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showGameTutorial && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
+
+      {/* Online Users Panel */}
+      {showOnlineUsersPanel && (
+        <div className="fixed inset-0 z-[100]" data-testid="online-users-panel">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowOnlineUsersPanel(false)} />
+          <div className="absolute top-12 right-1 w-72 max-h-[75vh] bg-[#111113] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+            <div className="sticky top-0 bg-[#111113] px-3 py-2 border-b border-white/5 flex items-center justify-between z-10">
+              <span className="text-xs font-bold text-green-400">Giocatori ({allPlayersList.filter(u => !u.is_bot).length})</span>
+              <button onClick={() => setShowOnlineUsersPanel(false)} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="max-h-[65vh] overflow-y-auto">
+              {/* ONLINE section */}
+              {(() => {
+                const onlineReal = onlineUsersList.filter(u => !u.is_bot);
+                const offlinePlayers = allPlayersList.filter(u => !u.is_bot && !onlineReal.find(o => o.nickname === u.nickname));
+                const timeAgo = (dateStr) => {
+                  if (!dateStr) return '';
+                  try {
+                    const d = new Date(dateStr);
+                    const now = new Date();
+                    const diff = Math.floor((now - d) / 1000);
+                    if (diff < 60) return 'ora';
+                    if (diff < 3600) return `${Math.floor(diff/60)}m fa`;
+                    if (diff < 86400) return `${Math.floor(diff/3600)}h fa`;
+                    if (diff < 604800) return `${Math.floor(diff/86400)}g fa`;
+                    return `${Math.floor(diff/604800)}sett fa`;
+                  } catch { return ''; }
+                };
+                return (
+                  <>
+                    {onlineReal.length > 0 && (
+                      <div className="px-2 pt-2 pb-1">
+                        <p className="text-[8px] text-green-500 font-bold uppercase tracking-widest px-1 mb-1">Online ({onlineReal.length})</p>
+                        {onlineReal.map(u => (
+                          <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
+                            onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
+                            <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 shadow-[0_0_4px_rgba(74,222,128,0.5)]" />
+                            <span className="text-xs text-gray-200 truncate flex-1">{u.nickname}</span>
+                            {u.level > 0 && <span className="text-[8px] text-gray-500">Lv.{u.level}</span>}
+                            <span className="text-[8px] text-green-500">ora</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="px-2 pt-1 pb-2">
+                      <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest px-1 mb-1">Offline ({offlinePlayers.length})</p>
+                      {offlinePlayers.slice(0, 30).map(u => (
+                        <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
+                          onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
+                          <div className="w-2 h-2 rounded-full bg-gray-600 flex-shrink-0" />
+                          <span className="text-xs text-gray-400 truncate flex-1">{u.nickname}</span>
+                          {u.level > 0 && <span className="text-[8px] text-gray-600">Lv.{u.level}</span>}
+                          <span className="text-[8px] text-gray-600">{timeAgo(u.last_active || u.last_login)}</span>
+                        </div>
+                      ))}
+                      {offlinePlayers.length === 0 && onlineReal.length === 0 && (
+                        <p className="text-[10px] text-gray-500 text-center py-4">Nessun giocatore</p>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRODUCI MENU — Bottom sheet with production options */}
+      {showProductionMenu && (
+        <div className="fixed inset-0 z-[100]" data-testid="produci-menu">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowProductionMenu(false)} />
+          <div className="absolute bottom-0 left-0 right-0 bg-[#111113] border-t border-yellow-500/20 rounded-t-2xl shadow-2xl"
+            style={{ paddingBottom: 'calc(60px + env(safe-area-inset-bottom, 0px))' }}>
+            <div className="px-4 py-3 flex items-center justify-between border-b border-white/5">
+              <span className="font-['Bebas_Neue'] text-base tracking-widest text-yellow-500">Produci</span>
+              <button onClick={() => setShowProductionMenu(false)} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="grid grid-cols-3 gap-2 p-3">
+              {[
+                { icon: Camera, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400', count: prodCounts.film },
+                { icon: Copy, label: 'Sequel', path: '/create-sequel', color: 'bg-orange-500/15 border-orange-500/30 text-orange-400', count: 0 },
+                { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', count: prodCounts.series },
+                { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400', count: prodCounts.anime },
+                { icon: Radio, label: 'La Tua TV', path: '/my-tv', color: 'bg-teal-500/15 border-teal-500/30 text-teal-400', count: 0 },
+                { icon: Users, label: 'Agenzia', path: '/agenzia', color: 'bg-purple-500/15 border-purple-500/30 text-purple-400', count: 0 },
+              ].map(item => (
+                <button key={item.path}
+                  className={`relative flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border ${item.color} transition-all hover:scale-105 active:scale-95`}
+                  onClick={() => { setShowProductionMenu(false); navigate(item.path); }}
+                  data-testid={`produci-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                >
+                  <item.icon className="w-6 h-6" />
+                  <span className="text-[10px] font-bold">{item.label}</span>
+                  {item.count > 0 && (
+                    <span className="absolute top-1 right-1 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+                      {item.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TITOLI DI CODA — Full navigation grid (ex hamburger menu) */}
+      <TitoliDiCoda open={mobileMenuOpen} setOpen={setMobileMenuOpen} navItems={navItems} user={user} navigate={navigate} logout={logout} language={language} t={t} levelInfo={levelInfo} setShowGameTutorial={setShowGameTutorial} />
 
     </nav>
   );
 };
 
+
 // Password Recovery Page
 
 // ==================== ROUTING ====================
+
+// ═══ CHALLENGE NOTIFICATION HANDLER — polls for incoming challenges ═══
+const ChallengeNotificationHandler = ({ api, user, navigate }) => {
+  const confirm = useConfirm();
+  const [lastChecked, setLastChecked] = useState('');
+
+  useEffect(() => {
+    if (!api || !user?.id) return;
+    const check = async () => {
+      try {
+        const r = await api.get('/api/challenges/pending');
+        const challenges = Array.isArray(r.data) ? r.data : r.data?.challenges || [];
+        for (const ch of challenges) {
+          if (ch.id === lastChecked) continue;
+          setLastChecked(ch.id);
+          const ok = await confirm({
+            title: `Sfida da ${ch.challenger_name}!`,
+            subtitle: `Minigioco: ${ch.game_id?.replace(/_/g, ' ')}${ch.bet_amount > 0 ? ` — Scommessa: $${ch.bet_amount.toLocaleString()}` : ''}`,
+            confirmLabel: 'Accetta!',
+            cancelLabel: 'Rifiuta',
+          });
+          try {
+            await api.post(`/api/challenges/${ch.id}/respond`, { accept: ok });
+            if (ok) {
+              toast.success(`Sfida accettata! Gioco: ${ch.game_id?.replace(/_/g, ' ')}`);
+              navigate(`/minigiochi?challenge=${ch.id}&game=${ch.game_id}`);
+            } else {
+              toast('Sfida rifiutata');
+            }
+          } catch {}
+          break; // Handle one at a time
+        }
+      } catch {}
+    };
+    const iv = setInterval(check, 8000);
+    check();
+    return () => clearInterval(iv);
+  }, [api, user?.id, confirm, lastChecked, navigate]);
+
+  return null;
+};
+
+
+
+// ═══ PLAYER PROFILE POPUP — Stats + Messaggia + Sfida Minigiochi ═══
+const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
+  const confirm = useConfirm();
+  const p = data.profile;
+  const [showGames, setShowGames] = useState(false);
+  const [gamesList, setGamesList] = useState([]);
+  const [challengeLoading, setChallengeLoading] = useState('');
+  const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+
+  // Fetch all minigames from backend
+  useEffect(() => {
+    if (showGames && gamesList.length === 0) {
+      api.get('/api/arcade/games').then(r => setGamesList(Array.isArray(r.data) ? r.data : r.data || [])).catch(() => {});
+    }
+  }, [showGames, gamesList.length, api]);
+
+  const handleMessage = async () => {
+    const ok = await confirm({ title: `Messaggia ${p.nickname}?`, subtitle: 'Verrai portato nella chat privata.', confirmLabel: 'Vai alla chat', cancelLabel: 'Annulla' });
+    if (ok) { onClose(); navigate(`/chat?dm=${data.userId}`); }
+  };
+
+  const handleChallenge = async (gameId) => {
+    const gameName = gamesList.find(g => g.id === gameId)?.name || gameId;
+    const ok = await confirm({ title: `Sfidare ${p.nickname}?`, subtitle: `Gioco: ${gameName}`, confirmLabel: 'Sfida!', cancelLabel: 'Annulla' });
+    if (!ok) return;
+    setChallengeLoading(gameId);
+    try {
+      await api.post('/api/challenges/send', { opponent_id: data.userId, game_id: gameId, bet_amount: 0 });
+      toast.success(`Sfida inviata a ${p.nickname}!`);
+      setShowGames(false);
+    } catch (e) { toast.error(e.message || 'Errore invio sfida'); }
+    setChallengeLoading('');
+  };
+
+  const avatarSrc = p.avatar_url?.startsWith('data:') ? p.avatar_url : p.avatar_url?.startsWith('/') ? `${BACKEND_URL}${p.avatar_url}` : p.avatar_url;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center px-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60" />
+      <div className="relative w-full max-w-sm bg-[#111113] rounded-2xl border border-yellow-500/20 overflow-hidden" onClick={e => e.stopPropagation()} data-testid="player-profile-popup">
+        {/* Header with avatar */}
+        <div className="relative p-4 bg-gradient-to-b from-yellow-500/10 to-transparent">
+          <button onClick={onClose} className="absolute top-2 right-2 text-gray-500"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-full border-2 border-yellow-500/40 overflow-hidden bg-gray-800 flex items-center justify-center flex-shrink-0">
+              {avatarSrc ? <img src={avatarSrc} alt="" className="w-full h-full object-cover" /> : <span className="text-yellow-400 font-bold text-xl">{(p.nickname || '?')[0]}</span>}
+            </div>
+            <div>
+              <h3 className="font-['Bebas_Neue'] text-xl text-yellow-400 tracking-wide">{p.nickname}</h3>
+              {p.production_house_name && <p className="text-[10px] text-gray-400">{p.production_house_name}</p>}
+              <div className="flex items-center gap-2 mt-0.5">
+                {p.level && <span className="text-[8px] font-bold text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded px-1 py-0.5">LV {p.level}</span>}
+                {p.fame != null && <span className="text-[8px] text-amber-400/70 bg-amber-500/10 border border-amber-500/15 rounded px-1 py-0.5">Fama {p.fame?.toLocaleString()}</span>}
+                <span className={`w-2 h-2 rounded-full ${p.is_online ? 'bg-green-400' : 'bg-gray-600'}`} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats grid */}
+        <div className="px-4 pb-2">
+          <div className="grid grid-cols-4 gap-1.5">
+            {[
+              { label: 'Film', value: p.total_films || 0, color: 'text-yellow-400' },
+              { label: 'Incassi', value: p.total_revenue ? `$${p.total_revenue >= 1e6 ? `${(p.total_revenue/1e6).toFixed(1)}M` : `${Math.floor(p.total_revenue/1000)}K`}` : '$0', color: 'text-green-400' },
+              { label: 'Spettatori', value: p.total_spectators ? (p.total_spectators >= 1e6 ? `${(p.total_spectators/1e6).toFixed(1)}M` : `${Math.floor(p.total_spectators/1000)}K`) : '0', color: 'text-cyan-400' },
+              { label: 'Qualità', value: `${Math.round(p.average_quality || 0)}%`, color: 'text-blue-400' },
+            ].map(s => (
+              <div key={s.label} className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+                <p className={`text-[11px] font-bold ${s.color}`}>{s.value}</p>
+                <p className="text-[7px] text-gray-600">{s.label}</p>
+              </div>
+            ))}
+          </div>
+          {p.best_film && (
+            <div className="mt-1.5 flex items-center gap-2 px-2 py-1 bg-white/[0.02] rounded border border-white/5">
+              <Film className="w-3 h-3 text-yellow-500/50" />
+              <p className="text-[8px] text-gray-400">Miglior Film: <span className="text-white font-bold">{p.best_film}</span></p>
+            </div>
+          )}
+          {p.challenge_stats && (
+            <div className="mt-1 flex items-center gap-2 px-2 py-1 bg-white/[0.02] rounded border border-white/5">
+              <Swords className="w-3 h-3 text-pink-400/50" />
+              <p className="text-[8px] text-gray-400">Sfide: <span className="text-green-400">{p.challenge_stats.wins || 0}W</span> / <span className="text-red-400">{p.challenge_stats.losses || 0}L</span></p>
+            </div>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="px-4 pb-3 space-y-1.5">
+          {!showGames ? (
+            <div className="flex gap-2">
+              <button onClick={handleMessage} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500/20 transition-colors text-[10px] font-bold" data-testid="popup-message-btn">
+                <MessageCircle className="w-3.5 h-3.5" /> Messaggia
+              </button>
+              <button onClick={() => setShowGames(true)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-pink-500/10 border border-pink-500/25 text-pink-400 hover:bg-pink-500/20 transition-colors text-[10px] font-bold" data-testid="popup-challenge-btn">
+                <Swords className="w-3.5 h-3.5" /> Sfida
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-[9px] text-gray-400 font-bold">Scegli minigioco:</p>
+              <div className="max-h-[220px] overflow-y-auto space-y-1">
+                {gamesList.length === 0 ? (
+                  <p className="text-[9px] text-gray-500 text-center py-2">Caricamento giochi...</p>
+                ) : gamesList.map(g => (
+                  <button key={g.id} onClick={() => handleChallenge(g.id)} disabled={challengeLoading === g.id}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5 hover:bg-pink-500/10 hover:border-pink-500/20 transition-colors active:scale-[0.98]" data-testid={`challenge-game-${g.id}`}>
+                    <span className="text-[10px] text-white font-bold flex-1 text-left">{g.name}</span>
+                    <span className="text-[7px] text-gray-500 truncate max-w-[120px]">{g.desc}</span>
+                    {challengeLoading === g.id && <Loader2 className="w-3 h-3 animate-spin ml-1 text-pink-400" />}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowGames(false)} className="w-full text-[9px] text-gray-500 py-1">Indietro</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading, api } = useContext(AuthContext);
@@ -2181,6 +1560,21 @@ const ProtectedRoute = ({ children }) => {
   const [showAutonomy, setShowAutonomy] = useState(false);
   const [showGameTutorial, setShowGameTutorial] = useState(false);
   const [showDashboardTour, setShowDashboardTour] = useState(false);
+
+  // Listen for player popup events from ContentTemplate and other components
+  useEffect(() => {
+    const handler = (e) => {
+      const nickname = e.detail?.nickname;
+      if (nickname && api) {
+        setPopupData({ loading: true });
+        api.get(`/auth/player-profile/${nickname}`).then(r => {
+          setPopupData({ profile: r.data || r, userId: (r.data || r).user_id, loading: false });
+        }).catch(() => setPopupData(null));
+      }
+    };
+    window.addEventListener('open-player-popup', handler);
+    return () => window.removeEventListener('open-player-popup', handler);
+  }, [api]);
   
   // Fetch Velion mode from backend
   const [tutorialCompleted, setTutorialCompleted] = useState(true);
@@ -2283,13 +1677,17 @@ const ProtectedRoute = ({ children }) => {
   
   if (loading) return <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center"><Clapperboard className="w-10 h-10 text-yellow-500 animate-pulse" /></div>;
   if (!user) return <Navigate to="/auth" replace />;
+
   return (
     <ProductionMenuContext.Provider value={{ isOpen: productionMenuOpen, setIsOpen: setProductionMenuOpen }}>
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
+      <GlobalSideMenu />
+      <SwipeNavigator />
       <LoginRewardPopup />
       <AutoTickNotifications api={api} />
-      <div style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <div className="main-content-push" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <StickyPageHeader />
       <AnimatePresence>
         <PageTransition key={location.pathname}>
           <ErrorBoundary>
@@ -2407,6 +1805,17 @@ const ProtectedRoute = ({ children }) => {
         )}
       </AnimatePresence>
 
+      {/* ═══ PLAYER PROFILE POPUP ═══ */}
+      {popupData && !popupData.loading && popupData.profile && (
+        <PlayerProfilePopup data={popupData} onClose={() => setPopupData(null)} navigate={navigate} api={api} user={user} />
+      )}
+
+      {/* ═══ CHALLENGE NOTIFICATION POPUP ═══ */}
+      <ChallengeNotificationHandler api={api} user={user} navigate={navigate} />
+
+      {/* ═══ BOTTOM NAVBAR MOBILE ═══ */}
+      <MobileBottomNav />
+
     </PlayerPopupContext.Provider>
     </ProductionMenuContext.Provider>
   );
@@ -2440,7 +1849,7 @@ const UrlManager = ({ children }) => {
     <>
       {showUrlChanged && (
         <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-yellow-500 to-amber-500 text-black py-2 px-4 z-[100] flex items-center justify-center gap-3 text-sm">
-          <Bell className="w-4 h-4" />
+          <Bell className="w-3.5 h-3.5" />
           <span className="font-medium">Il gioco si è spostato! Salva questo nuovo link:</span>
           <code className="bg-black/20 px-2 py-0.5 rounded text-xs">{newUrl}</code>
           <Button 
@@ -2467,6 +1876,100 @@ const UrlManager = ({ children }) => {
   );
 };
 
+// Logout with custom confirm dialog
+const LogoutConfirmHandler = () => {
+  const confirm = useConfirm();
+  const { logout, user } = useContext(AuthContext);
+
+  useEffect(() => {
+    const handler = async () => {
+      const isGuest = user?.is_guest;
+      const ok = await confirm({
+        title: isGuest ? 'Uscire dalla sessione Guest?' : 'Uscire dal gioco?',
+        subtitle: isGuest
+          ? 'Se esci ora perderai TUTTI i progressi della sessione guest. Non potrai recuperarli!'
+          : 'Sei sicuro di voler effettuare il logout?',
+        confirmLabel: isGuest ? 'Esci e cancella tutto' : 'Esci',
+        cancelLabel: 'Annulla',
+      });
+      if (ok) logout();
+    };
+    window.addEventListener('confirm-logout', handler);
+    return () => window.removeEventListener('confirm-logout', handler);
+  }, [confirm, logout, user?.is_guest]);
+
+  return null;
+};
+
+// ═══ STICKY PAGE HEADER — back arrow + title, fixed below TopNavbar ═══
+const PAGE_TITLES = {
+  '/films': 'I Miei Film',
+  '/create-film': 'Produci Film',
+  '/create': 'Produci Film',
+  '/pipeline-v2': 'Pipeline Film',
+  '/create-series': 'Produci Serie TV',
+  '/create-anime': 'Produci Anime',
+  '/create-sequel': 'Sequel',
+  '/create-legacy': 'Pipeline Classica',
+  '/my-tv': 'La Mia TV',
+  '/tv-stations': 'Emittenti TV',
+  '/marketplace': 'Mercato',
+  '/drafts': 'Bozze',
+  '/emerging-screenplays': 'Sceneggiature',
+  '/journal': 'CineJournal',
+  '/stars': 'Star Scoperte',
+  '/releases': 'Note di Rilascio',
+  '/feedback': 'Feedback',
+  '/social': 'CineBoard',
+  '/games': 'Contest',
+  '/contest': 'Contest',
+  '/minigiochi': 'Minigiochi + Sfide',
+  '/chat': 'Chat',
+  '/statistics': 'Statistiche',
+  '/profile': 'Profilo',
+  '/creator-board': 'Creator Board',
+  '/infrastructure': 'Infrastrutture',
+  '/parco-studio': 'Parco Studio 3D',
+  '/strutture': 'Strutture',
+  '/agenzia': 'Agenzia & Talenti',
+  '/strategico': 'Div. Strategiche',
+  '/acting-school': 'Scuola di Recitazione',
+  '/casting-agency': 'Agenzia Casting',
+  '/tour': 'Cinema Tour',
+  '/leaderboard': 'Classifiche',
+  '/tutorial': 'Tutorial',
+  '/system-notes': 'Note di Sistema',
+  '/admin': 'Admin Panel',
+  '/sagas': 'Saghe & Serie',
+  '/festivals': 'Festival',
+  '/credits': 'Titoli di Coda',
+  '/hq': 'Quartier Generale',
+  '/pvp-arena': 'Arena PvP',
+  '/major': 'Major',
+  '/event-history': 'Storico Eventi',
+  '/friends': 'Amici',
+  '/notifications': 'Notifiche',
+};
+
+const StickyPageHeader = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const path = location.pathname;
+  if (path === '/dashboard' || path === '/' || path.startsWith('/auth') || path.startsWith('/films/') || path.startsWith('/series/') || path.startsWith('/player/') || path.startsWith('/tv-station/') || path.startsWith('/recovery') || path.startsWith('/reset-')) return null;
+  const title = PAGE_TITLES[path];
+  if (!title) return null;
+  return (
+    <div className="sticky z-[45] bg-[#0F0F10]/95 backdrop-blur-sm border-b border-white/5 px-3 py-2 flex items-center gap-2 sidemenu-translate"
+      style={{ top: 44 }} data-testid="sticky-page-header">
+      <button onClick={() => navigate(-1)} className="flex items-center justify-center w-7 h-7 rounded-full active:scale-90 transition-transform"
+        style={{ animation: 'headerArrowPulse 2s ease-in-out infinite' }} data-testid="page-back-btn">
+        <ArrowLeft className="w-5 h-5 text-yellow-400" />
+      </button>
+      <span className="font-['Bebas_Neue'] text-sm tracking-wider text-white truncate">{title}</span>
+    </div>
+  );
+};
+
 function App() {
   return (
     <div className="min-h-screen bg-[#0F0F10] relative">
@@ -2478,6 +1981,7 @@ function App() {
           <GameStoreProvider>
           <LanguageProvider>
             <ConfirmProvider>
+            <LogoutConfirmHandler />
             <NotificationProvider>
             <UrlManager>
               <Toaster position="top-center" theme="dark" toastOptions={{ style: { marginTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))' } }} />
@@ -2518,6 +2022,7 @@ function App() {
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                 <Route path="/creator-board" element={<ProtectedRoute><CreatorBoard /></ProtectedRoute>} />
                 <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
+                <Route path="/parco-studio" element={<ProtectedRoute><ParcoStudioPage /></ProtectedRoute>} />
                 <Route path="/strutture" element={<ProtectedRoute><StrutturePage /></ProtectedRoute>} />
                 <Route path="/agenzia" element={<ProtectedRoute><AgenziaPage /></ProtectedRoute>} />
                 <Route path="/strategico" element={<ProtectedRoute><StrategicoPage /></ProtectedRoute>} />

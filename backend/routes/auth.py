@@ -711,6 +711,8 @@ async def generate_ai_avatar(request: AvatarGenerationRequest, user: dict = Depe
     
     try:
         from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        from PIL import Image
+        import io, base64
         
         image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
         prompt = f"Professional {request.style} avatar portrait: {request.prompt}. Clean background, high quality, suitable for a profile picture. No text or watermarks."
@@ -718,14 +720,18 @@ async def generate_ai_avatar(request: AvatarGenerationRequest, user: dict = Depe
         images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
         
         if images and len(images) > 0:
-            avatar_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'avatars')
-            os.makedirs(avatar_dir, exist_ok=True)
-            filename = f"{user['id']}.png"
-            filepath = os.path.join(avatar_dir, filename)
-            with open(filepath, 'wb') as f:
-                f.write(images[0])
-            file_url = f"/api/avatar/image/{filename}"
-            return {'avatar_url': file_url, 'prompt': prompt}
+            # Compress to small JPEG and store as base64 data URI in DB (persistent, ~15-30KB)
+            img = Image.open(io.BytesIO(images[0]))
+            img = img.convert('RGB')
+            img.thumbnail((256, 256), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format='JPEG', quality=60, optimize=True)
+            b64 = base64.b64encode(buf.getvalue()).decode('ascii')
+            data_uri = f"data:image/jpeg;base64,{b64}"
+            # Save directly to DB
+            await db.users.update_one({'id': user['id']}, {'$set': {'avatar_url': data_uri, 'avatar_source': 'ai'}})
+            logging.info(f"AI avatar saved for {user.get('nickname')}, size: {len(buf.getvalue())} bytes")
+            return {'avatar_url': data_uri, 'prompt': prompt}
         else:
             raise HTTPException(status_code=500, detail="Failed to generate avatar")
     except Exception as e:
@@ -907,3 +913,65 @@ async def guest_logout(user: dict = Depends(get_current_user)):
         return {'success': True, 'message': 'Non sei un utente guest, logout normale'}
     deleted = await _delete_guest_data(user['id'])
     return {'success': True, 'deleted': deleted}
+
+
+
+@router.get("/auth/player-profile/{nickname}")
+async def get_player_profile(nickname: str, user: dict = Depends(get_current_user)):
+    """Get public profile of a player by nickname for popup display."""
+    target = await db.users.find_one({'nickname': nickname}, {'_id': 0, 'password_hash': 0})
+    if not target:
+        raise HTTPException(404, "Player non trovato")
+    
+    uid = target['id']
+    
+    # Fetch stats
+    films = await db.film_projects.find({'user_id': uid}, {'_id': 0, 'title': 1, 'quality_score': 1, 'pre_imdb_score': 1, 'theater_stats': 1, 'box_office': 1}).to_list(200)
+    
+    total_films = len(films)
+    total_revenue = sum(f.get('box_office', {}).get('total', 0) if isinstance(f.get('box_office'), dict) else 0 for f in films)
+    total_spectators = 0
+    for f in films:
+        ts = f.get('theater_stats', {}).get('total_spectators', 0)
+        if ts > 0:
+            total_spectators += ts
+        else:
+            bo = f.get('box_office', {})
+            rev = bo.get('total', 0) if isinstance(bo, dict) else 0
+            if rev > 0:
+                total_spectators += int(rev / 11)
+    
+    best_film = ''
+    best_quality = 0
+    for f in films:
+        q = f.get('quality_score', f.get('pre_imdb_score', 0))
+        if q > best_quality:
+            best_quality = q
+            best_film = f.get('title', '')
+    
+    avg_quality = sum(f.get('quality_score', f.get('pre_imdb_score', 50)) for f in films) / max(1, total_films)
+    
+    # Challenge stats
+    wins = await db.game_challenges.count_documents({'$or': [{'challenger_id': uid}, {'challenged_id': uid}], 'winner_id': uid})
+    losses = await db.game_challenges.count_documents({'$or': [{'challenger_id': uid}, {'challenged_id': uid}], 'winner_id': {'$ne': uid, '$exists': True}})
+    
+    # Online status (active in last 10 minutes)
+    import datetime as dt
+    ten_min_ago = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=10)
+    is_online = (target.get('last_active') or dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)) > ten_min_ago
+    
+    return {
+        'user_id': uid,
+        'nickname': target.get('nickname', ''),
+        'production_house_name': target.get('production_house_name', ''),
+        'avatar_url': target.get('avatar_url', ''),
+        'level': target.get('level', 1),
+        'fame': target.get('fame', 0),
+        'is_online': is_online,
+        'total_films': total_films,
+        'total_revenue': total_revenue,
+        'total_spectators': total_spectators,
+        'average_quality': round(avg_quality, 1),
+        'best_film': best_film,
+        'challenge_stats': {'wins': wins, 'losses': losses},
+    }

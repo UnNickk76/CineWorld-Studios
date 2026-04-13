@@ -1339,7 +1339,8 @@ async def get_release_cinematic(film_id: str, user: dict = Depends(get_current_u
 async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film = await db.films.find_one({'id': film_id}, {'_id': 0})
     if not film:
-        film = await db.film_projects.find_one({'id': film_id, 'status': 'completed'}, {'_id': 0})
+        # Try film_projects (ANY status, not just completed)
+        film = await db.film_projects.find_one({'id': film_id}, {'_id': 0})
         if film:
             film.setdefault('owner_id', film.get('user_id'))
             film.setdefault('owner_nickname', '')
@@ -1387,6 +1388,18 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
     film.setdefault('trend_position', None)
     film.setdefault('trend_delta', None)
     film.setdefault('trend_last', None)
+
+    # Map pipeline_state to status for ContentTemplate compatibility
+    if film.get('pipeline_state') and not film.get('status'):
+        ps = film['pipeline_state']
+        if ps == 'premiere_live':
+            film['status'] = 'premiere_live'
+        elif ps in ('release_pending', 'released', 'completed'):
+            film['status'] = ps
+        elif ps in ('hype_setup', 'hype_live'):
+            film['status'] = 'coming_soon'
+        else:
+            film['status'] = 'in_production'
 
     return film
 

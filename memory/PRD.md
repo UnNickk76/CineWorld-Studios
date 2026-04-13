@@ -126,6 +126,71 @@ Gioco browser di simulazione cinematografica con produzione film, serie TV, anim
 - **Performance**: Query batch, no loop pesanti, aggiornamento ogni 6h
 - File: `scheduler_tasks.py`, `server.py`, `ContentTemplate.jsx`, `content-template.css`, `films.py`, `series_pipeline.py`
 
+#### Navigazione Mobile Gesture-Based (Apr 2026)
+- **TopNavbar riorganizzata**: CIACK (toggle side menu) → HOME (dashboard) → BACK (solo quando serve), rimosso `?` tutorial
+- **Side Menu Globale**: Spostato da Dashboard a AppLayout, funziona da qualsiasi pagina
+- **Swipe Navigator**: Gesture touch tra pagine bottom-nav (/films, /marketplace, /infrastructure, /pvp-arena, /my-tv)
+- **Dashboard swipe speciale**: Destra → apre menu, Sinistra → prima pagina di gioco
+- **Anti-conflitto scroll**: Ignora swipe se il touch parte dentro elementi con scrollWidth > clientWidth
+- **Vibrazione**: `navigator.vibrate()` su apertura/chiusura menu e cambio pagina
+- **z-index corretto**: Menu (z-40/z-48) sotto navbar (z-50), CIACK sempre cliccabile
+- File: `App.js`, `Dashboard.jsx`
+
+#### Navbar Definitiva + Comandi Rapidi (Apr 2026)
+- **Top navbar**: 8 icone fisse (CIACK, HOME, PRODUCI, ARENA, LE MIE TV, MAJOR, CHAT, NOTIFICHE) + fondi compatti. Rimosso hamburger menu, CineBoard dropdown, tutorial, online users.
+- **Bottom navbar**: 11 item (HOME, I MIEI, PRODUCI, CINEBOARD, CLASSIFICHE, FESTIVAL, CINEJOURNAL, MERCATO, MINIGIOCHI, EVENTI, RAPIDI). Icona Zap per Comandi Rapidi.
+- **Comandi Rapidi**: Panel popup dalla bottom nav con 8 scorciatoie (Sceneggiature, Le mie TV, Infrastrutture, Arena, Contest, Saghe, Stelle, Profilo)
+- **Side menu**: Icone Lucide React (giallo/gold) al posto di emoji — stile identico alle navbar
+- **Swipe semplificato**: Solo dashboard swipe destro → apre menu. Rimosso swipe tra pagine.
+- File: `App.js`, `Dashboard.jsx`
+
+#### Fase 2: Mercato Auto + Prossimamente Fix + Placeholder (Apr 2026)
+- **Mercato auto-listing**: Film scartati (`discard_film_v2`) entrano automaticamente nel marketplace con prezzo proporzionale (40-60% investito, min $10K). Split 50/50 (50% venditore, 50% rimosso dal sistema)
+- **Prossimamente fix**: V2 detail ora ha bottone "Vedi Dettaglio" → naviga a ContentTemplate. Campi mancanti mostrano spazio vuoto (no "non disponibile")
+- **ContentTemplate cleanup**: Rimossi tutti i placeholder "Trama non disponibile", "Durata non disponibile" — spazio vuoto se dato assente
+- **Popup conferma**: ConfirmDialog personalizzato CineWorld (Velion/CineOx) gia presente ovunque, nessun `window.confirm` nel codice
+- File: `pipeline_v2.py`, `film_pipeline.py`, `ContentTemplate.jsx`, `ComingSoonSection.jsx`
+
+#### Menu Laterale Pellicola Cinematografica (Apr 2026)
+- **Effetto pellicola animata CSS-only**: Background con bande scure + gradient dorato + perforazioni laterali, animazione verticale 20s loop infinito
+- **Frame dorati**: Ogni voce menu stilizzata come frame pellicola con bordo gold, glow sottile, sfondo semi-trasparente
+- **Fondi + CinePass fissi in alto**: Badge dorato fondi + badge cyan CinePass sempre visibili nel menu laterale
+- **Admin Panel**: Bottone rosso con icona Settings, solo per admin/co-admin, fisso sotto fondi
+- **Titoli di Coda**: Bottone hamburger in basso nel menu → apre griglia navigazione completa (ex hamburger menu) con profilo, tutorial, logout
+- **Top navbar**: Aggiunto badge CinePass cyan accanto ai fondi
+- File: `App.js`, `styles/film-strip-menu.css`
+
+#### Vista Parco Studio 3D (Apr 2026)
+- **Nuova pagina** `/parco-studio` — griglia 19 infrastrutture con sfondo AI cinematico generato via GPT Image 1
+- **Backend**: `GET /api/infrastructure/parco-studio/backgrounds` + `POST .../generate-background` — generazione lazy, salvataggio URL su DB, serve via mount statico
+- **Top navbar**: 2 icone aggiunte (INFRA classico + INFRA 3D con badge "3D" cyan)
+- **Sblocco**: infrastrutture non acquistate → overlay scuro con lucchetto → click porta a pagina acquisto
+- **Performance**: immagini salvate come file PNG, lazy load, cache client, generazione una sola volta
+- **Retrocompatibile**: sistema classico invariato, pagina completamente separata
+- File: `App.js`, `ParcoStudioPage.jsx`, `routes/infrastructure.py`, `server.py`
+
+#### Parco Studio V2 — Mappa Scrollabile (Apr 2026)
+- **Mappa 2000x2000**: Sfondo aereo AI generato (CineWorld Studios con 6 lotti), scrollabile touch su mobile
+- **Auto-centering**: All'apertura la vista si centra automaticamente sullo studio centrale
+- **6 slot raggruppati**: Studi Produzione, Cinema & Distribuzione, Agenzia & Talenti, Eventi & Esperienza, Broadcast TV, Divisioni Strategiche
+- **Stato dinamico**: empty (terreno + lucchetto), partial (barra progresso), complete (icona piena)
+- **Click → route esistenti**: Nessuna nuova UI, richiama esattamente le pagine attuali
+- File: `ParcoStudioPage.jsx`
+
+#### Fix Menu Laterale Push (Apr 2026)
+- **Menu push senza overlay**: Aprendo il menu laterale, la pagina si sposta a destra senza zoom-out e senza overlay scuro
+- **Scroll orizzontale reale**: Il contenuto spostato e visibile tramite scroll orizzontale (`body[data-sidemenu="open"]` con `overflow-x: auto`)
+- **CSS left/right**: Elementi fixed (TopNavbar, BottomNav) shiftati via `left`/`right` CSS (non transform) per creare vero overflow scrollabile
+- **Reset automatico**: Alla chiusura del menu, scroll orizzontale resettato a 0 con animazione smooth
+- File: `App.js`, `index.css`
+
+#### Fix Parco Studio 3D + Dashboard Benvenuto (Apr 2026)
+- **Parco Studio**: Rimossi TUTTI i nomi/label. Bottoni invisibili 150% più grandi, centrati sugli edifici reali (coordinate da image analysis). Insegna mostra solo `production_house_name` del player
+- **Dashboard**: Aggiunto header "Benvenuto in CineWorld Studio's," + nickname cliccabile (espande stats: Films, Incassi, Like, Qualità) + nome casa di produzione
+- **Cache-busting**: `?v=2` su immagine mappa per forzare refresh dopo deploy
+- **Fix `films_in_theaters`**: Variabile mancante in `velion.py` che causava crash deploy
+- File: `ParcoStudioPage.jsx`, `Dashboard.jsx`, `routes/velion.py`
+
 ## Backlog
 
 ### P1

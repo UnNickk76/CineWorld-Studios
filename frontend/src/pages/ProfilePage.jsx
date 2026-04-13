@@ -308,15 +308,6 @@ const ProfilePage = () => {
             </Select>
           </div>
 
-          {/* Admin Panel - Only for NeoMorpheus */}
-          {user?.nickname === 'NeoMorpheus' && (
-            <Card className="bg-purple-500/10 border-purple-500/30 mb-4">
-              <CardContent className="p-3">
-                <p className="text-xs font-bold text-purple-400 mb-2 flex items-center gap-1"><Shield className="w-3 h-3" /> Pannello Admin</p>
-                <AdminDonationToggle api={api} />
-              </CardContent>
-            </Card>
-          )}
           
           {/* Avatar Section - Only AI or Custom URL */}
           <div className="space-y-3 mb-4">

@@ -488,6 +488,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const perception = getPublicPerception(film);
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
+  const [showStats, setShowStats] = useState(false);
 
   return (
     <div className={`ct2-root ${isSeries ? 'ct2-series' : ''}`} data-testid="content-template">
@@ -569,8 +570,10 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
       )}
 
-      {/* 5. DATA BAR (fuschia) */}
-      <div className="ct2-data-bar" data-testid="ct-data-bar">
+      {/* 5. DATA BAR (fuschia) + THEATER DAYS */}
+      <div className="ct2-data-bar" data-testid="ct-data-bar"
+        onClick={() => { if (String(film?.pipeline_state) === 'released' || String(film?.pipeline_state) === 'out_of_theaters') setShowStats(p => !p); }}
+        style={{ cursor: (String(film?.pipeline_state) === 'released' || String(film?.pipeline_state) === 'out_of_theaters') ? 'pointer' : 'default' }}>
         <span className="ct2-data-type">{typeLabel}</span>
         <span className="ct2-data-sep">|</span>
         {imdb && (
@@ -582,6 +585,18 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         )}
         <Clock size={13} />
         <span className="ct2-data-duration">{durationStr || '~110m'}</span>
+        {(String(film?.pipeline_state) === 'released' || String(film?.pipeline_state) === 'out_of_theaters') && (
+          <>
+            <span className="ct2-data-sep">|</span>
+            <span style={{ color: '#facc15', fontSize: 11, fontWeight: 'bold' }}>{String(Number(film?.theater_stats?.days_in_theater) || 0)}gg</span>
+            {String(film?.pipeline_state) === 'released' && (
+              <span style={{ color: '#9ca3af', fontSize: 10 }}>/{String(Number(film?.theater_stats?.days_remaining) || '?')}r</span>
+            )}
+            {Number(film?.theater_stats?.days_extended) > 0 && <span style={{ color: '#4ade80', fontSize: 10, fontWeight: 'bold' }}>+{String(Number(film?.theater_stats?.days_extended))}</span>}
+            {Number(film?.theater_stats?.days_reduced) > 0 && <span style={{ color: '#f87171', fontSize: 10, fontWeight: 'bold' }}>-{String(Number(film?.theater_stats?.days_reduced))}</span>}
+            <span style={{ color: '#6b7280', fontSize: 9 }}>{showStats ? '▲' : '▼'}</span>
+          </>
+        )}
         {trendPos && (
           <>
             <span className="ct2-data-sep">|</span>
@@ -598,6 +613,40 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </>
         )}
       </div>
+
+      {/* THEATER STATS PANEL — expands on data bar click */}
+      {showStats && (String(film?.pipeline_state) === 'released' || String(film?.pipeline_state) === 'out_of_theaters') && (
+        <div className="mx-4 mb-1 p-2.5 rounded-lg border border-yellow-500/15 bg-black/30 space-y-2">
+          <div className="grid grid-cols-3 gap-1.5">
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[7px] text-gray-500">Cinema</p>
+              <p className="text-[11px] font-bold text-white">{String(Number(film?.theater_stats?.current_cinemas) || 0)}</p>
+            </div>
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[7px] text-gray-500">Spett. oggi</p>
+              <p className="text-[11px] font-bold text-cyan-400">{String(Number(film?.theater_stats?.daily_spectators) || 0)}</p>
+            </div>
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[7px] text-gray-500">Spett. totali</p>
+              <p className="text-[11px] font-bold text-yellow-400">{String(Number(film?.theater_stats?.total_spectators) || 0)}</p>
+            </div>
+          </div>
+          <div className="flex justify-between px-1 text-[8px]">
+            <span className="text-gray-500">Incassi sala</span>
+            <span className="font-bold text-green-400">${String(Number(film?.theater_stats?.total_revenue) || 0)}</span>
+          </div>
+          {String(film?.user_id) === String(user?.id) && (
+            <div className="flex gap-1.5 pt-1">
+              {String(film?.pipeline_state) === 'released' && (
+                <button onClick={(e) => { e.stopPropagation(); if(window.confirm('Ritirare il film dalle sale?')) { const token=localStorage.getItem('cineworld_token'); fetch(`${process.env.REACT_APP_BACKEND_URL}/api/pipeline-v2/films/${film.id}/withdraw-theater`,{method:'POST',headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}}).then(()=>window.location.reload()); }}}
+                  className="flex-1 text-[8px] py-1.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold">Ritira dal cinema</button>
+              )}
+              <button onClick={(e) => { e.stopPropagation(); if(window.confirm('Inviare in TV?')) { const token=localStorage.getItem('cineworld_token'); fetch(`${process.env.REACT_APP_BACKEND_URL}/api/pipeline-v2/films/${film.id}/send-to-tv`,{method:'POST',headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'}}).then(()=>window.location.reload()); }}}
+                className="flex-1 text-[8px] py-1.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold">Manda in TV</button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* PROSSIMAMENTE IN TV badge */}
       {film.in_tv_programming === true && (

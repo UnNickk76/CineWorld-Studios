@@ -375,7 +375,7 @@ function getEventHeadlines(film) {
 }
 
 // === SUB-POPUP: Cast & Crew ===
-function CastPopup({ open, onClose, cast }) {
+const CastPopup = ({ open, onClose, cast }) => {
   const members = [];
   if (cast) {
     if (Array.isArray(cast)) {

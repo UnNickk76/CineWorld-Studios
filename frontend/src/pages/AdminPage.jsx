@@ -878,7 +878,7 @@ function ReportsTab({ api }) {
 
 /* ─── Maintenance Tab (Rewritten — Advanced) ─── */
 
-function DonationsTab({ api }) {
+const DonationsTab = ({ api }) => {
   const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -917,7 +917,7 @@ function DonationsTab({ api }) {
 function MaintenanceTab({ api }) {
 
 
-function CityTastesAdmin({ api }) {
+const CityTastesAdmin = ({ api }) => {
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [testResult, setTestResult] = useState(null);

@@ -503,6 +503,15 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const hasCinemaDays = Number.isFinite(cinemaDays);
   const hasCinemaRemain = Number.isFinite(cinemaRemain);
 
+  // Extra cinema stats — safe
+  const cinemaCount = _ts && Number.isFinite(Number(_ts.current_cinemas)) ? Number(_ts.current_cinemas) : null;
+  const specDaily = _ts && Number.isFinite(Number(_ts.daily_spectators)) ? Number(_ts.daily_spectators) : null;
+  const specTotal = _ts && Number.isFinite(Number(_ts.total_spectators)) ? Number(_ts.total_spectators) : null;
+  const cinemaRev = _ts && Number.isFinite(Number(_ts.total_revenue)) ? Number(_ts.total_revenue) : null;
+  const cinemaPerf = _ts && typeof _ts.performance === 'string' ? _ts.performance : null;
+  const cinemaExt = _ts && Number.isFinite(Number(_ts.days_extended)) ? Number(_ts.days_extended) : 0;
+  const cinemaRed = _ts && Number.isFinite(Number(_ts.days_reduced)) ? Number(_ts.days_reduced) : 0;
+
   return (
     <div className={`ct2-root ${isSeries ? 'ct2-series' : ''}`} data-testid="content-template">
       {/* BACK */}
@@ -677,10 +686,31 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       {showCinemaModal && (
         <div style={{position:"fixed",top:0,left:0,width:"100%",height:"100%",background:"rgba(0,0,0,0.8)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={() => setShowCinemaModal(false)}>
           <div style={{background:"#111",borderRadius:"12px",padding:"20px",width:"85%",maxWidth:"400px",color:"#fff",textAlign:"center"}} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{marginBottom:"10px",color:"#00ffff"}}>Dati Cinema</h3>
-            <p style={{margin:"6px 0"}}>{'Giorni al cinema: ' + (hasCinemaDays ? '' + cinemaDays : 'N/D')}</p>
-            <p style={{margin:"6px 0"}}>{'Giorni rimanenti: ' + (hasCinemaRemain ? '' + cinemaRemain : 'N/D')}</p>
-            <button style={{marginTop:"15px",padding:"8px 15px",borderRadius:"8px",border:"none",background:"#00ffff",color:"#000",fontWeight:"bold",cursor:"pointer"}} onClick={() => setShowCinemaModal(false)}>Chiudi</button>
+            <h3 style={{marginBottom:"12px",color:"#00ffff",fontSize:"16px"}}>Dati Cinema</h3>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"12px"}}>
+              <div style={{background:"rgba(255,255,255,0.05)",borderRadius:"8px",padding:"8px"}}>
+                <div style={{fontSize:"9px",color:"#6b7280"}}>Giorni in sala</div>
+                <div style={{fontSize:"18px",fontWeight:"bold",color:"#facc15"}}>{hasCinemaDays ? '' + cinemaDays : 'N/D'}</div>
+              </div>
+              <div style={{background:"rgba(255,255,255,0.05)",borderRadius:"8px",padding:"8px"}}>
+                <div style={{fontSize:"9px",color:"#6b7280"}}>Giorni rimasti</div>
+                <div style={{fontSize:"18px",fontWeight:"bold",color:"#38bdf8"}}>{hasCinemaRemain ? '' + cinemaRemain : 'N/D'}</div>
+              </div>
+            </div>
+            {(cinemaExt > 0 || cinemaRed > 0) && (
+              <div style={{display:"flex",justifyContent:"center",gap:"12px",marginBottom:"10px",fontSize:"12px"}}>
+                {cinemaExt > 0 && <span style={{color:"#4ade80",fontWeight:"bold"}}>{'+' + cinemaExt + ' giorni estesi'}</span>}
+                {cinemaRed > 0 && <span style={{color:"#f87171",fontWeight:"bold"}}>{'-' + cinemaRed + ' giorni ridotti'}</span>}
+              </div>
+            )}
+            <div style={{borderTop:"1px solid rgba(255,255,255,0.1)",paddingTop:"10px",marginBottom:"10px"}}>
+              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Cinema attivi: ' + (cinemaCount !== null ? '' + cinemaCount : 'non disponibile')}</p>
+              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Affluenza giornaliera: ' + (specDaily !== null ? '' + specDaily.toLocaleString() : 'non disponibile')}</p>
+              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Affluenza totale: ' + (specTotal !== null ? '' + specTotal.toLocaleString() : 'non disponibile')}</p>
+              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Incassi sala: ' + (cinemaRev !== null ? '$' + cinemaRev.toLocaleString() : 'non disponibile')}</p>
+              {cinemaPerf && <p style={{margin:"8px 0",fontSize:"12px",color: cinemaPerf === 'great' ? '#4ade80' : cinemaPerf === 'good' ? '#34d399' : cinemaPerf === 'declining' ? '#fb923c' : cinemaPerf === 'bad' || cinemaPerf === 'flop' ? '#f87171' : '#facc15'}}>{'Andamento: ' + (cinemaPerf === 'great' ? 'Straordinario' : cinemaPerf === 'good' ? 'Ottimo' : cinemaPerf === 'ok' ? 'Discreto' : cinemaPerf === 'declining' ? 'In calo' : cinemaPerf === 'bad' ? 'Scarso' : cinemaPerf === 'flop' ? 'Flop' : cinemaPerf)}</p>}
+            </div>
+            <button style={{marginTop:"5px",padding:"8px 15px",borderRadius:"8px",border:"none",background:"#00ffff",color:"#000",fontWeight:"bold",cursor:"pointer"}} onClick={() => setShowCinemaModal(false)}>Chiudi</button>
           </div>
         </div>
       )}

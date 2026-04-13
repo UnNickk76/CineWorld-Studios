@@ -12,29 +12,29 @@ import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
 const TheaterInfoBar = ({ film }) => {
-  const { user, api } = useContext(AuthContext);
+  const authCtx = useContext(AuthContext) || {};
+  const user = authCtx.user;
   const [loading, setLoading] = useState('');
   const [stats, setStats] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
   const [tvStations, setTvStations] = useState([]);
   const [selectedTv, setSelectedTv] = useState('');
 
-  const ts = film.theater_stats || {};
-  const isReleased = film.pipeline_state === 'released' || film.cinemas_showing > 0 || film.cinema_count > 0;
-  const isOutOfTheater = film.pipeline_state === 'out_of_theaters';
-  const isOwner = user?.id === film.user_id;
+  const ts = film?.theater_stats || {};
+  const isReleased = film?.pipeline_state === 'released' || (Number(film?.cinemas_showing) > 0) || (Number(film?.cinema_count) > 0);
+  const isOwner = user?.id === film?.user_id;
   const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
 
   const fetchStats = () => {
-    if (!api) return;
     const token = localStorage.getItem('cineworld_token');
+    if (!token || !film?.id) return;
     fetch(`${BACKEND}/api/pipeline-v2/films/${film.id}/theater-stats`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.json()).then(d => setStats(d?.theater_stats || d)).catch(() => {});
   };
 
   const fetchTvStations = () => {
-    if (!api) return;
     const token = localStorage.getItem('cineworld_token');
+    if (!token) return;
     fetch(`${BACKEND}/api/my-tv/stations`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.json()).then(d => setTvStations(Array.isArray(d) ? d : d?.stations || [])).catch(() => setTvStations([]));
   };
@@ -90,15 +90,15 @@ const TheaterInfoBar = ({ film }) => {
       <div className="grid grid-cols-3 gap-1.5">
         <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
           <p className="text-[7px] text-gray-500">Cinema</p>
-          <p className="text-[11px] font-bold text-white">{fullStats.current_cinemas || 0}</p>
+          <p className="text-[11px] font-bold text-white">{Number(fullStats.current_cinemas) || 0}</p>
         </div>
         <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
           <p className="text-[7px] text-gray-500">Spett. oggi</p>
-          <p className="text-[11px] font-bold text-cyan-400">{(fullStats.daily_spectators || 0).toLocaleString()}</p>
+          <p className="text-[11px] font-bold text-cyan-400">{Number(fullStats.daily_spectators || 0).toLocaleString()}</p>
         </div>
         <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
           <p className="text-[7px] text-gray-500">Spett. totali</p>
-          <p className="text-[11px] font-bold text-yellow-400">{(fullStats.total_spectators || 0).toLocaleString()}</p>
+          <p className="text-[11px] font-bold text-yellow-400">{Number(fullStats.total_spectators || 0).toLocaleString()}</p>
         </div>
       </div>
       {fullStats.daily_history?.length > 0 && (
@@ -116,7 +116,7 @@ const TheaterInfoBar = ({ film }) => {
       )}
       <div className="flex justify-between px-1 text-[8px]">
         <span className="text-gray-500">Incassi sala</span>
-        <span className="font-bold text-green-400">${(fullStats.total_revenue || 0).toLocaleString()}</span>
+        <span className="font-bold text-green-400">${Number(fullStats.total_revenue || 0).toLocaleString()}</span>
       </div>
       {isOwner && (
         <div className="space-y-1.5 pt-1">
@@ -482,14 +482,14 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
 
-  // Theater status
-  const ts = film.theater_stats || {};
-  const isInTheater = film.pipeline_state === 'released' || (film.cinemas_showing > 0) || (film.cinema_count > 0);
-  const isOutTheater = film.pipeline_state === 'out_of_theaters';
-  const theaterDays = ts.days_in_theater || 0;
-  const theaterRemaining = ts.days_remaining || 0;
-  const theaterExtended = ts.days_extended || 0;
-  const theaterReduced = ts.days_reduced || 0;
+  // Theater status — safe primitives only
+  const ts = film?.theater_stats || {};
+  const isInTheater = film?.pipeline_state === 'released' || Number(film?.cinemas_showing || 0) > 0 || Number(film?.cinema_count || 0) > 0;
+  const isOutTheater = film?.pipeline_state === 'out_of_theaters';
+  const theaterDays = Number(ts.days_in_theater) || 0;
+  const theaterRemaining = Number(ts.days_remaining) || 0;
+  const theaterExtended = Number(ts.days_extended) || 0;
+  const theaterReduced = Number(ts.days_reduced) || 0;
   const [showTheaterPanel, setShowTheaterPanel] = useState(false);
 
   return (

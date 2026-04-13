@@ -2603,7 +2603,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
         <div className="space-y-3">
           <div className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 text-center space-y-2">
             <p className="text-[9px] text-gray-500 uppercase">Quality Score</p>
-            <p className="text-3xl font-bold text-white">{result?.quality_score || film.final_quality || '?'}</p>
+            <p className="text-3xl font-bold text-white">{result?.quality_score || film.quality_score || film.pre_imdb_score || film.final_quality || '?'}</p>
             <p className={`text-sm font-bold uppercase ${tierColors[result?.tier || film.final_tier] || 'text-gray-400'}`}>
               {result?.tier || film.final_tier || '—'}
             </p>

@@ -48,7 +48,9 @@ import { SKILL_TRANSLATIONS } from '../constants';
 const SagasSeriesPage = () => {
   const { api, user, refreshUser } = useContext(AuthContext);
   const { language } = useTranslations();
-  const [activeTab, setActiveTab] = useState('sagas');
+  const [searchParams] = useSearchParams();
+  const typeParam = searchParams.get('type');
+  const [activeTab, setActiveTab] = useState(typeParam === 'tv_series' ? 'series' : typeParam === 'anime' ? 'anime' : 'sagas');
   const [myFilms, setMyFilms] = useState([]);
   const [mySagas, setMySagas] = useState([]);
   const [mySeries, setMySeries] = useState([]);

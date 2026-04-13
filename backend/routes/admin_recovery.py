@@ -208,8 +208,8 @@ async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_use
     
     # Collections to delete (content)
     content_collections = ['film_projects', 'films', 'series_projects', 'anime_projects',
-                           'notifications', 'marketplace_listings', 'ri_cinema_events',
-                           'challenges', 'game_challenges', 'city_tastes']
+                           'tv_series', 'notifications', 'marketplace_listings', 'ri_cinema_events',
+                           'challenges', 'game_challenges', 'city_tastes', 'coming_soon_items']
     
     for col_name in content_collections:
         try:

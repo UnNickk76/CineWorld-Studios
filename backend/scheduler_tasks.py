@@ -2077,3 +2077,30 @@ async def seed_city_tastes_if_needed():
         logger.info(f"[CITY_TASTES] Cities in DB: {count}")
     except Exception as e:
         logger.error(f"[CITY_TASTES] Seed error: {e}")
+
+async def check_theater_life():
+    """Check all films in theaters — process daily stats, extensions, exits."""
+    try:
+        import theater_life
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        await theater_life.check_all_theaters(_db)
+    except Exception as e:
+        logger.error(f"[THEATER] Error: {e}")
+
+async def migrate_theater_films():
+    """One-time migration for old released films without theater_end_date."""
+    try:
+        import theater_life
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        await theater_life.migrate_old_released_films(_db)
+    except Exception as e:
+        logger.error(f"[THEATER] Migration error: {e}")
+
+        count = await ct.seed_cities(_db)
+        logger.info(f"[CITY_TASTES] Cities in DB: {count}")
+    except Exception as e:
+        logger.error(f"[CITY_TASTES] Seed error: {e}")

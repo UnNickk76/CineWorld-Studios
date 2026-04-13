@@ -2356,8 +2356,8 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
   const [epCount, setEpCount] = useState(film.episode_count || 12);
   const [epSaved, setEpSaved] = useState(!!film.episode_count);
   const [cityTips, setCityTips] = useState(null);
+  const [theaterWeeks, setTheaterWeeks] = useState(film.theater_weeks || 3);
   const state = film.pipeline_state;
-  const isPremiere = film.release_type === 'premiere';
   const canRelease = state === 'release_pending';
   const canSchedule = state === 'premiere_live' || state === 'release_pending';
   const isSeries = film.content_type === 'serie_tv' || film.content_type === 'anime';
@@ -2423,7 +2423,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
     setLoading('schedule');
     try {
       const res = await api.post(`/films/${film.id}/schedule-release`, {
-        date_option: selectedDate, zones: activeZones,
+        date_option: selectedDate, zones: activeZones, theater_weeks: theaterWeeks,
       });
       setScheduled(res.data?.schedule || res.data);
       toast({ title: `Distribuzione programmata!` });
@@ -2702,6 +2702,21 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
           <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15 text-center">
             <p className="text-[8px] text-emerald-400 font-bold">Distribuzione programmata</p>
             <p className="text-[8px] text-gray-400">{scheduled.date_label} — {scheduled.zone_names?.join(', ')}</p>
+          </div>
+        )}
+
+        {/* Theater Duration Slider */}
+        {canSchedule && !scheduled && (
+          <div className="p-2 rounded-lg bg-gray-800/50 border border-gray-700/30">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[9px] text-gray-400">Durata programmazione in sala</span>
+              <span className="text-[11px] font-bold text-yellow-400">{theaterWeeks * 7} giorni</span>
+            </div>
+            <input type="range" min={1} max={4} step={1} value={theaterWeeks} onChange={e => setTheaterWeeks(+e.target.value)}
+              className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-500" data-testid="theater-weeks-slider" />
+            <div className="flex justify-between text-[7px] text-gray-600 mt-0.5">
+              <span>7gg</span><span>14gg</span><span>21gg</span><span>28gg</span>
+            </div>
           </div>
         )}
 

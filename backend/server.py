@@ -7527,25 +7527,15 @@ async def startup_event():
     )
 
     # Trend scores: every 6 hours
-    from scheduler_tasks import update_trend_scores, evolve_city_tastes, seed_city_tastes_if_needed
-    scheduler.add_job(
-        update_trend_scores,
-        IntervalTrigger(hours=6),
-        id='update_trend_scores',
-        replace_existing=True
-    )
-    scheduler.add_job(
-        evolve_city_tastes,
-        IntervalTrigger(hours=6),
-        id='evolve_city_tastes',
-        replace_existing=True
-    )
-
+    from scheduler_tasks import update_trend_scores, evolve_city_tastes, seed_city_tastes_if_needed, check_theater_life, migrate_theater_films
+    scheduler.add_job(update_trend_scores, IntervalTrigger(hours=6), id='update_trend_scores', replace_existing=True)
+    scheduler.add_job(evolve_city_tastes, IntervalTrigger(hours=6), id='evolve_city_tastes', replace_existing=True)
+    scheduler.add_job(check_theater_life, IntervalTrigger(hours=1), id='check_theater_life', replace_existing=True)
     scheduler.start()
     logging.info("APScheduler started with background jobs for autonomous game operations")
-    # Seed city tastes on first startup
     import asyncio
     asyncio.create_task(seed_city_tastes_if_needed())
+    asyncio.create_task(migrate_theater_films())
 
 async def fix_decimal_skills_in_db():
     """Fix any existing cast members that have decimal skill values."""

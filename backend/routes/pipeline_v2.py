@@ -39,7 +39,7 @@ V2_STATES = {
     'sponsorship', 'marketing',
     'premiere_setup', 'premiere_live',
     'release_pending',
-    'released', 'completed',
+    'released', 'out_of_theaters', 'completed',
     'discarded',
 }
 
@@ -58,7 +58,8 @@ V2_TRANSITIONS = {
     'premiere_setup':   {'premiere_live', 'release_pending', 'discarded'},
     'premiere_live':    {'release_pending'},
     'release_pending':  {'released'},
-    'released':         {'completed'},
+    'released':         {'out_of_theaters', 'completed'},
+    'out_of_theaters':  {'completed'},
     'completed':        set(),
     'discarded':        set(),
 }
@@ -2795,6 +2796,7 @@ async def get_release_zones():
 class ScheduleReleaseBody(BaseModel):
     date_option: str
     zones: list
+    theater_weeks: int = 3
 
 
 @router.post("/films/{pid}/schedule-release")
@@ -2883,16 +2885,71 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
         'scheduled_at': _now(),
     }
 
+    # Theater duration
+    theater_weeks = max(1, min(4, body.theater_weeks))
+    release_date = _now()
+    theater_end = (datetime.fromisoformat(release_date) + timedelta(weeks=theater_weeks)).isoformat() if isinstance(release_date, str) else (release_date + timedelta(weeks=theater_weeks)).isoformat()
+
     await db.film_projects.update_one(
         {'id': pid},
         {'$set': {
             'release_schedule': schedule,
+            'theater_weeks': theater_weeks,
+            'theater_end_date': theater_end,
+            'released_at': release_date,
             'costs_paid.release_distribution': total_funds,
             'costs_paid.release_cp': total_cp,
         }}
     )
 
-    return {'schedule': schedule, 'funds_charged': total_funds, 'cp_charged': total_cp}
+    return {'schedule': schedule, 'funds_charged': total_funds, 'cp_charged': total_cp, 'theater_weeks': theater_weeks}
+
+@router.get("/films/{pid}/theater-stats")
+async def get_theater_stats(pid: str, user: dict = Depends(get_current_user)):
+    """Get detailed theater statistics for a released film."""
+    project = await _get_project(pid, user['id'])
+    stats = project.get('theater_stats', {})
+    released_at = project.get('released_at') or project.get('release_schedule', {}).get('scheduled_at')
+    end_date = project.get('theater_end_date')
+    return {
+        'theater_stats': stats,
+        'theater_weeks': project.get('theater_weeks', 3),
+        'released_at': released_at,
+        'theater_end_date': end_date,
+        'pipeline_state': project.get('pipeline_state'),
+    }
+
+@router.post("/films/{pid}/withdraw-theater")
+async def withdraw_from_theater(pid: str, user: dict = Depends(get_current_user)):
+    """Manually withdraw a film from theaters."""
+    project = await _get_project(pid, user['id'])
+    if project['pipeline_state'] != 'released':
+        raise HTTPException(400, "Film non in sala")
+    now = _now()
+    days = 0
+    released_at = project.get('released_at')
+    if released_at:
+        if isinstance(released_at, str):
+            released_at = datetime.fromisoformat(released_at.replace('Z', '+00:00'))
+        days = max(1, int((datetime.now(timezone.utc) - released_at).total_seconds() / 86400))
+    await db.film_projects.update_one({'id': pid}, {'$set': {
+        'pipeline_state': 'out_of_theaters',
+        'theater_stats.exited_at': now,
+        'theater_stats.exit_reason': 'manual',
+        'theater_stats.days_in_theater': days,
+    }})
+    return {'withdrawn': True, 'days_in_theater': days}
+
+@router.post("/films/{pid}/send-to-tv")
+async def send_to_tv(pid: str, user: dict = Depends(get_current_user)):
+    """Send a film that's out of theaters (or in theaters) to TV programming."""
+    project = await _get_project(pid, user['id'])
+    # Check user has TV
+    tv = await db.infrastructure.find_one({'owner_id': user['id'], 'type': 'emittente_tv'}, {'_id': 0})
+    if not tv:
+        raise HTTPException(400, "Non possiedi un'emittente TV")
+    await db.film_projects.update_one({'id': pid}, {'$set': {'in_tv_programming': True, 'tv_added_at': _now()}})
+    return {'sent_to_tv': True}
 
 
 # ═══════════════════════════════════════════════════════════════

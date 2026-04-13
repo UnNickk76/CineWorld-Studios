@@ -398,15 +398,34 @@ async def process_theater_film(db, film):
 
 
 async def check_all_theaters(db):
-    """Scheduler task: process all films currently in theaters."""
-    films = await db.film_projects.find(
-        {'pipeline_state': 'released'},
+    """Scheduler task: process all films currently in theaters (V1 + V2)."""
+    # V2: film_projects with various "in cinema" states
+    v2_films = await db.film_projects.find(
+        {'pipeline_state': {'$in': ['released', 'completed', 'in_theaters']}},
         {'_id': 0}
     ).to_list(500)
     
+    # V1: legacy films collection
+    v1_films = await db.films.find(
+        {'status': {'$in': ['released', 'in_theaters', 'showing']}},
+        {'_id': 0}
+    ).to_list(500)
+    
+    # Deduplicate by id
+    seen = set()
+    all_films = []
+    for f in v2_films + v1_films:
+        fid = f.get('id')
+        if fid and fid not in seen:
+            seen.add(fid)
+            # Normalize: ensure pipeline_state exists
+            if not f.get('pipeline_state'):
+                f['pipeline_state'] = 'released'
+            all_films.append(f)
+    
     processed = 0
     exited = 0
-    for film in films:
+    for film in all_films:
         result = await process_theater_film(db, film)
         if result is not None:
             processed += 1
@@ -414,8 +433,116 @@ async def check_all_theaters(db):
                 exited += 1
     
     if processed:
-        logging.info(f"[THEATER] Processed {processed} films, {exited} exited")
+        logging.info(f"[THEATER] Processed {processed} films (V2:{len(v2_films)}, V1:{len(v1_films)}), {exited} exited")
     return processed
+
+
+async def backfill_theater_stats(db):
+    """One-time backfill: generate theater_stats for films that are 'al cinema' but have no stats."""
+    now = datetime.now(timezone.utc)
+    
+    # Find all films without theater_stats across both collections
+    v2_no_stats = await db.film_projects.find(
+        {'pipeline_state': {'$in': ['released', 'completed', 'in_theaters']}, 'theater_stats': {'$exists': False}},
+        {'_id': 0}
+    ).to_list(500)
+    
+    v1_no_stats = await db.films.find(
+        {'status': {'$in': ['released', 'in_theaters', 'showing']}, 'theater_stats': {'$exists': False}},
+        {'_id': 0}
+    ).to_list(500)
+    
+    # Also catch films with cinemas_showing > 0 or cinema_count > 0
+    v2_cinema = await db.film_projects.find(
+        {'$or': [{'cinemas_showing': {'$gt': 0}}, {'cinema_count': {'$gt': 0}}], 'theater_stats': {'$exists': False}},
+        {'_id': 0}
+    ).to_list(500)
+    
+    v1_cinema = await db.films.find(
+        {'$or': [{'cinemas_showing': {'$gt': 0}}, {'cinema_count': {'$gt': 0}}], 'theater_stats': {'$exists': False}},
+        {'_id': 0}
+    ).to_list(500)
+    
+    seen = set()
+    all_films = []
+    for f in v2_no_stats + v1_no_stats + v2_cinema + v1_cinema:
+        fid = f.get('id')
+        if fid and fid not in seen:
+            seen.add(fid)
+            all_films.append(f)
+    
+    backfilled = 0
+    for film in all_films:
+        fid = film.get('id')
+        quality = film.get('quality_score', film.get('pre_imdb_score', film.get('quality', 50)))
+        
+        # Get release date
+        released_at = film.get('released_at') or film.get('release_schedule', {}).get('scheduled_at') or film.get('created_at')
+        if not released_at:
+            continue
+        if isinstance(released_at, str):
+            try:
+                released_at = datetime.fromisoformat(released_at.replace('Z', '+00:00'))
+            except:
+                continue
+        if released_at.tzinfo is None:
+            released_at = released_at.replace(tzinfo=timezone.utc)
+        
+        days_since = max(1, int((now - released_at).total_seconds() / 86400))
+        theater_weeks = film.get('theater_weeks', 3)
+        total_days = theater_weeks * 7
+        days_remaining = max(0, total_days - days_since)
+        
+        # Simulate accumulated stats
+        quality_factor = 0.5 + (quality / 100) * 1.0
+        total_spectators = 0
+        total_revenue = 0
+        for d in range(1, min(days_since + 1, total_days + 1)):
+            week = min(4, (d - 1) // 7 + 1)
+            decay = {1: 1.0, 2: 0.7, 3: 0.45, 4: 0.25}.get(week, 0.15)
+            spec = int(BASE_DAILY_SPECTATORS * decay * quality_factor * random.uniform(0.85, 1.15))
+            total_spectators += spec
+            total_revenue += spec * random.randint(8, 14)
+        
+        current_day_decay = {1: 1.0, 2: 0.7, 3: 0.45, 4: 0.25}.get(min(4, (days_since - 1) // 7 + 1), 0.15)
+        current_cinemas = max(5, int(BASE_CINEMAS * current_day_decay * quality_factor * 0.8))
+        daily_spec = int(BASE_DAILY_SPECTATORS * current_day_decay * quality_factor)
+        
+        perf = get_performance_level(film, days_since, total_spectators)
+        
+        stats = {
+            'total_spectators': total_spectators,
+            'total_revenue': total_revenue,
+            'total_theater_days': total_days,
+            'days_in_theater': days_since,
+            'days_remaining': days_remaining,
+            'days_extended': 0,
+            'days_reduced': 0,
+            'current_cinemas': current_cinemas,
+            'daily_spectators': daily_spec,
+            'performance': perf,
+            'daily_history': [],
+            'last_daily_check': days_since,
+            'backfilled': True,
+        }
+        
+        # Write to the correct collection
+        updated = await db.film_projects.update_one(
+            {'id': fid, 'theater_stats': {'$exists': False}},
+            {'$set': {'theater_stats': stats, 'theater_end_date': (released_at + timedelta(days=total_days)).isoformat()}}
+        )
+        if updated.modified_count == 0:
+            # Try legacy collection
+            await db.films.update_one(
+                {'id': fid, 'theater_stats': {'$exists': False}},
+                {'$set': {'theater_stats': stats, 'theater_end_date': (released_at + timedelta(days=total_days)).isoformat()}}
+            )
+        
+        backfilled += 1
+    
+    if backfilled:
+        logging.info(f"[THEATER] Backfilled {backfilled} films with theater_stats")
+    return backfilled
 
 
 async def migrate_old_released_films(db):

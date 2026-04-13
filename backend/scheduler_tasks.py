@@ -2126,6 +2126,9 @@ async def migrate_theater_films():
                 }})
                 migrated += 1
             logger.info(f"[MIGRATE] Updated {migrated} films with producer fields")
+        
+        # Backfill theater_stats for all films at cinema
+        await theater_life.backfill_theater_stats(_db)
     except Exception as e:
         logger.error(f"[THEATER] Migration error: {e}")
 

@@ -2086,6 +2086,35 @@ async def check_theater_life():
         _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
         _db = _client[os.environ.get('DB_NAME', 'cineworld')]
         await theater_life.check_all_theaters(_db)
+        
+        # Also: advance scheduled releases whose time has come
+        now_iso = datetime.now(timezone.utc).isoformat()
+        pending = await _db.film_projects.find(
+            {'pipeline_state': 'release_pending', 'scheduled_release_at': {'$exists': True, '$lte': now_iso}},
+            {'_id': 0, 'id': 1, 'user_id': 1, 'release_type': 1}
+        ).to_list(100)
+        for f in pending:
+            try:
+                await _db.film_projects.update_one({'id': f['id']}, {
+                    '$set': {'pipeline_state': 'released', 'released_at': now_iso},
+                    '$push': {'pipeline_history': {'from': 'release_pending', 'to': 'released', 'at': now_iso}}
+                })
+                logger.info(f"[THEATER] Scheduled release: {f['id']} → released")
+            except Exception as e:
+                logger.error(f"[THEATER] Failed to release {f['id']}: {e}")
+        
+        # Cleanup: fix bugged films stuck in release_pending with released_at
+        bugged = await _db.film_projects.find(
+            {'pipeline_state': 'release_pending', 'released_at': {'$exists': True}, 'scheduled_release_at': {'$exists': False}},
+            {'_id': 0, 'id': 1, 'user_id': 1}
+        ).to_list(100)
+        for f in bugged:
+            await _db.film_projects.update_one({'id': f['id']}, {
+                '$set': {'pipeline_state': 'released'},
+                '$push': {'pipeline_history': {'from': 'release_pending', 'to': 'released', 'at': now_iso}}
+            })
+            logger.info(f"[THEATER] Fixed bugged film: {f['id']} → released")
+        
     except Exception as e:
         logger.error(f"[THEATER] Error: {e}")
 

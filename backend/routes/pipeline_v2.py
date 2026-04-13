@@ -2911,6 +2911,16 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
         }}
     )
 
+    # Advance pipeline state based on delay
+    delay_days = date_opt.get('days', 0)
+    if delay_days == 0:
+        # Immediate release → advance to 'released' NOW
+        await _advance(pid, user['id'], 'released', {'release_type': project.get('release_type', 'direct')})
+    else:
+        # Scheduled release → calculate release timestamp, scheduler will advance later
+        scheduled_at = (datetime.now(timezone.utc) + timedelta(days=delay_days)).isoformat()
+        await db.film_projects.update_one({'id': pid}, {'$set': {'scheduled_release_at': scheduled_at}})
+
     return {'schedule': schedule, 'funds_charged': total_funds, 'cp_charged': total_cp, 'theater_weeks': theater_weeks}
 
 @router.get("/films/{pid}/theater-stats")

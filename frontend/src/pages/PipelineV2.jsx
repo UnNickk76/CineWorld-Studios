@@ -97,6 +97,31 @@ const api = {
   }
 };
 
+// ═══════════════════════════════════════════════════════════════
+//  PROGRESS CIRCLE — Cerchio 0-100% per locandina/sceneggiatura
+// ═══════════════════════════════════════════════════════════════
+
+const ProgressCircle = ({ value, size = 48, color = '#00FFD0' }) => {
+  const r = (size / 2) - 4;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (Math.min(100, Math.max(0, value)) / 100) * circ;
+  return (
+    <svg width={size} height={size} className="block">
+      <circle cx={size/2} cy={size/2} r={r} stroke="#333" strokeWidth="3" fill="none" />
+      <circle cx={size/2} cy={size/2} r={r}
+        stroke={color} strokeWidth="3" fill="none"
+        strokeDasharray={circ} strokeDashoffset={offset}
+        strokeLinecap="round"
+        style={{ transition: 'stroke-dashoffset 0.5s ease', transform: 'rotate(-90deg)', transformOrigin: 'center' }}
+      />
+      <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central"
+        fill={color} fontSize={size * 0.22} fontWeight="bold">
+        {Math.floor(value)}%
+      </text>
+    </svg>
+  );
+};
+
 function useCountdown(endTime) {
   const [remaining, setRemaining] = useState('');
   const [done, setDone] = useState(false);
@@ -537,6 +562,10 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
   const [screenplayMode, setScreenplayMode] = useState('');
   const [screenplayPrompt, setScreenplayPrompt] = useState('');
   const [manualScreenplay, setManualScreenplay] = useState(film.screenplay || '');
+  const [posterProgress, setPosterProgress] = useState(0);
+  const [scriptProgress, setScriptProgress] = useState(0);
+  const posterIntervalRef = useRef(null);
+  const scriptIntervalRef = useRef(null);
 
   useEffect(() => {
     api.get('/locations').then(d => setAllLocations(d.locations || [])).catch(() => {});
@@ -556,23 +585,43 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
 
   const generatePoster = async (mode) => {
     setLoading('poster');
+    setPosterProgress(5);
+    posterIntervalRef.current = setInterval(() => {
+      setPosterProgress(p => p >= 90 ? p : p + Math.random() * 10);
+    }, 800);
     try {
       await api.post(`/films/${film.id}/poster`, { mode, prompt: mode === 'ai_custom' ? screenplayPrompt : '' });
+      setPosterProgress(100);
+      clearInterval(posterIntervalRef.current);
       await onRefresh();
       toast({ title: 'Locandina generata!' });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    } catch (e) {
+      clearInterval(posterIntervalRef.current);
+      setPosterProgress(0);
+      toast({ title: 'Errore', description: e.message, variant: 'destructive' });
+    }
     setLoading('');
   };
 
   const writeScreenplay = async () => {
     if (!screenplayMode) return;
     setLoading('screenplay');
+    setScriptProgress(5);
+    scriptIntervalRef.current = setInterval(() => {
+      setScriptProgress(p => p >= 90 ? p : p + Math.random() * 8);
+    }, 1000);
     try {
       const body = { mode: screenplayMode, prompt: screenplayPrompt, text: manualScreenplay };
       const res = await api.post(`/films/${film.id}/screenplay`, body);
+      setScriptProgress(100);
+      clearInterval(scriptIntervalRef.current);
       await onRefresh();
       toast({ title: `Sceneggiatura scritta! (+${res.quality_bonus} quality)` });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    } catch (e) {
+      clearInterval(scriptIntervalRef.current);
+      setScriptProgress(0);
+      toast({ title: 'Errore', description: e.message, variant: 'destructive' });
+    }
     setLoading('');
   };
 
@@ -761,18 +810,27 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
         )}
         {!hasPoster && !film.poster_url && (
           <div className="flex gap-1.5">
-            <button onClick={() => generatePoster('ai_auto')} disabled={loading === 'poster'}
-              className="flex-1 text-[9px] py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50" data-testid="poster-ai-auto">
-              {loading === 'poster' ? '...' : 'AI Auto'}
-            </button>
-            <button onClick={() => generatePoster('ai_custom')} disabled={loading === 'poster'}
-              className="flex-1 text-[9px] py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50" data-testid="poster-ai-custom">
-              AI Custom
-            </button>
-            <button onClick={() => generatePoster('classic')} disabled={loading === 'poster'}
-              className="flex-1 text-[9px] py-2 rounded-lg bg-gray-700/50 border border-gray-600 text-gray-400 hover:bg-gray-700 transition-colors disabled:opacity-50" data-testid="poster-classic">
-              Classic
-            </button>
+            {loading === 'poster' && posterProgress > 0 ? (
+              <div className="w-full flex flex-col items-center gap-2 py-3">
+                <ProgressCircle value={posterProgress} size={56} color="#F59E0B" />
+                <p className="text-[8px] text-amber-400/70">Generazione locandina...</p>
+              </div>
+            ) : (
+              <>
+                <button onClick={() => generatePoster('ai_auto')} disabled={loading === 'poster'}
+                  className="flex-1 text-[9px] py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50" data-testid="poster-ai-auto">
+                  AI Auto
+                </button>
+                <button onClick={() => generatePoster('ai_custom')} disabled={loading === 'poster'}
+                  className="flex-1 text-[9px] py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50" data-testid="poster-ai-custom">
+                  AI Custom
+                </button>
+                <button onClick={() => generatePoster('classic')} disabled={loading === 'poster'}
+                  className="flex-1 text-[9px] py-2 rounded-lg bg-gray-700/50 border border-gray-600 text-gray-400 hover:bg-gray-700 transition-colors disabled:opacity-50" data-testid="poster-classic">
+                  Classic
+                </button>
+              </>
+            )}
           </div>
         )}
         {!hasPoster && <p className="text-[8px] text-gray-600 italic text-center">Opzionale ma consigliata (+hype)</p>}
@@ -807,10 +865,19 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
                 className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-gray-600 focus:outline-none resize-none" />
             )}
             {screenplayMode && (
-              <button onClick={writeScreenplay} disabled={loading === 'screenplay'}
-                className="w-full text-[10px] py-2 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50 font-bold" data-testid="write-screenplay-btn">
-                {loading === 'screenplay' ? 'Scrittura in corso...' : 'Scrivi Sceneggiatura'}
-              </button>
+              <>
+                {loading === 'screenplay' && scriptProgress > 0 ? (
+                  <div className="w-full flex flex-col items-center gap-2 py-3">
+                    <ProgressCircle value={scriptProgress} size={56} color="#A855F7" />
+                    <p className="text-[8px] text-purple-400/70">Scrittura in corso...</p>
+                  </div>
+                ) : (
+                  <button onClick={writeScreenplay} disabled={loading === 'screenplay'}
+                    className="w-full text-[10px] py-2 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50 font-bold" data-testid="write-screenplay-btn">
+                    Scrivi Sceneggiatura
+                  </button>
+                )}
+              </>
             )}
           </>
         )}
@@ -1820,6 +1887,7 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
   const [selectedSponsors, setSelectedSponsors] = useState([]);
   const [marketingPkgs, setMarketingPkgs] = useState([]);
   const [selectedMarketing, setSelectedMarketing] = useState([]);
+  const [marketingMessage, setMarketingMessage] = useState(film.marketing_message || null);
   const state = film.pipeline_state;
 
   useEffect(() => {
@@ -1846,10 +1914,21 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
   const saveMarketing = async () => {
     setLoading('marketing');
     try {
-      await api.post(`/films/${film.id}/save-marketing`, { packages: selectedMarketing });
+      const res = await api.post(`/films/${film.id}/save-marketing`, { packages: selectedMarketing });
+      if (res.marketing_status === 'failed') {
+        setMarketingMessage(res.marketing_message);
+      }
       onRefresh();
-      toast({ title: 'Marketing configurato!' });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+      toast({ title: res.marketing_status === 'failed' ? 'Marketing non riuscito, ma si prosegue!' : 'Marketing configurato!' });
+    } catch (e) {
+      // NON-BLOCKING: even if save-marketing fails, show narrative
+      setMarketingMessage(
+        "Le agenzie di marketing hanno rifiutato la tua campagna.\n\n" +
+        "Nessuno vuole scommettere su questo progetto... per ora.\n\n" +
+        "Ma nel cinema le sorprese sono sempre dietro l'angolo."
+      );
+      toast({ title: 'Marketing non disponibile, ma puoi proseguire!' });
+    }
     setLoading('');
   };
 
@@ -1914,28 +1993,43 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
       {/* MARKETING */}
       {state === 'marketing' && (
         <div className="space-y-3">
-          <p className="text-[9px] text-gray-500 uppercase font-bold">Pacchetti Marketing</p>
-          {marketingPkgs.map((pkg, i) => {
-            const sel = selectedMarketing.some(m => m.id === pkg.id);
-            return (
-              <button key={i} onClick={() => !marketingSaved && toggleMarketing(pkg)} disabled={marketingSaved}
-                className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-colors ${sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'} ${marketingSaved ? 'opacity-50' : ''}`}>
-                <Megaphone className={`w-4 h-4 flex-shrink-0 ${sel ? 'text-green-400' : 'text-gray-600'}`} />
-                <div className="flex-1">
-                  <p className={`text-[10px] font-bold ${sel ? 'text-green-400' : 'text-gray-300'}`}>{pkg.name}</p>
-                  <p className="text-[8px] text-gray-500">${(pkg.cost || 0).toLocaleString()} • +{pkg.hype_boost} hype</p>
-                </div>
-              </button>
-            );
-          })}
-
-          {selectedMarketing.length > 0 && !marketingSaved && (
-            <button onClick={saveMarketing} disabled={loading === 'marketing'}
-              className="w-full text-[10px] py-2 rounded-lg bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="save-marketing-btn">
-              Attiva Marketing (${selectedMarketing.reduce((a, m) => a + (m.cost || 0), 0).toLocaleString()})
-            </button>
+          {/* Marketing Narrative Message (if failed) */}
+          {marketingMessage && (
+            <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1">
+              <p className="text-[9px] text-amber-400 font-bold">Risposta delle agenzie:</p>
+              {marketingMessage.split('\n').filter(Boolean).map((line, i) => (
+                <p key={i} className="text-[9px] text-gray-400 leading-relaxed">{line}</p>
+              ))}
+            </div>
           )}
 
+          {!marketingMessage && (
+            <>
+              <p className="text-[9px] text-gray-500 uppercase font-bold">Pacchetti Marketing</p>
+              {marketingPkgs.map((pkg, i) => {
+                const sel = selectedMarketing.some(m => m.id === pkg.id);
+                return (
+                  <button key={i} onClick={() => !marketingSaved && toggleMarketing(pkg)} disabled={marketingSaved}
+                    className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-colors ${sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'} ${marketingSaved ? 'opacity-50' : ''}`}>
+                    <Megaphone className={`w-4 h-4 flex-shrink-0 ${sel ? 'text-green-400' : 'text-gray-600'}`} />
+                    <div className="flex-1">
+                      <p className={`text-[10px] font-bold ${sel ? 'text-green-400' : 'text-gray-300'}`}>{pkg.name}</p>
+                      <p className="text-[8px] text-gray-500">${(pkg.cost || 0).toLocaleString()} • +{pkg.hype_boost} hype</p>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {selectedMarketing.length > 0 && !marketingSaved && (
+                <button onClick={saveMarketing} disabled={loading === 'marketing'}
+                  className="w-full text-[10px] py-2 rounded-lg bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="save-marketing-btn">
+                  {loading === 'marketing' ? '...' : `Attiva Marketing ($${selectedMarketing.reduce((a, m) => a + (m.cost || 0), 0).toLocaleString()})`}
+                </button>
+              )}
+            </>
+          )}
+
+          {/* RELEASE TYPE — SEMPRE VISIBILE, indipendente dal marketing */}
           <div className="border-t border-gray-800 pt-3 space-y-2">
             <p className="text-[9px] text-gray-500 uppercase font-bold text-center">Come vuoi rilasciare il film?</p>
             <div className="grid grid-cols-2 gap-2">
@@ -2093,6 +2187,205 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
 // ═══════════════════════════════════════════════════════════════
 //  FASE 9 — USCITA
 // ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+//  STEP FINALE — Riepilogo + Conferma Uscita (FORZATO)
+// ═══════════════════════════════════════════════════════════════
+
+const StepFinale = ({ film, onRefresh, toast }) => {
+  const [loading, setLoading] = useState('');
+  const [result, setResult] = useState(null);
+  const [showReleaseOverlay, setShowReleaseOverlay] = useState(false);
+  const metrics = film.pipeline_metrics || {};
+
+  const qualityPreview = film.quality_score || film.pre_imdb_score || 5;
+  const posterUrl = film.poster_url;
+  const cast = film.cast || {};
+  const directorName = cast.director?.name || 'N/D';
+  const actorCount = (cast.actors || []).length;
+  const hypeScore = metrics.hype_score || 0;
+  const castQuality = metrics.cast_quality || 0;
+  const prodScore = metrics.shooting_quality || metrics.prep_quality || 0;
+  const marketingHype = metrics.marketing_hype || 0;
+  const marketingStatus = film.marketing_status || 'completed';
+  const marketingMessage = film.marketing_message;
+
+  const confirmRelease = async () => {
+    setLoading('confirm');
+    try {
+      const res = await api.post(`/films/${film.id}/confirm-final-release`);
+      setResult(res);
+      if (!film.release_sequence_played) {
+        setShowReleaseOverlay(true);
+      } else {
+        toast({ title: `${film.title} rilasciato! Quality: ${res.quality_score}` });
+        onRefresh();
+      }
+    } catch (e) {
+      toast({ title: '' + (e.message || 'Errore rilascio'), variant: 'destructive' });
+    }
+    setLoading('');
+  };
+
+  const discardFilm = async () => {
+    setLoading('discard');
+    try {
+      await api.post(`/films/${film.id}/discard-final`);
+      toast({ title: 'Film scartato.' });
+      onRefresh();
+    } catch (e) {
+      toast({ title: '' + (e.message || 'Errore'), variant: 'destructive' });
+    }
+    setLoading('');
+  };
+
+  const onCinemaOverlayDone = () => {
+    setShowReleaseOverlay(false);
+    api.post(`/films/${film.id}/mark-release-played`).catch(() => {});
+    onRefresh();
+    toast({ title: `${film.title} rilasciato! Quality: ${result?.quality_score || '?'}` });
+  };
+
+  const tierColors = { masterpiece: 'text-yellow-400', excellent: 'text-emerald-400', good: 'text-blue-400', mediocre: 'text-orange-400', bad: 'text-red-400' };
+
+  // If confirm succeeded, show result
+  if (result?.success) {
+    return (
+      <PhaseWrapper title="STEP FINALE — USCITA" subtitle="Il tuo film e al cinema!" icon={Ticket} color="emerald">
+        <div className="space-y-3">
+          <div className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 text-center space-y-2">
+            <p className="text-[9px] text-gray-500 uppercase">Quality Score Finale</p>
+            <p className="text-3xl font-bold text-white" data-testid="final-quality">{result.quality_score}</p>
+            <p className={`text-sm font-bold uppercase ${tierColors[result.tier] || 'text-gray-400'}`}>
+              {result.tier || 'N/D'}
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/15 text-center">
+              <p className="text-[8px] text-gray-500">Incassi</p>
+              <p className="text-[11px] font-bold text-green-400">${(result.opening_day_revenue || 0).toLocaleString()}</p>
+            </div>
+            <div className="p-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-center">
+              <p className="text-[8px] text-gray-500">XP</p>
+              <p className="text-[11px] font-bold text-yellow-400">{result.xp_reward || 0}</p>
+            </div>
+            <div className="p-2 rounded-lg bg-purple-500/5 border border-purple-500/15 text-center">
+              <p className="text-[8px] text-gray-500">Fama</p>
+              <p className="text-[11px] font-bold text-purple-400">{(result.fame_change || 0) > 0 ? '+' : ''}{result.fame_change || 0}</p>
+            </div>
+          </div>
+        </div>
+        {showReleaseOverlay && (
+          <CinematicReleaseOverlay film={film} releaseType="cinema" onComplete={onCinemaOverlayDone} />
+        )}
+      </PhaseWrapper>
+    );
+  }
+
+  return (
+    <PhaseWrapper title="STEP FINALE — USCITA" subtitle="Riepilogo prima dell'uscita" icon={Ticket} color="emerald">
+      <div className="space-y-3" data-testid="step-finale">
+        {/* Locandina */}
+        <div className="flex justify-center">
+          {posterUrl ? (
+            <img src={posterUrl} alt="" className="w-28 h-40 rounded-lg border border-gray-700 object-cover shadow-lg" />
+          ) : (
+            <div className="w-28 h-40 rounded-lg border border-gray-700 bg-gray-800/50 flex items-center justify-center">
+              <Film className="w-8 h-8 text-gray-600" />
+            </div>
+          )}
+        </div>
+
+        {/* Riepilogo */}
+        <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-700/50 space-y-2">
+          <p className="text-[9px] text-gray-500 uppercase font-bold text-center">Riepilogo Produzione</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-2">
+              <Users className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+              <div>
+                <p className="text-[8px] text-gray-500">Cast</p>
+                <p className="text-[10px] text-white font-semibold">{directorName} + {actorCount} attori</p>
+                <p className="text-[8px] text-cyan-400">Q: {castQuality}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
+              <div>
+                <p className="text-[8px] text-gray-500">Hype</p>
+                <p className="text-[10px] text-white font-semibold">{hypeScore}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Camera className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+              <div>
+                <p className="text-[8px] text-gray-500">Produzione</p>
+                <p className="text-[10px] text-white font-semibold">{prodScore}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Megaphone className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+              <div>
+                <p className="text-[8px] text-gray-500">Marketing</p>
+                <p className={`text-[10px] font-semibold ${marketingStatus === 'failed' ? 'text-amber-400' : 'text-white'}`}>
+                  {marketingStatus === 'failed' ? 'Non disponibile' : `+${marketingHype}`}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Marketing message (if failed) */}
+        {marketingMessage && (
+          <div className="p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20">
+            <p className="text-[9px] text-amber-400 font-bold mb-1">Nota Marketing:</p>
+            {String(marketingMessage).split('\n').filter(Boolean).map((line, i) => (
+              <p key={i} className="text-[8px] text-gray-400 leading-relaxed">{line}</p>
+            ))}
+          </div>
+        )}
+
+        {/* Quality Preview */}
+        <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/60 to-gray-900/60 border border-gray-700/50 text-center space-y-2">
+          <p className="text-[9px] text-gray-500 uppercase font-bold">Quality Score Preview</p>
+          <p className="text-3xl font-bold text-emerald-400" data-testid="quality-preview">{typeof qualityPreview === 'number' ? qualityPreview.toFixed?.(1) : qualityPreview}</p>
+          <p className="text-[8px] text-gray-500 leading-relaxed max-w-[260px] mx-auto">
+            Questo e un valore stimato (pre IMDb).
+            Il risultato reale sara determinato solo dopo l'uscita al cinema.
+            Il punteggio finale potrebbe migliorare o peggiorare.
+          </p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="space-y-2 pt-1">
+          <button onClick={confirmRelease} disabled={!!loading}
+            className="w-full text-sm py-3 rounded-lg bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 hover:from-emerald-500/30 hover:to-green-500/30 transition-all disabled:opacity-50 font-bold"
+            data-testid="confirm-release-btn">
+            {loading === 'confirm' ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                Calcolo qualita...
+              </span>
+            ) : 'CONFERMA USCITA'}
+          </button>
+          <button onClick={discardFilm} disabled={!!loading}
+            className="w-full text-[10px] py-2 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400/70 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
+            data-testid="discard-final-btn">
+            {loading === 'discard' ? '...' : 'SCARTA FILM'}
+          </button>
+        </div>
+
+        {/* UX fallback message */}
+        <p className="text-[7px] text-gray-600 text-center italic">
+          Se il progresso non si aggiorna subito: salva in bozza o aggiorna la pagina.
+        </p>
+      </div>
+
+      {showReleaseOverlay && (
+        <CinematicReleaseOverlay film={film} releaseType="cinema" onComplete={onCinemaOverlayDone} />
+      )}
+    </PhaseWrapper>
+  );
+};
 
 // ═══════════════════════════════════════════════════════════════
 //  FASE 9 — USCITA (Release Scheduling + Zones)
@@ -3070,7 +3363,9 @@ const PipelineV2 = () => {
     if (ui === 6 || st === 'sponsorship') return <MarketingPhase {...props} />;
     if (st === 'marketing') return <MarketingPhase {...props} />; // legacy films already in marketing
     if (ui === 7 || st === 'premiere_setup' || st === 'premiere_live') return <LaPrimaPhase {...props} />;
-    if (ui === 8 || st === 'release_pending' || st === 'released' || st === 'completed' || st === 'coming_soon_scheduled') return <UscitaPhase {...props} />;
+    // STEP FINALE: release_pending → sempre mostra il riepilogo con CONFERMA USCITA
+    if (st === 'release_pending') return <StepFinale {...props} />;
+    if (ui === 8 || st === 'released' || st === 'completed' || st === 'coming_soon_scheduled') return <UscitaPhase {...props} />;
     return <div className="p-4 text-center text-gray-500 text-xs">Stato sconosciuto: {st}</div>;
   };
 

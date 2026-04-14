@@ -2530,55 +2530,91 @@ class SaveMarketingV2(BaseModel):
 
 @router.post("/films/{pid}/save-marketing")
 async def save_marketing_v2(pid: str, req: SaveMarketingV2, user: dict = Depends(get_current_user)):
-    """Select marketing and choose premiere or direct release"""
+    """Select marketing — NON-BLOCKING: marketing never blocks the pipeline."""
     project = await _get_project(pid, user['id'])
     if project['pipeline_state'] != 'marketing':
         raise HTTPException(400, "Non in fase marketing")
 
-    total_cost = sum(p.get('cost', 0) for p in req.packages)
-    total_hype = sum(p.get('hype_boost', 0) for p in req.packages)
+    total_cost = 0
+    total_hype = 0
+    marketing_status = "completed"
+    marketing_message = None
 
-    if total_cost > 0:
-        u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
-        if u.get('funds', 0) < total_cost:
-            raise HTTPException(400, f"Servono ${total_cost:,}")
-        await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_cost}})
+    try:
+        total_cost = sum(p.get('cost', 0) for p in req.packages)
+        total_hype = sum(p.get('hype_boost', 0) for p in req.packages)
+
+        if total_cost > 0:
+            u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
+            if u.get('funds', 0) < total_cost:
+                raise HTTPException(400, f"Servono ${total_cost:,}")
+            await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_cost}})
+
+        marketing_status = "completed"
+    except HTTPException:
+        raise  # Re-raise fund check errors (user needs to know)
+    except Exception as e:
+        logging.warning(f"[MARKETING] Failed for {pid}: {e}")
+        marketing_status = "failed"
+        marketing_message = (
+            "Le agenzie di marketing hanno rifiutato la tua campagna.\n\n"
+            "Nessuno vuole scommettere su questo progetto... per ora.\n\n"
+            "Ma nel cinema le sorprese sono sempre dietro l'angolo.\n"
+            "Il tuo film potrebbe comunque diventare un capolavoro."
+        )
+        total_hype = 0
 
     update = {
         'marketing_packages': req.packages,
         'costs_paid.marketing': total_cost,
         'pipeline_metrics.marketing_hype': total_hype,
+        'marketing_status': marketing_status,
+        'marketing_bonus': total_hype if marketing_status == "completed" else None,
     }
-    
-    # Calculate quality using ALL pipeline metrics from every step
-    import random
-    metrics = project.get('pipeline_metrics', {})
-    hype = metrics.get('hype_score', 30)
-    cast_q = metrics.get('cast_quality', 40)
-    screenplay_q = metrics.get('screenplay_quality', 40)
-    prep_q = metrics.get('prep_quality', 40)
-    shooting_q = metrics.get('shooting_quality', 40)
-    postprod_q = metrics.get('postprod_quality', 50)
-    poster_q = metrics.get('poster_quality', 40)
-    event_bonus = metrics.get('shooting_event_bonus', 0)
-    
-    composite = (
-        hype * 0.08 +
-        cast_q * 0.20 +
-        screenplay_q * 0.15 +
-        prep_q * 0.10 +
-        shooting_q * 0.15 +
-        postprod_q * 0.12 +
-        poster_q * 0.05 +
-        total_hype * 0.15
-    ) + event_bonus * 0.5
-    
-    quality_score = round(min(10, max(1, composite / 10 + random.uniform(-0.3, 0.3))), 1)
-    update['quality_score'] = quality_score
-    update['pre_imdb_score'] = quality_score * 10
-    
+    if marketing_message:
+        update['marketing_message'] = marketing_message
+
+    # Calculate quality preview using ALL pipeline metrics (NON-BLOCKING)
+    try:
+        metrics = project.get('pipeline_metrics', {})
+        hype = metrics.get('hype_score', 30)
+        cast_q = metrics.get('cast_quality', 40)
+        screenplay_q = metrics.get('screenplay_quality', 40)
+        prep_q = metrics.get('prep_quality', 40)
+        shooting_q = metrics.get('shooting_quality', 40)
+        postprod_q = metrics.get('postprod_quality', 50)
+        poster_q = metrics.get('poster_quality', 40)
+        event_bonus = metrics.get('shooting_event_bonus', 0)
+
+        composite = (
+            hype * 0.08 +
+            cast_q * 0.20 +
+            screenplay_q * 0.15 +
+            prep_q * 0.10 +
+            shooting_q * 0.15 +
+            postprod_q * 0.12 +
+            poster_q * 0.05 +
+            total_hype * 0.15
+        ) + event_bonus * 0.5
+
+        quality_score = round(min(10, max(1, composite / 10 + random.uniform(-0.3, 0.3))), 1)
+        update['quality_score'] = quality_score
+        update['pre_imdb_score'] = quality_score * 10
+    except Exception as e:
+        logging.warning(f"[MARKETING] Quality calc failed for {pid}: {e}")
+        update['quality_score'] = 5.0
+        update['pre_imdb_score'] = 50
+        quality_score = 5.0
+
     film = await _update_project(pid, update)
-    return {'film': film, 'cost': total_cost, 'hype_boost': total_hype, 'quality_score': quality_score}
+    return {
+        'film': film,
+        'cost': total_cost,
+        'hype_boost': total_hype,
+        'quality_score': quality_score,
+        'marketing_status': marketing_status,
+        'marketing_message': marketing_message,
+    }
 
 @router.post("/films/{pid}/choose-premiere")
 async def choose_premiere_v2(pid: str, user: dict = Depends(get_current_user)):
@@ -2586,9 +2622,11 @@ async def choose_premiere_v2(pid: str, user: dict = Depends(get_current_user)):
     project = await _get_project(pid, user['id'])
     if project['pipeline_state'] == 'premiere_setup':
         return {'film': project}
-    if project['pipeline_state'] != 'marketing':
+    if project['pipeline_state'] not in ('marketing', 'sponsorship'):
         raise HTTPException(400, "Non in fase marketing")
-    film = await _advance(pid, user['id'], 'premiere_setup', {}, 'city_selection')
+    # Save release_type independently
+    await db.film_projects.update_one({'id': pid}, {'$set': {'release_type': 'laprima'}})
+    film = await _advance(pid, user['id'], 'premiere_setup', {'release_type': 'laprima'}, 'city_selection')
     return {'film': film}
 
 @router.post("/films/{pid}/choose-direct-release")
@@ -2597,8 +2635,9 @@ async def choose_direct_release_v2(pid: str, user: dict = Depends(get_current_us
     project = await _get_project(pid, user['id'])
     if project['pipeline_state'] == 'release_pending':
         return {'film': project}
-    if project['pipeline_state'] != 'marketing':
+    if project['pipeline_state'] not in ('marketing', 'sponsorship'):
         raise HTTPException(400, "Non in fase marketing")
+    # Save release_type independently — ALWAYS
     film = await _advance(pid, user['id'], 'release_pending', {'release_type': 'direct'}, 'ready')
     return {'film': film}
 
@@ -2984,6 +3023,130 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
 
     logging.info(f"[RELEASE] Film {pid} released. State={project.get('pipeline_state')}, quality={project.get('quality_score')}, theater_weeks={theater_weeks}")
     return {'schedule': schedule, 'funds_charged': total_funds, 'cp_charged': total_cp, 'theater_weeks': theater_weeks}
+
+
+# ═══════════════════════════════════════════════════════════════
+#  STEP FINALE — CONFERMA USCITA (Ricalcolo + Release)
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/films/{pid}/confirm-final-release")
+async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)):
+    """
+    STEP FINALE: ricalcola quality, salva release. MAI return vuoto, MAI None.
+    Works in release_pending state.
+    """
+    project = await _get_project(pid, user['id'])
+    state = project.get('pipeline_state', '')
+    if state not in ('release_pending', 'marketing', 'sponsorship'):
+        raise HTTPException(400, f"Film non in fase di conferma uscita (stato: {state})")
+
+    # RICALCOLO COMPLETO — Anti-Bug: always recalculate from scratch
+    metrics = project.get('pipeline_metrics', {})
+    cast_q = metrics.get('cast_quality', 0)
+    hype_q = metrics.get('hype_score', 0)
+    screenplay_q = metrics.get('screenplay_quality', 0)
+    prep_q = metrics.get('prep_quality', 0)
+    shooting_q = metrics.get('shooting_quality', 0)
+    postprod_q = metrics.get('postprod_quality', 0)
+    poster_q = metrics.get('poster_quality', 0)
+    marketing_q = metrics.get('marketing_hype', 0)
+    event_bonus = metrics.get('shooting_event_bonus', 0)
+
+    composite = (
+        cast_q * 0.22 +
+        hype_q * 0.08 +
+        screenplay_q * 0.15 +
+        prep_q * 0.10 +
+        shooting_q * 0.15 +
+        postprod_q * 0.12 +
+        poster_q * 0.05 +
+        marketing_q * 0.13
+    ) + event_bonus * 0.5
+
+    quality_score = round(min(10, max(1, composite / 10 + random.uniform(-0.3, 0.3))), 1)
+
+    # Determine tier
+    if quality_score >= 9.0:
+        tier = 'masterpiece'
+    elif quality_score >= 7.5:
+        tier = 'excellent'
+    elif quality_score >= 5.5:
+        tier = 'good'
+    elif quality_score >= 3.5:
+        tier = 'mediocre'
+    else:
+        tier = 'bad'
+
+    now = _now()
+
+    # Compute release rewards
+    fame = (await db.users.find_one({'id': user['id']}, {'_id': 0, 'fame': 1})).get('fame', 0)
+    fame_change = calculate_fame_change(quality_score * 10, fame)
+    xp_reward = int(quality_score * 15 + random.uniform(0, 30))
+    opening_revenue = int(quality_score * 50000 * random.uniform(0.7, 1.3))
+
+    # Update user
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$inc': {'fame': fame_change, 'xp': xp_reward, 'funds': opening_revenue}}
+    )
+
+    release_data = {
+        'quality_score': quality_score,
+        'pre_imdb_score': quality_score * 10,
+        'final_quality': quality_score,
+        'final_tier': tier,
+        'status': 'released',
+        'completed': True,
+        'released_at': now,
+        'theater_weeks': project.get('theater_weeks', 3),
+        'theater_end_date': (datetime.now(timezone.utc) + timedelta(weeks=project.get('theater_weeks', 3))).isoformat(),
+        'release_type': project.get('release_type', 'direct'),
+    }
+
+    # Advance to released via state machine if possible
+    try:
+        # If in release_pending, advance normally
+        if state == 'release_pending':
+            film = await _advance(pid, user['id'], 'released', release_data, 'final')
+        else:
+            # Force advance for edge cases
+            await db.film_projects.update_one(
+                {'id': pid},
+                {'$set': {**release_data, 'pipeline_state': 'released', 'pipeline_ui_step': 8}}
+            )
+            film = await db.film_projects.find_one({'id': pid}, {'_id': 0})
+    except Exception as e:
+        logging.warning(f"[CONFIRM_RELEASE] Advance failed for {pid}: {e}, forcing released state")
+        await db.film_projects.update_one(
+            {'id': pid},
+            {'$set': {**release_data, 'pipeline_state': 'released', 'pipeline_ui_step': 8}}
+        )
+        film = await db.film_projects.find_one({'id': pid}, {'_id': 0})
+
+    logging.info(f"[CONFIRM_RELEASE] Film {pid} released. Quality={quality_score}, Tier={tier}")
+
+    return {
+        'success': True,
+        'film': film,
+        'quality_score': quality_score,
+        'tier': tier,
+        'fame_change': fame_change,
+        'xp_reward': xp_reward,
+        'opening_day_revenue': opening_revenue,
+    }
+
+
+@router.post("/films/{pid}/discard-final")
+async def discard_final(pid: str, user: dict = Depends(get_current_user)):
+    """Scarta film dallo step finale. Funziona in release_pending/marketing."""
+    project = await _get_project(pid, user['id'])
+    state = project.get('pipeline_state', '')
+    allowed = {'release_pending', 'marketing', 'sponsorship', 'postproduction'}
+    if state not in allowed:
+        raise HTTPException(400, f"Non puoi scartare il film in stato {state}")
+    film = await _advance(pid, user['id'], 'discarded', {'discard_reason': 'user_final_step'}, 'discarded')
+    return {'success': True, 'film': film}
 
 @router.get("/films/{pid}/theater-stats")
 async def get_theater_stats(pid: str, user: dict = Depends(get_current_user)):

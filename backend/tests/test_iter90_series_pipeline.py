@@ -6,7 +6,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://trend-system-ui.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://pipeline-v2-fix.preview.emergentagent.com')
 TEST_EMAIL = "fandrex1@gmail.com"
 TEST_PASSWORD = "Ciaociao1"
 

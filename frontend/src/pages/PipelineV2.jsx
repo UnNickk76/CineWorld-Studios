@@ -2612,6 +2612,11 @@ const StepFinale = ({ film, onRefresh, toast }) => {
         return;
       }
       setResult(res);
+
+      // REFRESH SUBITO per aggiornare lo stato pipeline a "released"
+      const updated = await onRefresh?.();
+      console.log('STEP DOPO RELEASE:', updated?.pipeline_state);
+
       // WOW!
       setPhase('wow');
     } catch (e) {
@@ -2627,12 +2632,9 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   useEffect(() => { return () => { if (progressRef.current) clearInterval(progressRef.current); }; }, []);
 
   const onWowComplete = async () => {
-    const updated = await onRefresh?.();
-    if (updated?.pipeline_state === 'released' || updated?.pipeline_state === 'completed') {
-      setPhase('done');
-      return;
-    }
-    // Se il refresh non torna ancora lo stato aggiornato, mostra comunque il risultato locale
+    // Film già in stato released dal refresh fatto prima del WOW
+    // Forza un altro refresh per sicurezza, poi chiudi
+    await onRefresh?.();
     setPhase('done');
   };
 

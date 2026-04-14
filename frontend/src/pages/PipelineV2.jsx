@@ -18,17 +18,15 @@ const API = process.env.REACT_APP_BACKEND_URL;
 // ═══════════════════════════════════════════════════════════════
 
 const V2_STEPS = [
-  { id: 'idea',           label: 'IDEA',          icon: Sparkles,     color: 'amber'  },
-  { id: 'hype',           label: 'HYPE',          icon: TrendingUp,   color: 'orange' },
-  { id: 'cast',           label: 'CAST',          icon: Users,        color: 'cyan'   },
-  { id: 'prep',           label: 'PREP',          icon: Camera,       color: 'blue'   },
-  { id: 'ciak',           label: 'CIAK',          icon: Clapperboard, color: 'red'    },
-  { id: 'finalcut',       label: 'FINAL CUT',     icon: Film,         color: 'purple' },
-  { id: 'marketing',      label: 'MARKETING',     icon: Megaphone,    color: 'green'  },
-  { id: 'release_choice', label: 'RILASCIO',      icon: Award,        color: 'yellow' },
-  { id: 'distribution',   label: 'DISTRIBUZIONE', icon: Globe,        color: 'blue'   },
-  { id: 'confirm',        label: 'CONFERMA',      icon: Check,        color: 'emerald'},
-  { id: 'released',       label: 'AL CINEMA',     icon: Ticket,       color: 'emerald'},
+  { id: 'idea',      label: 'IDEA',      icon: Sparkles,     color: 'amber'  },
+  { id: 'hype',      label: 'HYPE',      icon: TrendingUp,   color: 'orange' },
+  { id: 'cast',      label: 'CAST',      icon: Users,        color: 'cyan'   },
+  { id: 'prep',      label: 'PREP',      icon: Camera,       color: 'blue'   },
+  { id: 'ciak',      label: 'CIAK',      icon: Clapperboard, color: 'red'    },
+  { id: 'finalcut',  label: 'FINAL CUT', icon: Film,         color: 'purple' },
+  { id: 'marketing', label: 'MARKETING', icon: Megaphone,    color: 'green'  },
+  { id: 'laprima',   label: 'LA PRIMA',  icon: Award,        color: 'yellow' },
+  { id: 'uscita',    label: 'USCITA',    icon: Ticket,       color: 'emerald'},
 ];
 
 const STEP_STYLES = {
@@ -131,7 +129,7 @@ const safeAverage = (values) => {
   return parseFloat((valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(1));
 };
 
-// Map backend state → UI step index (0-10)
+// Map backend state → UI step index (0-8, 9 steps)
 const STATE_TO_STEP = {
   draft: 0, idea: 0,
   proposed: 1, hype_setup: 1, hype_live: 1,
@@ -140,11 +138,10 @@ const STATE_TO_STEP = {
   shooting: 4,
   postproduction: 5,
   sponsorship: 6, marketing: 6,
-  release_choice: 7,
   distribution: 8,
   premiere_setup: 7, premiere_live: 7,
-  release_pending: 9,
-  released: 10, completed: 10,
+  release_pending: 8,
+  released: 8, completed: 8,
 };
 
 const getStepState = (stepIndex, currentStepIndex) => {
@@ -1920,6 +1917,8 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
   const [selectedMarketing, setSelectedMarketing] = useState([]);
   const [marketingMessage, setMarketingMessage] = useState(film.marketing_message || null);
   const state = film.pipeline_state;
+  const marketingDone = film.marketing_completed || (Array.isArray(film.marketing_packages) && film.marketing_packages.length > 0);
+  const releaseType = film.release_type || null;
 
   useEffect(() => {
     if (state === 'sponsorship') {
@@ -1963,8 +1962,28 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
     setLoading('');
   };
 
-  const choosePremiere = null; // Removed — now in ReleaseChoicePhase
-  const chooseDirectRelease = null; // Removed — now in ReleaseChoicePhase
+  const handleSetReleaseType = async (type) => {
+    setLoading('release_type');
+    try {
+      await api.post(`/films/${film.id}/set-release-type`, { release_type: type });
+      onRefresh();
+    } catch (e) { toast({ title: '' + (e.message || 'Errore'), variant: 'destructive' }); }
+    setLoading('');
+  };
+
+  const advanceToDistribution = async () => {
+    setLoading('advance');
+    try {
+      if (releaseType === 'premiere') {
+        await api.post(`/films/${film.id}/choose-premiere`);
+      } else {
+        await api.post(`/films/${film.id}/choose-direct-release`);
+      }
+      onRefresh();
+      toast({ title: 'Distribuzione!' });
+    } catch (e) { toast({ title: '' + (e.message || 'Errore'), variant: 'destructive' }); }
+    setLoading('');
+  };
 
   const toggleSponsor = (sp) => {
     const exists = selectedSponsors.some(s => s.name === sp.name);
@@ -2004,26 +2023,29 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
         </div>
       )}
 
-      {/* MARKETING — save-marketing auto-avanza a release_choice */}
+      {/* MARKETING */}
       {state === 'marketing' && (
         <div className="space-y-3">
+          {/* Marketing failure narrative */}
           {marketingMessage && (
             <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1">
               <p className="text-[9px] text-amber-400 font-bold">Risposta delle agenzie:</p>
               {String(marketingMessage).split('\n').filter(Boolean).map((line, i) => (
                 <p key={i} className="text-[9px] text-gray-400 leading-relaxed">{line}</p>
               ))}
+              <p className="text-[8px] text-gray-500 italic mt-1">...ma puoi comunque decidere come lanciare il film.</p>
             </div>
           )}
 
-          {!marketingMessage && (
+          {/* Marketing packages — solo se non ancora confermato */}
+          {!marketingDone && !marketingMessage && (
             <>
               <p className="text-[9px] text-gray-500 uppercase font-bold">Pacchetti Marketing</p>
               {marketingPkgs.map((pkg, i) => {
                 const sel = selectedMarketing.some(m => m.id === pkg.id);
                 return (
-                  <button key={i} onClick={() => !marketingSaved && toggleMarketing(pkg)} disabled={marketingSaved}
-                    className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-colors ${sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'} ${marketingSaved ? 'opacity-50' : ''}`}>
+                  <button key={i} onClick={() => toggleMarketing(pkg)}
+                    className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-colors ${sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'}`}>
                     <Megaphone className={`w-4 h-4 flex-shrink-0 ${sel ? 'text-green-400' : 'text-gray-600'}`} />
                     <div className="flex-1">
                       <p className={`text-[10px] font-bold ${sel ? 'text-green-400' : 'text-gray-300'}`}>{pkg.name}</p>
@@ -2032,21 +2054,66 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
                   </button>
                 );
               })}
-
-              {selectedMarketing.length > 0 && !marketingSaved && (
+              {selectedMarketing.length > 0 && (
                 <button onClick={saveMarketing} disabled={loading === 'marketing'}
                   className="w-full text-[10px] py-2 rounded-lg bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="save-marketing-btn">
                   {loading === 'marketing' ? '...' : `Attiva Marketing ($${selectedMarketing.reduce((a, m) => a + (m.cost || 0), 0).toLocaleString()})`}
                 </button>
               )}
-
-              {!marketingSaved && selectedMarketing.length === 0 && (
+              {selectedMarketing.length === 0 && (
                 <button onClick={saveMarketing} disabled={loading === 'marketing'}
                   className="w-full text-[10px] py-2 rounded-lg bg-gray-700/50 border border-gray-600 text-gray-400 hover:bg-gray-700 transition-colors disabled:opacity-50 font-bold" data-testid="skip-marketing-btn">
                   {loading === 'marketing' ? '...' : 'Salta Marketing'}
                 </button>
               )}
             </>
+          )}
+
+          {/* Marketing confermato */}
+          {marketingDone && !marketingMessage && (
+            <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/15 flex items-center gap-2">
+              <Check className="w-4 h-4 text-green-400" />
+              <p className="text-[10px] text-green-400 font-bold">Marketing attivato</p>
+            </div>
+          )}
+
+          {/* ═══ SCELTA RILASCIO — dopo marketing confermato ═══ */}
+          {(marketingDone || marketingMessage) && (
+            <div className="border-t border-gray-800 pt-4 space-y-3">
+              <p className="text-[10px] text-gray-400 uppercase font-bold text-center">Come vuoi rilasciare il film?</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => handleSetReleaseType('premiere')} disabled={loading === 'release_type'}
+                  className={`p-4 rounded-xl border text-center transition-all ${
+                    releaseType === 'premiere'
+                      ? 'bg-yellow-500/15 border-yellow-500/50 ring-1 ring-yellow-500/20'
+                      : 'bg-gray-800/30 border-gray-700 hover:border-gray-600'
+                  }`} data-testid="choose-premiere-btn">
+                  <Award className={`w-6 h-6 mx-auto mb-1.5 ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-500'}`} />
+                  <p className={`text-[11px] font-bold ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-400'}`}>La Prima</p>
+                  <p className="text-[7px] text-gray-500 mt-0.5">Red carpet + premiere</p>
+                </button>
+                <button onClick={() => handleSetReleaseType('direct')} disabled={loading === 'release_type'}
+                  className={`p-4 rounded-xl border text-center transition-all ${
+                    releaseType === 'direct'
+                      ? 'bg-emerald-500/15 border-emerald-500/50 ring-1 ring-emerald-500/20'
+                      : 'bg-gray-800/30 border-gray-700 hover:border-gray-600'
+                  }`} data-testid="choose-direct-btn">
+                  <Ticket className={`w-6 h-6 mx-auto mb-1.5 ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-500'}`} />
+                  <p className={`text-[11px] font-bold ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-400'}`}>Rilascio Diretto</p>
+                  <p className="text-[7px] text-gray-500 mt-0.5">Subito nei cinema</p>
+                </button>
+              </div>
+              {releaseType && (
+                <button onClick={advanceToDistribution} disabled={!!loading}
+                  className="w-full text-[10px] py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold"
+                  data-testid="advance-distribution-btn">
+                  {loading === 'advance' ? '...' : 'Prosegui alla Distribuzione'}
+                </button>
+              )}
+              {!releaseType && (
+                <p className="text-[8px] text-gray-600 text-center italic">Seleziona una modalita per proseguire</p>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -2337,18 +2404,26 @@ const DistributionPhase = ({ film, onRefresh, toast }) => {
         <div>
           <p className="text-[9px] text-gray-500 uppercase font-bold mb-1.5">Data di uscita</p>
           <div className="grid grid-cols-4 gap-1">
-            {dateOptions.map(d => (
-              <button key={d.id}
-                onClick={() => setSelectedDate(d.id)}
-                className={`py-1.5 px-1 rounded-md text-[9px] font-bold border transition-all ${
-                  selectedDate === d.id ? 'bg-blue-500/15 border-blue-500/40 text-blue-400' :
-                  'border-gray-800 text-gray-400 hover:border-gray-600'
-                }`}
-                data-testid={`date-opt-${d.id}`}
-              >
-                {d.label}
-              </button>
-            ))}
+            {dateOptions.map(d => {
+              const isPremiere = film.release_type === 'premiere';
+              const isImmediate = d.days === 0 || d.id === 'immediate';
+              const disabled = isPremiere && isImmediate;
+              return (
+                <button key={d.id}
+                  onClick={() => !disabled && setSelectedDate(d.id)}
+                  disabled={disabled}
+                  title={disabled ? 'La Prima richiede attesa minima' : ''}
+                  className={`py-1.5 px-1 rounded-md text-[9px] font-bold border transition-all ${
+                    disabled ? 'opacity-30 cursor-not-allowed border-gray-800 text-gray-600' :
+                    selectedDate === d.id ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' :
+                    'border-gray-800 text-gray-400 hover:border-gray-600'
+                  }`}
+                  data-testid={`date-opt-${d.id}`}
+                >
+                  {d.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -3600,7 +3675,6 @@ const PipelineV2 = () => {
     const ui = STATE_TO_STEP[st] ?? (selected.pipeline_ui_step || 0);
     const props = { film: selected, onRefresh: refreshSelected, toast };
 
-    // Allow USCITA scheduling during premiere_live
     if (forceUscita && st === 'premiere_live') return <DistributionPhase {...props} />;
 
     if (st === 'draft' || st === 'idea') return <IdeaPhase {...props} />;
@@ -3610,7 +3684,6 @@ const PipelineV2 = () => {
     if (st === 'shooting') return <CiakPhase {...props} />;
     if (st === 'postproduction') return <FinalCutPhase {...props} />;
     if (st === 'sponsorship' || st === 'marketing') return <MarketingPhase {...props} />;
-    if (st === 'release_choice') return <ReleaseChoicePhase {...props} />;
     if (st === 'distribution') return <DistributionPhase {...props} />;
     if (st === 'premiere_setup' || st === 'premiere_live') return <LaPrimaPhase {...props} />;
     if (st === 'release_pending') return <StepFinale {...props} />;
@@ -3623,10 +3696,8 @@ const PipelineV2 = () => {
     if (ui === 4) return <CiakPhase {...props} />;
     if (ui === 5) return <FinalCutPhase {...props} />;
     if (ui === 6) return <MarketingPhase {...props} />;
-    if (ui === 7) return <ReleaseChoicePhase {...props} />;
-    if (ui === 8) return <DistributionPhase {...props} />;
-    if (ui === 9) return <StepFinale {...props} />;
-    if (ui >= 10) return <UscitaPhase {...props} />;
+    if (ui === 7) return <LaPrimaPhase {...props} />;
+    if (ui >= 8) return <UscitaPhase {...props} />;
     return <div className="p-4 text-center text-gray-500 text-xs">Stato sconosciuto: {st}</div>;
   };
 
@@ -3889,7 +3960,7 @@ const GENRE_TAGLINES = {
   biographical: 'Vite straordinarie meritano il grande schermo.',
 };
 
-const MINI_STEPS = ['IDEA', 'HYPE', 'CAST', 'PREP', 'CIAK', 'FINAL CUT', 'MARKETING', 'RILASCIO', 'DISTRIB.', 'CONFERMA', 'AL CINEMA'];
+const MINI_STEPS = ['IDEA', 'HYPE', 'CAST', 'PREP', 'CIAK', 'FINAL CUT', 'MARKETING', 'LA PRIMA', 'USCITA'];
 
 const CONTENT_TYPES = [
   { id: 'film', label: 'Film', icon: 'Film', desc: 'Lungometraggio classico' },

@@ -122,11 +122,21 @@ const ProgressCircle = ({ value, size = 48, color = '#00FFD0' }) => {
   );
 };
 
-// Anti-NaN: preview quality SOLO UI, mai salvata
-const safeAverage = (values) => {
-  const valid = values.filter(v => typeof v === 'number' && !isNaN(v) && v !== null);
-  if (valid.length === 0) return 5.0;
-  return parseFloat((valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(1));
+// Preview quality score: normalizzato 1-10 stile IMDb, SOLO UI
+const calculatePreviewScore = (metrics) => {
+  // Ogni metrica è su scala diversa, normalizzare ciascuna a 0-10
+  const castRaw = (metrics.cast_quality ?? 0) || 0;
+  const hypeRaw = (metrics.hype_score ?? 0) || 0;
+  const prodRaw = (((metrics.shooting_quality ?? 0) + (metrics.prep_quality ?? 0) + (metrics.postprod_quality ?? 0)) / 3) || 0;
+  const mktRaw = (metrics.marketing_hype ?? 0) || 0;
+  // cast: 0-100 → /10, hype: 0-1000 → /100, prod: 0-100 → /10, mkt: 0-100 → /10
+  const cast10 = Math.min(10, castRaw / 10);
+  const hype10 = Math.min(10, hypeRaw / 100);
+  const prod10 = Math.min(10, prodRaw / 10);
+  const mkt10 = Math.min(10, mktRaw / 10);
+  const base = cast10 * 0.4 + hype10 * 0.2 + prod10 * 0.2 + mkt10 * 0.2;
+  const withVariance = base + (Math.random() * 0.4 - 0.2);
+  return Math.max(1, Math.min(10, withVariance)).toFixed(1);
 };
 
 // Map backend state → UI step index (0-8, 9 steps)
@@ -2516,13 +2526,8 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   const [showReleaseOverlay, setShowReleaseOverlay] = useState(false);
   const metrics = film.pipeline_metrics || {};
 
-  // PREVIEW quality — SOLO UI, mai salvata, mai usata per classifiche
-  const previewScore = safeAverage([
-    metrics.cast_quality ?? 0,
-    metrics.hype_score ?? 0,
-    ((metrics.shooting_quality ?? 0) + (metrics.prep_quality ?? 0) + (metrics.postprod_quality ?? 0)) / 3,
-    metrics.marketing_hype ?? 0,
-  ]);
+  // PREVIEW quality — SOLO UI, mai salvata, normalizzata 1-10
+  const previewScore = calculatePreviewScore(metrics);
   const posterUrl = film.poster_url;
   const cast = film.cast || {};
   const directorName = cast.director?.name || 'N/D';
@@ -2539,12 +2544,8 @@ const StepFinale = ({ film, onRefresh, toast }) => {
     try {
       const res = await api.post(`/films/${film.id}/confirm-final-release`);
       setResult(res);
-      if (!film.release_sequence_played) {
-        setShowReleaseOverlay(true);
-      } else {
-        toast({ title: `${film.title} rilasciato! Quality: ${res.quality_score}` });
-        onRefresh();
-      }
+      toast({ title: `${film.title} rilasciato! Quality: ${res.quality_score}` });
+      await onRefresh();
     } catch (e) {
       toast({ title: '' + (e.message || 'Errore rilascio'), variant: 'destructive' });
     }

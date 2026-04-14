@@ -92,7 +92,9 @@ export default function EventHistoryPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-lg font-bold text-white">Eventi</h1>
-          <span className="text-xs text-gray-500 ml-auto">{events.length} totali</span>
+          <span className="text-xs text-gray-500">{events.length} totali</span>
+          <button onClick={async () => { if(window.confirm('Cancellare tutto lo storico eventi?')) { const token = localStorage.getItem('cineworld_token'); await fetch(process.env.REACT_APP_BACKEND_URL + '/api/admin/recovery/clear-my-events', { method:'POST', headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'}}); window.location.reload(); }}}
+            className="ml-auto text-[9px] px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold">Cancella storico</button>
         </div>
 
         {/* Category Tabs */}

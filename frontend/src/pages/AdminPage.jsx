@@ -24,6 +24,7 @@ const ADMIN_TABS = [
   { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
   { id: 'recovery', label: 'Anti-Limbo', icon: AlertTriangle },
+  { id: 'reset', label: 'Reset Gioco', icon: Trash2 },
 ];
 
 const COADMIN_TABS = [
@@ -911,6 +912,84 @@ const DonationsTab = ({ api }) => {
     </Card>
   );
 }
+
+
+
+const ResetGamePanel = ({ api }) => {
+  const [enabled, setEnabled] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [loading, setLoading] = useState('');
+  const [result, setResult] = useState(null);
+
+  const doReset = async (type) => {
+    setConfirmAction(null);
+    setLoading(type);
+    try {
+      const r = await api.post('/admin/recovery/reset-game', { type });
+      setResult(r.data || r);
+      toast.success('Reset completato');
+    } catch (e) { toast.error(e?.response?.data?.detail || e.message || 'Errore'); }
+    setLoading('');
+  };
+
+  return (
+    <Card className="bg-[#111113] border-red-500/20" data-testid="reset-game-panel">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2 text-red-400"><AlertTriangle className="w-4 h-4" /> Reset Gioco</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="p-3 bg-red-500/5 border border-red-500/15 rounded-lg">
+          <p className="text-[11px] text-red-400 font-bold">ATTENZIONE: i reset sono irreversibili. Questa azione non può essere annullata.</p>
+        </div>
+
+        <div className="flex items-center justify-between p-3 bg-white/[0.02] rounded-lg border border-white/5">
+          <div>
+            <p className="text-[11px] font-bold text-white">Abilita reset amministrativi</p>
+            <p className="text-[9px] text-gray-500">Sblocca i bottoni di reset</p>
+          </div>
+          <button onClick={() => setEnabled(!enabled)}
+            className={`w-12 h-6 rounded-full transition-colors relative ${enabled ? 'bg-red-600' : 'bg-gray-700'}`}>
+            <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          <button onClick={() => enabled && setConfirmAction('keep_infra')} disabled={!enabled || !!loading}
+            className="w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-orange-500/5 border-orange-500/15 hover:bg-orange-500/10">
+            <p className="text-[11px] font-bold text-orange-400">{loading === 'keep_infra' ? 'Reset in corso...' : 'Reset mantenendo infrastrutture'}</p>
+            <p className="text-[8px] text-gray-500 mt-0.5">Cancella: film, serie, anime, classifiche, statistiche, eventi, pipeline. Mantiene: utenti, infrastrutture, monete, cinepass.</p>
+          </button>
+
+          <button onClick={() => enabled && setConfirmAction('full')} disabled={!enabled || !!loading}
+            className="w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-red-500/5 border-red-500/15 hover:bg-red-500/10">
+            <p className="text-[11px] font-bold text-red-400">{loading === 'full' ? 'Reset in corso...' : 'Reset totale (eccetto utenti)'}</p>
+            <p className="text-[8px] text-gray-500 mt-0.5">Cancella: film, serie, anime, infrastrutture, progressi, eventi, statistiche, pipeline. Mantiene: utenti registrati.</p>
+          </button>
+        </div>
+
+        {result && (
+          <div className="p-2 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] text-green-400">
+            Reset completato: {JSON.stringify(result)}
+          </div>
+        )}
+      </CardContent>
+
+      {confirmAction && (
+        <div style={{position:'fixed',inset:0,zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={() => setConfirmAction(null)}>
+          <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.7)'}} />
+          <div style={{position:'relative',width:'100%',maxWidth:360,background:'#111113',borderRadius:16,padding:20,border:'1px solid rgba(239,68,68,0.3)'}} onClick={e => e.stopPropagation()}>
+            <p style={{fontSize:14,fontWeight:'bold',color:'#fff',marginBottom:8}}>Conferma Reset</p>
+            <p style={{fontSize:12,color:'#9ca3af',marginBottom:16}}>Questa azione è definitiva e non può essere annullata. Vuoi procedere?</p>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={() => setConfirmAction(null)} style={{flex:1,padding:'10px 0',borderRadius:8,background:'#1f2937',color:'#9ca3af',fontSize:12,fontWeight:'bold',border:'none',cursor:'pointer'}}>Annulla</button>
+              <button onClick={() => doReset(confirmAction)} style={{flex:1,padding:'10px 0',borderRadius:8,background:'#dc2626',color:'#fff',fontSize:12,fontWeight:'bold',border:'none',cursor:'pointer'}}>Conferma Reset</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+};
 
 
 function MaintenanceTab({ api }) {
@@ -2476,8 +2555,15 @@ export default function AdminPage() {
         {activeTab === 'donations' && isAdmin && <GuestCleanupPanel api={api} />}
         {/* CityTastesAdmin temporarily disabled - investigating deploy issue */}
         {activeTab === 'maintenance' && isAdmin && <DbManagementCard api={api} isAdmin={isAdmin} />}
+        {activeTab === 'maintenance' && isAdmin && (
+          <Card className="bg-[#111113] border-white/5 mt-3"><CardContent className="p-3">
+            <p className="text-xs font-bold text-orange-400 mb-2">Pulizia Eventi</p>
+            <button onClick={async () => { if(window.confirm('Cancellare TUTTI gli eventi?')) { await api.post('/admin/recovery/clear-events'); toast.success('Eventi cancellati'); }}} className="w-full text-[10px] py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 font-bold">Cancella tutti gli eventi</button>
+          </CardContent></Card>
+        )}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}
+        {activeTab === 'reset' && isAdmin && <ResetGamePanel api={api} />}
         {activeTab === 'migration' && isAdmin && <MigrationTab api={api} />}
         {activeTab === 'tutorial' && isAdmin && <TutorialManagerTab api={api} />}
       </div>

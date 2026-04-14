@@ -192,3 +192,78 @@ async def migrate_film_fields(user: dict = Depends(get_current_user)):
     
     logging.info(f"[ADMIN] Migrated {migrated} films with producer/duration fields")
     return {'migrated': migrated}
+
+
+from pydantic import BaseModel as _BM
+class ResetGameRequest(_BM):
+    type: str  # 'keep_infra' or 'full'
+
+@router.post("/reset-game")
+async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_user)):
+    """Admin-only: reset game data. NEVER deletes users."""
+    if user.get('nickname') != 'NeoMorpheus':
+        raise HTTPException(403, "Solo admin")
+    
+    results = {}
+    
+    # Collections to delete (content)
+    content_collections = ['film_projects', 'films', 'series_projects', 'anime_projects',
+                           'tv_series', 'notifications', 'marketplace_listings', 'ri_cinema_events',
+                           'challenges', 'game_challenges', 'city_tastes', 'coming_soon_items',
+                           'event_history', 'auto_tick_events']
+    
+    for col_name in content_collections:
+        try:
+            r = await db[col_name].delete_many({})
+            results[col_name] = r.deleted_count
+        except Exception as e:
+            results[col_name] = f"error: {str(e)}"
+    
+    if req.type == 'full':
+        for col_name in ['infrastructure', 'tv_stations', 'tv_programming']:
+            try:
+                r = await db[col_name].delete_many({})
+                results[col_name] = r.deleted_count
+            except Exception as e:
+                results[col_name] = f"error: {str(e)}"
+        
+        try:
+            await db.users.update_many({}, {'$set': {
+                'funds': 10000000, 'cinepass': 50, 'level': 1, 'fame': 0, 'xp': 0,
+            }})
+            results['users_reset'] = 'done'
+        except Exception as e:
+            results['users_reset'] = f"error: {str(e)}"
+    
+    try:
+        import city_tastes as ct
+        await ct.seed_cities(db)
+        results['city_tastes_reseeded'] = True
+    except:
+        pass
+    
+    logging.warning(f"[ADMIN RESET] Type: {req.type}, By: {user.get('nickname')}, Results: {results}")
+    return {'type': req.type, 'results': results}
+
+
+
+@router.post("/clear-events")
+async def clear_all_events(user: dict = Depends(get_current_user)):
+    """Admin: clear all event history."""
+    if user.get('nickname') != 'NeoMorpheus':
+        raise HTTPException(403, "Solo admin")
+    r1 = await db.event_history.delete_many({})
+    r2 = await db.auto_tick_events.delete_many({})
+    return {'event_history': r1.deleted_count, 'auto_tick_events': r2.deleted_count}
+
+@router.post("/clear-my-notifications")
+async def clear_my_notifications(user: dict = Depends(get_current_user)):
+    """User: clear own notifications."""
+    r = await db.notifications.delete_many({'user_id': user['id']})
+    return {'deleted': r.deleted_count}
+
+@router.post("/clear-my-events")
+async def clear_my_events(user: dict = Depends(get_current_user)):
+    """User: clear own event history."""
+    r = await db.event_history.delete_many({'user_id': user['id']})
+    return {'deleted': r.deleted_count}

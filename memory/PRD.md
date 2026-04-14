@@ -1,209 +1,50 @@
-# CineWorld Studio's - PRD
+# CineWorld Studio's — PRD
 
-## Problema Originale
-Gioco browser di simulazione cinematografica con produzione film, serie TV, anime, sistema TV con palinsesto, marketplace, PvP arena, minigiochi e social features.
+## Prodotto
+Browser game gestionale cinematografico Full-Stack (FastAPI + React + MongoDB).
 
-## Architettura
-- **Frontend**: React + TailwindCSS + Shadcn UI + Framer Motion
-- **Backend**: FastAPI + MongoDB
-- **Auth**: JWT-based con bcrypt
+## Pipeline V2 — 9 Step Visivi (SEMPRE visibili)
+```
+IDEA → HYPE → CAST → PREP → CIAK → FINAL CUT → MARKETING → LA PRIMA → USCITA
+```
 
-## Cosa è stato implementato
+### Backend State Flow:
+```
+draft → idea → proposed → hype → casting → prep → shooting → postproduction → sponsorship → marketing → distribution → release_pending → released → completed
+```
 
-### Sessione Corrente (Apr 2026)
+### Step Mapping (0-8):
+0: IDEA | 1: HYPE | 2: CAST | 3: PREP | 4: CIAK | 5: FINAL CUT | 6: MARKETING | 7: LA PRIMA | 8: USCITA
 
-#### Tab Contenuti Rifattorizzato (TVMenuModal)
-- Card "+" come PRIMO elemento inline a sinistra per ogni sezione (Film=giallo, Serie TV=blu, Anime=arancione)
-- Eliminato bottone "+ Aggiungi" a destra
-- Scroll orizzontale su tutte le righe
-- Freccia ➡️ del colore sezione se scroll necessario (20+ items)
+### Marketing = Hub (step 6)
+- Mostra pacchetti marketing
+- Dopo conferma marketing: mostra scelta rilascio (La Prima / Diretto) come sub-phase
+- Scelta salva `release_type` via `set-release-type` endpoint
+- Pulsante "Prosegui alla Distribuzione" avanza a `distribution`
 
-#### Sezione Prossimamente Emittente TV (NUOVA)
-- Sezione nel tab Contenuti dedicata alla programmazione futura della propria emittente
-- Card "+" → picker contenuti (film/serie/anime, ANCHE in produzione/sviluppo)
-- Timer popup: 6 ore | 12 ore | 24 ore | 2 giorni | 4 giorni | 6 giorni
-- Film: scade timer → va in onda automaticamente
-- Serie/Anime con episodi: dopo timer → apre PalinsestoModal per scheduling episodi
-- Serie/Anime SENZA episodi: resta CONGELATA (icona fiocco neve), si sblocca quando definiti
-- Auto-transizione in `_auto_advance_broadcasts`
-- Backend endpoints: add-upcoming, get upcoming, remove-upcoming, available-upcoming
+### Differenza La Prima vs Diretto
+- La Prima: "Immediato" disabilitato nella distribuzione
+- Diretto: "Immediato" disponibile
 
-#### Rifattorizzazione Sistema Infrastrutture (Apr 2026)
-- Creata /strutture (gestione cinema, film, prezzi, revenue)
-- Creata /agenzia (4 tab: Attori, Scuola, Scout, Sceneggiature)
-- Creata /strategico (divisioni PvP con stats e upgrade)
-- SideMenu con visibilità condizionale (API /infrastructure/owned-categories)
-- InfrastructurePage semplificata a solo Shop + Upgrade (1574→779 righe)
-- Rimosso tab Agenzia Casting da ProductionStudioPanel
-- Formula cinema migliorata: gradimento, durata, compatibilità genere, prezzi, food
+### Quality Score
+- **Preview (frontend)**: `safeAverage()` — MAI salvata
+- **Calcolo reale**: SOLO in `confirm-final-release`
+- **Invisibile fino uscita**
 
-#### Rifinitura Prossimamente Gestionale (Apr 2026)
-- Click su locandina nel "Prossimamente" → apre popup dettaglio gestione (SeriesDetailModal/FilmDetailPopup) invece del cestino
-- Bottone "Elimina dalla programmazione" esplicito sotto ogni locandina
-- Merge vecchi contenuti schedulati (`scheduled_for_tv`) con nuovi (`upcoming_content`) nella lista Prossimamente
-- Fix overlay click-through su FilmDetailPopup (e.stopPropagation su backdrop)
-
-#### Click Gestionale su TUTTE le sezioni TVMenuModal (Apr 2026)
-- Click su locandina in Film/Serie TV/Anime apre il gestionale (SeriesDetailModal o FilmDetailPopup)
-- Bottone "Elimina" esplicito sotto ogni locandina in tutte le sezioni
-- Rimosso trash overlay on hover (sostituito da bottone esplicito)
-
-#### Eventi WOW — Animazione Cinematica (Apr 2026)
-- Click su card "Eventi WOW" in Dashboard ora apre l'animazione cinematica VelionCinematicEvent
-- Rimossa navigazione diretta a `/films/{id}`
-
-#### Velion — Rimozione notifica revenue automatica (Apr 2026)
-- Rimosso tipo `revenue` da HIGH_PRIORITY_TYPES in VelionOverlay
-- La notifica "botteghino da incassare" non appare più (processo automatico)
-
-#### Dashboard Refactor + SideMenu + Glow + Menu Hamburger
-(come precedentemente implementato)
-
-## Distinzione Prossimamente
-| Sezione | Dove | Cosa mostra |
-|---|---|---|
-| Prossimamente Dashboard | Dashboard globale | Contenuti di TUTTI i giocatori in sviluppo |
-| Prossimamente Emittente TV | TVMenuModal → Contenuti | Contenuti programmati per la propria emittente con timer |
-
-#### UX Migliorata Strutture/Cinema (Apr 2026)
-- Badge performance film visuale (Ottimo verde / Medio giallo / Flop rosso) con icone
-- Box "Perché stai guadagnando così?" con fattori positivi/negativi/neutri
-- Differenziazione tipo struttura con label e bonus genere
-- Dettagli noleggio film (durata restante, % ricavi, costo pagato)
-- Barra gradimento pubblico animata con colori dinamici
-- Micro feedback toast contestuali su ogni azione (prezzi, aggiunta/rimozione film)
-- Statistiche griglia (Affluenza, Occupazione, Schermi)
-
-#### FASE 3 — Mondo Vivo (Apr 2026)
-- **Sistema Citta Dinamiche (Invisibile)**: 47 citta con generi attivi e valori nascosti (0-100), timer random 5-25 giorni, update asincrono via scheduler
-- **Sistema Hype Film**: Campo hype (0-100) per ogni film, decadimento nel tempo, influenza su affluenza/food/rendimento cinema
-- **Impatto Citta su LaPrima**: Boost forte su premiere basato su affinita citta-genere, max +15%/-5%
-- **Impatto Citta post-uscita**: Leggero su revenue cinema via scheduler
-- **Notifiche Impatto Film**: Generate ogni 3h per film attivi, ~40 parole descrittive (4 tier), MAI numeri esposti
-- **Velion LaPrima Suggestion**: ~40% probabilita, suggerisce 2-4 citta (60-70% buone, 30-40% sbagliate), UI con fade e glow
-- **Collegamento Eventi-Hype**: Eventi positivi → hype/gradimento +, negativi → hype/gradimento -
-- Backend: `/app/backend/routes/city_dynamics.py`, scheduler jobs in `scheduler_tasks.py`
-
-#### Sistema Tutorial PRO (Apr 2026)
-- **Backend model**: `tutorial_config` collection MongoDB con template statico/velion/guest
-- **Admin Tutorial Manager**: 3 card con 2 pulsanti ciascuna (Da DB + Con AI = 6 azioni totali)
-- **Generazione AI**: GPT-4.1-mini via Emergent LLM Key, genera contenuti JSON strutturati per ogni tipo tutorial
-  - Prompt dedicati per statico (8 blocchi), velion (6 step interattivi), guest (7 step pipeline)
-  - Parsing JSON automatico, gestione errori, versioning incrementale
-- **Background task non bloccante**: Processing → Generazione → Salvataggio → Completato con polling 1.5s
-- **Progress bar differenziata**: colore verde per AI, giallo per DB, badge tipo (es. "static (AI)")
-- **Frozen Sections**: "Note di Rilascio" e "Note di Sistema" freezate con badge "In aggiornamento"
-  - Pagine sostituite con layout freeze (icona lucchetto, messaggio, box AI futuro)
-  - Menu grid: opacita ridotta, badge "SOSPESO", click disabilitato
-  - Nessun fetch vecchi contenuti, nessun errore console
-- **Tutorial Page**: Legge contenuti da DB (`/api/tutorial/content`), versioning visibile
-- **Preparazione riattivazione futura**: Struttura DB pronta per AI/Admin Panel
-- Backend: `/app/backend/routes/tutorial.py`, model: `/app/backend/models/tutorial.py`
-- Endpoints AI: `POST /api/admin/tutorial/update-ai/{type}` (static/velion/guest)
-
-#### Restyling UI Pagina Dettaglio + Sistema Durata (Apr 2026)
-- **ContentTemplate.jsx riscritto**: Layout a flusso mobile-first (rimosso overlay PNG con positioning assoluto)
-- **Nuovo ordine UI**: Status bar → Poster+Trama breve → Titolo → Regia+Cast → Barra dati (IMDb/Durata) → Box giornali → Box pubblico/eventi → Sceneggiatura scrollabile → Trailer placeholder
-- **5 stati dinamici**: LaPrima! (glow oro), Prossimamente, Al Cinema (verde), In TV! (blu), In Catalogo
-- **Box giornali verdi**: VARIETY/EMPIRE/HOLLYWOOD R. (film) o IGN/COLLIDER/ENTERTAINMENT W. (serie)
-- **Box celeste pubblico+eventi**: Percezione pubblica + headline news_events
-- **Sistema Durata backend**: 5 categorie film (Cortometraggio→Kolossal, 20-280 min) + 5 categorie serie (Breve→Kolossal Seriale, 15-110 min/ep)
-- **Calcolo deterministico**: Basato su genere, lunghezza trama, bias controllato
-- **short_plot**: Generato automaticamente dalla sceneggiatura (max 500 char), salvato una volta
-- **Retrocompatibilita assoluta**: Nessuna migrazione DB, fallback sicuri per tutti i campi opzionali
-- **Impatto gameplay durata**: quality_mod, revenue_mult, cost_mult per categoria
-- Endpoints: `POST /api/pipeline-v2/films/{pid}/set-duration`, `POST /api/series-pipeline/{id}/set-duration`, `GET .../duration-categories`
-- File: `ContentTemplate.jsx`, `content-template.css`, `pipeline_v2.py`, `series_pipeline.py`, `films.py`
-
-#### Sistema Trend Dinamico (Apr 2026)
-- **Scheduler `update_trend_scores()`**: Calcolo batch ogni 6h per tutti film+serie attivi
-- **Formula**: quality*15 + hype*20 + attendance + likes + cinemas + status_boost - age_decay - flop_penalty, range 0-10000
-- **Ranking**: Posizione globale ordinata per trend_score DESC
-- **Delta**: Differenza posizione tra calcoli (es: +12 = in salita, -5 = in calo)
-- **Frontend**: Integrato nella barra dati fucsia: `🔥 #9 ↑+12` con colore verde/rosso/grigio
-- **Eventi automatici**: Notifica "Trend in Salita!" (delta>+20) o "Interesse in Calo" (delta<-20)
-- **Retrocompatibilita**: Campi opzionali con fallback a 0/null, nessuna migrazione
-- **Performance**: Query batch, no loop pesanti, aggiornamento ogni 6h
-- File: `scheduler_tasks.py`, `server.py`, `ContentTemplate.jsx`, `content-template.css`, `films.py`, `series_pipeline.py`
-
-#### Navigazione Mobile Gesture-Based (Apr 2026)
-- **TopNavbar riorganizzata**: CIACK (toggle side menu) → HOME (dashboard) → BACK (solo quando serve), rimosso `?` tutorial
-- **Side Menu Globale**: Spostato da Dashboard a AppLayout, funziona da qualsiasi pagina
-- **Swipe Navigator**: Gesture touch tra pagine bottom-nav (/films, /marketplace, /infrastructure, /pvp-arena, /my-tv)
-- **Dashboard swipe speciale**: Destra → apre menu, Sinistra → prima pagina di gioco
-- **Anti-conflitto scroll**: Ignora swipe se il touch parte dentro elementi con scrollWidth > clientWidth
-- **Vibrazione**: `navigator.vibrate()` su apertura/chiusura menu e cambio pagina
-- **z-index corretto**: Menu (z-40/z-48) sotto navbar (z-50), CIACK sempre cliccabile
-- File: `App.js`, `Dashboard.jsx`
-
-#### Navbar Definitiva + Comandi Rapidi (Apr 2026)
-- **Top navbar**: 8 icone fisse (CIACK, HOME, PRODUCI, ARENA, LE MIE TV, MAJOR, CHAT, NOTIFICHE) + fondi compatti. Rimosso hamburger menu, CineBoard dropdown, tutorial, online users.
-- **Bottom navbar**: 11 item (HOME, I MIEI, PRODUCI, CINEBOARD, CLASSIFICHE, FESTIVAL, CINEJOURNAL, MERCATO, MINIGIOCHI, EVENTI, RAPIDI). Icona Zap per Comandi Rapidi.
-- **Comandi Rapidi**: Panel popup dalla bottom nav con 8 scorciatoie (Sceneggiature, Le mie TV, Infrastrutture, Arena, Contest, Saghe, Stelle, Profilo)
-- **Side menu**: Icone Lucide React (giallo/gold) al posto di emoji — stile identico alle navbar
-- **Swipe semplificato**: Solo dashboard swipe destro → apre menu. Rimosso swipe tra pagine.
-- File: `App.js`, `Dashboard.jsx`
-
-#### Fase 2: Mercato Auto + Prossimamente Fix + Placeholder (Apr 2026)
-- **Mercato auto-listing**: Film scartati (`discard_film_v2`) entrano automaticamente nel marketplace con prezzo proporzionale (40-60% investito, min $10K). Split 50/50 (50% venditore, 50% rimosso dal sistema)
-- **Prossimamente fix**: V2 detail ora ha bottone "Vedi Dettaglio" → naviga a ContentTemplate. Campi mancanti mostrano spazio vuoto (no "non disponibile")
-- **ContentTemplate cleanup**: Rimossi tutti i placeholder "Trama non disponibile", "Durata non disponibile" — spazio vuoto se dato assente
-- **Popup conferma**: ConfirmDialog personalizzato CineWorld (Velion/CineOx) gia presente ovunque, nessun `window.confirm` nel codice
-- File: `pipeline_v2.py`, `film_pipeline.py`, `ContentTemplate.jsx`, `ComingSoonSection.jsx`
-
-#### Menu Laterale Pellicola Cinematografica (Apr 2026)
-- **Effetto pellicola animata CSS-only**: Background con bande scure + gradient dorato + perforazioni laterali, animazione verticale 20s loop infinito
-- **Frame dorati**: Ogni voce menu stilizzata come frame pellicola con bordo gold, glow sottile, sfondo semi-trasparente
-- **Fondi + CinePass fissi in alto**: Badge dorato fondi + badge cyan CinePass sempre visibili nel menu laterale
-- **Admin Panel**: Bottone rosso con icona Settings, solo per admin/co-admin, fisso sotto fondi
-- **Titoli di Coda**: Bottone hamburger in basso nel menu → apre griglia navigazione completa (ex hamburger menu) con profilo, tutorial, logout
-- **Top navbar**: Aggiunto badge CinePass cyan accanto ai fondi
-- File: `App.js`, `styles/film-strip-menu.css`
-
-#### Vista Parco Studio 3D (Apr 2026)
-- **Nuova pagina** `/parco-studio` — griglia 19 infrastrutture con sfondo AI cinematico generato via GPT Image 1
-- **Backend**: `GET /api/infrastructure/parco-studio/backgrounds` + `POST .../generate-background` — generazione lazy, salvataggio URL su DB, serve via mount statico
-- **Top navbar**: 2 icone aggiunte (INFRA classico + INFRA 3D con badge "3D" cyan)
-- **Sblocco**: infrastrutture non acquistate → overlay scuro con lucchetto → click porta a pagina acquisto
-- **Performance**: immagini salvate come file PNG, lazy load, cache client, generazione una sola volta
-- **Retrocompatibile**: sistema classico invariato, pagina completamente separata
-- File: `App.js`, `ParcoStudioPage.jsx`, `routes/infrastructure.py`, `server.py`
-
-#### Parco Studio V2 — Mappa Scrollabile (Apr 2026)
-- **Mappa 2000x2000**: Sfondo aereo AI generato (CineWorld Studios con 6 lotti), scrollabile touch su mobile
-- **Auto-centering**: All'apertura la vista si centra automaticamente sullo studio centrale
-- **6 slot raggruppati**: Studi Produzione, Cinema & Distribuzione, Agenzia & Talenti, Eventi & Esperienza, Broadcast TV, Divisioni Strategiche
-- **Stato dinamico**: empty (terreno + lucchetto), partial (barra progresso), complete (icona piena)
-- **Click → route esistenti**: Nessuna nuova UI, richiama esattamente le pagine attuali
-- File: `ParcoStudioPage.jsx`
-
-#### Fix Menu Laterale Push (Apr 2026)
-- **Menu push senza overlay**: Aprendo il menu laterale, la pagina si sposta a destra senza zoom-out e senza overlay scuro
-- **Scroll orizzontale reale**: Il contenuto spostato e visibile tramite scroll orizzontale (`body[data-sidemenu="open"]` con `overflow-x: auto`)
-- **CSS left/right**: Elementi fixed (TopNavbar, BottomNav) shiftati via `left`/`right` CSS (non transform) per creare vero overflow scrollabile
-- **Reset automatico**: Alla chiusura del menu, scroll orizzontale resettato a 0 con animazione smooth
-- File: `App.js`, `index.css`
-
-#### Fix Parco Studio 3D + Dashboard Benvenuto (Apr 2026)
-- **Parco Studio**: Rimossi TUTTI i nomi/label. Bottoni invisibili 150% più grandi, centrati sugli edifici reali (coordinate da image analysis). Insegna mostra solo `production_house_name` del player
-- **Dashboard**: Aggiunto header "Benvenuto in CineWorld Studio's," + nickname cliccabile (espande stats: Films, Incassi, Like, Qualità) + nome casa di produzione
-- **Cache-busting**: `?v=2` su immagine mappa per forzare refresh dopo deploy
-- **Fix `films_in_theaters`**: Variabile mancante in `velion.py` che causava crash deploy
-- File: `ParcoStudioPage.jsx`, `Dashboard.jsx`, `routes/velion.py`
+## Endpoint Chiave
+- POST /api/pipeline-v2/films/{pid}/save-marketing — Salva packages, NON avanza step
+- POST /api/pipeline-v2/films/{pid}/set-release-type — Salva release_type, NON avanza step
+- POST /api/pipeline-v2/films/{pid}/choose-premiere — marketing → distribution (release_type=premiere)
+- POST /api/pipeline-v2/films/{pid}/choose-direct-release — marketing → distribution (release_type=direct)
+- POST /api/pipeline-v2/films/{pid}/schedule-release — distribution → release_pending
+- POST /api/pipeline-v2/films/{pid}/confirm-final-release — release_pending → released (calcolo reale)
 
 ## Backlog
+- (P1) CinemaStatsModal + ProducerProfileModal
+- (P1) Fase 3 Mercato: vendita serie/anime
+- (P2) Sfida della Settimana
+- (P3) Previsioni Festival, Marketplace diritti TV/Anime
 
-### P1
-- Fase 3 Mercato: vendita serie/anime
-
-### P2
-- Sfida della Settimana
-
-### P3
-- Previsioni Festival, Marketplace diritti TV/Anime
-- Velion Mood, Chat Evolution, CinePass+Stripe, Livelli
-
-## Credenziali Test
-- Email: fandrex1@gmail.com
-- Password: Fandrel2776
-- Nickname: NeoMorpheus
+## Integrazioni
+- Emergent LLM Key (AI Avatar, Poster, Screenplay)
+- Stripe (Payments)

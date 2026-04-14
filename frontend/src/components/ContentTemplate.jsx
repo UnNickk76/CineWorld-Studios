@@ -431,6 +431,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const [loading, setLoading] = useState(true);
   const [virtualAudience, setVirtualAudience] = useState(null);
   const [showCast, setShowCast] = useState(false);
+  const [showCinemaModal, setShowCinemaModal] = useState(false);
 
   const isSeries = contentType === 'series' || contentType === 'anime';
   const isAnime = contentType === 'anime' || film?.type === 'anime' || film?.content_type === 'anime';
@@ -488,6 +489,28 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const perception = getPublicPerception(film);
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
+
+  // Cinema days — safe local variables, no hooks, no effects
+  const _ts = (film && typeof film.theater_stats === 'object' && film.theater_stats !== null) ? film.theater_stats : null;
+  const _cinemaDays = _ts ? (Number.isFinite(Number(_ts.days_in_theater)) ? Number(_ts.days_in_theater) : null) : null;
+  const _cinemaRemain = _ts ? (Number.isFinite(Number(_ts.days_remaining)) ? Number(_ts.days_remaining) : null) : null;
+  // Fallback: calculate from released_at if theater_stats missing
+  const _relDate = film?.released_at || (film?.release_schedule && typeof film.release_schedule === 'object' ? film.release_schedule.scheduled_at : null);
+  const _calcDays = (() => { try { if (_relDate) { const d = Math.floor((Date.now() - new Date(String(_relDate)).getTime()) / 86400000); return d >= 0 ? d : null; } return null; } catch(e) { return null; } })();
+  const _calcRemain = (() => { try { if (_calcDays !== null) { const tw = Number.isFinite(Number(film?.theater_weeks)) ? Number(film.theater_weeks) : 3; return Math.max(0, tw * 7 - _calcDays); } return null; } catch(e) { return null; } })();
+  const cinemaDays = _cinemaDays !== null ? _cinemaDays : _calcDays;
+  const cinemaRemain = _cinemaRemain !== null ? _cinemaRemain : _calcRemain;
+  const hasCinemaDays = Number.isFinite(cinemaDays);
+  const hasCinemaRemain = Number.isFinite(cinemaRemain);
+
+  // Extra cinema stats — safe
+  const cinemaCount = _ts && Number.isFinite(Number(_ts.current_cinemas)) ? Number(_ts.current_cinemas) : null;
+  const specDaily = _ts && Number.isFinite(Number(_ts.daily_spectators)) ? Number(_ts.daily_spectators) : null;
+  const specTotal = _ts && Number.isFinite(Number(_ts.total_spectators)) ? Number(_ts.total_spectators) : null;
+  const cinemaRev = _ts && Number.isFinite(Number(_ts.total_revenue)) ? Number(_ts.total_revenue) : null;
+  const cinemaPerf = _ts && typeof _ts.performance === 'string' ? _ts.performance : null;
+  const cinemaExt = _ts && Number.isFinite(Number(_ts.days_extended)) ? Number(_ts.days_extended) : 0;
+  const cinemaRed = _ts && Number.isFinite(Number(_ts.days_reduced)) ? Number(_ts.days_reduced) : 0;
 
   return (
     <div className={`ct2-root ${isSeries ? 'ct2-series' : ''}`} data-testid="content-template">
@@ -599,49 +622,14 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         )}
       </div>
 
-      {/* CINEMA STATS BAR — separate, celeste, with expand arrow */}
-      {(() => {
-        try {
-          const cinemas = parseInt(film.cinemas_showing) || parseInt(film.cinema_count) || 0;
-          const isInCinema = cinemas > 0 || film.pipeline_state === 'released' || film.pipeline_state === 'in_theaters';
-          const isOut = film.pipeline_state === 'out_of_theaters' || film.pipeline_state === 'completed';
-          if (!isInCinema && !isOut) return null;
-          let days = 0, remain = 0, ext = 0, red = 0;
-          const ts = (typeof film.theater_stats === 'object' && film.theater_stats) ? film.theater_stats : null;
-          if (ts) {
-            days = parseInt(ts.days_in_theater) || 0;
-            remain = parseInt(ts.days_remaining) || 0;
-            ext = parseInt(ts.days_extended) || 0;
-            red = parseInt(ts.days_reduced) || 0;
-          } else {
-            const rel = film.released_at || (film.release_schedule ? film.release_schedule.scheduled_at : null);
-            if (rel) { try { days = Math.max(0, Math.floor((Date.now() - new Date(rel).getTime()) / 86400000)); } catch(e) {} }
-            remain = Math.max(0, (parseInt(film.theater_weeks) || 3) * 7 - days);
-          }
-          return (
-            <div className="mx-4 mt-1 mb-1 px-3 py-1.5 rounded-lg flex items-center justify-between"
-              style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', cursor: 'pointer' }}
-              onClick={() => window.dispatchEvent(new CustomEvent('open-cinema-stats', { detail: { filmId: film.id } }))}
-              data-testid="cinema-stats-bar">
-              <div className="flex items-center gap-2">
-                <span style={{fontSize:10,fontWeight:'bold',color: isInCinema ? '#38bdf8' : '#9ca3af'}}>{isInCinema ? 'AL CINEMA' : 'FUORI SALA'}</span>
-                <span style={{fontSize:11,fontWeight:'bold',color:'#facc15'}}>{'' + days + 'gg'}</span>
-                {isInCinema && <span style={{fontSize:10,color:'#9ca3af'}}>{'/ ' + remain + ' rimasti'}</span>}
-                {ext > 0 && <span style={{fontSize:10,fontWeight:'bold',color:'#4ade80'}}>{'+' + ext}</span>}
-                {red > 0 && <span style={{fontSize:10,fontWeight:'bold',color:'#f87171'}}>{'-' + red}</span>}
-              </div>
-              <span style={{fontSize:12,color:'#38bdf8'}}>&#9660;</span>
-            </div>
-          );
-        } catch(e) { return null; }
-      })()}
-
       {/* PROSSIMAMENTE IN TV badge */}
       {film.in_tv_programming === true && (
         <div className="mx-4 mb-1 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center">
           <span className="text-[9px] font-bold text-blue-400">PROSSIMAMENTE IN TV</span>
         </div>
       )}
+
+      <div style={{border:"2px solid #00ffff",background:"rgba(0,255,255,0.08)",padding:"10px",marginTop:"8px",textAlign:"center",fontWeight:"bold",color:"#00ffff",borderRadius:"8px",cursor:"pointer"}} onClick={() => setShowCinemaModal(true)}>{hasCinemaDays && hasCinemaRemain ? 'IN SALA - ' + cinemaDays + ' giorni - ' + cinemaRemain + ' rimanenti' : hasCinemaDays ? 'IN SALA - ' + cinemaDays + ' giorni' : 'IN SALA - dati cinema in aggiornamento'}</div>
 
       {/* 6. JOURNALIST REVIEWS (green boxes) */}
       <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>
@@ -693,6 +681,39 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
       {/* Cast Popup */}
       <CastPopup open={showCast} onClose={setShowCast} cast={film?.cast} />
+
+      {/* Cinema Stats Modal */}
+      {showCinemaModal && (
+        <div style={{position:"fixed",top:0,left:0,width:"100%",height:"100%",background:"rgba(0,0,0,0.8)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={() => setShowCinemaModal(false)}>
+          <div style={{background:"#111",borderRadius:"12px",padding:"20px",width:"85%",maxWidth:"400px",color:"#fff",textAlign:"center"}} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{marginBottom:"12px",color:"#00ffff",fontSize:"16px"}}>Dati Cinema</h3>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"12px"}}>
+              <div style={{background:"rgba(255,255,255,0.05)",borderRadius:"8px",padding:"8px"}}>
+                <div style={{fontSize:"9px",color:"#6b7280"}}>Giorni in sala</div>
+                <div style={{fontSize:"18px",fontWeight:"bold",color:"#facc15"}}>{hasCinemaDays ? '' + cinemaDays : 'N/D'}</div>
+              </div>
+              <div style={{background:"rgba(255,255,255,0.05)",borderRadius:"8px",padding:"8px"}}>
+                <div style={{fontSize:"9px",color:"#6b7280"}}>Giorni rimasti</div>
+                <div style={{fontSize:"18px",fontWeight:"bold",color:"#38bdf8"}}>{hasCinemaRemain ? '' + cinemaRemain : 'N/D'}</div>
+              </div>
+            </div>
+            {(cinemaExt > 0 || cinemaRed > 0) && (
+              <div style={{display:"flex",justifyContent:"center",gap:"12px",marginBottom:"10px",fontSize:"12px"}}>
+                {cinemaExt > 0 && <span style={{color:"#4ade80",fontWeight:"bold"}}>{'+' + cinemaExt + ' giorni estesi'}</span>}
+                {cinemaRed > 0 && <span style={{color:"#f87171",fontWeight:"bold"}}>{'-' + cinemaRed + ' giorni ridotti'}</span>}
+              </div>
+            )}
+            <div style={{borderTop:"1px solid rgba(255,255,255,0.1)",paddingTop:"10px",marginBottom:"10px"}}>
+              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Cinema attivi: ' + (cinemaCount !== null ? '' + cinemaCount : 'non disponibile')}</p>
+              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Affluenza giornaliera: ' + (specDaily !== null ? '' + specDaily.toLocaleString() : 'non disponibile')}</p>
+              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Affluenza totale: ' + (specTotal !== null ? '' + specTotal.toLocaleString() : 'non disponibile')}</p>
+              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Incassi sala: ' + (cinemaRev !== null ? '$' + cinemaRev.toLocaleString() : 'non disponibile')}</p>
+              {cinemaPerf && <p style={{margin:"8px 0",fontSize:"12px",color: cinemaPerf === 'great' ? '#4ade80' : cinemaPerf === 'good' ? '#34d399' : cinemaPerf === 'declining' ? '#fb923c' : cinemaPerf === 'bad' || cinemaPerf === 'flop' ? '#f87171' : '#facc15'}}>{'Andamento: ' + (cinemaPerf === 'great' ? 'Straordinario' : cinemaPerf === 'good' ? 'Ottimo' : cinemaPerf === 'ok' ? 'Discreto' : cinemaPerf === 'declining' ? 'In calo' : cinemaPerf === 'bad' ? 'Scarso' : cinemaPerf === 'flop' ? 'Flop' : cinemaPerf)}</p>}
+            </div>
+            <button style={{marginTop:"5px",padding:"8px 15px",borderRadius:"8px",border:"none",background:"#00ffff",color:"#000",fontWeight:"bold",cursor:"pointer"}} onClick={() => setShowCinemaModal(false)}>Chiudi</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

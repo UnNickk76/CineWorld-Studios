@@ -1660,6 +1660,7 @@ async def get_coming_soon():
     # Films coming soon + in production (visible until released)
     film_cursor = db.film_projects.find(
         {'status': {'$in': ['coming_soon', 'ready_for_casting', 'casting', 'sponsor', 'ciak', 'screenplay', 'pre_production', 'shooting', 'pending_release', 'prima']},
+         'pipeline_state': {'$nin': ['released', 'completed', 'out_of_theaters', 'discarded']},
          'poster_url': {'$ne': None}},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
          'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
@@ -1748,10 +1749,26 @@ async def get_coming_soon():
             'is_v2': True,
         })
     
-    # Sort by scheduled_release_at
-    items.sort(key=lambda x: x.get('scheduled_release_at', ''))
+    # Deduplicate and filter out released films
+    seen_ids = set()
+    filtered = []
+    for item in items:
+        iid = item.get('id')
+        if iid and iid not in seen_ids:
+            # Exclude already released/completed
+            ps = item.get('pipeline_state', '')
+            st = item.get('status', '')
+            if ps in ('released', 'completed', 'out_of_theaters', 'discarded'):
+                continue
+            if st in ('released', 'completed', 'withdrawn'):
+                continue
+            seen_ids.add(iid)
+            filtered.append(item)
     
-    return {"items": items}
+    # Sort by scheduled_release_at
+    filtered.sort(key=lambda x: x.get('scheduled_release_at', ''))
+    
+    return {"items": filtered}
 
 
 # ==================== SAGAS & TV SERIES (moved from server.py) ====================

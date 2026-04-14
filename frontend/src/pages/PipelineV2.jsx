@@ -18,15 +18,15 @@ const API = process.env.REACT_APP_BACKEND_URL;
 // ═══════════════════════════════════════════════════════════════
 
 const V2_STEPS = [
-  { id: 'idea',      label: 'IDEA',      icon: Sparkles, color: 'amber'  },
-  { id: 'hype',      label: 'HYPE',      icon: TrendingUp, color: 'orange' },
-  { id: 'cast',      label: 'CAST',      icon: Users,    color: 'cyan'   },
-  { id: 'prep',      label: 'PREP',      icon: Camera,   color: 'blue'   },
-  { id: 'ciak',      label: 'CIAK',      icon: Clapperboard, color: 'red' },
-  { id: 'finalcut',  label: 'FINAL CUT', icon: Film,     color: 'purple' },
-  { id: 'marketing', label: 'MARKETING', icon: Megaphone, color: 'green'  },
-  { id: 'laprima',   label: 'LA PRIMA',  icon: Award,    color: 'yellow' },
-  { id: 'uscita',    label: 'USCITA',    icon: Ticket,   color: 'emerald'},
+  { id: 'idea',      label: 'IDEA',      icon: Sparkles,     color: 'amber'  },
+  { id: 'hype',      label: 'HYPE',      icon: TrendingUp,   color: 'orange' },
+  { id: 'cast',      label: 'CAST',      icon: Users,        color: 'cyan'   },
+  { id: 'prep',      label: 'PREP',      icon: Camera,       color: 'blue'   },
+  { id: 'ciak',      label: 'CIAK',      icon: Clapperboard, color: 'red'    },
+  { id: 'finalcut',  label: 'FINAL CUT', icon: Film,         color: 'purple' },
+  { id: 'marketing', label: 'MARKETING', icon: Megaphone,    color: 'green'  },
+  { id: 'laprima',   label: 'LA PRIMA',  icon: Award,        color: 'yellow' },
+  { id: 'uscita',    label: 'USCITA',    icon: Ticket,       color: 'emerald'},
 ];
 
 const STEP_STYLES = {
@@ -97,6 +97,69 @@ const api = {
   }
 };
 
+// ═══════════════════════════════════════════════════════════════
+//  PROGRESS CIRCLE — Cerchio 0-100% per locandina/sceneggiatura
+// ═══════════════════════════════════════════════════════════════
+
+const ProgressCircle = ({ value, size = 48, color = '#00FFD0' }) => {
+  const r = (size / 2) - 4;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (Math.min(100, Math.max(0, value)) / 100) * circ;
+  return (
+    <svg width={size} height={size} className="block">
+      <circle cx={size/2} cy={size/2} r={r} stroke="#333" strokeWidth="3" fill="none" />
+      <circle cx={size/2} cy={size/2} r={r}
+        stroke={color} strokeWidth="3" fill="none"
+        strokeDasharray={circ} strokeDashoffset={offset}
+        strokeLinecap="round"
+        style={{ transition: 'stroke-dashoffset 0.5s ease', transform: 'rotate(-90deg)', transformOrigin: 'center' }}
+      />
+      <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central"
+        fill={color} fontSize={size * 0.22} fontWeight="bold">
+        {Math.floor(value)}%
+      </text>
+    </svg>
+  );
+};
+
+// Preview quality score: normalizzato 1-10 stile IMDb, SOLO UI
+const calculatePreviewScore = (metrics) => {
+  // Ogni metrica è su scala diversa, normalizzare ciascuna a 0-10
+  const castRaw = (metrics.cast_quality ?? 0) || 0;
+  const hypeRaw = (metrics.hype_score ?? 0) || 0;
+  const prodRaw = (((metrics.shooting_quality ?? 0) + (metrics.prep_quality ?? 0) + (metrics.postprod_quality ?? 0)) / 3) || 0;
+  const mktRaw = (metrics.marketing_hype ?? 0) || 0;
+  // cast: 0-100 → /10, hype: 0-1000 → /100, prod: 0-100 → /10, mkt: 0-100 → /10
+  const cast10 = Math.min(10, castRaw / 10);
+  const hype10 = Math.min(10, hypeRaw / 100);
+  const prod10 = Math.min(10, prodRaw / 10);
+  const mkt10 = Math.min(10, mktRaw / 10);
+  const base = cast10 * 0.4 + hype10 * 0.2 + prod10 * 0.2 + mkt10 * 0.2;
+  const withVariance = base + (Math.random() * 0.4 - 0.2);
+  return Math.max(1, Math.min(10, withVariance)).toFixed(1);
+};
+
+// Map backend state → UI step index (0-8, 9 steps)
+const STATE_TO_STEP = {
+  draft: 0, idea: 0,
+  proposed: 1, hype_setup: 1, hype_live: 1,
+  casting_live: 2,
+  prep: 3,
+  shooting: 4,
+  postproduction: 5,
+  sponsorship: 6, marketing: 6,
+  distribution: 8,
+  premiere_setup: 7, premiere_live: 7,
+  release_pending: 8,
+  released: 8, completed: 8,
+};
+
+const getStepState = (stepIndex, currentStepIndex) => {
+  if (stepIndex < currentStepIndex) return 'completed';
+  if (stepIndex === currentStepIndex) return 'active';
+  return 'locked';
+};
+
 function useCountdown(endTime) {
   const [remaining, setRemaining] = useState('');
   const [done, setDone] = useState(false);
@@ -121,13 +184,13 @@ function useCountdown(endTime) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  STEPPER BAR (9 steps, horizontal scrollable on mobile)
+//  STEPPER BAR (11 steps, ALWAYS visible, horizontal scrollable)
 // ═══════════════════════════════════════════════════════════════
 
 // Steps that CANNOT be edited (timer-based)
-const EDIT_BLOCKED_STEPS = new Set([4, 5, 8]);
+const EDIT_BLOCKED_STEPS = new Set([4, 5, 9, 10]);
 
-const StepperBar = ({ uiStep, onViewStep, allowScheduleStep }) => {
+const StepperBar = ({ uiStep, onViewStep }) => {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -143,32 +206,32 @@ const StepperBar = ({ uiStep, onViewStep, allowScheduleStep }) => {
         {V2_STEPS.map((step, i) => {
           const Icon = step.icon;
           const style = STEP_STYLES[step.color];
-          const isCurrent = i === uiStep;
-          const isCompleted = i < uiStep;
-          const isSchedulable = allowScheduleStep && i === uiStep + 1;
+          const stepState = getStepState(i, uiStep);
+          const isCompleted = stepState === 'completed';
+          const isActive = stepState === 'active';
+          const isLocked = stepState === 'locked';
           return (
             <React.Fragment key={step.id}>
-              {i > 0 && <div className={`w-3 sm:w-5 h-0.5 flex-shrink-0 ${isCompleted || isCurrent ? style.line : 'bg-gray-800'}`} />}
+              {i > 0 && <div className={`w-2 sm:w-4 h-0.5 flex-shrink-0 ${isCompleted || isActive ? style.line : 'bg-gray-800'}`} />}
               <div className="flex flex-col items-center gap-0.5 flex-shrink-0 relative" data-step={i}>
                 <div
-                  onClick={isCompleted ? () => onViewStep(i) : isSchedulable ? () => onViewStep(i) : undefined}
-                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
-                    isCurrent ? `${style.active} shadow-lg shadow-${step.color}-500/20 scale-110` :
-                    isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400 cursor-pointer hover:border-cyan-400 hover:bg-cyan-500/10 active:scale-95' :
-                    isSchedulable ? `${STEP_STYLES[step.color].active} opacity-70 cursor-pointer animate-pulse` :
-                    'border-gray-800 bg-gray-900/50 text-gray-700'
+                  onClick={isCompleted ? () => onViewStep(i) : undefined}
+                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
+                    isActive ? `${style.active} shadow-lg scale-110` :
+                    isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400 cursor-pointer hover:border-cyan-400 active:scale-95' :
+                    'border-gray-800 bg-gray-900/50 text-gray-700 opacity-40'
                   }`}
-                  data-testid={isCompleted ? `view-step-${i}` : isSchedulable ? `schedule-step-${i}` : undefined}
+                  data-testid={isCompleted ? `view-step-${i}` : `step-${i}`}
                 >
-                  {isCompleted ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+                  {isCompleted ? <Check className="w-2.5 h-2.5" /> : <Icon className="w-2.5 h-2.5" />}
                 </div>
                 {isCompleted && (
-                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-cyan-500 flex items-center justify-center shadow-sm">
-                    <Eye className="w-2 h-2 text-black" />
+                  <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-cyan-500 flex items-center justify-center shadow-sm">
+                    <Eye className="w-1.5 h-1.5 text-black" />
                   </div>
                 )}
-                <span className={`text-[6px] sm:text-[7px] font-bold tracking-wider uppercase whitespace-nowrap ${
-                  isCurrent ? style.text : isCompleted ? 'text-emerald-500/60' : isSchedulable ? STEP_STYLES[step.color].text + ' opacity-70' : 'text-gray-700'
+                <span className={`text-[5px] sm:text-[6px] font-bold tracking-wider uppercase whitespace-nowrap ${
+                  isActive ? style.text : isCompleted ? 'text-emerald-500/60' : 'text-gray-700'
                 }`}>{step.label}</span>
               </div>
             </React.Fragment>
@@ -205,9 +268,14 @@ const FilmHeader = ({ film, onBack }) => (
             'bg-pink-500/10 text-pink-400 border border-pink-500/15'
           }`}>{film.content_type === 'serie_tv' ? 'Serie TV' : 'Anime'}{film.season_number > 1 ? ` S${film.season_number}` : ''}</span>
         )}
-        {film.pre_imdb_score > 0 && (
+        {film.pre_imdb_score > 0 && !film.final_quality && (
           <span className="text-[9px] text-yellow-400 font-bold flex items-center gap-0.5">
-            <Star className="w-2.5 h-2.5" /> {film.pre_imdb_score}
+            <Star className="w-2.5 h-2.5" /> {Math.max(1, Math.min(10, (film.pre_imdb_score || 0) / 10)).toFixed(1)}
+          </span>
+        )}
+        {film.final_quality > 0 && (
+          <span className="text-[9px] text-yellow-400 font-bold flex items-center gap-0.5">
+            <Star className="w-2.5 h-2.5" /> {Number(film.final_quality).toFixed(1)}
           </span>
         )}
       </div>
@@ -537,6 +605,10 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
   const [screenplayMode, setScreenplayMode] = useState('');
   const [screenplayPrompt, setScreenplayPrompt] = useState('');
   const [manualScreenplay, setManualScreenplay] = useState(film.screenplay || '');
+  const [posterProgress, setPosterProgress] = useState(0);
+  const [scriptProgress, setScriptProgress] = useState(0);
+  const posterIntervalRef = useRef(null);
+  const scriptIntervalRef = useRef(null);
 
   useEffect(() => {
     api.get('/locations').then(d => setAllLocations(d.locations || [])).catch(() => {});
@@ -556,23 +628,43 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
 
   const generatePoster = async (mode) => {
     setLoading('poster');
+    setPosterProgress(5);
+    posterIntervalRef.current = setInterval(() => {
+      setPosterProgress(p => p >= 90 ? p : p + Math.random() * 10);
+    }, 800);
     try {
       await api.post(`/films/${film.id}/poster`, { mode, prompt: mode === 'ai_custom' ? screenplayPrompt : '' });
-      onRefresh();
+      setPosterProgress(100);
+      clearInterval(posterIntervalRef.current);
+      await onRefresh();
       toast({ title: 'Locandina generata!' });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    } catch (e) {
+      clearInterval(posterIntervalRef.current);
+      setPosterProgress(0);
+      toast({ title: 'Errore', description: e.message, variant: 'destructive' });
+    }
     setLoading('');
   };
 
   const writeScreenplay = async () => {
     if (!screenplayMode) return;
     setLoading('screenplay');
+    setScriptProgress(5);
+    scriptIntervalRef.current = setInterval(() => {
+      setScriptProgress(p => p >= 90 ? p : p + Math.random() * 8);
+    }, 1000);
     try {
       const body = { mode: screenplayMode, prompt: screenplayPrompt, text: manualScreenplay };
       const res = await api.post(`/films/${film.id}/screenplay`, body);
-      onRefresh();
+      setScriptProgress(100);
+      clearInterval(scriptIntervalRef.current);
+      await onRefresh();
       toast({ title: `Sceneggiatura scritta! (+${res.quality_bonus} quality)` });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    } catch (e) {
+      clearInterval(scriptIntervalRef.current);
+      setScriptProgress(0);
+      toast({ title: 'Errore', description: e.message, variant: 'destructive' });
+    }
     setLoading('');
   };
 
@@ -595,8 +687,8 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
   }, {});
 
   const hasPoster = film.pipeline_flags?.has_poster;
-  const hasScreenplay = film.pipeline_flags?.has_screenplay;
-  const canPropose = title.length > 2 && genre && preTrama.length >= 50;
+  const hasScreenplay = film.pipeline_flags?.has_screenplay || (film.screenplay_content && film.screenplay_content.length > 10);
+  const canPropose = title.length > 2 && genre && (preTrama.length >= 50 || hasScreenplay);
 
   return (
     <PhaseWrapper title="L'Idea" subtitle="Dai forma al tuo film" icon={Sparkles} color="amber">
@@ -660,12 +752,21 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
       </div>
 
       {/* Pre-IMDb */}
-      {film.pre_imdb_score > 0 && (
+      {film.pre_imdb_score > 0 && !film.final_quality && (
         <div className="flex items-center gap-2 p-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15">
           <Star className="w-4 h-4 text-yellow-400" />
           <div>
             <p className="text-[9px] text-gray-500 uppercase">Pre-IMDb Score</p>
-            <p className="text-sm font-bold text-yellow-400">{film.pre_imdb_score}</p>
+            <p className="text-sm font-bold text-yellow-400">{Math.max(1, Math.min(10, (film.pre_imdb_score || 0) / 10)).toFixed(1)}</p>
+          </div>
+        </div>
+      )}
+      {film.final_quality > 0 && (
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15">
+          <Star className="w-4 h-4 text-yellow-400" />
+          <div>
+            <p className="text-[9px] text-gray-500 uppercase">IMDb Score</p>
+            <p className="text-sm font-bold text-yellow-400">{Number(film.final_quality).toFixed(1)}</p>
           </div>
         </div>
       )}
@@ -761,18 +862,27 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
         )}
         {!hasPoster && !film.poster_url && (
           <div className="flex gap-1.5">
-            <button onClick={() => generatePoster('ai_auto')} disabled={loading === 'poster'}
-              className="flex-1 text-[9px] py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50" data-testid="poster-ai-auto">
-              {loading === 'poster' ? '...' : 'AI Auto'}
-            </button>
-            <button onClick={() => generatePoster('ai_custom')} disabled={loading === 'poster'}
-              className="flex-1 text-[9px] py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50" data-testid="poster-ai-custom">
-              AI Custom
-            </button>
-            <button onClick={() => generatePoster('classic')} disabled={loading === 'poster'}
-              className="flex-1 text-[9px] py-2 rounded-lg bg-gray-700/50 border border-gray-600 text-gray-400 hover:bg-gray-700 transition-colors disabled:opacity-50" data-testid="poster-classic">
-              Classic
-            </button>
+            {loading === 'poster' && posterProgress > 0 ? (
+              <div className="w-full flex flex-col items-center gap-2 py-3">
+                <ProgressCircle value={posterProgress} size={56} color="#F59E0B" />
+                <p className="text-[8px] text-amber-400/70">Generazione locandina...</p>
+              </div>
+            ) : (
+              <>
+                <button onClick={() => generatePoster('ai_auto')} disabled={loading === 'poster'}
+                  className="flex-1 text-[9px] py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50" data-testid="poster-ai-auto">
+                  AI Auto
+                </button>
+                <button onClick={() => generatePoster('ai_custom')} disabled={loading === 'poster'}
+                  className="flex-1 text-[9px] py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50" data-testid="poster-ai-custom">
+                  AI Custom
+                </button>
+                <button onClick={() => generatePoster('classic')} disabled={loading === 'poster'}
+                  className="flex-1 text-[9px] py-2 rounded-lg bg-gray-700/50 border border-gray-600 text-gray-400 hover:bg-gray-700 transition-colors disabled:opacity-50" data-testid="poster-classic">
+                  Classic
+                </button>
+              </>
+            )}
           </div>
         )}
         {!hasPoster && <p className="text-[8px] text-gray-600 italic text-center">Opzionale ma consigliata (+hype)</p>}
@@ -807,10 +917,19 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
                 className="w-full bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-gray-600 focus:outline-none resize-none" />
             )}
             {screenplayMode && (
-              <button onClick={writeScreenplay} disabled={loading === 'screenplay'}
-                className="w-full text-[10px] py-2 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50 font-bold" data-testid="write-screenplay-btn">
-                {loading === 'screenplay' ? 'Scrittura in corso...' : 'Scrivi Sceneggiatura'}
-              </button>
+              <>
+                {loading === 'screenplay' && scriptProgress > 0 ? (
+                  <div className="w-full flex flex-col items-center gap-2 py-3">
+                    <ProgressCircle value={scriptProgress} size={56} color="#A855F7" />
+                    <p className="text-[8px] text-purple-400/70">Scrittura in corso...</p>
+                  </div>
+                ) : (
+                  <button onClick={writeScreenplay} disabled={loading === 'screenplay'}
+                    className="w-full text-[10px] py-2 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-400 hover:bg-purple-500/20 transition-colors disabled:opacity-50 font-bold" data-testid="write-screenplay-btn">
+                    Scrivi Sceneggiatura
+                  </button>
+                )}
+              </>
             )}
           </>
         )}
@@ -1820,7 +1939,10 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
   const [selectedSponsors, setSelectedSponsors] = useState([]);
   const [marketingPkgs, setMarketingPkgs] = useState([]);
   const [selectedMarketing, setSelectedMarketing] = useState([]);
+  const [marketingMessage, setMarketingMessage] = useState(film.marketing_message || null);
   const state = film.pipeline_state;
+  const marketingDone = film.marketing_completed || (Array.isArray(film.marketing_packages) && film.marketing_packages.length > 0);
+  const releaseType = film.release_type || null;
 
   useEffect(() => {
     if (state === 'sponsorship') {
@@ -1841,33 +1963,49 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
     setLoading('');
   };
 
+  const marketingSaved = Array.isArray(film.marketing_packages) && film.marketing_packages.length > 0;
+
   const saveMarketing = async () => {
     setLoading('marketing');
     try {
-      await api.post(`/films/${film.id}/save-marketing`, { packages: selectedMarketing });
+      const res = await api.post(`/films/${film.id}/save-marketing`, { packages: selectedMarketing });
+      if (res.marketing_status === 'failed') {
+        setMarketingMessage(res.marketing_message);
+      }
       onRefresh();
-      toast({ title: 'Marketing configurato!' });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+      toast({ title: res.marketing_status === 'failed' ? 'Marketing non riuscito, ma si prosegue!' : 'Marketing configurato!' });
+    } catch (e) {
+      // NON-BLOCKING: even if save-marketing fails, show narrative
+      setMarketingMessage(
+        "Le agenzie di marketing hanno rifiutato la tua campagna.\n\n" +
+        "Nessuno vuole scommettere su questo progetto... per ora.\n\n" +
+        "Ma nel cinema le sorprese sono sempre dietro l'angolo."
+      );
+      toast({ title: 'Marketing non disponibile, ma puoi proseguire!' });
+    }
     setLoading('');
   };
 
-  const choosePremiere = async () => {
-    setLoading('premiere');
+  const handleSetReleaseType = async (type) => {
+    setLoading('release_type');
     try {
-      await api.post(`/films/${film.id}/choose-premiere`);
+      await api.post(`/films/${film.id}/set-release-type`, { release_type: type });
       onRefresh();
-      toast({ title: 'La Prima!' });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+    } catch (e) { toast({ title: '' + (e.message || 'Errore'), variant: 'destructive' }); }
     setLoading('');
   };
 
-  const chooseDirectRelease = async () => {
-    setLoading('direct');
+  const advanceToDistribution = async () => {
+    setLoading('advance');
     try {
-      await api.post(`/films/${film.id}/choose-direct-release`);
+      if (releaseType === 'premiere') {
+        await api.post(`/films/${film.id}/choose-premiere`);
+      } else {
+        await api.post(`/films/${film.id}/choose-direct-release`);
+      }
       onRefresh();
-      toast({ title: 'Rilascio diretto nei cinema!' });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
+      toast({ title: 'Distribuzione!' });
+    } catch (e) { toast({ title: '' + (e.message || 'Errore'), variant: 'destructive' }); }
     setLoading('');
   };
 
@@ -1912,45 +2050,95 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
       {/* MARKETING */}
       {state === 'marketing' && (
         <div className="space-y-3">
-          <p className="text-[9px] text-gray-500 uppercase font-bold">Pacchetti Marketing</p>
-          {marketingPkgs.map((pkg, i) => {
-            const sel = selectedMarketing.some(m => m.id === pkg.id);
-            return (
-              <button key={i} onClick={() => toggleMarketing(pkg)}
-                className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-colors ${sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'}`}>
-                <Megaphone className={`w-4 h-4 flex-shrink-0 ${sel ? 'text-green-400' : 'text-gray-600'}`} />
-                <div className="flex-1">
-                  <p className={`text-[10px] font-bold ${sel ? 'text-green-400' : 'text-gray-300'}`}>{pkg.name}</p>
-                  <p className="text-[8px] text-gray-500">${(pkg.cost || 0).toLocaleString()} • +{pkg.hype_boost} hype</p>
-                </div>
-              </button>
-            );
-          })}
-
-          {selectedMarketing.length > 0 && (
-            <button onClick={saveMarketing} disabled={loading === 'marketing'}
-              className="w-full text-[10px] py-2 rounded-lg bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="save-marketing-btn">
-              Attiva Marketing (${selectedMarketing.reduce((a, m) => a + (m.cost || 0), 0).toLocaleString()})
-            </button>
+          {/* Marketing failure narrative */}
+          {marketingMessage && (
+            <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1">
+              <p className="text-[9px] text-amber-400 font-bold">Risposta delle agenzie:</p>
+              {String(marketingMessage).split('\n').filter(Boolean).map((line, i) => (
+                <p key={i} className="text-[9px] text-gray-400 leading-relaxed">{line}</p>
+              ))}
+              <p className="text-[8px] text-gray-500 italic mt-1">...ma puoi comunque decidere come lanciare il film.</p>
+            </div>
           )}
 
-          <div className="border-t border-gray-800 pt-3 space-y-2">
-            <p className="text-[9px] text-gray-500 uppercase font-bold text-center">Come vuoi rilasciare il film?</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={choosePremiere} disabled={!!loading}
-                className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-center hover:bg-yellow-500/15 transition-colors disabled:opacity-50" data-testid="choose-premiere-btn">
-                <Award className="w-5 h-5 text-yellow-400 mx-auto mb-1" />
-                <p className="text-[10px] font-bold text-yellow-400">La Prima</p>
-                <p className="text-[7px] text-gray-500">Red carpet + premiere</p>
-              </button>
-              <button onClick={chooseDirectRelease} disabled={!!loading}
-                className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center hover:bg-emerald-500/15 transition-colors disabled:opacity-50" data-testid="choose-direct-btn">
-                <Ticket className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
-                <p className="text-[10px] font-bold text-emerald-400">Rilascio Diretto</p>
-                <p className="text-[7px] text-gray-500">Subito nei cinema</p>
-              </button>
+          {/* Marketing packages — solo se non ancora confermato */}
+          {!marketingDone && !marketingMessage && (
+            <>
+              <p className="text-[9px] text-gray-500 uppercase font-bold">Pacchetti Marketing</p>
+              {marketingPkgs.map((pkg, i) => {
+                const sel = selectedMarketing.some(m => m.id === pkg.id);
+                return (
+                  <button key={i} onClick={() => toggleMarketing(pkg)}
+                    className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-colors ${sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'}`}>
+                    <Megaphone className={`w-4 h-4 flex-shrink-0 ${sel ? 'text-green-400' : 'text-gray-600'}`} />
+                    <div className="flex-1">
+                      <p className={`text-[10px] font-bold ${sel ? 'text-green-400' : 'text-gray-300'}`}>{pkg.name}</p>
+                      <p className="text-[8px] text-gray-500">${(pkg.cost || 0).toLocaleString()} • +{pkg.hype_boost} hype</p>
+                    </div>
+                  </button>
+                );
+              })}
+              {selectedMarketing.length > 0 && (
+                <button onClick={saveMarketing} disabled={loading === 'marketing'}
+                  className="w-full text-[10px] py-2 rounded-lg bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50 font-bold" data-testid="save-marketing-btn">
+                  {loading === 'marketing' ? '...' : `Attiva Marketing ($${selectedMarketing.reduce((a, m) => a + (m.cost || 0), 0).toLocaleString()})`}
+                </button>
+              )}
+              {selectedMarketing.length === 0 && (
+                <button onClick={saveMarketing} disabled={loading === 'marketing'}
+                  className="w-full text-[10px] py-2 rounded-lg bg-gray-700/50 border border-gray-600 text-gray-400 hover:bg-gray-700 transition-colors disabled:opacity-50 font-bold" data-testid="skip-marketing-btn">
+                  {loading === 'marketing' ? '...' : 'Salta Marketing'}
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Marketing confermato */}
+          {marketingDone && !marketingMessage && (
+            <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/15 flex items-center gap-2">
+              <Check className="w-4 h-4 text-green-400" />
+              <p className="text-[10px] text-green-400 font-bold">Marketing attivato</p>
             </div>
-          </div>
+          )}
+
+          {/* ═══ SCELTA RILASCIO — dopo marketing confermato ═══ */}
+          {(marketingDone || marketingMessage) && (
+            <div className="border-t border-gray-800 pt-4 space-y-3">
+              <p className="text-[10px] text-gray-400 uppercase font-bold text-center">Come vuoi rilasciare il film?</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => handleSetReleaseType('premiere')} disabled={loading === 'release_type'}
+                  className={`p-4 rounded-xl border text-center transition-all ${
+                    releaseType === 'premiere'
+                      ? 'bg-yellow-500/15 border-yellow-500/50 ring-1 ring-yellow-500/20'
+                      : 'bg-gray-800/30 border-gray-700 hover:border-gray-600'
+                  }`} data-testid="choose-premiere-btn">
+                  <Award className={`w-6 h-6 mx-auto mb-1.5 ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-500'}`} />
+                  <p className={`text-[11px] font-bold ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-400'}`}>La Prima</p>
+                  <p className="text-[7px] text-gray-500 mt-0.5">Red carpet + premiere</p>
+                </button>
+                <button onClick={() => handleSetReleaseType('direct')} disabled={loading === 'release_type'}
+                  className={`p-4 rounded-xl border text-center transition-all ${
+                    releaseType === 'direct'
+                      ? 'bg-emerald-500/15 border-emerald-500/50 ring-1 ring-emerald-500/20'
+                      : 'bg-gray-800/30 border-gray-700 hover:border-gray-600'
+                  }`} data-testid="choose-direct-btn">
+                  <Ticket className={`w-6 h-6 mx-auto mb-1.5 ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-500'}`} />
+                  <p className={`text-[11px] font-bold ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-400'}`}>Rilascio Diretto</p>
+                  <p className="text-[7px] text-gray-500 mt-0.5">Subito nei cinema</p>
+                </button>
+              </div>
+              {releaseType && (
+                <button onClick={advanceToDistribution} disabled={!!loading}
+                  className="w-full text-[10px] py-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 transition-colors disabled:opacity-50 font-bold"
+                  data-testid="advance-distribution-btn">
+                  {loading === 'advance' ? '...' : 'Prosegui alla Distribuzione'}
+                </button>
+              )}
+              {!releaseType && (
+                <p className="text-[8px] text-gray-600 text-center italic">Seleziona una modalita per proseguire</p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </PhaseWrapper>
@@ -2091,6 +2279,520 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
 // ═══════════════════════════════════════════════════════════════
 //  FASE 9 — USCITA
 // ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+//  RELEASE CHOICE — Scelta La Prima / Diretto (SEMPRE)
+// ═══════════════════════════════════════════════════════════════
+
+const ReleaseChoicePhase = ({ film, onRefresh, toast }) => {
+  const [loading, setLoading] = useState('');
+
+  const choosePremiere = async () => {
+    setLoading('premiere');
+    try {
+      await api.post(`/films/${film.id}/choose-premiere`);
+      onRefresh();
+      toast({ title: 'La Prima selezionata! Ora configura la distribuzione.' });
+    } catch (e) { toast({ title: '' + (e.message || 'Errore'), variant: 'destructive' }); }
+    setLoading('');
+  };
+
+  const chooseDirectRelease = async () => {
+    setLoading('direct');
+    try {
+      await api.post(`/films/${film.id}/choose-direct-release`);
+      onRefresh();
+      toast({ title: 'Rilascio diretto! Ora configura la distribuzione.' });
+    } catch (e) { toast({ title: '' + (e.message || 'Errore'), variant: 'destructive' }); }
+    setLoading('');
+  };
+
+  // Marketing fallback message
+  const marketingMessage = film.marketing_message;
+
+  return (
+    <PhaseWrapper title="Scelta Rilascio" subtitle="Come vuoi lanciare il film?" icon={Award} color="yellow">
+      <div className="space-y-3" data-testid="release-choice-phase">
+        {/* Marketing failure narrative */}
+        {marketingMessage && (
+          <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1">
+            <p className="text-[9px] text-amber-400 font-bold">Risposta delle agenzie:</p>
+            {String(marketingMessage).split('\n').filter(Boolean).map((line, i) => (
+              <p key={i} className="text-[9px] text-gray-400 leading-relaxed">{line}</p>
+            ))}
+            <p className="text-[8px] text-gray-500 italic mt-1">...ma puoi comunque decidere come lanciare il film.</p>
+          </div>
+        )}
+
+        <p className="text-[9px] text-gray-500 uppercase font-bold text-center">Scegli la modalita di lancio</p>
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={choosePremiere} disabled={!!loading}
+            className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-center hover:bg-yellow-500/15 transition-colors disabled:opacity-50" data-testid="choose-premiere-btn">
+            <Award className="w-6 h-6 text-yellow-400 mx-auto mb-1.5" />
+            <p className="text-[11px] font-bold text-yellow-400">La Prima</p>
+            <p className="text-[8px] text-gray-500 mt-0.5">Red carpet + premiere</p>
+          </button>
+          <button onClick={chooseDirectRelease} disabled={!!loading}
+            className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center hover:bg-emerald-500/15 transition-colors disabled:opacity-50" data-testid="choose-direct-btn">
+            <Ticket className="w-6 h-6 text-emerald-400 mx-auto mb-1.5" />
+            <p className="text-[11px] font-bold text-emerald-400">Rilascio Diretto</p>
+            <p className="text-[8px] text-gray-500 mt-0.5">Subito nei cinema</p>
+          </button>
+        </div>
+        {loading && <p className="text-[8px] text-gray-500 text-center animate-pulse">Salvataggio...</p>}
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  DISTRIBUTION — Zone + Date (SEMPRE visibile)
+// ═══════════════════════════════════════════════════════════════
+
+const DistributionPhase = ({ film, onRefresh, toast }) => {
+  const [loading, setLoading] = useState('');
+  const [zones, setZones] = useState([]);
+  const [dateOptions, setDateOptions] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedZones, setSelectedZones] = useState([]);
+  const [expandedContinent, setExpandedContinent] = useState(null);
+  const [theaterWeeks, setTheaterWeeks] = useState(film.theater_weeks || 3);
+  const [scheduled, setScheduled] = useState(film.release_schedule || null);
+
+  useEffect(() => {
+    api.get('/release-zones').then(r => {
+      setZones(r?.zones || []);
+      setDateOptions(r?.dates || []);
+    }).catch(() => {});
+  }, [film.id]);
+
+  const hasWorld = selectedZones.includes('world');
+  const activeZones = hasWorld ? ['world'] : selectedZones;
+  const totalFunds = activeZones.reduce((s, z) => s + ((zones.find(x => x.id === z) || {}).funds || 0), 0);
+  const totalCp = activeZones.reduce((s, z) => s + ((zones.find(x => x.id === z) || {}).cp || 0), 0);
+
+  const toggleZone = (zid) => {
+    if (zid === 'world') {
+      setSelectedZones(prev => prev.includes('world') ? [] : ['world']);
+    } else {
+      setSelectedZones(prev => {
+        const without = prev.filter(z => z !== 'world' && z !== zid);
+        return prev.includes(zid) ? without : [...without, zid];
+      });
+    }
+  };
+
+  const continents = {};
+  zones.filter(z => z.id !== 'world').forEach(z => {
+    if (!continents[z.continent]) continents[z.continent] = [];
+    continents[z.continent].push(z);
+  });
+  const worldZone = zones.find(z => z.id === 'world');
+
+  const scheduleRelease = async () => {
+    if (!selectedDate || activeZones.length === 0) {
+      toast({ title: 'Seleziona data e almeno una zona', variant: 'destructive' }); return;
+    }
+    setLoading('schedule');
+    try {
+      const res = await api.post(`/films/${film.id}/schedule-release`, {
+        date_option: selectedDate, zones: activeZones, theater_weeks: theaterWeeks,
+      });
+      setScheduled(res.schedule || res);
+      toast({ title: 'Distribuzione confermata! Ora conferma l\'uscita.' });
+      onRefresh();
+    } catch (e) {
+      toast({ title: '' + (e?.message || 'Errore distribuzione'), variant: 'destructive' });
+      onRefresh();
+    }
+    setLoading('');
+  };
+
+  if (scheduled || film.release_schedule) {
+    const sched = scheduled || film.release_schedule;
+    return (
+      <PhaseWrapper title="Distribuzione" subtitle="Distribuzione configurata" icon={Globe} color="blue">
+        <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15 text-center space-y-2">
+          <Check className="w-6 h-6 text-emerald-400 mx-auto" />
+          <p className="text-[10px] text-emerald-400 font-bold">Distribuzione programmata</p>
+          <p className="text-[9px] text-gray-400">{sched.date_label || 'Data'} — {(sched.zone_names || []).join(', ') || 'Zone'}</p>
+        </div>
+      </PhaseWrapper>
+    );
+  }
+
+  return (
+    <PhaseWrapper title="Distribuzione" subtitle="Zone e data di uscita" icon={Globe} color="blue">
+      <div className="space-y-3" data-testid="distribution-phase">
+        {/* Date Selection */}
+        <div>
+          <p className="text-[9px] text-gray-500 uppercase font-bold mb-1.5">Data di uscita</p>
+          <div className="grid grid-cols-4 gap-1">
+            {dateOptions.map(d => {
+              const isPremiere = film.release_type === 'premiere';
+              const isImmediate = d.days === 0 || d.id === 'immediate';
+              const disabled = isPremiere && isImmediate;
+              return (
+                <button key={d.id}
+                  onClick={() => !disabled && setSelectedDate(d.id)}
+                  disabled={disabled}
+                  title={disabled ? 'La Prima richiede attesa minima' : ''}
+                  className={`py-1.5 px-1 rounded-md text-[9px] font-bold border transition-all ${
+                    disabled ? 'opacity-30 cursor-not-allowed border-gray-800 text-gray-600' :
+                    selectedDate === d.id ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' :
+                    'border-gray-800 text-gray-400 hover:border-gray-600'
+                  }`}
+                  data-testid={`date-opt-${d.id}`}
+                >
+                  {d.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Zone Selection */}
+        <div>
+          <p className="text-[9px] text-gray-500 uppercase font-bold mb-1.5">Zone di distribuzione</p>
+          {worldZone && (
+            <button onClick={() => toggleZone('world')}
+              className={`w-full mb-1.5 p-2 rounded-lg border text-left flex items-center justify-between transition-all ${
+                hasWorld ? 'bg-blue-500/10 border-blue-500/30' : 'border-gray-800 hover:border-gray-600'
+              }`} data-testid="zone-world">
+              <div>
+                <span className="text-[10px] font-bold text-white">Mondiale</span>
+                <span className="text-[8px] text-gray-500 ml-2">Tutti i continenti</span>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] text-green-400">${((worldZone.funds || 0) / 1000).toFixed(0)}K</span>
+                <span className="text-[9px] text-cyan-400 ml-1">{worldZone.cp || 0}CP</span>
+              </div>
+            </button>
+          )}
+          <div className="text-center text-[8px] text-gray-600 mb-1.5">— oppure seleziona zone —</div>
+          <div className="space-y-1">
+            {Object.entries(continents).map(([cont, czones]) => (
+              <div key={cont} className={`rounded-lg border transition-all ${hasWorld ? 'opacity-30 pointer-events-none' : 'border-gray-800'}`}>
+                <button onClick={() => setExpandedContinent(expandedContinent === cont ? null : cont)}
+                  className="w-full p-2 flex items-center justify-between text-[10px]">
+                  <span className="font-bold text-gray-300">{cont}</span>
+                  <span className="text-[8px] text-gray-500">{czones.filter(z => selectedZones.includes(z.id)).length}/{czones.length}</span>
+                </button>
+                {expandedContinent === cont && (
+                  <div className="px-2 pb-2 space-y-1">
+                    {czones.map(z => (
+                      <button key={z.id} onClick={() => toggleZone(z.id)}
+                        className={`w-full p-1.5 rounded-md flex items-center justify-between transition-all ${
+                          selectedZones.includes(z.id) ? 'bg-blue-500/10 border border-blue-500/25' : 'border border-transparent hover:bg-white/5'
+                        }`} data-testid={`zone-${z.id}`}>
+                        <span className="text-[9px] font-semibold text-white">{z.name}</span>
+                        <div className="text-right shrink-0 ml-2">
+                          <span className="text-[8px] text-green-400">${((z.funds || 0) / 1000).toFixed(0)}K</span>
+                          <span className="text-[8px] text-cyan-400 ml-1">{z.cp || 0}CP</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Theater Duration */}
+        <div className="p-2 rounded-lg bg-gray-800/50 border border-gray-700/30">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[9px] text-gray-400">Durata in sala</span>
+            <span className="text-[11px] font-bold text-yellow-400">{theaterWeeks * 7} giorni</span>
+          </div>
+          <input type="range" min={1} max={4} step={1} value={theaterWeeks} onChange={e => setTheaterWeeks(+e.target.value)}
+            className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-500" data-testid="theater-weeks-slider" />
+        </div>
+
+        {/* Cost Summary */}
+        {(selectedDate && activeZones.length > 0) && (
+          <div className="p-2 rounded-lg bg-gray-800/50 border border-gray-700/30 flex items-center justify-between">
+            <span className="text-[9px] text-gray-400">Costo:</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-green-400">${totalFunds.toLocaleString()}</span>
+              <span className="text-[10px] font-bold text-cyan-400">{totalCp} CP</span>
+            </div>
+          </div>
+        )}
+
+        <button onClick={scheduleRelease} disabled={!selectedDate || activeZones.length === 0 || loading === 'schedule'}
+          className="w-full text-[10px] py-2.5 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-400 hover:bg-blue-500/25 transition-colors disabled:opacity-30 font-bold"
+          data-testid="schedule-release-btn">
+          {loading === 'schedule' ? '...' : 'Conferma Distribuzione'}
+        </button>
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  STEP FINALE — Riepilogo + Conferma Uscita (FORZATO)
+// ═══════════════════════════════════════════════════════════════
+
+const StepFinale = ({ film, onRefresh, toast }) => {
+  const [phase, setPhase] = useState('idle'); // idle | progress | calling | wow | done
+  const [progress, setProgress] = useState(0);
+  const [result, setResult] = useState(null);
+  const progressRef = useRef(null);
+  const metrics = film.pipeline_metrics || {};
+
+  // PREVIEW stabile — calcolata UNA SOLA VOLTA, MAI salvata
+  const [previewScore] = useState(() => {
+    const castRaw = (metrics.cast_quality ?? 0) || 0;
+    const hypeRaw = (metrics.hype_score ?? 0) || 0;
+    const prodRaw = (((metrics.shooting_quality ?? 0) + (metrics.prep_quality ?? 0) + (metrics.postprod_quality ?? 0)) / 3) || 0;
+    const mktRaw = (metrics.marketing_hype ?? 0) || 0;
+    const cast10 = Math.min(10, castRaw / 10);
+    const hype10 = Math.min(10, hypeRaw / 100);
+    const prod10 = Math.min(10, prodRaw / 10);
+    const mkt10 = Math.min(10, mktRaw / 10);
+    const base = cast10 * 0.4 + hype10 * 0.2 + prod10 * 0.2 + mkt10 * 0.2;
+    const withVariance = base + (Math.random() * 0.4 - 0.2);
+    return Math.max(1, Math.min(10, withVariance)).toFixed(1);
+  });
+
+  const posterUrl = film.poster_url;
+  const cast = film.cast || {};
+  const directorName = cast.director?.name || 'N/D';
+  const actorCount = (cast.actors || []).length;
+  const hypeScore = metrics.hype_score ?? 0;
+  const castQuality = metrics.cast_quality ?? 0;
+  const prodScore = (metrics.shooting_quality ?? 0) || (metrics.prep_quality ?? 0);
+  const marketingHype = metrics.marketing_hype ?? 0;
+  const marketingStatus = film.marketing_status || 'completed';
+  const marketingMessage = film.marketing_message;
+
+  // FLUSSO: click → cerchio 0-100 → pausa → backend → wow → done
+  const confirmRelease = async () => {
+    if (phase !== 'idle') return;
+    setPhase('progress');
+    setProgress(0);
+
+    // Animazione cerchio 0→100 in ~10 secondi
+    let p = 0;
+    progressRef.current = setInterval(() => {
+      p += Math.random() * 6 + 2;
+      if (p >= 100) { p = 100; clearInterval(progressRef.current); }
+      setProgress(Math.min(100, p));
+    }, 500);
+
+    // Attendi che arrivi a 100
+    await new Promise(resolve => {
+      const check = setInterval(() => {
+        if (p >= 100) { clearInterval(check); resolve(); }
+      }, 200);
+    });
+
+    // Pausa 800ms
+    await new Promise(r => setTimeout(r, 800));
+
+    // ORA chiama il backend
+    setPhase('calling');
+    try {
+      const token = localStorage.getItem('cineworld_token');
+      const url = `${process.env.REACT_APP_BACKEND_URL}/api/pipeline-v2/films/${film.id}/confirm-final-release`;
+      const rawRes = await fetch(url, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const res = await rawRes.json();
+      if (!rawRes.ok) {
+        toast({ title: 'Errore: ' + (res.detail || rawRes.statusText), variant: 'destructive' });
+        setPhase('idle');
+        setProgress(0);
+        return;
+      }
+      setResult(res);
+      // WOW!
+      setPhase('wow');
+    } catch (e) {
+      console.error('[CONFIRM_RELEASE]', e);
+      toast({ title: 'Errore: ' + (e.message || 'Sconosciuto'), variant: 'destructive' });
+      setPhase('idle');
+      setProgress(0);
+    }
+  };
+
+  useEffect(() => { return () => { if (progressRef.current) clearInterval(progressRef.current); }; }, []);
+
+  const onWowComplete = () => {
+    setPhase('done');
+    onRefresh();
+  };
+
+  const discardFilm = async () => {
+    if (phase !== 'idle') return;
+    setPhase('calling');
+    try {
+      await api.post(`/films/${film.id}/discard-final`);
+      toast({ title: 'Film scartato.' });
+      onRefresh();
+    } catch (e) {
+      toast({ title: '' + (e.message || 'Errore'), variant: 'destructive' });
+    }
+    setPhase('idle');
+  };
+
+  const tierColors = { masterpiece: 'text-yellow-400', excellent: 'text-emerald-400', good: 'text-blue-400', mediocre: 'text-orange-400', bad: 'text-red-400' };
+
+  // === FASE WOW: CinematicReleaseOverlay ===
+  if (phase === 'wow') {
+    return <CinematicReleaseOverlay film={film} releaseType="cinema" onComplete={onWowComplete} />;
+  }
+
+  // === FASE DONE: mostra risultato reale ===
+  if (phase === 'done' && result?.success) {
+    return (
+      <PhaseWrapper title="AL CINEMA" subtitle="Il tuo film e al cinema!" icon={Ticket} color="emerald">
+        <div className="space-y-3">
+          <div className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 text-center space-y-2">
+            <p className="text-[9px] text-gray-500 uppercase">IMDb Score Finale</p>
+            <p className="text-4xl font-bold text-white" data-testid="final-quality">{result.quality_score}</p>
+            <p className={`text-sm font-bold uppercase ${tierColors[result.tier] || 'text-gray-400'}`}>
+              {result.tier || 'N/D'}
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/15 text-center">
+              <p className="text-[8px] text-gray-500">Incassi</p>
+              <p className="text-[11px] font-bold text-green-400">${(result.opening_day_revenue || 0).toLocaleString()}</p>
+            </div>
+            <div className="p-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-center">
+              <p className="text-[8px] text-gray-500">XP</p>
+              <p className="text-[11px] font-bold text-yellow-400">{result.xp_reward || 0}</p>
+            </div>
+            <div className="p-2 rounded-lg bg-purple-500/5 border border-purple-500/15 text-center">
+              <p className="text-[8px] text-gray-500">Fama</p>
+              <p className="text-[11px] font-bold text-purple-400">{(result.fame_change || 0) > 0 ? '+' : ''}{result.fame_change || 0}</p>
+            </div>
+          </div>
+        </div>
+      </PhaseWrapper>
+    );
+  }
+
+  // === FASE PROGRESS: cerchio animato 0-100% ===
+  if (phase === 'progress' || phase === 'calling') {
+    return (
+      <PhaseWrapper title="STEP FINALE — USCITA" subtitle="Calcolo in corso..." icon={Ticket} color="emerald">
+        <div className="flex flex-col items-center justify-center py-8 space-y-4" data-testid="release-progress">
+          <div className="relative">
+            <svg width="120" height="120">
+              <circle cx="60" cy="60" r="50" stroke="#1f2937" strokeWidth="6" fill="none" />
+              <circle cx="60" cy="60" r="50"
+                stroke="#10b981" strokeWidth="6" fill="none"
+                strokeDasharray={314} strokeDashoffset={314 - (progress / 100) * 314}
+                strokeLinecap="round"
+                style={{ transition: 'stroke-dashoffset 0.4s ease', transform: 'rotate(-90deg)', transformOrigin: 'center' }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-2xl font-bold text-emerald-400">{Math.floor(progress)}%</span>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-400 animate-pulse">
+            {phase === 'calling' ? 'Invio al sistema...' : 'Analisi qualita in corso...'}
+          </p>
+        </div>
+      </PhaseWrapper>
+    );
+  }
+
+  // === FASE IDLE: riepilogo + bottone ===
+  return (
+    <PhaseWrapper title="STEP FINALE — USCITA" subtitle="Riepilogo prima dell'uscita" icon={Ticket} color="emerald">
+      <div className="space-y-3" data-testid="step-finale">
+        {/* Locandina */}
+        <div className="flex justify-center">
+          {posterUrl ? (
+            <img src={posterUrl} alt="" className="w-28 h-40 rounded-lg border border-gray-700 object-cover shadow-lg" />
+          ) : (
+            <div className="w-28 h-40 rounded-lg border border-gray-700 bg-gray-800/50 flex items-center justify-center">
+              <Film className="w-8 h-8 text-gray-600" />
+            </div>
+          )}
+        </div>
+
+        {/* Riepilogo */}
+        <div className="p-3 rounded-lg bg-gray-800/30 border border-gray-700/50 space-y-2">
+          <p className="text-[9px] text-gray-500 uppercase font-bold text-center">Riepilogo Produzione</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-2">
+              <Users className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+              <div>
+                <p className="text-[8px] text-gray-500">Cast</p>
+                <p className="text-[10px] text-white font-semibold">{directorName} + {actorCount} attori</p>
+                <p className="text-[8px] text-cyan-400">Q: {castQuality}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-3.5 h-3.5 text-orange-400 flex-shrink-0" />
+              <div>
+                <p className="text-[8px] text-gray-500">Hype</p>
+                <p className="text-[10px] text-white font-semibold">{hypeScore}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Camera className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+              <div>
+                <p className="text-[8px] text-gray-500">Produzione</p>
+                <p className="text-[10px] text-white font-semibold">{prodScore}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Megaphone className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+              <div>
+                <p className="text-[8px] text-gray-500">Marketing</p>
+                <p className={`text-[10px] font-semibold ${marketingStatus === 'failed' ? 'text-amber-400' : 'text-white'}`}>
+                  {marketingStatus === 'failed' ? 'Non disponibile' : `+${marketingHype}`}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Marketing message (if failed) */}
+        {marketingMessage && (
+          <div className="p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20">
+            <p className="text-[9px] text-amber-400 font-bold mb-1">Nota Marketing:</p>
+            {String(marketingMessage).split('\n').filter(Boolean).map((line, i) => (
+              <p key={i} className="text-[8px] text-gray-400 leading-relaxed">{line}</p>
+            ))}
+          </div>
+        )}
+
+        {/* Quality Preview — SOLO visivo, mai salvato */}
+        <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/60 to-gray-900/60 border border-gray-700/50 text-center space-y-2">
+          <p className="text-[9px] text-gray-500 uppercase font-bold">Quality Score Preview</p>
+          <p className="text-3xl font-bold text-emerald-400" data-testid="quality-preview">{previewScore}</p>
+          <p className="text-[8px] text-gray-500 leading-relaxed max-w-[260px] mx-auto">
+            Questo e un valore stimato (pre IMDb).
+            Il risultato reale sara determinato solo dopo l'uscita al cinema.
+          </p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="space-y-2 pt-1">
+          <button onClick={confirmRelease} disabled={phase !== 'idle'}
+            className="w-full text-sm py-3 rounded-lg bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 hover:from-emerald-500/30 hover:to-green-500/30 transition-all disabled:opacity-50 font-bold"
+            data-testid="confirm-release-btn">
+            CONFERMA USCITA
+          </button>
+          <button onClick={discardFilm} disabled={phase !== 'idle'}
+            className="w-full text-[10px] py-2 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400/70 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
+            data-testid="discard-final-btn">
+            SCARTA FILM
+          </button>
+        </div>
+      </div>
+    </PhaseWrapper>
+  );
+};
 
 // ═══════════════════════════════════════════════════════════════
 //  FASE 9 — USCITA (Release Scheduling + Zones)
@@ -2551,7 +3253,11 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
       setScheduled(res.data?.schedule || res.data);
       toast({ title: `Distribuzione programmata!` });
       onRefresh();
-    } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || e?.data?.detail || (typeof e === 'string' ? e : 'Errore distribuzione');
+      toast({ title: '' + msg, variant: 'destructive' });
+      onRefresh(); // Refresh to sync with actual backend state
+    }
     finally { setLoading(''); }
   };
 
@@ -2572,7 +3278,12 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
           toast({ title: `${film.title} rilasciato! Quality: ${res.data?.quality_score || '?'}` });
         }
       }
-    } catch (e) { toast({ title: e.response?.data?.detail || 'Errore', variant: 'destructive' }); setLoading(''); }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || e?.data?.detail || (typeof e === 'string' ? e : 'Errore rilascio');
+      toast({ title: '' + msg, variant: 'destructive' });
+      onRefresh(); // Sync with backend state
+      setLoading('');
+    }
   };
 
   const onCinemaOverlayDone = () => {
@@ -2585,14 +3296,14 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
 
   const tierColors = { masterpiece: 'text-yellow-400', excellent: 'text-emerald-400', good: 'text-blue-400', mediocre: 'text-orange-400', bad: 'text-red-400' };
 
-  // If already released/completed, show results
-  if (result || state === 'completed' || state === 'released') {
+  // If already released/completed, show results (but NOT release_pending!)
+  if (state === 'completed' || (state === 'released' && (result || film.release_schedule))) {
     return (
       <PhaseWrapper title="Uscita al Cinema" subtitle="Il momento della verita" icon={Ticket} color="emerald">
         <div className="space-y-3">
           <div className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 text-center space-y-2">
             <p className="text-[9px] text-gray-500 uppercase">Quality Score</p>
-            <p className="text-3xl font-bold text-white">{result?.quality_score || film.final_quality || '?'}</p>
+            <p className="text-3xl font-bold text-white">{result?.quality_score || film.quality_score || film.pre_imdb_score || film.final_quality || '?'}</p>
             <p className={`text-sm font-bold uppercase ${tierColors[result?.tier || film.final_tier] || 'text-gray-400'}`}>
               {result?.tier || film.final_tier || '—'}
             </p>
@@ -2695,6 +3406,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
           <p className="text-[9px] text-gray-500 uppercase font-bold mb-1.5">Data di uscita</p>
           <div className="grid grid-cols-4 gap-1">
             {dateOptions.map(d => {
+              const isPremiere = film.release_type === 'premiere' || film.pipeline_state === 'premiere_live';
               const disabled = d.direct_only && isPremiere;
               const selected = selectedDate === d.id;
               return (
@@ -2716,7 +3428,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
           {velionDateTip && (
             <div className="mt-1.5 px-2.5 py-2 bg-cyan-500/5 border border-cyan-500/15 rounded-lg">
               <p className="text-[9px] text-cyan-400 font-bold mb-0.5">Consiglio di Velion:</p>
-              <p className="text-[8px] text-gray-400">Ogni data genera un diverso livello di aspettativa. Attesa pi\u00f9 lunga = pi\u00f9 hype ma anche pi\u00f9 rischio! "Immediato" \u00e8 sicuro ma senza bonus. Sperimenta!</p>
+              <p className="text-[8px] text-gray-400">Ogni data genera un diverso livello di aspettativa. Attesa lunga = hype maggiore ma anche rischio! "Immediato" è sicuro ma senza bonus. Sperimenta!</p>
             </div>
           )}
         </div>
@@ -2783,7 +3495,7 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
         {velionZoneTip && (
           <div className="px-2.5 py-2 bg-cyan-500/5 border border-cyan-500/15 rounded-lg">
             <p className="text-[9px] text-cyan-400 font-bold mb-0.5">Consiglio di Velion:</p>
-            <p className="text-[8px] text-gray-400">"Mondiale" raggiunge tutti ma costa di pi\u00f9. Seleziona zone specifiche per risparmiare e concentrare gli incassi dove il genere funziona meglio!</p>
+            <p className="text-[8px] text-gray-400">"Mondiale" raggiunge tutti ma costa di più. Seleziona zone specifiche per risparmiare e concentrare gli incassi dove il genere funziona meglio!</p>
           </div>
         )}
 
@@ -2958,11 +3670,15 @@ const BoardView = ({ films, loading, onSelectFilm, onNewFilm }) => {
                     }`}>{f.content_type === 'serie_tv' ? 'SERIE' : 'ANIME'}{f.season_number > 1 ? ` S${f.season_number}` : ''}</span>
                   )}
                   <span className="text-[7px] text-gray-400 capitalize truncate">{f.genre === 'historical' ? 'storico' : (f.genre || '').replace('_', ' ')}</span>
-                  {f.pre_imdb_score > 0 && (
+                  {f.final_quality > 0 ? (
                     <span className="text-[7px] text-yellow-400 font-bold flex items-center gap-0.5">
-                      <Star className="w-1.5 h-1.5" />{f.pre_imdb_score}
+                      <Star className="w-1.5 h-1.5" />{Number(f.final_quality).toFixed(1)}
                     </span>
-                  )}
+                  ) : f.pre_imdb_score > 0 ? (
+                    <span className="text-[7px] text-yellow-400/60 font-bold flex items-center gap-0.5">
+                      <Star className="w-1.5 h-1.5" />{Math.max(1, Math.min(10, (f.pre_imdb_score || 0) / 10)).toFixed(1)}
+                    </span>
+                  ) : null}
                 </div>
                 {(f.subgenres || []).length > 0 && (
                   <div className="flex flex-wrap gap-0.5 mt-0.5">
@@ -3043,21 +3759,32 @@ const PipelineV2 = () => {
   const renderPhase = () => {
     if (!selected) return null;
     const st = selected.pipeline_state;
-    const ui = selected.pipeline_ui_step;
+    const ui = STATE_TO_STEP[st] ?? (selected.pipeline_ui_step || 0);
     const props = { film: selected, onRefresh: refreshSelected, toast };
 
-    // Allow USCITA scheduling during premiere_live
-    if (forceUscita && st === 'premiere_live') return <UscitaPhase {...props} />;
+    if (forceUscita && st === 'premiere_live') return <DistributionPhase {...props} />;
 
-    if (ui === 0 || st === 'draft' || st === 'idea') return <IdeaPhase {...props} />;
-    if (ui === 1 || st === 'proposed' || st === 'hype_setup' || st === 'hype_live') return <HypePhase {...props} />;
-    if (ui === 2 || st === 'casting_live') return <CastPhase {...props} />;
-    if (ui === 3 || st === 'prep') return <PrepPhase {...props} />;
-    if (ui === 4 || st === 'shooting') return <CiakPhase {...props} />;
-    if (ui === 5 || st === 'postproduction') return <FinalCutPhase {...props} />;
-    if (ui === 6 || st === 'sponsorship' || st === 'marketing') return <MarketingPhase {...props} />;
-    if (ui === 7 || st === 'premiere_setup' || st === 'premiere_live') return <LaPrimaPhase {...props} />;
-    if (ui === 8 || st === 'release_pending' || st === 'released' || st === 'completed' || st === 'coming_soon_scheduled') return <UscitaPhase {...props} />;
+    if (st === 'draft' || st === 'idea') return <IdeaPhase {...props} />;
+    if (st === 'proposed' || st === 'hype_setup' || st === 'hype_live') return <HypePhase {...props} />;
+    if (st === 'casting_live') return <CastPhase {...props} />;
+    if (st === 'prep') return <PrepPhase {...props} />;
+    if (st === 'shooting') return <CiakPhase {...props} />;
+    if (st === 'postproduction') return <FinalCutPhase {...props} />;
+    if (st === 'sponsorship' || st === 'marketing') return <MarketingPhase {...props} />;
+    if (st === 'distribution') return <DistributionPhase {...props} />;
+    if (st === 'premiere_setup' || st === 'premiere_live') return <LaPrimaPhase {...props} />;
+    if (st === 'release_pending') return <StepFinale {...props} />;
+    if (st === 'released' || st === 'completed' || st === 'coming_soon_scheduled') return <UscitaPhase {...props} />;
+    // Fallback by ui step
+    if (ui <= 0) return <IdeaPhase {...props} />;
+    if (ui === 1) return <HypePhase {...props} />;
+    if (ui === 2) return <CastPhase {...props} />;
+    if (ui === 3) return <PrepPhase {...props} />;
+    if (ui === 4) return <CiakPhase {...props} />;
+    if (ui === 5) return <FinalCutPhase {...props} />;
+    if (ui === 6) return <MarketingPhase {...props} />;
+    if (ui === 7) return <LaPrimaPhase {...props} />;
+    if (ui >= 8) return <UscitaPhase {...props} />;
     return <div className="p-4 text-center text-gray-500 text-xs">Stato sconosciuto: {st}</div>;
   };
 
@@ -3075,7 +3802,8 @@ const PipelineV2 = () => {
           <p><span className="text-gray-500 font-bold">Genere:</span> {f.genre} {f.subgenres?.length > 0 && `(${f.subgenres.join(', ')})`}</p>
           <p><span className="text-gray-500 font-bold">Pre-Trama:</span> {f.pre_screenplay || f.pre_trama || '—'}</p>
           <p><span className="text-gray-500 font-bold">Location:</span> {(f.locations || []).join(', ') || '—'}</p>
-          {f.pre_imdb_score > 0 && <p><span className="text-gray-500 font-bold">Pre-IMDb:</span> {f.pre_imdb_score?.toFixed?.(1)}</p>}
+          {f.final_quality > 0 && <p><span className="text-gray-500 font-bold">IMDb:</span> {Number(f.final_quality).toFixed(1)}</p>}
+          {!f.final_quality && f.pre_imdb_score > 0 && <p><span className="text-gray-500 font-bold">Pre-IMDb:</span> {Math.max(1, Math.min(10, (f.pre_imdb_score || 0) / 10)).toFixed(1)}</p>}
         </div>
       </div>
     );
@@ -3139,10 +3867,17 @@ const PipelineV2 = () => {
     // Step 6: MARKETING
     if (stepIdx === 6) return (
       <div className="p-3 space-y-2" data-testid="readonly-step-6">
-        <div className="text-[10px] space-y-1 text-gray-300">
-          <p><span className="text-gray-500 font-bold">Sponsor:</span> {(f.sponsors || []).map(s => s.name || s).join(', ') || '—'}</p>
-          <p><span className="text-gray-500 font-bold">Marketing Score:</span> {f.pipeline_metrics?.marketing_score?.toFixed?.(1) || '—'}</p>
-        </div>
+        {f.marketing_skipped ? (
+          <div className="text-center py-2">
+            <span className="text-[10px] text-yellow-400 font-bold bg-yellow-500/10 px-3 py-1 rounded-full">In aggiornamento</span>
+            <p className="text-[8px] text-gray-500 mt-1">Marketing temporaneamente bypassato</p>
+          </div>
+        ) : (
+          <div className="text-[10px] space-y-1 text-gray-300">
+            <p><span className="text-gray-500 font-bold">Sponsor:</span> {(f.sponsors || []).map(s => s.name || s).join(', ') || '\u2014'}</p>
+            <p><span className="text-gray-500 font-bold">Marketing Score:</span> {f.pipeline_metrics?.marketing_score?.toFixed?.(1) || '\u2014'}</p>
+          </div>
+        )}
       </div>
     );
 
@@ -3261,9 +3996,8 @@ const PipelineV2 = () => {
       <div className="min-h-screen bg-black text-white pt-14 pb-40" data-testid="pipeline-v2-detail">
         <FilmHeader film={selected} onBack={backToBoard} />
         <StepperBar
-          uiStep={forceUscita ? 8 : (selected.pipeline_ui_step ?? 0)}
+          uiStep={STATE_TO_STEP[selected.pipeline_state] ?? (selected.pipeline_ui_step ?? 0)}
           onViewStep={handleViewStep}
-          allowScheduleStep={selected.pipeline_state === 'premiere_live'}
         />
         {renderPhase()}
         {!['released', 'completed', 'discarded'].includes(selected.pipeline_state) && (
@@ -3314,7 +4048,7 @@ const GENRE_TAGLINES = {
   biographical: 'Vite straordinarie meritano il grande schermo.',
 };
 
-const MINI_STEPS = ['IDEA', 'HYPE', 'CAST', 'PREP', 'CIAK', 'FINAL CUT', 'LANCIO'];
+const MINI_STEPS = ['IDEA', 'HYPE', 'CAST', 'PREP', 'CIAK', 'FINAL CUT', 'MARKETING', 'LA PRIMA', 'USCITA'];
 
 const CONTENT_TYPES = [
   { id: 'film', label: 'Film', icon: 'Film', desc: 'Lungometraggio classico' },

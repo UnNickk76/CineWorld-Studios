@@ -2538,7 +2538,6 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   const [phase, setPhase] = useState('idle'); // idle | progress | calling | wow | done
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
-  const [releaseError, setReleaseError] = useState('');
   const progressRef = useRef(null);
   const metrics = film.pipeline_metrics || {};
 
@@ -2571,7 +2570,6 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   // FLUSSO: click → cerchio 0-100 → pausa → backend → wow → done
   const confirmRelease = async () => {
     if (phase !== 'idle') return;
-    setReleaseError('');
     setPhase('progress');
     setProgress(0);
 
@@ -2602,28 +2600,25 @@ const StepFinale = ({ film, onRefresh, toast }) => {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       });
-      const res = await rawRes.json().catch(() => ({}));
-      if (!rawRes.ok || !res?.success) {
-        const msg = res?.detail || res?.message || rawRes.statusText || 'Rilascio non riuscito';
-        setReleaseError(msg);
-        toast({ title: 'Errore: ' + msg, variant: 'destructive' });
+      const res = await rawRes.json();
+      if (!rawRes.ok) {
+        toast({ title: 'Errore: ' + (res.detail || rawRes.statusText), variant: 'destructive' });
         setPhase('idle');
         setProgress(0);
         return;
       }
       setResult(res);
-
-      // REFRESH SUBITO per aggiornare lo stato pipeline a "released"
-      const updated = await onRefresh?.();
-      console.log('STEP DOPO RELEASE:', updated?.pipeline_state);
-
+      // aggiorna subito il film locale usando la risposta backend, se presente
+      if (res?.film) {
+        onRefresh?.(res.film.id || res.film._id || film.id);
+      } else if (res?.film_id) {
+        onRefresh?.(res.film_id);
+      }
       // WOW!
       setPhase('wow');
     } catch (e) {
       console.error('[CONFIRM_RELEASE]', e);
-      const msg = e.message || 'Sconosciuto';
-      setReleaseError(msg);
-      toast({ title: 'Errore: ' + msg, variant: 'destructive' });
+      toast({ title: 'Errore: ' + (e.message || 'Sconosciuto'), variant: 'destructive' });
       setPhase('idle');
       setProgress(0);
     }
@@ -2632,10 +2627,13 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   useEffect(() => { return () => { if (progressRef.current) clearInterval(progressRef.current); }; }, []);
 
   const onWowComplete = async () => {
-    // Film già in stato released dal refresh fatto prima del WOW
-    // Forza un altro refresh per sicurezza, poi chiudi
-    await onRefresh?.();
-    setPhase('done');
+    const fresh = await onRefresh?.(result?.film_id || result?.film?._id || result?.film?.id || film.id);
+    const effectiveState = fresh?.pipeline_state || fresh?.step || result?.step || null;
+    if (effectiveState === 'released' || effectiveState === 'completed' || result?.success) {
+      setPhase('done');
+      return;
+    }
+    setPhase('error');
   };
 
   const discardFilm = async () => {
@@ -2653,15 +2651,23 @@ const StepFinale = ({ film, onRefresh, toast }) => {
 
   const tierColors = { masterpiece: 'text-yellow-400', excellent: 'text-emerald-400', good: 'text-blue-400', mediocre: 'text-orange-400', bad: 'text-red-400' };
 
-  useEffect(() => {
-    if (film?.pipeline_state === 'released' || film?.pipeline_state === 'completed') {
-      setPhase(prev => (prev === 'wow' ? prev : 'done'));
-    }
-  }, [film?.pipeline_state]);
-
   // === FASE WOW: CinematicReleaseOverlay ===
   if (phase === 'wow') {
     return <CinematicReleaseOverlay film={film} releaseType="cinema" onComplete={onWowComplete} />;
+  }
+
+  // === FASE ERROR: rilascio non confermato dal backend ===
+  if (phase === 'error') {
+    return (
+      <PhaseWrapper title="ERRORE RILASCIO" subtitle="Il backend non ha confermato l'uscita del film." icon={Ticket} color="red">
+        <div className="space-y-3">
+          <div className="p-4 rounded-lg bg-red-900/20 border border-red-800 text-sm text-red-300">
+            Il film non risulta ancora rilasciato. Controlla i log backend o riprova dopo aver verificato che la pipeline venga aggiornata a <b>released</b> e che il film venga creato nella collection corretta.
+          </div>
+          <button onClick={() => { setPhase('idle'); setProgress(0); }} className="w-full py-3 rounded-xl bg-gray-800 text-white font-bold">Torna al riepilogo</button>
+        </div>
+      </PhaseWrapper>
+    );
   }
 
   // === FASE DONE: mostra risultato reale ===
@@ -3190,7 +3196,6 @@ const EpisodeManager = ({ film, onRefresh, toast }) => {
 const UscitaPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState('');
   const [result, setResult] = useState(null);
-  const [releaseError, setReleaseError] = useState('');
   const [showReleaseOverlay, setShowReleaseOverlay] = useState(false);
   const [zones, setZones] = useState([]);
   const [dateOptions, setDateOptions] = useState([]);
@@ -3758,13 +3763,17 @@ const PipelineV2 = () => {
   const openCreate = () => setView('create');
   const backToBoard = () => { setSelected(null); setView('board'); setForceUscita(false); loadFilms(); };
 
-  const refreshSelected = async () => {
-    if (!selected) return null;
+  const refreshSelected = async (targetId = null) => {
+    const filmId = targetId || selected?.id;
+    if (!filmId) return null;
     try {
-      const data = await api.get(`/films/${selected.id}`);
-      setSelected(data.film);
+      const data = await api.get(`/films/${filmId}`);
+      const freshFilm = data?.film || data;
+      if (freshFilm) {
+        setSelected(freshFilm);
+      }
       await loadFilms();
-      return data.film;
+      return freshFilm || null;
     } catch (e) {
       console.error(e);
       return null;

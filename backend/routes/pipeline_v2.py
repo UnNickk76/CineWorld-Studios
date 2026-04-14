@@ -53,7 +53,7 @@ V2_TRANSITIONS = {
     'prep':             {'shooting', 'discarded'},
     'shooting':         {'postproduction', 'discarded'},
     'postproduction':   {'sponsorship', 'discarded'},
-    'sponsorship':      {'marketing', 'discarded'},
+    'sponsorship':      {'marketing', 'release_pending', 'premiere_setup', 'discarded'},
     'marketing':        {'premiere_setup', 'release_pending', 'discarded'},
     'premiere_setup':   {'premiere_live', 'release_pending', 'discarded'},
     'premiere_live':    {'release_pending'},
@@ -2507,8 +2507,10 @@ async def save_sponsors_v2(pid: str, req: SaveSponsorsV2, user: dict = Depends(g
     extra = {
         'sponsors': req.sponsors[:6],
         'sponsor_income': total_income,
+        'marketing_skipped': True,
     }
-    film = await _advance(pid, user['id'], 'marketing', extra, 'selection')
+    # BYPASS MARKETING → go directly to release_pending
+    film = await _advance(pid, user['id'], 'release_pending', extra, 'ready')
     return {'film': film, 'income': total_income}
 
 MARKETING_PACKAGES = [

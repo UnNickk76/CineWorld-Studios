@@ -3067,7 +3067,8 @@ const PipelineV2 = () => {
     if (ui === 3 || st === 'prep') return <PrepPhase {...props} />;
     if (ui === 4 || st === 'shooting') return <CiakPhase {...props} />;
     if (ui === 5 || st === 'postproduction') return <FinalCutPhase {...props} />;
-    if (ui === 6 || st === 'sponsorship' || st === 'marketing') return <MarketingPhase {...props} />;
+    if (ui === 6 || st === 'sponsorship') return <MarketingPhase {...props} />;
+    if (st === 'marketing') return <MarketingPhase {...props} />; // legacy films already in marketing
     if (ui === 7 || st === 'premiere_setup' || st === 'premiere_live') return <LaPrimaPhase {...props} />;
     if (ui === 8 || st === 'release_pending' || st === 'released' || st === 'completed' || st === 'coming_soon_scheduled') return <UscitaPhase {...props} />;
     return <div className="p-4 text-center text-gray-500 text-xs">Stato sconosciuto: {st}</div>;
@@ -3151,10 +3152,17 @@ const PipelineV2 = () => {
     // Step 6: MARKETING
     if (stepIdx === 6) return (
       <div className="p-3 space-y-2" data-testid="readonly-step-6">
-        <div className="text-[10px] space-y-1 text-gray-300">
-          <p><span className="text-gray-500 font-bold">Sponsor:</span> {(f.sponsors || []).map(s => s.name || s).join(', ') || '—'}</p>
-          <p><span className="text-gray-500 font-bold">Marketing Score:</span> {f.pipeline_metrics?.marketing_score?.toFixed?.(1) || '—'}</p>
-        </div>
+        {f.marketing_skipped ? (
+          <div className="text-center py-2">
+            <span className="text-[10px] text-yellow-400 font-bold bg-yellow-500/10 px-3 py-1 rounded-full">In aggiornamento</span>
+            <p className="text-[8px] text-gray-500 mt-1">Marketing temporaneamente bypassato</p>
+          </div>
+        ) : (
+          <div className="text-[10px] space-y-1 text-gray-300">
+            <p><span className="text-gray-500 font-bold">Sponsor:</span> {(f.sponsors || []).map(s => s.name || s).join(', ') || '\u2014'}</p>
+            <p><span className="text-gray-500 font-bold">Marketing Score:</span> {f.pipeline_metrics?.marketing_score?.toFixed?.(1) || '\u2014'}</p>
+          </div>
+        )}
       </div>
     );
 

@@ -2982,6 +2982,7 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
         scheduled_at = (datetime.now(timezone.utc) + timedelta(days=delay_days)).isoformat()
         await db.film_projects.update_one({'id': pid}, {'$set': {'scheduled_release_at': scheduled_at}})
 
+    logging.info(f"[RELEASE] Film {pid} released. State={project.get('pipeline_state')}, quality={project.get('quality_score')}, theater_weeks={theater_weeks}")
     return {'schedule': schedule, 'funds_charged': total_funds, 'cp_charged': total_cp, 'theater_weeks': theater_weeks}
 
 @router.get("/films/{pid}/theater-stats")

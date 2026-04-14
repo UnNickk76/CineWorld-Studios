@@ -2596,8 +2596,8 @@ const UscitaPhase = ({ film, onRefresh, toast }) => {
 
   const tierColors = { masterpiece: 'text-yellow-400', excellent: 'text-emerald-400', good: 'text-blue-400', mediocre: 'text-orange-400', bad: 'text-red-400' };
 
-  // If already released/completed, show results
-  if (result || state === 'completed' || state === 'released') {
+  // If already released/completed, show results (but NOT release_pending!)
+  if (state === 'completed' || (state === 'released' && (result || film.release_schedule))) {
     return (
       <PhaseWrapper title="Uscita al Cinema" subtitle="Il momento della verita" icon={Ticket} color="emerald">
         <div className="space-y-3">

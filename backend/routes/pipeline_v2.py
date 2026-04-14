@@ -3102,6 +3102,12 @@ async def _finalize_release(project: dict, user: dict) -> dict:
 
     film_doc = await _create_or_get_released_film(project, quality_score, tier, opening_day)
 
+    # === CHECK CRITICO: film creato? ===
+    print(f"=== FILM_DOC: id={film_doc.get('id')} title={film_doc.get('title')} quality={film_doc.get('quality_score')} ===")
+    if not film_doc or not film_doc.get('id'):
+        print("=== ERRORE CRITICO: FILM NON CREATO ===")
+        raise HTTPException(500, "Film non creato correttamente nella collection films")
+
     project_update = {
         'quality_score': quality_score,
         'final_quality': quality_score,
@@ -3122,6 +3128,13 @@ async def _finalize_release(project: dict, user: dict) -> dict:
     }
 
     await db.film_projects.update_one({'id': project['id'], 'user_id': user['id']}, {'$set': project_update})
+
+    # === VERIFICA: pipeline aggiornata? ===
+    updated_pipeline = await db.film_projects.find_one({'id': project['id']}, {'_id': 0, 'pipeline_state': 1, 'film_id': 1, 'final_quality': 1})
+    print(f"=== PIPELINE UPDATED: state={updated_pipeline.get('pipeline_state')} film_id={updated_pipeline.get('film_id')} final_q={updated_pipeline.get('final_quality')} ===")
+    if updated_pipeline.get('pipeline_state') != 'released':
+        print("=== ERRORE CRITICO: PIPELINE NON AGGIORNATA A RELEASED ===")
+
     await db.users.update_one({'id': user['id']}, {'$inc': {'fame': fame_change, 'xp': xp_reward, 'funds': opening_day}})
     released_project = await db.film_projects.find_one({'id': project['id']}, {'_id': 0})
 

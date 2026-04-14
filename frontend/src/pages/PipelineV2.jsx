@@ -2538,6 +2538,7 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   const [phase, setPhase] = useState('idle'); // idle | progress | calling | wow | done
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
+  const [releaseError, setReleaseError] = useState('');
   const progressRef = useRef(null);
   const metrics = film.pipeline_metrics || {};
 
@@ -2570,6 +2571,7 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   // FLUSSO: click → cerchio 0-100 → pausa → backend → wow → done
   const confirmRelease = async () => {
     if (phase !== 'idle') return;
+    setReleaseError('');
     setPhase('progress');
     setProgress(0);
 
@@ -2600,9 +2602,11 @@ const StepFinale = ({ film, onRefresh, toast }) => {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       });
-      const res = await rawRes.json();
-      if (!rawRes.ok) {
-        toast({ title: 'Errore: ' + (res.detail || rawRes.statusText), variant: 'destructive' });
+      const res = await rawRes.json().catch(() => ({}));
+      if (!rawRes.ok || !res?.success) {
+        const msg = res?.detail || res?.message || rawRes.statusText || 'Rilascio non riuscito';
+        setReleaseError(msg);
+        toast({ title: 'Errore: ' + msg, variant: 'destructive' });
         setPhase('idle');
         setProgress(0);
         return;
@@ -2612,7 +2616,9 @@ const StepFinale = ({ film, onRefresh, toast }) => {
       setPhase('wow');
     } catch (e) {
       console.error('[CONFIRM_RELEASE]', e);
-      toast({ title: 'Errore: ' + (e.message || 'Sconosciuto'), variant: 'destructive' });
+      const msg = e.message || 'Sconosciuto';
+      setReleaseError(msg);
+      toast({ title: 'Errore: ' + msg, variant: 'destructive' });
       setPhase('idle');
       setProgress(0);
     }
@@ -2620,9 +2626,14 @@ const StepFinale = ({ film, onRefresh, toast }) => {
 
   useEffect(() => { return () => { if (progressRef.current) clearInterval(progressRef.current); }; }, []);
 
-  const onWowComplete = () => {
+  const onWowComplete = async () => {
+    const updated = await onRefresh?.();
+    if (updated?.pipeline_state === 'released' || updated?.pipeline_state === 'completed') {
+      setPhase('done');
+      return;
+    }
+    // Se il refresh non torna ancora lo stato aggiornato, mostra comunque il risultato locale
     setPhase('done');
-    onRefresh();
   };
 
   const discardFilm = async () => {
@@ -2639,6 +2650,12 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   };
 
   const tierColors = { masterpiece: 'text-yellow-400', excellent: 'text-emerald-400', good: 'text-blue-400', mediocre: 'text-orange-400', bad: 'text-red-400' };
+
+  useEffect(() => {
+    if (film?.pipeline_state === 'released' || film?.pipeline_state === 'completed') {
+      setPhase(prev => (prev === 'wow' ? prev : 'done'));
+    }
+  }, [film?.pipeline_state]);
 
   // === FASE WOW: CinematicReleaseOverlay ===
   if (phase === 'wow') {
@@ -3171,6 +3188,7 @@ const EpisodeManager = ({ film, onRefresh, toast }) => {
 const UscitaPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState('');
   const [result, setResult] = useState(null);
+  const [releaseError, setReleaseError] = useState('');
   const [showReleaseOverlay, setShowReleaseOverlay] = useState(false);
   const [zones, setZones] = useState([]);
   const [dateOptions, setDateOptions] = useState([]);
@@ -3739,12 +3757,16 @@ const PipelineV2 = () => {
   const backToBoard = () => { setSelected(null); setView('board'); setForceUscita(false); loadFilms(); };
 
   const refreshSelected = async () => {
-    if (!selected) return;
+    if (!selected) return null;
     try {
       const data = await api.get(`/films/${selected.id}`);
       setSelected(data.film);
-      loadFilms();
-    } catch (e) { console.error(e); }
+      await loadFilms();
+      return data.film;
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
   };
 
   const discardFilm = async () => {

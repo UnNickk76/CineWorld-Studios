@@ -3024,11 +3024,13 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
 async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)):
     """
     STEP FINALE: calcolo REALE quality, salva release. MAI return vuoto, MAI None.
-    Works in release_pending state. Calcolo SOLO qui — mai prima.
     """
+    print(f"=== ENDPOINT CONFIRM-FINAL-RELEASE CHIAMATO === pid={pid} user={user.get('id','?')}")
     project = await _get_project(pid, user['id'])
     state = project.get('pipeline_state', '')
+    print(f"=== STATO FILM: {state} ===")
     if state not in ('release_pending', 'distribution'):
+        print(f"=== RIFIUTATO: stato {state} non valido ===")
         raise HTTPException(400, f"Film non in fase di conferma uscita (stato: {state})")
 
     logging.info(f"[CONFIRM_RELEASE] Starting for {pid}, state={state}")

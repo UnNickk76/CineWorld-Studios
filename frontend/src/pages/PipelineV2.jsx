@@ -2555,14 +2555,29 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   const confirmRelease = async () => {
     if (loading) return;
     setLoading('confirm');
+    console.log('[CONFIRM_RELEASE] Click! film.id=', film.id, 'state=', film.pipeline_state);
     try {
-      const res = await api.post(`/films/${film.id}/confirm-final-release`);
+      const token = localStorage.getItem('cineworld_token');
+      const url = `${process.env.REACT_APP_BACKEND_URL}/api/pipeline-v2/films/${film.id}/confirm-final-release`;
+      console.log('[CONFIRM_RELEASE] Calling:', url);
+      const rawRes = await fetch(url, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      console.log('[CONFIRM_RELEASE] Status:', rawRes.status);
+      const res = await rawRes.json();
+      console.log('[CONFIRM_RELEASE] Response:', JSON.stringify(res).substring(0, 200));
+      if (!rawRes.ok) {
+        toast({ title: 'Errore: ' + (res.detail || rawRes.statusText), variant: 'destructive' });
+        setLoading('');
+        return;
+      }
       setResult(res);
       toast({ title: `${film.title} rilasciato! Quality: ${res.quality_score}` });
       await onRefresh();
     } catch (e) {
-      console.error('[CONFIRM_RELEASE]', e);
-      toast({ title: '' + (e.message || 'Errore rilascio'), variant: 'destructive' });
+      console.error('[CONFIRM_RELEASE] Exception:', e);
+      toast({ title: 'Errore: ' + (e.message || 'Sconosciuto'), variant: 'destructive' });
     }
     setLoading('');
   };

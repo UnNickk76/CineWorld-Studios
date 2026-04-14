@@ -2867,6 +2867,267 @@ async def get_release_zones():
     return {'zones': zones, 'dates': dates}
 
 
+
+
+def _safe_num(value, default: float = 0.0) -> float:
+    try:
+        v = float(value)
+        if math.isnan(v) or math.isinf(v):
+            return default
+        return v
+    except Exception:
+        return default
+
+
+def _determine_release_tier(score_10: float) -> str:
+    if score_10 >= 9.0:
+        return 'masterpiece'
+    if score_10 >= 7.5:
+        return 'excellent'
+    if score_10 >= 5.5:
+        return 'good'
+    if score_10 >= 3.5:
+        return 'mediocre'
+    return 'bad'
+
+
+def _build_fallback_schedule() -> dict:
+    now_ts = _now()
+    return {
+        'date_option': 'immediate',
+        'date_label': 'Immediato',
+        'days': 0,
+        'zones': ['world'],
+        'zone_names': ['Mondiale'],
+        'funds_cost': 0,
+        'cp_cost': 0,
+        'rev_mult': 1.0,
+        'city_taste_mult': 1.0,
+        'hype_mult': 1.0,
+        'hype_mult_base': 1.0,
+        'scheduled_at': now_ts,
+    }
+
+
+def _compute_final_release_score(project: dict) -> dict:
+    metrics = project.get('pipeline_metrics', {}) or {}
+    cast_score = _safe_num(metrics.get('cast_quality', 0))
+    hype_score = _safe_num(metrics.get('hype_score', 0))
+    prep_score = _safe_num(metrics.get('prep_quality', 0))
+    shooting_score = _safe_num(metrics.get('shooting_quality', 0))
+    postprod_score = _safe_num(metrics.get('postprod_quality', 0))
+    production_score = (prep_score + shooting_score + postprod_score) / 3 if any([prep_score, shooting_score, postprod_score]) else 0
+    marketing_score = _safe_num(metrics.get('marketing_hype', 0))
+
+    base = (
+        cast_score * 0.4 +
+        hype_score * 0.2 +
+        production_score * 0.2 +
+        marketing_score * 0.2
+    )
+    randomness = random.uniform(-0.3, 0.3)
+    final_score = round(max(1, min(10, (base / 100.0) + randomness)), 1)
+    tier = _determine_release_tier(final_score)
+    return {
+        'cast_score': cast_score,
+        'hype_score': hype_score,
+        'production_score': production_score,
+        'marketing_score': marketing_score,
+        'base': base,
+        'randomness': randomness,
+        'final_score': final_score,
+        'tier': tier,
+    }
+
+
+async def _ensure_release_schedule(project: dict) -> dict:
+    if project.get('release_schedule'):
+        return project['release_schedule']
+    schedule = _build_fallback_schedule()
+    theater_weeks = max(1, min(4, int(project.get('theater_weeks', 3) or 3)))
+    release_date = project.get('released_at') or _now()
+    release_dt = datetime.fromisoformat(release_date) if isinstance(release_date, str) else release_date
+    if release_dt.tzinfo is None:
+        release_dt = release_dt.replace(tzinfo=timezone.utc)
+    theater_end = (release_dt + timedelta(weeks=theater_weeks)).isoformat()
+    await db.film_projects.update_one(
+        {'id': project['id']},
+        {'$set': {
+            'release_schedule': schedule,
+            'release_type': project.get('release_type') or 'direct',
+            'released_at': release_dt.isoformat(),
+            'theater_weeks': theater_weeks,
+            'theater_end_date': theater_end,
+        }}
+    )
+    project['release_schedule'] = schedule
+    project['release_type'] = project.get('release_type') or 'direct'
+    project['released_at'] = release_dt.isoformat()
+    project['theater_weeks'] = theater_weeks
+    project['theater_end_date'] = theater_end
+    return schedule
+
+
+async def _create_or_get_released_film(project: dict, quality_score_10: float, tier: str, opening_day: int) -> dict:
+    existing_film_id = project.get('film_id')
+    if existing_film_id:
+        existing = await db.films.find_one({'id': existing_film_id}, {'_id': 0})
+        if existing:
+            return existing
+
+    schedule = project.get('release_schedule') or _build_fallback_schedule()
+    owner = await db.users.find_one({'id': project['user_id']}, {'_id': 0, 'nickname': 1})
+    owner_name = owner.get('nickname', '?') if owner else '?'
+    cast = project.get('cast', {}) if isinstance(project.get('cast', {}), dict) else {}
+    locs = project.get('locations', []) or []
+    loc_names = [l if isinstance(l, str) else l.get('name', str(l)) for l in locs]
+    ct = project.get('content_type', 'film')
+    new_film_id = str(uuid.uuid4())
+
+    film_doc = {
+        'id': new_film_id,
+        'owner_id': project['user_id'],
+        'user_id': project['user_id'],
+        'title': project.get('title', 'Untitled'),
+        'genre': project.get('genre', 'drama'),
+        'subgenre': project.get('subgenre', ''),
+        'subgenres': project.get('subgenres', []),
+        'status': 'in_theaters',
+        'quality_score': quality_score_10,
+        'pre_imdb_score': int(round(quality_score_10 * 10)),
+        'final_quality': quality_score_10,
+        'tier': tier,
+        'budget': sum(v for v in (project.get('costs_paid', {}) or {}).values() if isinstance(v, (int, float))),
+        'total_budget': sum(v for v in (project.get('costs_paid', {}) or {}).values() if isinstance(v, (int, float))),
+        'total_revenue': 0,
+        'opening_day_revenue': opening_day,
+        'day_in_theaters': 0,
+        'max_days': max(14, int((quality_score_10 * 10) / 3) + random.randint(7, 21)),
+        'cast': cast.get('actors', []),
+        'director': cast.get('director', {}),
+        'screenwriter': cast.get('screenwriter', {}),
+        'composer': cast.get('composer'),
+        'locations': loc_names,
+        'screenplay': project.get('screenplay', ''),
+        'pipeline_project_id': project['id'],
+        'likes_count': 0,
+        'liked_by': [],
+        'virtual_likes': random.randint(100, 3000),
+        'cumulative_attendance': 0,
+        'daily_revenues': [],
+        'created_at': _now(),
+        'released_at': project.get('released_at') or _now(),
+        'release_date': (project.get('released_at') or _now())[:10],
+        'poster_url': project.get('poster_url'),
+        'production_house': owner_name,
+        'sponsors': project.get('sponsors', []),
+        'equipment': project.get('equipment', []),
+        'pipeline_version': 2,
+        'release_zones': schedule.get('zones', ['world']),
+        'release_zone_names': schedule.get('zone_names', ['Mondiale']),
+        'release_date_option': schedule.get('date_option', 'immediate'),
+        'release_hype_mult': schedule.get('hype_mult', 1.0),
+        'release_rev_mult': schedule.get('rev_mult', 1.0),
+        'current_cinemas': max(30, int(random.randint(30, 150) * max(1.0, schedule.get('rev_mult', 1.0)))),
+        'current_attendance': 0,
+        'attendance_history': [],
+        'total_screenings': 0,
+        'content_type': ct,
+        'episode_count': project.get('episode_count') if ct in ('serie_tv', 'anime') else None,
+        'season_number': project.get('season_number', 1),
+        'parent_series_id': project.get('parent_series_id'),
+    }
+
+    try:
+        from server import calculate_imdb_rating
+        film_doc['imdb_rating'] = calculate_imdb_rating(film_doc)
+    except Exception:
+        film_doc['imdb_rating'] = quality_score_10
+
+    try:
+        tier_result = calculate_film_tier(film_doc)
+        if isinstance(tier_result, dict):
+            film_doc.update(tier_result)
+    except Exception:
+        pass
+
+    await db.films.insert_one({**film_doc})
+    return film_doc
+
+
+async def _finalize_release(project: dict, user: dict) -> dict:
+    project = dict(project)
+    if project.get('pipeline_state') in ('released', 'completed') and project.get('film_id'):
+        existing = await db.films.find_one({'id': project['film_id']}, {'_id': 0})
+        if existing:
+            return {
+                'success': True,
+                'film': existing,
+                'quality_score': _safe_num(project.get('final_quality') or project.get('quality_score') or existing.get('quality_score') or 5),
+                'tier': project.get('final_tier') or existing.get('tier', ''),
+                'fame_change': 0,
+                'xp_reward': 0,
+                'opening_day_revenue': existing.get('opening_day_revenue', 0),
+                'message': f'"{project.get("title", "Film")}" gia rilasciato!'
+            }
+
+    await _ensure_release_schedule(project)
+    calc = _compute_final_release_score(project)
+    quality_score = calc['final_score']
+    tier = calc['tier']
+    schedule = project.get('release_schedule') or _build_fallback_schedule()
+    rev_mult = _safe_num(schedule.get('rev_mult', 1.0), 1.0)
+    hype_mult = _safe_num(schedule.get('hype_mult', 1.0), 1.0)
+    hype_score = _safe_num((project.get('pipeline_metrics', {}) or {}).get('hype_score', 0))
+    total_cost = sum(v for v in (project.get('costs_paid', {}) or {}).values() if isinstance(v, (int, float)))
+    opening_day = int(((quality_score * 50000) + (total_cost * 0.1)) * max(0.6, min(3.5, rev_mult * (0.8 + (hype_score * hype_mult * 0.01)))))
+
+    user_doc = await db.users.find_one({'id': user['id']}, {'_id': 0, 'fame': 1}) or {}
+    fame = _safe_num(user_doc.get('fame', 0))
+    fame_change = calculate_fame_change(quality_score * 10, fame)
+    xp_reward = int(quality_score * 15 + random.uniform(0, 30))
+
+    now_iso = _now()
+    theater_weeks = max(1, min(4, int(project.get('theater_weeks', 3) or 3)))
+    theater_end_date = project.get('theater_end_date') or (datetime.now(timezone.utc) + timedelta(weeks=theater_weeks)).isoformat()
+
+    film_doc = await _create_or_get_released_film(project, quality_score, tier, opening_day)
+
+    project_update = {
+        'quality_score': quality_score,
+        'final_quality': quality_score,
+        'pre_imdb_score': int(round(quality_score * 10)),
+        'final_tier': tier,
+        'film_id': film_doc['id'],
+        'released_at': project.get('released_at') or now_iso,
+        'theater_weeks': theater_weeks,
+        'theater_end_date': theater_end_date,
+        'release_type': project.get('release_type') or 'direct',
+        'status': 'released',
+        'completed': True,
+        'pipeline_state': 'released',
+        'pipeline_ui_step': 8,
+        'pipeline_substate': 'done',
+        'pipeline_flags.released': True,
+        'release_sequence_played': False,
+    }
+
+    await db.film_projects.update_one({'id': project['id'], 'user_id': user['id']}, {'$set': project_update})
+    await db.users.update_one({'id': user['id']}, {'$inc': {'fame': fame_change, 'xp': xp_reward, 'funds': opening_day}})
+    released_project = await db.film_projects.find_one({'id': project['id']}, {'_id': 0})
+
+    return {
+        'success': True,
+        'film': film_doc,
+        'project': released_project,
+        'quality_score': quality_score,
+        'tier': tier,
+        'fame_change': fame_change,
+        'xp_reward': xp_reward,
+        'opening_day_revenue': opening_day,
+        'message': f'"{project.get("title", "Film")}" rilasciato! IMDb finale: {quality_score}'
+    }
+
 class ScheduleReleaseBody(BaseModel):
     date_option: str
     zones: list
@@ -2875,7 +3136,9 @@ class ScheduleReleaseBody(BaseModel):
 
 @router.post("/films/{pid}/schedule-release")
 async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = Depends(get_current_user)):
-    """Schedule release: pick date + zones. Works in distribution, premiere_live, release_pending."""
+    """Schedule release: pick date + zones. Works in distribution, premiere_live, release_pending.
+    Preview IMDb stays frontend-only: this endpoint never computes or saves real quality.
+    """
     project = await _get_project(pid, user['id'])
     state = project['pipeline_state']
     if state not in ('distribution', 'premiere_live', 'release_pending'):
@@ -2883,16 +3146,15 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
 
     is_premiere = project.get('release_type') == 'premiere'
 
-    # Validate date option
     date_opt = RELEASE_DATE_OPTIONS.get(body.date_option)
     if not date_opt:
         raise HTTPException(400, "Opzione data non valida")
     if date_opt.get('direct_only') and is_premiere:
         raise HTTPException(400, "Opzione non disponibile per film con La Prima")
 
-    # Validate zones
     if not body.zones:
         raise HTTPException(400, "Seleziona almeno una zona")
+
     total_funds = 0
     total_cp = 0
     selected_zones = []
@@ -2906,37 +3168,24 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
         total_cp += z['cp']
         selected_zones.append(zid)
 
-    # Check user can afford
-    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1, 'cinepass': 1})
-    user_funds = u.get('funds', 0)
-    user_cp = u.get('cinepass', 0)
-    if user_funds < total_funds:
-        raise HTTPException(400, f"Fondi insufficienti: servono ${total_funds:,}, hai ${user_funds:,}")
-    if user_cp < total_cp:
-        raise HTTPException(400, f"CinePass insufficienti: servono {total_cp}, hai {user_cp}")
+    u = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1, 'cinepass': 1}) or {}
+    if u.get('funds', 0) < total_funds:
+        raise HTTPException(400, f"Fondi insufficienti: servono ${total_funds:,}, hai ${u.get('funds', 0):,}")
+    if u.get('cinepass', 0) < total_cp:
+        raise HTTPException(400, f"CinePass insufficienti: servono {total_cp}, hai {u.get('cinepass', 0)}")
 
-    # Charge
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'funds': -total_funds, 'cinepass': -total_cp}}
-    )
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -total_funds, 'cinepass': -total_cp}})
 
-    # Calculate total revenue multiplier from zones
     rev_mult = sum(RELEASE_ZONES[z]['rev_mult'] for z in selected_zones)
     hype_mult_base = date_opt['hype_mult']
+    final_hype_mult = _calc_release_hype(hype_mult_base, len(selected_zones), has_world, project.get('pre_imdb_score', 50))
 
-    # Smart hype calculation with randomness + zone impact
-    quality = project.get('quality_score', project.get('pre_imdb_score', 50))
-    final_hype_mult = _calc_release_hype(hype_mult_base, len(selected_zones), has_world, quality)
-
-    # City taste bonus — dynamic city preferences affect revenue
     try:
         import city_tastes as ct
         genre = project.get('genre', 'drama')
         subgenres = project.get('subgenres', [])
         content_type = project.get('content_type', 'film')
         city_mult = await ct.calculate_city_bonus(db, selected_zones, genre, subgenres, content_type)
-        # Add saturation for each matching city
         cities = await db.city_tastes.find({'enabled': True, '$or': [{'zone': {'$in': selected_zones}}, {'city_id': {'$in': selected_zones}}]}, {'_id': 0, 'city_id': 1}).to_list(100)
         for c in cities:
             await ct.add_saturation(db, c['city_id'], genre, 0.04)
@@ -2959,23 +3208,10 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
         'scheduled_at': _now(),
     }
 
-    # Calculate quality_score if missing (MUST happen before release)
-    if not project.get('quality_score'):
-        import random as _rnd
-        metrics = project.get('pipeline_metrics', {})
-        cast_q = metrics.get('cast_quality', 50)
-        screenplay_q = metrics.get('screenplay_quality', 50)
-        poster_q = metrics.get('poster_quality', 50)
-        marketing_q = metrics.get('marketing_hype', 30)
-        base_q = (cast_q * 0.35 + screenplay_q * 0.3 + poster_q * 0.15 + marketing_q * 0.2)
-        quality_score = round(min(10, max(1, base_q / 10 + _rnd.uniform(-0.5, 0.5))), 1)
-        await db.film_projects.update_one({'id': pid}, {'$set': {'quality_score': quality_score, 'pre_imdb_score': quality_score * 10}})
-        logging.info(f"[RELEASE] Calculated quality_score for {pid}: {quality_score}")
-
-    # Theater duration
     theater_weeks = max(1, min(4, body.theater_weeks))
     release_date = _now()
-    theater_end = (datetime.fromisoformat(release_date) + timedelta(weeks=theater_weeks)).isoformat() if isinstance(release_date, str) else (release_date + timedelta(weeks=theater_weeks)).isoformat()
+    release_dt = datetime.fromisoformat(release_date)
+    theater_end = (release_dt + timedelta(weeks=theater_weeks)).isoformat()
 
     await db.film_projects.update_one(
         {'id': pid},
@@ -2984,36 +3220,22 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
             'theater_weeks': theater_weeks,
             'theater_end_date': theater_end,
             'released_at': release_date,
+            'release_type': project.get('release_type') or 'direct',
             'costs_paid.release_distribution': total_funds,
             'costs_paid.release_cp': total_cp,
         }}
     )
 
-    # Advance pipeline: distribution → release_pending (NOT directly to released)
-    # The actual release happens via confirm-final-release endpoint
-    if state == 'distribution':
+    if state != 'release_pending':
         try:
             await _advance(pid, user['id'], 'release_pending', {}, 'ready')
         except Exception as adv_err:
-            logging.warning(f"[RELEASE] _advance distribution→release_pending failed for {pid}: {adv_err}")
-            await db.film_projects.update_one({'id': pid}, {'$set': {'pipeline_state': 'release_pending', 'pipeline_ui_step': 8}})
-    elif state == 'release_pending':
-        # Already in release_pending, just save the schedule
-        pass
-    else:
-        # Legacy: premiere_live or other states
-        delay_days = date_opt.get('days', 0)
-        if delay_days == 0:
-            try:
-                await _advance(pid, user['id'], 'release_pending', {}, 'ready')
-            except Exception:
-                await db.film_projects.update_one({'id': pid}, {'$set': {'pipeline_state': 'release_pending', 'pipeline_ui_step': 8}})
-        else:
-            scheduled_at = (datetime.now(timezone.utc) + timedelta(days=delay_days)).isoformat()
-            await db.film_projects.update_one({'id': pid}, {'$set': {'scheduled_release_at': scheduled_at}})
+            logging.warning(f"[RELEASE] _advance -> release_pending failed for {pid}: {adv_err}")
+            await db.film_projects.update_one({'id': pid}, {'$set': {'pipeline_state': 'release_pending', 'pipeline_ui_step': 8, 'pipeline_substate': 'ready'}})
 
     logging.info(f"[RELEASE] Film {pid} scheduled. State={state}, theater_weeks={theater_weeks}")
     return {'schedule': schedule, 'funds_charged': total_funds, 'cp_charged': total_cp, 'theater_weeks': theater_weeks}
+
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -3022,150 +3244,16 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
 
 @router.post("/films/{pid}/confirm-final-release")
 async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)):
+    """Canonical final release endpoint.
+    Real IMDb is computed here, once, from backend metrics only.
     """
-    STEP FINALE: calcolo REALE quality, salva release. MAI return vuoto, MAI None.
-    """
-    print(f"=== ENDPOINT CONFIRM-FINAL-RELEASE CHIAMATO === pid={pid} user={user.get('id','?')}")
     project = await _get_project(pid, user['id'])
     state = project.get('pipeline_state', '')
-    print(f"=== STATO FILM: {state} ===")
-    if state not in ('release_pending', 'distribution'):
-        print(f"=== RIFIUTATO: stato {state} non valido ===")
+    if state not in ('release_pending', 'distribution', 'released', 'completed'):
         raise HTTPException(400, f"Film non in fase di conferma uscita (stato: {state})")
-
-    logging.info(f"[CONFIRM_RELEASE] Starting for {pid}, state={state}")
-
-    # FALLBACK ANTI-BUG: assicurarsi che i dati essenziali esistano
-    if not project.get('release_type'):
-        await db.film_projects.update_one({'id': pid}, {'$set': {'release_type': 'direct'}})
-        project['release_type'] = 'direct'
-
-    if not project.get('release_schedule'):
-        now_ts = _now()
-        fallback_schedule = {
-            'date_option': 'immediate',
-            'date_label': 'Immediato',
-            'days': 0,
-            'zones': ['world'],
-            'zone_names': ['Mondiale'],
-            'scheduled_at': now_ts,
-        }
-        await db.film_projects.update_one({'id': pid}, {'$set': {
-            'release_schedule': fallback_schedule,
-            'released_at': now_ts,
-            'theater_weeks': 3,
-            'theater_end_date': (datetime.now(timezone.utc) + timedelta(weeks=3)).isoformat(),
-        }})
-        project['release_schedule'] = fallback_schedule
-
-    # CALCOLO REALE — ricalcolo da zero, ignora qualsiasi preview
-    metrics = project.get('pipeline_metrics', {})
-    cast_raw = metrics.get('cast_quality', 0) or 0
-    hype_raw = metrics.get('hype_score', 0) or 0
-    prod_raw = (
-        (metrics.get('shooting_quality', 0) or 0) +
-        (metrics.get('prep_quality', 0) or 0) +
-        (metrics.get('postprod_quality', 0) or 0)
-    ) / 3.0
-    mkt_raw = metrics.get('marketing_hype', 0) or 0
-
-    # Anti-NaN
-    if not isinstance(cast_raw, (int, float)) or math.isnan(cast_raw): cast_raw = 0
-    if not isinstance(hype_raw, (int, float)) or math.isnan(hype_raw): hype_raw = 0
-    if not isinstance(prod_raw, (int, float)) or math.isnan(prod_raw): prod_raw = 0
-    if not isinstance(mkt_raw, (int, float)) or math.isnan(mkt_raw): mkt_raw = 0
-
-    # NORMALIZZAZIONE: ogni metrica alla propria scala → 0-10
-    cast10 = min(10, cast_raw / 10)   # cast: 0-100 → /10
-    hype10 = min(10, hype_raw / 100)  # hype: 0-1000 → /100
-    prod10 = min(10, prod_raw / 10)   # prod: 0-100 → /10
-    mkt10 = min(10, mkt_raw / 10)     # mkt: 0-100 → /10
-
-    # Media pesata su scala 0-10
-    final_score = (
-        cast10 * 0.4 +
-        hype10 * 0.2 +
-        prod10 * 0.2 +
-        mkt10 * 0.2
-    )
-    final_score += random.uniform(-0.3, 0.3)
-    quality_score = round(max(1, min(10, final_score)), 1)
-
-    # Anti-NaN final
-    if math.isnan(quality_score) or quality_score is None:
-        quality_score = 5.0
-
-    print(f"=== CALCOLO REALE === CAST:{cast_raw}→{cast10:.1f} HYPE:{hype_raw}→{hype10:.1f} PROD:{prod_raw:.1f}→{prod10:.1f} MKT:{mkt_raw}→{mkt10:.1f} FINAL:{quality_score}")
-
-    # Determine tier
-    if quality_score >= 9.0:
-        tier = 'masterpiece'
-    elif quality_score >= 7.5:
-        tier = 'excellent'
-    elif quality_score >= 5.5:
-        tier = 'good'
-    elif quality_score >= 3.5:
-        tier = 'mediocre'
-    else:
-        tier = 'bad'
-
-    now = _now()
-
-    # Compute release rewards
-    fame = (await db.users.find_one({'id': user['id']}, {'_id': 0, 'fame': 1})).get('fame', 0) or 0
-    fame_change = calculate_fame_change(quality_score * 10, fame)
-    xp_reward = int(quality_score * 15 + random.uniform(0, 30))
-    opening_revenue = int(quality_score * 50000 * random.uniform(0.7, 1.3))
-
-    # Update user
-    await db.users.update_one(
-        {'id': user['id']},
-        {'$inc': {'fame': fame_change, 'xp': xp_reward, 'funds': opening_revenue}}
-    )
-
-    release_data = {
-        'quality_score': quality_score,
-        'pre_imdb_score': quality_score * 10,
-        'final_quality': quality_score,
-        'final_tier': tier,
-        'status': 'released',
-        'completed': True,
-        'released_at': project.get('released_at') or now,
-        'theater_weeks': project.get('theater_weeks', 3),
-        'theater_end_date': project.get('theater_end_date') or (datetime.now(timezone.utc) + timedelta(weeks=project.get('theater_weeks', 3))).isoformat(),
-        'release_type': project.get('release_type', 'direct'),
-    }
-
-    # Advance to released
-    try:
-        if state == 'release_pending':
-            film = await _advance(pid, user['id'], 'released', release_data, 'final')
-        else:
-            # Force release for distribution or other edge states
-            await db.film_projects.update_one(
-                {'id': pid},
-                {'$set': {**release_data, 'pipeline_state': 'released', 'pipeline_ui_step': 8}}
-            )
-            film = await db.film_projects.find_one({'id': pid}, {'_id': 0})
-    except Exception as e:
-        logging.warning(f"[CONFIRM_RELEASE] Advance failed for {pid}: {e}, forcing released state")
-        await db.film_projects.update_one(
-            {'id': pid},
-            {'$set': {**release_data, 'pipeline_state': 'released', 'pipeline_ui_step': 8}}
-        )
-        film = await db.film_projects.find_one({'id': pid}, {'_id': 0})
-
-    logging.info(f"[CONFIRM_RELEASE] Film {pid} released. Quality={quality_score}, Tier={tier}")
-
-    return {
-        'success': True,
-        'film': film,
-        'quality_score': quality_score,
-        'tier': tier,
-        'fame_change': fame_change,
-        'xp_reward': xp_reward,
-        'opening_day_revenue': opening_revenue,
-    }
+    result = await _finalize_release(project, user)
+    logging.info(f"[CONFIRM_RELEASE] Film {pid} released. Quality={result['quality_score']}, Tier={result['tier']}")
+    return result
 
 
 @router.post("/films/{pid}/discard-final")
@@ -3977,307 +4065,20 @@ async def create_new_season(pid: str, body: CreateSeasonBody, user: dict = Depen
 
 @router.post("/films/{pid}/release")
 async def release_film_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Final release: calculates quality, creates film in 'films' collection. Idempotent."""
+    """Compatibility wrapper: final release now goes through the same canonical backend flow as confirm-final-release."""
     project = await _get_project(pid, user['id'])
-    if project['pipeline_state'] in ('released', 'completed'):
-        film_id = project.get('film_id')
-        if film_id:
-            film = await db.films.find_one({'id': film_id}, {'_id': 0})
-            if film:
-                return {
-                    'film': film,
-                    'quality_score': project.get('final_quality', 0),
-                    'tier': project.get('final_tier', ''),
-                    'opening_day_revenue': film.get('opening_day_revenue', 0),
-                    'xp_reward': 0, 'fame_change': 0,
-                    'message': f'"{project["title"]}" gia rilasciato!'
-                }
-        return {'film': project, 'quality_score': project.get('final_quality', 0), 'tier': project.get('final_tier', ''), 'message': 'Film gia rilasciato.'}
-    if project['pipeline_state'] != 'release_pending':
+    state = project.get('pipeline_state', '')
+    if state not in ('release_pending', 'distribution', 'released', 'completed'):
         raise HTTPException(400, "Film non pronto per il rilascio")
-
-    # Check if schedule exists
-    schedule = project.get('release_schedule')
-    if not schedule:
-        raise HTTPException(400, "Devi prima programmare la distribuzione (data + zone)")
-
-    # If delayed release → coming_soon
-    delay_days = schedule.get('days', 0)
-    if delay_days > 0:
-        release_at = datetime.now(timezone.utc) + timedelta(days=delay_days)
-        await db.film_projects.update_one(
-            {'id': pid},
-            {'$set': {
-                'pipeline_state': 'coming_soon_scheduled',
-                'pipeline_substate': 'waiting',
-                'status': 'coming_soon',
-                'scheduled_release_at': release_at.isoformat(),
-                'coming_soon_hype': int(project.get('pipeline_metrics', {}).get('hype_score', 0) * schedule.get('hype_mult', 1)),
-            }}
-        )
-        proj = await db.film_projects.find_one({'id': pid}, {'_id': 0})
-        return {
-            'scheduled': True,
-            'release_at': release_at.isoformat(),
-            'days': delay_days,
-            'zones': schedule.get('zone_names', []),
-            'film': proj,
-        }
-
-    cast = project.get('cast', {})
-    genre = project.get('genre', 'drama')
-    pre_imdb = project.get('pre_imdb_score', 5)
-    metrics = project.get('pipeline_metrics', {})
-
-    # ── Quality Score Calculation (deterministic + alchemy) ──
-    # Base deterministic (~65 max)
-    base = pre_imdb * 4.5
-
-    # Cast quality
-    cast_q = metrics.get('cast_quality', 0)
-    base += cast_q * 0.25
-
-    # Screenplay (amplified by screenplay_weight for series sequels)
-    scr_bonus = project.get('screenplay_quality_bonus', 0)
-    sw = project.get('screenplay_weight', 1.0) or 1.0
-    base += scr_bonus * sw
-
-    # Equipment & production
-    eq_count = len(project.get('equipment', []))
-    base += min(5, eq_count * 0.7)
-
-    setup = project.get('production_setup', {})
-    cgi_count = len(setup.get('cgi_packages', []))
-    vfx_count = len(setup.get('vfx_packages', []))
-    base += min(4, cgi_count * 1.2)
-    base += min(4, vfx_count * 1.2)
-
-    # Extras sweet spot
-    extras = setup.get('extras_count', 0)
-    optimal = EXTRAS_OPTIMAL.get(genre, {'sweet': 150})['sweet']
-    extras_diff = abs(extras - optimal) / max(1, optimal)
-    if extras_diff < 0.2:
-        base += 3
-    elif extras_diff < 0.5:
-        base += 1
-    elif extras_diff > 1.5:
-        base -= 2
-
-    # Shooting events
-    base += metrics.get('shooting_event_bonus', 0)
-
-    # Subgenre synergy bonus on quality
-    subs = set(s.lower() for s in project.get('subgenres', []))
-    sg_quality = 0
-    for sg in subs:
-        sg_quality += STRONG_COMBOS.get((genre, sg), 0) * 2  # amplified for quality
-    if sg_quality > 0:
-        base += min(5, sg_quality)
-    elif sg_quality < 0:
-        base += max(-3, sg_quality)
-
-    # Subgenre marketing affinity
-    sg_mkt_boost = max((SUBGENRE_MARKETING_BOOST.get(sg, 1.0) for sg in subs), default=1.0)
-    mkt_hype = metrics.get('marketing_hype', 0)
-    base += min(5, mkt_hype * 0.15 * sg_mkt_boost)
-
-    # Premiere bonus
-    base += min(5, metrics.get('premiere_bonus', 0) * 0.3)
-
-    # Hype bonus
-    base += min(3, metrics.get('hype_score', 0) * 0.05)
-
-    # Poster bonus
-    has_poster = project.get('pipeline_flags', {}).get('has_poster', False)
-    if has_poster:
-        base += 2
-
-    # ─── CAST ROLE BONUS ───
-    cast_actors = cast.get('actors', [])
-    role_quality_total = 0
-    role_hype_total = 0
-    role_imdb_weight = 0
-    for actor in cast_actors:
-        rb = actor.get('role_bonus', {})
-        role_quality_total += rb.get('quality_bonus', 0)
-        role_hype_total += rb.get('hype_bonus', 0)
-        role_imdb_weight += rb.get('imdb_weight', 0.5)
-    base += min(8, role_quality_total * 0.4)
-
-    base = min(65, base)
-
-    # Alchemy (random, ~+/-35)
-    alchemy = 0
-    alchemy += random.uniform(-22, 22)   # Director vision
-    alchemy += random.uniform(-20, 20)   # Audience reaction
-
-    # ─── REAL CAST CHEMISTRY IMPACT ───
-    cast_chem = metrics.get('cast_chemistry', 0)
-    chem_indicator = metrics.get('cast_chemistry_indicator', 'neutral')
-    # Chemistry contributes -15 to +15 based on real score
-    chem_impact = cast_chem * 0.15
-    alchemy += chem_impact
-
-    alchemy += random.uniform(-6, 6)     # Genre trend
-    alchemy += random.uniform(-10, 10)   # Critics
-    alchemy += random.uniform(-5, 5)     # Market timing
-
-    # Speedup malus
-    speedup_malus = metrics.get('speedup_malus', 0)
-    alchemy -= speedup_malus * 1.5
-
-    quality_score = max(5, min(100, round(base + alchemy)))
-
-    # Episode factor: series/anime with more episodes get slight quality penalty
-    ct = project.get('content_type', 'film')
-    ep_count = project.get('episode_count')
-    if ct in ('serie_tv', 'anime') and ep_count and ep_count > 8:
-        ep_factor = 1 - ((ep_count - 8) * 0.02)
-        quality_score = max(5, round(quality_score * ep_factor))
-
-    # Season bonus/malus from previous season
-    season_bonus = project.get('pipeline_metrics', {}).get('season_bonus', 0)
-    if season_bonus:
-        quality_score = max(5, min(100, round(quality_score + season_bonus)))
-
-    # Franchise fatigue: higher seasons face tougher audience expectations
-    ff = project.get('franchise_fatigue', 0) or 0
-    if ff > 0:
-        quality_score = max(5, round(quality_score * (1 - ff)))
-
-    # Normalize to 0-10 scale for consistency with pipeline
-    quality_score_10 = round(min(10, max(1, quality_score / 10)), 1)
-
-    # Tier (uses 0-100 scale internally)
-    if quality_score >= 85: tier = 'masterpiece'
-    elif quality_score >= 70: tier = 'excellent'
-    elif quality_score >= 55: tier = 'good'
-    elif quality_score >= 40: tier = 'mediocre'
-    else: tier = 'bad'
-
-    # Revenue — apply release schedule multipliers
-    schedule = project.get('release_schedule', {})
-    zone_rev_mult = schedule.get('rev_mult', 1.0) if schedule else 1.0
-    hype_mult = schedule.get('hype_mult', 1.0) if schedule else 1.0
-    hype_score = metrics.get('hype_score', 0)
-    hype_bonus = hype_score * hype_mult * 0.05
-
-    costs_paid = project.get('costs_paid', {})
-    total_cost = sum(v for v in costs_paid.values() if isinstance(v, (int, float)))
-    opening_day = int(((quality_score * 2000) + (total_cost * 0.1) + random.randint(10000, 80000)) * zone_rev_mult * max(0.5, 0.8 + hype_bonus))
-
-    # Create film document
-    new_film_id = str(uuid.uuid4())
-    owner = await db.users.find_one({'id': project['user_id']}, {'_id': 0, 'nickname': 1, 'fame': 1})
-    owner_name = owner.get('nickname', '?') if owner else '?'
-
-    locs = project.get('locations', [])
-    loc_names = [l if isinstance(l, str) else l.get('name', str(l)) for l in locs]
-
-    film_doc = {
-        'id': new_film_id,
-        'owner_id': project['user_id'],
-        'user_id': project['user_id'],
-        'title': project['title'],
-        'genre': genre,
-        'subgenre': project.get('subgenre', ''),
-        'subgenres': project.get('subgenres', []),
-        'status': 'in_theaters',
-        'quality_score': quality_score_10,
-        'pre_imdb_score': quality_score,
-        'tier': tier,
-        'budget': total_cost,
-        'total_budget': total_cost,
-        'total_revenue': 0,
-        'opening_day_revenue': opening_day,
-        'day_in_theaters': 0,
-        'max_days': max(14, int(quality_score / 3) + random.randint(7, 21)),
-        'cast': cast.get('actors', []) if isinstance(cast, dict) else [],
-        'director': cast.get('director', {}) if isinstance(cast, dict) else {},
-        'screenwriter': cast.get('screenwriter', {}) if isinstance(cast, dict) else {},
-        'composer': cast.get('composer') if isinstance(cast, dict) else None,
-        'locations': loc_names,
-        'screenplay': project.get('screenplay', ''),
-        'pre_imdb_score': pre_imdb,
-        'pipeline_project_id': project['id'],
-        'likes_count': 0,
-        'liked_by': [],
-        'virtual_likes': random.randint(100, 3000),
-        'cumulative_attendance': 0,
-        'daily_revenues': [],
-        'created_at': _now(),
-        'released_at': _now(),
-        'release_date': _now()[:10],
-        'poster_url': project.get('poster_url'),
-        'production_house': owner_name,
-        'sponsors': project.get('sponsors', []),
-        'equipment': project.get('equipment', []),
-        'pipeline_version': 2,
-        'release_zones': schedule.get('zones', ['world']) if schedule else ['world'],
-        'release_zone_names': schedule.get('zone_names', ['Mondiale']) if schedule else ['Mondiale'],
-        'release_date_option': schedule.get('date_option', 'immediate') if schedule else 'immediate',
-        'release_hype_mult': hype_mult,
-        'release_rev_mult': zone_rev_mult,
-        'current_cinemas': max(30, int(random.randint(30, 150) * zone_rev_mult)),
-        'current_attendance': 0,
-        'attendance_history': [],
-        'total_screenings': 0,
-        'content_type': ct,
-        'episode_count': ep_count if ct in ('serie_tv', 'anime') else None,
-        'season_number': project.get('season_number', 1),
-        'parent_series_id': project.get('parent_series_id'),
-    }
-
-    # Calculate IMDb rating
-    try:
-        from server import calculate_imdb_rating
-        film_doc['imdb_rating'] = calculate_imdb_rating(film_doc)
-    except Exception:
-        film_doc['imdb_rating'] = round(quality_score / 12, 1)
-
-    # Calculate tier
-    try:
-        tier_result = calculate_film_tier(film_doc)
-        film_doc.update(tier_result)
-    except Exception:
-        pass
-
-    await db.films.insert_one({**film_doc})
-    film_doc.pop('_id', None)
-
-    # Update project to released
-    release_extra = {
-        'film_id': new_film_id,
-        'final_quality': quality_score,
-        'final_tier': tier,
-        'released_at': _now(),
-        'pipeline_flags.released': True,
-    }
-    await _advance(pid, user['id'], 'released', release_extra, 'in_theaters')
-
-    # Award XP and fame
-    xp_reward = quality_score * 2 + {'masterpiece': 200, 'excellent': 100, 'good': 50, 'mediocre': 20, 'bad': 10}[tier]
-    current_fame = owner.get('fame', 0) if owner else 0
-    fame_change = calculate_fame_change(quality_score, opening_day, current_fame)
-    await db.users.update_one({'id': project['user_id']}, {
-        '$inc': {'xp': xp_reward, 'fame': fame_change, 'funds': opening_day}
-    })
-
-    # Auto-mark completed after release
-    await db.film_projects.update_one(
-        {'id': pid},
-        {'$set': {'pipeline_state': 'completed', 'pipeline_ui_step': 8, 'pipeline_substate': 'done', 'release_sequence_played': False}}
-    )
-
+    result = await _finalize_release(project, user)
     return {
-        'film': film_doc,
-        'quality_score': quality_score_10,
-        'pre_imdb_score': quality_score,
-        'tier': tier,
-        'opening_day_revenue': opening_day,
-        'xp_reward': xp_reward,
-        'fame_change': round(fame_change, 1),
-        'message': f'"{project["title"]}" rilasciato! Quality: {quality_score} ({tier})'
+        'film': result.get('film') or result.get('project') or {},
+        'quality_score': result.get('quality_score', 0),
+        'tier': result.get('tier', ''),
+        'opening_day_revenue': result.get('opening_day_revenue', 0),
+        'xp_reward': result.get('xp_reward', 0),
+        'fame_change': result.get('fame_change', 0),
+        'message': result.get('message', 'Film rilasciato!')
     }
 
 

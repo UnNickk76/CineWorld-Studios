@@ -558,7 +558,7 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
     setLoading('poster');
     try {
       await api.post(`/films/${film.id}/poster`, { mode, prompt: mode === 'ai_custom' ? screenplayPrompt : '' });
-      onRefresh();
+      await onRefresh();
       toast({ title: 'Locandina generata!' });
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
     setLoading('');
@@ -570,7 +570,7 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
     try {
       const body = { mode: screenplayMode, prompt: screenplayPrompt, text: manualScreenplay };
       const res = await api.post(`/films/${film.id}/screenplay`, body);
-      onRefresh();
+      await onRefresh();
       toast({ title: `Sceneggiatura scritta! (+${res.quality_bonus} quality)` });
     } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
     setLoading('');

@@ -18,15 +18,17 @@ const API = process.env.REACT_APP_BACKEND_URL;
 // ═══════════════════════════════════════════════════════════════
 
 const V2_STEPS = [
-  { id: 'idea',      label: 'IDEA',      icon: Sparkles, color: 'amber'  },
-  { id: 'hype',      label: 'HYPE',      icon: TrendingUp, color: 'orange' },
-  { id: 'cast',      label: 'CAST',      icon: Users,    color: 'cyan'   },
-  { id: 'prep',      label: 'PREP',      icon: Camera,   color: 'blue'   },
-  { id: 'ciak',      label: 'CIAK',      icon: Clapperboard, color: 'red' },
-  { id: 'finalcut',  label: 'FINAL CUT', icon: Film,     color: 'purple' },
-  { id: 'marketing', label: 'MARKETING', icon: Megaphone, color: 'green'  },
-  { id: 'laprima',   label: 'LA PRIMA',  icon: Award,    color: 'yellow' },
-  { id: 'uscita',    label: 'USCITA',    icon: Ticket,   color: 'emerald'},
+  { id: 'idea',           label: 'IDEA',          icon: Sparkles,     color: 'amber'  },
+  { id: 'hype',           label: 'HYPE',          icon: TrendingUp,   color: 'orange' },
+  { id: 'cast',           label: 'CAST',          icon: Users,        color: 'cyan'   },
+  { id: 'prep',           label: 'PREP',          icon: Camera,       color: 'blue'   },
+  { id: 'ciak',           label: 'CIAK',          icon: Clapperboard, color: 'red'    },
+  { id: 'finalcut',       label: 'FINAL CUT',     icon: Film,         color: 'purple' },
+  { id: 'marketing',      label: 'MARKETING',     icon: Megaphone,    color: 'green'  },
+  { id: 'release_choice', label: 'RILASCIO',      icon: Award,        color: 'yellow' },
+  { id: 'distribution',   label: 'DISTRIBUZIONE', icon: Globe,        color: 'blue'   },
+  { id: 'confirm',        label: 'CONFERMA',      icon: Check,        color: 'emerald'},
+  { id: 'released',       label: 'AL CINEMA',     icon: Ticket,       color: 'emerald'},
 ];
 
 const STEP_STYLES = {
@@ -122,6 +124,35 @@ const ProgressCircle = ({ value, size = 48, color = '#00FFD0' }) => {
   );
 };
 
+// Anti-NaN: preview quality SOLO UI, mai salvata
+const safeAverage = (values) => {
+  const valid = values.filter(v => typeof v === 'number' && !isNaN(v) && v !== null);
+  if (valid.length === 0) return 5.0;
+  return parseFloat((valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(1));
+};
+
+// Map backend state → UI step index (0-10)
+const STATE_TO_STEP = {
+  draft: 0, idea: 0,
+  proposed: 1, hype_setup: 1, hype_live: 1,
+  casting_live: 2,
+  prep: 3,
+  shooting: 4,
+  postproduction: 5,
+  sponsorship: 6, marketing: 6,
+  release_choice: 7,
+  distribution: 8,
+  premiere_setup: 7, premiere_live: 7,
+  release_pending: 9,
+  released: 10, completed: 10,
+};
+
+const getStepState = (stepIndex, currentStepIndex) => {
+  if (stepIndex < currentStepIndex) return 'completed';
+  if (stepIndex === currentStepIndex) return 'active';
+  return 'locked';
+};
+
 function useCountdown(endTime) {
   const [remaining, setRemaining] = useState('');
   const [done, setDone] = useState(false);
@@ -146,13 +177,13 @@ function useCountdown(endTime) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  STEPPER BAR (9 steps, horizontal scrollable on mobile)
+//  STEPPER BAR (11 steps, ALWAYS visible, horizontal scrollable)
 // ═══════════════════════════════════════════════════════════════
 
 // Steps that CANNOT be edited (timer-based)
-const EDIT_BLOCKED_STEPS = new Set([4, 5, 8]);
+const EDIT_BLOCKED_STEPS = new Set([4, 5, 9, 10]);
 
-const StepperBar = ({ uiStep, onViewStep, allowScheduleStep }) => {
+const StepperBar = ({ uiStep, onViewStep }) => {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -168,32 +199,32 @@ const StepperBar = ({ uiStep, onViewStep, allowScheduleStep }) => {
         {V2_STEPS.map((step, i) => {
           const Icon = step.icon;
           const style = STEP_STYLES[step.color];
-          const isCurrent = i === uiStep;
-          const isCompleted = i < uiStep;
-          const isSchedulable = allowScheduleStep && i === uiStep + 1;
+          const stepState = getStepState(i, uiStep);
+          const isCompleted = stepState === 'completed';
+          const isActive = stepState === 'active';
+          const isLocked = stepState === 'locked';
           return (
             <React.Fragment key={step.id}>
-              {i > 0 && <div className={`w-3 sm:w-5 h-0.5 flex-shrink-0 ${isCompleted || isCurrent ? style.line : 'bg-gray-800'}`} />}
+              {i > 0 && <div className={`w-2 sm:w-4 h-0.5 flex-shrink-0 ${isCompleted || isActive ? style.line : 'bg-gray-800'}`} />}
               <div className="flex flex-col items-center gap-0.5 flex-shrink-0 relative" data-step={i}>
                 <div
-                  onClick={isCompleted ? () => onViewStep(i) : isSchedulable ? () => onViewStep(i) : undefined}
-                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
-                    isCurrent ? `${style.active} shadow-lg shadow-${step.color}-500/20 scale-110` :
-                    isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400 cursor-pointer hover:border-cyan-400 hover:bg-cyan-500/10 active:scale-95' :
-                    isSchedulable ? `${STEP_STYLES[step.color].active} opacity-70 cursor-pointer animate-pulse` :
-                    'border-gray-800 bg-gray-900/50 text-gray-700'
+                  onClick={isCompleted ? () => onViewStep(i) : undefined}
+                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
+                    isActive ? `${style.active} shadow-lg scale-110` :
+                    isCompleted ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400 cursor-pointer hover:border-cyan-400 active:scale-95' :
+                    'border-gray-800 bg-gray-900/50 text-gray-700 opacity-40'
                   }`}
-                  data-testid={isCompleted ? `view-step-${i}` : isSchedulable ? `schedule-step-${i}` : undefined}
+                  data-testid={isCompleted ? `view-step-${i}` : `step-${i}`}
                 >
-                  {isCompleted ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+                  {isCompleted ? <Check className="w-2.5 h-2.5" /> : <Icon className="w-2.5 h-2.5" />}
                 </div>
                 {isCompleted && (
-                  <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-cyan-500 flex items-center justify-center shadow-sm">
-                    <Eye className="w-2 h-2 text-black" />
+                  <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-cyan-500 flex items-center justify-center shadow-sm">
+                    <Eye className="w-1.5 h-1.5 text-black" />
                   </div>
                 )}
-                <span className={`text-[6px] sm:text-[7px] font-bold tracking-wider uppercase whitespace-nowrap ${
-                  isCurrent ? style.text : isCompleted ? 'text-emerald-500/60' : isSchedulable ? STEP_STYLES[step.color].text + ' opacity-70' : 'text-gray-700'
+                <span className={`text-[5px] sm:text-[6px] font-bold tracking-wider uppercase whitespace-nowrap ${
+                  isActive ? style.text : isCompleted ? 'text-emerald-500/60' : 'text-gray-700'
                 }`}>{step.label}</span>
               </div>
             </React.Fragment>
@@ -1932,25 +1963,8 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
     setLoading('');
   };
 
-  const choosePremiere = async () => {
-    setLoading('premiere');
-    try {
-      await api.post(`/films/${film.id}/choose-premiere`);
-      onRefresh();
-      toast({ title: 'La Prima!' });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
-    setLoading('');
-  };
-
-  const chooseDirectRelease = async () => {
-    setLoading('direct');
-    try {
-      await api.post(`/films/${film.id}/choose-direct-release`);
-      onRefresh();
-      toast({ title: 'Rilascio diretto nei cinema!' });
-    } catch (e) { toast({ title: 'Errore', description: e.message, variant: 'destructive' }); }
-    setLoading('');
-  };
+  const choosePremiere = null; // Removed — now in ReleaseChoicePhase
+  const chooseDirectRelease = null; // Removed — now in ReleaseChoicePhase
 
   const toggleSponsor = (sp) => {
     const exists = selectedSponsors.some(s => s.name === sp.name);
@@ -1990,14 +2004,13 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
         </div>
       )}
 
-      {/* MARKETING */}
+      {/* MARKETING — save-marketing auto-avanza a release_choice */}
       {state === 'marketing' && (
         <div className="space-y-3">
-          {/* Marketing Narrative Message (if failed) */}
           {marketingMessage && (
             <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1">
               <p className="text-[9px] text-amber-400 font-bold">Risposta delle agenzie:</p>
-              {marketingMessage.split('\n').filter(Boolean).map((line, i) => (
+              {String(marketingMessage).split('\n').filter(Boolean).map((line, i) => (
                 <p key={i} className="text-[9px] text-gray-400 leading-relaxed">{line}</p>
               ))}
             </div>
@@ -2026,27 +2039,15 @@ const MarketingPhase = ({ film, onRefresh, toast }) => {
                   {loading === 'marketing' ? '...' : `Attiva Marketing ($${selectedMarketing.reduce((a, m) => a + (m.cost || 0), 0).toLocaleString()})`}
                 </button>
               )}
+
+              {!marketingSaved && selectedMarketing.length === 0 && (
+                <button onClick={saveMarketing} disabled={loading === 'marketing'}
+                  className="w-full text-[10px] py-2 rounded-lg bg-gray-700/50 border border-gray-600 text-gray-400 hover:bg-gray-700 transition-colors disabled:opacity-50 font-bold" data-testid="skip-marketing-btn">
+                  {loading === 'marketing' ? '...' : 'Salta Marketing'}
+                </button>
+              )}
             </>
           )}
-
-          {/* RELEASE TYPE — SEMPRE VISIBILE, indipendente dal marketing */}
-          <div className="border-t border-gray-800 pt-3 space-y-2">
-            <p className="text-[9px] text-gray-500 uppercase font-bold text-center">Come vuoi rilasciare il film?</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={choosePremiere} disabled={!!loading}
-                className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-center hover:bg-yellow-500/15 transition-colors disabled:opacity-50" data-testid="choose-premiere-btn">
-                <Award className="w-5 h-5 text-yellow-400 mx-auto mb-1" />
-                <p className="text-[10px] font-bold text-yellow-400">La Prima</p>
-                <p className="text-[7px] text-gray-500">Red carpet + premiere</p>
-              </button>
-              <button onClick={chooseDirectRelease} disabled={!!loading}
-                className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center hover:bg-emerald-500/15 transition-colors disabled:opacity-50" data-testid="choose-direct-btn">
-                <Ticket className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
-                <p className="text-[10px] font-bold text-emerald-400">Rilascio Diretto</p>
-                <p className="text-[7px] text-gray-500">Subito nei cinema</p>
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </PhaseWrapper>
@@ -2189,6 +2190,248 @@ const LaPrimaPhase = ({ film, onRefresh, toast }) => {
 // ═══════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════
+//  RELEASE CHOICE — Scelta La Prima / Diretto (SEMPRE)
+// ═══════════════════════════════════════════════════════════════
+
+const ReleaseChoicePhase = ({ film, onRefresh, toast }) => {
+  const [loading, setLoading] = useState('');
+
+  const choosePremiere = async () => {
+    setLoading('premiere');
+    try {
+      await api.post(`/films/${film.id}/choose-premiere`);
+      onRefresh();
+      toast({ title: 'La Prima selezionata! Ora configura la distribuzione.' });
+    } catch (e) { toast({ title: '' + (e.message || 'Errore'), variant: 'destructive' }); }
+    setLoading('');
+  };
+
+  const chooseDirectRelease = async () => {
+    setLoading('direct');
+    try {
+      await api.post(`/films/${film.id}/choose-direct-release`);
+      onRefresh();
+      toast({ title: 'Rilascio diretto! Ora configura la distribuzione.' });
+    } catch (e) { toast({ title: '' + (e.message || 'Errore'), variant: 'destructive' }); }
+    setLoading('');
+  };
+
+  // Marketing fallback message
+  const marketingMessage = film.marketing_message;
+
+  return (
+    <PhaseWrapper title="Scelta Rilascio" subtitle="Come vuoi lanciare il film?" icon={Award} color="yellow">
+      <div className="space-y-3" data-testid="release-choice-phase">
+        {/* Marketing failure narrative */}
+        {marketingMessage && (
+          <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1">
+            <p className="text-[9px] text-amber-400 font-bold">Risposta delle agenzie:</p>
+            {String(marketingMessage).split('\n').filter(Boolean).map((line, i) => (
+              <p key={i} className="text-[9px] text-gray-400 leading-relaxed">{line}</p>
+            ))}
+            <p className="text-[8px] text-gray-500 italic mt-1">...ma puoi comunque decidere come lanciare il film.</p>
+          </div>
+        )}
+
+        <p className="text-[9px] text-gray-500 uppercase font-bold text-center">Scegli la modalita di lancio</p>
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={choosePremiere} disabled={!!loading}
+            className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-center hover:bg-yellow-500/15 transition-colors disabled:opacity-50" data-testid="choose-premiere-btn">
+            <Award className="w-6 h-6 text-yellow-400 mx-auto mb-1.5" />
+            <p className="text-[11px] font-bold text-yellow-400">La Prima</p>
+            <p className="text-[8px] text-gray-500 mt-0.5">Red carpet + premiere</p>
+          </button>
+          <button onClick={chooseDirectRelease} disabled={!!loading}
+            className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-center hover:bg-emerald-500/15 transition-colors disabled:opacity-50" data-testid="choose-direct-btn">
+            <Ticket className="w-6 h-6 text-emerald-400 mx-auto mb-1.5" />
+            <p className="text-[11px] font-bold text-emerald-400">Rilascio Diretto</p>
+            <p className="text-[8px] text-gray-500 mt-0.5">Subito nei cinema</p>
+          </button>
+        </div>
+        {loading && <p className="text-[8px] text-gray-500 text-center animate-pulse">Salvataggio...</p>}
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  DISTRIBUTION — Zone + Date (SEMPRE visibile)
+// ═══════════════════════════════════════════════════════════════
+
+const DistributionPhase = ({ film, onRefresh, toast }) => {
+  const [loading, setLoading] = useState('');
+  const [zones, setZones] = useState([]);
+  const [dateOptions, setDateOptions] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedZones, setSelectedZones] = useState([]);
+  const [expandedContinent, setExpandedContinent] = useState(null);
+  const [theaterWeeks, setTheaterWeeks] = useState(film.theater_weeks || 3);
+  const [scheduled, setScheduled] = useState(film.release_schedule || null);
+
+  useEffect(() => {
+    api.get('/release-zones').then(r => {
+      setZones(r?.zones || []);
+      setDateOptions(r?.dates || []);
+    }).catch(() => {});
+  }, [film.id]);
+
+  const hasWorld = selectedZones.includes('world');
+  const activeZones = hasWorld ? ['world'] : selectedZones;
+  const totalFunds = activeZones.reduce((s, z) => s + ((zones.find(x => x.id === z) || {}).funds || 0), 0);
+  const totalCp = activeZones.reduce((s, z) => s + ((zones.find(x => x.id === z) || {}).cp || 0), 0);
+
+  const toggleZone = (zid) => {
+    if (zid === 'world') {
+      setSelectedZones(prev => prev.includes('world') ? [] : ['world']);
+    } else {
+      setSelectedZones(prev => {
+        const without = prev.filter(z => z !== 'world' && z !== zid);
+        return prev.includes(zid) ? without : [...without, zid];
+      });
+    }
+  };
+
+  const continents = {};
+  zones.filter(z => z.id !== 'world').forEach(z => {
+    if (!continents[z.continent]) continents[z.continent] = [];
+    continents[z.continent].push(z);
+  });
+  const worldZone = zones.find(z => z.id === 'world');
+
+  const scheduleRelease = async () => {
+    if (!selectedDate || activeZones.length === 0) {
+      toast({ title: 'Seleziona data e almeno una zona', variant: 'destructive' }); return;
+    }
+    setLoading('schedule');
+    try {
+      const res = await api.post(`/films/${film.id}/schedule-release`, {
+        date_option: selectedDate, zones: activeZones, theater_weeks: theaterWeeks,
+      });
+      setScheduled(res.schedule || res);
+      toast({ title: 'Distribuzione confermata! Ora conferma l\'uscita.' });
+      onRefresh();
+    } catch (e) {
+      toast({ title: '' + (e?.message || 'Errore distribuzione'), variant: 'destructive' });
+      onRefresh();
+    }
+    setLoading('');
+  };
+
+  if (scheduled || film.release_schedule) {
+    const sched = scheduled || film.release_schedule;
+    return (
+      <PhaseWrapper title="Distribuzione" subtitle="Distribuzione configurata" icon={Globe} color="blue">
+        <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15 text-center space-y-2">
+          <Check className="w-6 h-6 text-emerald-400 mx-auto" />
+          <p className="text-[10px] text-emerald-400 font-bold">Distribuzione programmata</p>
+          <p className="text-[9px] text-gray-400">{sched.date_label || 'Data'} — {(sched.zone_names || []).join(', ') || 'Zone'}</p>
+        </div>
+      </PhaseWrapper>
+    );
+  }
+
+  return (
+    <PhaseWrapper title="Distribuzione" subtitle="Zone e data di uscita" icon={Globe} color="blue">
+      <div className="space-y-3" data-testid="distribution-phase">
+        {/* Date Selection */}
+        <div>
+          <p className="text-[9px] text-gray-500 uppercase font-bold mb-1.5">Data di uscita</p>
+          <div className="grid grid-cols-4 gap-1">
+            {dateOptions.map(d => (
+              <button key={d.id}
+                onClick={() => setSelectedDate(d.id)}
+                className={`py-1.5 px-1 rounded-md text-[9px] font-bold border transition-all ${
+                  selectedDate === d.id ? 'bg-blue-500/15 border-blue-500/40 text-blue-400' :
+                  'border-gray-800 text-gray-400 hover:border-gray-600'
+                }`}
+                data-testid={`date-opt-${d.id}`}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Zone Selection */}
+        <div>
+          <p className="text-[9px] text-gray-500 uppercase font-bold mb-1.5">Zone di distribuzione</p>
+          {worldZone && (
+            <button onClick={() => toggleZone('world')}
+              className={`w-full mb-1.5 p-2 rounded-lg border text-left flex items-center justify-between transition-all ${
+                hasWorld ? 'bg-blue-500/10 border-blue-500/30' : 'border-gray-800 hover:border-gray-600'
+              }`} data-testid="zone-world">
+              <div>
+                <span className="text-[10px] font-bold text-white">Mondiale</span>
+                <span className="text-[8px] text-gray-500 ml-2">Tutti i continenti</span>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] text-green-400">${((worldZone.funds || 0) / 1000).toFixed(0)}K</span>
+                <span className="text-[9px] text-cyan-400 ml-1">{worldZone.cp || 0}CP</span>
+              </div>
+            </button>
+          )}
+          <div className="text-center text-[8px] text-gray-600 mb-1.5">— oppure seleziona zone —</div>
+          <div className="space-y-1">
+            {Object.entries(continents).map(([cont, czones]) => (
+              <div key={cont} className={`rounded-lg border transition-all ${hasWorld ? 'opacity-30 pointer-events-none' : 'border-gray-800'}`}>
+                <button onClick={() => setExpandedContinent(expandedContinent === cont ? null : cont)}
+                  className="w-full p-2 flex items-center justify-between text-[10px]">
+                  <span className="font-bold text-gray-300">{cont}</span>
+                  <span className="text-[8px] text-gray-500">{czones.filter(z => selectedZones.includes(z.id)).length}/{czones.length}</span>
+                </button>
+                {expandedContinent === cont && (
+                  <div className="px-2 pb-2 space-y-1">
+                    {czones.map(z => (
+                      <button key={z.id} onClick={() => toggleZone(z.id)}
+                        className={`w-full p-1.5 rounded-md flex items-center justify-between transition-all ${
+                          selectedZones.includes(z.id) ? 'bg-blue-500/10 border border-blue-500/25' : 'border border-transparent hover:bg-white/5'
+                        }`} data-testid={`zone-${z.id}`}>
+                        <span className="text-[9px] font-semibold text-white">{z.name}</span>
+                        <div className="text-right shrink-0 ml-2">
+                          <span className="text-[8px] text-green-400">${((z.funds || 0) / 1000).toFixed(0)}K</span>
+                          <span className="text-[8px] text-cyan-400 ml-1">{z.cp || 0}CP</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Theater Duration */}
+        <div className="p-2 rounded-lg bg-gray-800/50 border border-gray-700/30">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[9px] text-gray-400">Durata in sala</span>
+            <span className="text-[11px] font-bold text-yellow-400">{theaterWeeks * 7} giorni</span>
+          </div>
+          <input type="range" min={1} max={4} step={1} value={theaterWeeks} onChange={e => setTheaterWeeks(+e.target.value)}
+            className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-500" data-testid="theater-weeks-slider" />
+        </div>
+
+        {/* Cost Summary */}
+        {(selectedDate && activeZones.length > 0) && (
+          <div className="p-2 rounded-lg bg-gray-800/50 border border-gray-700/30 flex items-center justify-between">
+            <span className="text-[9px] text-gray-400">Costo:</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-green-400">${totalFunds.toLocaleString()}</span>
+              <span className="text-[10px] font-bold text-cyan-400">{totalCp} CP</span>
+            </div>
+          </div>
+        )}
+
+        <button onClick={scheduleRelease} disabled={!selectedDate || activeZones.length === 0 || loading === 'schedule'}
+          className="w-full text-[10px] py-2.5 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-400 hover:bg-blue-500/25 transition-colors disabled:opacity-30 font-bold"
+          data-testid="schedule-release-btn">
+          {loading === 'schedule' ? '...' : 'Conferma Distribuzione'}
+        </button>
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
 //  STEP FINALE — Riepilogo + Conferma Uscita (FORZATO)
 // ═══════════════════════════════════════════════════════════════
 
@@ -2198,15 +2441,21 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   const [showReleaseOverlay, setShowReleaseOverlay] = useState(false);
   const metrics = film.pipeline_metrics || {};
 
-  const qualityPreview = film.quality_score || film.pre_imdb_score || 5;
+  // PREVIEW quality — SOLO UI, mai salvata, mai usata per classifiche
+  const previewScore = safeAverage([
+    metrics.cast_quality ?? 0,
+    metrics.hype_score ?? 0,
+    ((metrics.shooting_quality ?? 0) + (metrics.prep_quality ?? 0) + (metrics.postprod_quality ?? 0)) / 3,
+    metrics.marketing_hype ?? 0,
+  ]);
   const posterUrl = film.poster_url;
   const cast = film.cast || {};
   const directorName = cast.director?.name || 'N/D';
   const actorCount = (cast.actors || []).length;
-  const hypeScore = metrics.hype_score || 0;
-  const castQuality = metrics.cast_quality || 0;
-  const prodScore = metrics.shooting_quality || metrics.prep_quality || 0;
-  const marketingHype = metrics.marketing_hype || 0;
+  const hypeScore = metrics.hype_score ?? 0;
+  const castQuality = metrics.cast_quality ?? 0;
+  const prodScore = (metrics.shooting_quality ?? 0) || (metrics.prep_quality ?? 0);
+  const marketingHype = metrics.marketing_hype ?? 0;
   const marketingStatus = film.marketing_status || 'completed';
   const marketingMessage = film.marketing_message;
 
@@ -2347,7 +2596,7 @@ const StepFinale = ({ film, onRefresh, toast }) => {
         {/* Quality Preview */}
         <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/60 to-gray-900/60 border border-gray-700/50 text-center space-y-2">
           <p className="text-[9px] text-gray-500 uppercase font-bold">Quality Score Preview</p>
-          <p className="text-3xl font-bold text-emerald-400" data-testid="quality-preview">{typeof qualityPreview === 'number' ? qualityPreview.toFixed?.(1) : qualityPreview}</p>
+          <p className="text-3xl font-bold text-emerald-400" data-testid="quality-preview">{previewScore}</p>
           <p className="text-[8px] text-gray-500 leading-relaxed max-w-[260px] mx-auto">
             Questo e un valore stimato (pre IMDb).
             Il risultato reale sara determinato solo dopo l'uscita al cinema.
@@ -3348,24 +3597,36 @@ const PipelineV2 = () => {
   const renderPhase = () => {
     if (!selected) return null;
     const st = selected.pipeline_state;
-    const ui = selected.pipeline_ui_step;
+    const ui = STATE_TO_STEP[st] ?? (selected.pipeline_ui_step || 0);
     const props = { film: selected, onRefresh: refreshSelected, toast };
 
     // Allow USCITA scheduling during premiere_live
-    if (forceUscita && st === 'premiere_live') return <UscitaPhase {...props} />;
+    if (forceUscita && st === 'premiere_live') return <DistributionPhase {...props} />;
 
-    if (ui === 0 || st === 'draft' || st === 'idea') return <IdeaPhase {...props} />;
-    if (ui === 1 || st === 'proposed' || st === 'hype_setup' || st === 'hype_live') return <HypePhase {...props} />;
-    if (ui === 2 || st === 'casting_live') return <CastPhase {...props} />;
-    if (ui === 3 || st === 'prep') return <PrepPhase {...props} />;
-    if (ui === 4 || st === 'shooting') return <CiakPhase {...props} />;
-    if (ui === 5 || st === 'postproduction') return <FinalCutPhase {...props} />;
-    if (ui === 6 || st === 'sponsorship') return <MarketingPhase {...props} />;
-    if (st === 'marketing') return <MarketingPhase {...props} />; // legacy films already in marketing
-    if (ui === 7 || st === 'premiere_setup' || st === 'premiere_live') return <LaPrimaPhase {...props} />;
-    // STEP FINALE: release_pending → sempre mostra il riepilogo con CONFERMA USCITA
+    if (st === 'draft' || st === 'idea') return <IdeaPhase {...props} />;
+    if (st === 'proposed' || st === 'hype_setup' || st === 'hype_live') return <HypePhase {...props} />;
+    if (st === 'casting_live') return <CastPhase {...props} />;
+    if (st === 'prep') return <PrepPhase {...props} />;
+    if (st === 'shooting') return <CiakPhase {...props} />;
+    if (st === 'postproduction') return <FinalCutPhase {...props} />;
+    if (st === 'sponsorship' || st === 'marketing') return <MarketingPhase {...props} />;
+    if (st === 'release_choice') return <ReleaseChoicePhase {...props} />;
+    if (st === 'distribution') return <DistributionPhase {...props} />;
+    if (st === 'premiere_setup' || st === 'premiere_live') return <LaPrimaPhase {...props} />;
     if (st === 'release_pending') return <StepFinale {...props} />;
-    if (ui === 8 || st === 'released' || st === 'completed' || st === 'coming_soon_scheduled') return <UscitaPhase {...props} />;
+    if (st === 'released' || st === 'completed' || st === 'coming_soon_scheduled') return <UscitaPhase {...props} />;
+    // Fallback by ui step
+    if (ui <= 0) return <IdeaPhase {...props} />;
+    if (ui === 1) return <HypePhase {...props} />;
+    if (ui === 2) return <CastPhase {...props} />;
+    if (ui === 3) return <PrepPhase {...props} />;
+    if (ui === 4) return <CiakPhase {...props} />;
+    if (ui === 5) return <FinalCutPhase {...props} />;
+    if (ui === 6) return <MarketingPhase {...props} />;
+    if (ui === 7) return <ReleaseChoicePhase {...props} />;
+    if (ui === 8) return <DistributionPhase {...props} />;
+    if (ui === 9) return <StepFinale {...props} />;
+    if (ui >= 10) return <UscitaPhase {...props} />;
     return <div className="p-4 text-center text-gray-500 text-xs">Stato sconosciuto: {st}</div>;
   };
 
@@ -3576,9 +3837,8 @@ const PipelineV2 = () => {
       <div className="min-h-screen bg-black text-white pt-14 pb-40" data-testid="pipeline-v2-detail">
         <FilmHeader film={selected} onBack={backToBoard} />
         <StepperBar
-          uiStep={forceUscita ? 8 : (selected.pipeline_ui_step ?? 0)}
+          uiStep={STATE_TO_STEP[selected.pipeline_state] ?? (selected.pipeline_ui_step ?? 0)}
           onViewStep={handleViewStep}
-          allowScheduleStep={selected.pipeline_state === 'premiere_live'}
         />
         {renderPhase()}
         {!['released', 'completed', 'discarded'].includes(selected.pipeline_state) && (
@@ -3629,7 +3889,7 @@ const GENRE_TAGLINES = {
   biographical: 'Vite straordinarie meritano il grande schermo.',
 };
 
-const MINI_STEPS = ['IDEA', 'HYPE', 'CAST', 'PREP', 'CIAK', 'FINAL CUT', 'LANCIO'];
+const MINI_STEPS = ['IDEA', 'HYPE', 'CAST', 'PREP', 'CIAK', 'FINAL CUT', 'MARKETING', 'RILASCIO', 'DISTRIB.', 'CONFERMA', 'AL CINEMA'];
 
 const CONTENT_TYPES = [
   { id: 'film', label: 'Film', icon: 'Film', desc: 'Lungometraggio classico' },

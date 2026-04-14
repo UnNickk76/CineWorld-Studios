@@ -37,6 +37,8 @@ V2_STATES = {
     'shooting',
     'postproduction',
     'sponsorship', 'marketing',
+    'release_choice',      # NEW — scelta La Prima / Diretto
+    'distribution',        # NEW — zone + date
     'premiere_setup', 'premiere_live',
     'release_pending',
     'released', 'out_of_theaters', 'completed',
@@ -53,18 +55,20 @@ V2_TRANSITIONS = {
     'prep':             {'shooting', 'discarded'},
     'shooting':         {'postproduction', 'discarded'},
     'postproduction':   {'sponsorship', 'discarded'},
-    'sponsorship':      {'marketing', 'release_pending', 'premiere_setup', 'discarded'},
-    'marketing':        {'premiere_setup', 'release_pending', 'discarded'},
-    'premiere_setup':   {'premiere_live', 'release_pending', 'discarded'},
-    'premiere_live':    {'release_pending'},
-    'release_pending':  {'released'},
+    'sponsorship':      {'marketing', 'release_choice', 'discarded'},
+    'marketing':        {'release_choice', 'discarded'},
+    'release_choice':   {'distribution', 'discarded'},
+    'distribution':     {'release_pending', 'discarded'},
+    'premiere_setup':   {'premiere_live', 'release_choice', 'discarded'},
+    'premiere_live':    {'release_choice', 'release_pending'},
+    'release_pending':  {'released', 'discarded'},
     'released':         {'out_of_theaters', 'completed'},
     'out_of_theaters':  {'completed'},
     'completed':        set(),
     'discarded':        set(),
 }
 
-V2_UI_STEPS = ['IDEA', 'HYPE', 'CAST', 'PREP', 'CIAK', 'FINAL CUT', 'MARKETING', 'LA PRIMA', 'USCITA']
+V2_UI_STEPS = ['IDEA', 'HYPE', 'CAST', 'PREP', 'CIAK', 'FINAL CUT', 'MARKETING', 'RILASCIO', 'DISTRIBUZIONE', 'CONFERMA', 'AL CINEMA']
 
 V2_UI_MAP = {
     'draft': 0, 'idea': 0,
@@ -74,8 +78,11 @@ V2_UI_MAP = {
     'shooting': 4,
     'postproduction': 5,
     'sponsorship': 6, 'marketing': 6,
+    'release_choice': 7,
+    'distribution': 8,
     'premiere_setup': 7, 'premiere_live': 7,
-    'release_pending': 8, 'released': 8, 'completed': 8,
+    'release_pending': 9,
+    'released': 10, 'completed': 10,
     'discarded': -1,
 }
 
@@ -88,6 +95,8 @@ V2_CINEPASS_COST = {
     'postproduction': 1,
     'sponsorship': 0,
     'marketing': 1,
+    'release_choice': 0,
+    'distribution': 0,
     'premiere_setup': 1,
     'release_pending': 0,
 }
@@ -2509,8 +2518,8 @@ async def save_sponsors_v2(pid: str, req: SaveSponsorsV2, user: dict = Depends(g
         'sponsor_income': total_income,
         'marketing_skipped': True,
     }
-    # BYPASS MARKETING → go directly to release_pending
-    film = await _advance(pid, user['id'], 'release_pending', extra, 'ready')
+    # Skip marketing → go to release_choice
+    film = await _advance(pid, user['id'], 'release_choice', extra, 'ready')
     return {'film': film, 'income': total_income}
 
 MARKETING_PACKAGES = [
@@ -2574,71 +2583,37 @@ async def save_marketing_v2(pid: str, req: SaveMarketingV2, user: dict = Depends
     if marketing_message:
         update['marketing_message'] = marketing_message
 
-    # Calculate quality preview using ALL pipeline metrics (NON-BLOCKING)
-    try:
-        metrics = project.get('pipeline_metrics', {})
-        hype = metrics.get('hype_score', 30)
-        cast_q = metrics.get('cast_quality', 40)
-        screenplay_q = metrics.get('screenplay_quality', 40)
-        prep_q = metrics.get('prep_quality', 40)
-        shooting_q = metrics.get('shooting_quality', 40)
-        postprod_q = metrics.get('postprod_quality', 50)
-        poster_q = metrics.get('poster_quality', 40)
-        event_bonus = metrics.get('shooting_event_bonus', 0)
-
-        composite = (
-            hype * 0.08 +
-            cast_q * 0.20 +
-            screenplay_q * 0.15 +
-            prep_q * 0.10 +
-            shooting_q * 0.15 +
-            postprod_q * 0.12 +
-            poster_q * 0.05 +
-            total_hype * 0.15
-        ) + event_bonus * 0.5
-
-        quality_score = round(min(10, max(1, composite / 10 + random.uniform(-0.3, 0.3))), 1)
-        update['quality_score'] = quality_score
-        update['pre_imdb_score'] = quality_score * 10
-    except Exception as e:
-        logging.warning(f"[MARKETING] Quality calc failed for {pid}: {e}")
-        update['quality_score'] = 5.0
-        update['pre_imdb_score'] = 50
-        quality_score = 5.0
-
-    film = await _update_project(pid, update)
+    # NO quality_score saving — preview is FRONTEND ONLY
+    # Advance to release_choice ALWAYS
+    film = await _advance(pid, user['id'], 'release_choice', update, 'ready')
     return {
         'film': film,
         'cost': total_cost,
         'hype_boost': total_hype,
-        'quality_score': quality_score,
         'marketing_status': marketing_status,
         'marketing_message': marketing_message,
     }
 
 @router.post("/films/{pid}/choose-premiere")
 async def choose_premiere_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Choose La Prima route: marketing → premiere_setup. Idempotent."""
+    """Choose La Prima: release_choice → distribution. Saves release_type='laprima'."""
     project = await _get_project(pid, user['id'])
-    if project['pipeline_state'] == 'premiere_setup':
+    if project['pipeline_state'] == 'distribution':
         return {'film': project}
-    if project['pipeline_state'] not in ('marketing', 'sponsorship'):
-        raise HTTPException(400, "Non in fase marketing")
-    # Save release_type independently
-    await db.film_projects.update_one({'id': pid}, {'$set': {'release_type': 'laprima'}})
-    film = await _advance(pid, user['id'], 'premiere_setup', {'release_type': 'laprima'}, 'city_selection')
+    if project['pipeline_state'] not in ('release_choice', 'marketing', 'sponsorship'):
+        raise HTTPException(400, "Non in fase scelta rilascio")
+    film = await _advance(pid, user['id'], 'distribution', {'release_type': 'laprima'}, 'zones')
     return {'film': film}
 
 @router.post("/films/{pid}/choose-direct-release")
 async def choose_direct_release_v2(pid: str, user: dict = Depends(get_current_user)):
-    """Skip premiere, go directly to release: marketing → release_pending. Idempotent."""
+    """Choose Direct: release_choice → distribution. Saves release_type='direct'."""
     project = await _get_project(pid, user['id'])
-    if project['pipeline_state'] == 'release_pending':
+    if project['pipeline_state'] == 'distribution':
         return {'film': project}
-    if project['pipeline_state'] not in ('marketing', 'sponsorship'):
-        raise HTTPException(400, "Non in fase marketing")
-    # Save release_type independently — ALWAYS
-    film = await _advance(pid, user['id'], 'release_pending', {'release_type': 'direct'}, 'ready')
+    if project['pipeline_state'] not in ('release_choice', 'marketing', 'sponsorship'):
+        raise HTTPException(400, "Non in fase scelta rilascio")
+    film = await _advance(pid, user['id'], 'distribution', {'release_type': 'direct'}, 'zones')
     return {'film': film}
 
 # ═══════════════════════════════════════════════════════════════
@@ -2892,11 +2867,11 @@ class ScheduleReleaseBody(BaseModel):
 
 @router.post("/films/{pid}/schedule-release")
 async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = Depends(get_current_user)):
-    """Schedule release: pick date + zones. Works in premiere_live (draft) and release_pending (active)."""
+    """Schedule release: pick date + zones. Works in distribution, premiere_live, release_pending."""
     project = await _get_project(pid, user['id'])
     state = project['pipeline_state']
-    if state not in ('premiere_live', 'release_pending'):
-        raise HTTPException(400, "Film non in fase di uscita")
+    if state not in ('distribution', 'premiere_live', 'release_pending'):
+        raise HTTPException(400, "Film non in fase di distribuzione")
 
     is_premiere = project.get('release_type') == 'premiere'
 
@@ -3006,22 +2981,30 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
         }}
     )
 
-    # Advance pipeline state based on delay
-    delay_days = date_opt.get('days', 0)
-    if delay_days == 0:
-        # Immediate release → advance to 'released' NOW
+    # Advance pipeline: distribution → release_pending (NOT directly to released)
+    # The actual release happens via confirm-final-release endpoint
+    if state == 'distribution':
         try:
-            await _advance(pid, user['id'], 'released', {'release_type': project.get('release_type', 'direct')})
+            await _advance(pid, user['id'], 'release_pending', {}, 'ready')
         except Exception as adv_err:
-            logging.warning(f"[RELEASE] _advance failed for {pid} (state={project.get('pipeline_state')}): {adv_err}")
-            # Force-set released if advance fails
-            await db.film_projects.update_one({'id': pid}, {'$set': {'pipeline_state': 'released'}})
+            logging.warning(f"[RELEASE] _advance distribution→release_pending failed for {pid}: {adv_err}")
+            await db.film_projects.update_one({'id': pid}, {'$set': {'pipeline_state': 'release_pending', 'pipeline_ui_step': 9}})
+    elif state == 'release_pending':
+        # Already in release_pending, just save the schedule
+        pass
     else:
-        # Scheduled release → calculate release timestamp, scheduler will advance later
-        scheduled_at = (datetime.now(timezone.utc) + timedelta(days=delay_days)).isoformat()
-        await db.film_projects.update_one({'id': pid}, {'$set': {'scheduled_release_at': scheduled_at}})
+        # Legacy: premiere_live or other states
+        delay_days = date_opt.get('days', 0)
+        if delay_days == 0:
+            try:
+                await _advance(pid, user['id'], 'release_pending', {}, 'ready')
+            except Exception:
+                await db.film_projects.update_one({'id': pid}, {'$set': {'pipeline_state': 'release_pending', 'pipeline_ui_step': 9}})
+        else:
+            scheduled_at = (datetime.now(timezone.utc) + timedelta(days=delay_days)).isoformat()
+            await db.film_projects.update_one({'id': pid}, {'$set': {'scheduled_release_at': scheduled_at}})
 
-    logging.info(f"[RELEASE] Film {pid} released. State={project.get('pipeline_state')}, quality={project.get('quality_score')}, theater_weeks={theater_weeks}")
+    logging.info(f"[RELEASE] Film {pid} scheduled. State={state}, theater_weeks={theater_weeks}")
     return {'schedule': schedule, 'funds_charged': total_funds, 'cp_charged': total_cp, 'theater_weeks': theater_weeks}
 
 
@@ -3032,38 +3015,65 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
 @router.post("/films/{pid}/confirm-final-release")
 async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)):
     """
-    STEP FINALE: ricalcola quality, salva release. MAI return vuoto, MAI None.
-    Works in release_pending state.
+    STEP FINALE: calcolo REALE quality, salva release. MAI return vuoto, MAI None.
+    Works in release_pending state. Calcolo SOLO qui — mai prima.
     """
     project = await _get_project(pid, user['id'])
     state = project.get('pipeline_state', '')
-    if state not in ('release_pending', 'marketing', 'sponsorship'):
+    if state not in ('release_pending',):
         raise HTTPException(400, f"Film non in fase di conferma uscita (stato: {state})")
 
-    # RICALCOLO COMPLETO — Anti-Bug: always recalculate from scratch
+    # FALLBACK ANTI-BUG: assicurarsi che i dati essenziali esistano
+    if not project.get('release_type'):
+        await db.film_projects.update_one({'id': pid}, {'$set': {'release_type': 'direct'}})
+        project['release_type'] = 'direct'
+
+    if not project.get('release_schedule'):
+        now_ts = _now()
+        fallback_schedule = {
+            'date_option': 'immediate',
+            'date_label': 'Immediato',
+            'days': 0,
+            'zones': ['world'],
+            'zone_names': ['Mondiale'],
+            'scheduled_at': now_ts,
+        }
+        await db.film_projects.update_one({'id': pid}, {'$set': {
+            'release_schedule': fallback_schedule,
+            'released_at': now_ts,
+            'theater_weeks': 3,
+            'theater_end_date': (datetime.now(timezone.utc) + timedelta(weeks=3)).isoformat(),
+        }})
+        project['release_schedule'] = fallback_schedule
+
+    # CALCOLO REALE — formula utente: (cast*0.4 + hype*0.2 + production*0.2 + marketing*0.2) / 20 + random(-1,1)
     metrics = project.get('pipeline_metrics', {})
-    cast_q = metrics.get('cast_quality', 0)
-    hype_q = metrics.get('hype_score', 0)
-    screenplay_q = metrics.get('screenplay_quality', 0)
-    prep_q = metrics.get('prep_quality', 0)
-    shooting_q = metrics.get('shooting_quality', 0)
-    postprod_q = metrics.get('postprod_quality', 0)
-    poster_q = metrics.get('poster_quality', 0)
-    marketing_q = metrics.get('marketing_hype', 0)
-    event_bonus = metrics.get('shooting_event_bonus', 0)
+    cast_score = metrics.get('cast_quality', 0) or 0
+    hype_score = metrics.get('hype_score', 0) or 0
+    production_score = (
+        (metrics.get('shooting_quality', 0) or 0) +
+        (metrics.get('prep_quality', 0) or 0) +
+        (metrics.get('postprod_quality', 0) or 0)
+    ) / 3.0
+    marketing_score = metrics.get('marketing_hype', 0) or 0
 
-    composite = (
-        cast_q * 0.22 +
-        hype_q * 0.08 +
-        screenplay_q * 0.15 +
-        prep_q * 0.10 +
-        shooting_q * 0.15 +
-        postprod_q * 0.12 +
-        poster_q * 0.05 +
-        marketing_q * 0.13
-    ) + event_bonus * 0.5
+    # Anti-NaN
+    for v in [cast_score, hype_score, production_score, marketing_score]:
+        if not isinstance(v, (int, float)) or math.isnan(v):
+            v = 0
 
-    quality_score = round(min(10, max(1, composite / 10 + random.uniform(-0.3, 0.3))), 1)
+    base = (
+        cast_score * 0.4 +
+        hype_score * 0.2 +
+        production_score * 0.2 +
+        marketing_score * 0.2
+    )
+    randomness = random.uniform(-1.0, 1.0)
+    quality_score = round(max(1, min(10, base / 20 + randomness)), 1)
+
+    # Anti-NaN final check
+    if math.isnan(quality_score) or quality_score is None:
+        quality_score = 5.0
 
     # Determine tier
     if quality_score >= 9.0:
@@ -3080,7 +3090,7 @@ async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)
     now = _now()
 
     # Compute release rewards
-    fame = (await db.users.find_one({'id': user['id']}, {'_id': 0, 'fame': 1})).get('fame', 0)
+    fame = (await db.users.find_one({'id': user['id']}, {'_id': 0, 'fame': 1})).get('fame', 0) or 0
     fame_change = calculate_fame_change(quality_score * 10, fame)
     xp_reward = int(quality_score * 15 + random.uniform(0, 30))
     opening_revenue = int(quality_score * 50000 * random.uniform(0.7, 1.3))
@@ -3098,29 +3108,20 @@ async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)
         'final_tier': tier,
         'status': 'released',
         'completed': True,
-        'released_at': now,
+        'released_at': project.get('released_at') or now,
         'theater_weeks': project.get('theater_weeks', 3),
-        'theater_end_date': (datetime.now(timezone.utc) + timedelta(weeks=project.get('theater_weeks', 3))).isoformat(),
+        'theater_end_date': project.get('theater_end_date') or (datetime.now(timezone.utc) + timedelta(weeks=project.get('theater_weeks', 3))).isoformat(),
         'release_type': project.get('release_type', 'direct'),
     }
 
-    # Advance to released via state machine if possible
+    # Advance to released
     try:
-        # If in release_pending, advance normally
-        if state == 'release_pending':
-            film = await _advance(pid, user['id'], 'released', release_data, 'final')
-        else:
-            # Force advance for edge cases
-            await db.film_projects.update_one(
-                {'id': pid},
-                {'$set': {**release_data, 'pipeline_state': 'released', 'pipeline_ui_step': 8}}
-            )
-            film = await db.film_projects.find_one({'id': pid}, {'_id': 0})
+        film = await _advance(pid, user['id'], 'released', release_data, 'final')
     except Exception as e:
         logging.warning(f"[CONFIRM_RELEASE] Advance failed for {pid}: {e}, forcing released state")
         await db.film_projects.update_one(
             {'id': pid},
-            {'$set': {**release_data, 'pipeline_state': 'released', 'pipeline_ui_step': 8}}
+            {'$set': {**release_data, 'pipeline_state': 'released', 'pipeline_ui_step': 10}}
         )
         film = await db.film_projects.find_one({'id': pid}, {'_id': 0})
 
@@ -3139,10 +3140,10 @@ async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)
 
 @router.post("/films/{pid}/discard-final")
 async def discard_final(pid: str, user: dict = Depends(get_current_user)):
-    """Scarta film dallo step finale. Funziona in release_pending/marketing."""
+    """Scarta film. Funziona in release_pending/distribution/release_choice/marketing."""
     project = await _get_project(pid, user['id'])
     state = project.get('pipeline_state', '')
-    allowed = {'release_pending', 'marketing', 'sponsorship', 'postproduction'}
+    allowed = {'release_pending', 'distribution', 'release_choice', 'marketing', 'sponsorship', 'postproduction'}
     if state not in allowed:
         raise HTTPException(400, f"Non puoi scartare il film in stato {state}")
     film = await _advance(pid, user['id'], 'discarded', {'discard_reason': 'user_final_step'}, 'discarded')

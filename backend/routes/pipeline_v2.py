@@ -2911,28 +2911,37 @@ def _build_fallback_schedule() -> dict:
 
 def _compute_final_release_score(project: dict) -> dict:
     metrics = project.get('pipeline_metrics', {}) or {}
-    cast_score = _safe_num(metrics.get('cast_quality', 0))
-    hype_score = _safe_num(metrics.get('hype_score', 0))
+    cast_raw = _safe_num(metrics.get('cast_quality', 0))
+    hype_raw = _safe_num(metrics.get('hype_score', 0))
     prep_score = _safe_num(metrics.get('prep_quality', 0))
     shooting_score = _safe_num(metrics.get('shooting_quality', 0))
     postprod_score = _safe_num(metrics.get('postprod_quality', 0))
-    production_score = (prep_score + shooting_score + postprod_score) / 3 if any([prep_score, shooting_score, postprod_score]) else 0
-    marketing_score = _safe_num(metrics.get('marketing_hype', 0))
+    prod_raw = (prep_score + shooting_score + postprod_score) / 3 if any([prep_score, shooting_score, postprod_score]) else 0
+    mkt_raw = _safe_num(metrics.get('marketing_hype', 0))
+
+    # Normalizzazione per metrica: ogni valore → scala 0-10
+    cast10 = min(10, cast_raw / 10)    # cast: 0-100 → /10
+    hype10 = min(10, hype_raw / 100)   # hype: 0-1000 → /100
+    prod10 = min(10, prod_raw / 10)    # prod: 0-100 → /10
+    mkt10 = min(10, mkt_raw / 10)      # mkt: 0-100 → /10
 
     base = (
-        cast_score * 0.4 +
-        hype_score * 0.2 +
-        production_score * 0.2 +
-        marketing_score * 0.2
+        cast10 * 0.4 +
+        hype10 * 0.2 +
+        prod10 * 0.2 +
+        mkt10 * 0.2
     )
     randomness = random.uniform(-0.3, 0.3)
-    final_score = round(max(1, min(10, (base / 100.0) + randomness)), 1)
+    final_score = round(max(1, min(10, base + randomness)), 1)
     tier = _determine_release_tier(final_score)
+
+    print(f"=== CALCOLO REALE === CAST:{cast_raw}→{cast10:.1f} HYPE:{hype_raw}→{hype10:.1f} PROD:{prod_raw:.1f}→{prod10:.1f} MKT:{mkt_raw}→{mkt10:.1f} BASE:{base:.1f} FINAL:{final_score}")
+
     return {
-        'cast_score': cast_score,
-        'hype_score': hype_score,
-        'production_score': production_score,
-        'marketing_score': marketing_score,
+        'cast_score': cast_raw,
+        'hype_score': hype_raw,
+        'production_score': prod_raw,
+        'marketing_score': mkt_raw,
         'base': base,
         'randomness': randomness,
         'final_score': final_score,

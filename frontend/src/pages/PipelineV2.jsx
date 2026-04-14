@@ -268,9 +268,14 @@ const FilmHeader = ({ film, onBack }) => (
             'bg-pink-500/10 text-pink-400 border border-pink-500/15'
           }`}>{film.content_type === 'serie_tv' ? 'Serie TV' : 'Anime'}{film.season_number > 1 ? ` S${film.season_number}` : ''}</span>
         )}
-        {film.pre_imdb_score > 0 && (
+        {film.pre_imdb_score > 0 && !film.final_quality && (
           <span className="text-[9px] text-yellow-400 font-bold flex items-center gap-0.5">
-            <Star className="w-2.5 h-2.5" /> {film.pre_imdb_score}
+            <Star className="w-2.5 h-2.5" /> {Math.max(1, Math.min(10, (film.pre_imdb_score || 0) / 10)).toFixed(1)}
+          </span>
+        )}
+        {film.final_quality > 0 && (
+          <span className="text-[9px] text-yellow-400 font-bold flex items-center gap-0.5">
+            <Star className="w-2.5 h-2.5" /> {Number(film.final_quality).toFixed(1)}
           </span>
         )}
       </div>
@@ -747,12 +752,21 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
       </div>
 
       {/* Pre-IMDb */}
-      {film.pre_imdb_score > 0 && (
+      {film.pre_imdb_score > 0 && !film.final_quality && (
         <div className="flex items-center gap-2 p-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15">
           <Star className="w-4 h-4 text-yellow-400" />
           <div>
             <p className="text-[9px] text-gray-500 uppercase">Pre-IMDb Score</p>
-            <p className="text-sm font-bold text-yellow-400">{film.pre_imdb_score}</p>
+            <p className="text-sm font-bold text-yellow-400">{Math.max(1, Math.min(10, (film.pre_imdb_score || 0) / 10)).toFixed(1)}</p>
+          </div>
+        </div>
+      )}
+      {film.final_quality > 0 && (
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15">
+          <Star className="w-4 h-4 text-yellow-400" />
+          <div>
+            <p className="text-[9px] text-gray-500 uppercase">IMDb Score</p>
+            <p className="text-sm font-bold text-yellow-400">{Number(film.final_quality).toFixed(1)}</p>
           </div>
         </div>
       )}
@@ -2521,12 +2535,13 @@ const DistributionPhase = ({ film, onRefresh, toast }) => {
 // ═══════════════════════════════════════════════════════════════
 
 const StepFinale = ({ film, onRefresh, toast }) => {
-  const [loading, setLoading] = useState('');
+  const [phase, setPhase] = useState('idle'); // idle | progress | calling | wow | done
+  const [progress, setProgress] = useState(0);
   const [result, setResult] = useState(null);
-  const [showReleaseOverlay, setShowReleaseOverlay] = useState(false);
+  const progressRef = useRef(null);
   const metrics = film.pipeline_metrics || {};
 
-  // PREVIEW stabile — calcolata UNA SOLA VOLTA per film, no random ad ogni render
+  // PREVIEW stabile — calcolata UNA SOLA VOLTA, MAI salvata
   const [previewScore] = useState(() => {
     const castRaw = (metrics.cast_quality ?? 0) || 0;
     const hypeRaw = (metrics.hype_score ?? 0) || 0;
@@ -2552,38 +2567,67 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   const marketingStatus = film.marketing_status || 'completed';
   const marketingMessage = film.marketing_message;
 
+  // FLUSSO: click → cerchio 0-100 → pausa → backend → wow → done
   const confirmRelease = async () => {
-    if (loading) return;
-    setLoading('confirm');
-    console.log('[CONFIRM_RELEASE] Click! film.id=', film.id, 'state=', film.pipeline_state);
+    if (phase !== 'idle') return;
+    setPhase('progress');
+    setProgress(0);
+
+    // Animazione cerchio 0→100 in ~10 secondi
+    let p = 0;
+    progressRef.current = setInterval(() => {
+      p += Math.random() * 6 + 2;
+      if (p >= 100) { p = 100; clearInterval(progressRef.current); }
+      setProgress(Math.min(100, p));
+    }, 500);
+
+    // Attendi che arrivi a 100
+    await new Promise(resolve => {
+      const check = setInterval(() => {
+        if (p >= 100) { clearInterval(check); resolve(); }
+      }, 200);
+    });
+
+    // Pausa 800ms
+    await new Promise(r => setTimeout(r, 800));
+
+    // ORA chiama il backend
+    setPhase('calling');
     try {
       const token = localStorage.getItem('cineworld_token');
       const url = `${process.env.REACT_APP_BACKEND_URL}/api/pipeline-v2/films/${film.id}/confirm-final-release`;
-      console.log('[CONFIRM_RELEASE] Calling:', url);
       const rawRes = await fetch(url, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       });
-      console.log('[CONFIRM_RELEASE] Status:', rawRes.status);
       const res = await rawRes.json();
-      console.log('[CONFIRM_RELEASE] Response:', JSON.stringify(res).substring(0, 200));
       if (!rawRes.ok) {
         toast({ title: 'Errore: ' + (res.detail || rawRes.statusText), variant: 'destructive' });
-        setLoading('');
+        setPhase('idle');
+        setProgress(0);
         return;
       }
       setResult(res);
-      toast({ title: `${film.title} rilasciato! Quality: ${res.quality_score}` });
-      await onRefresh();
+      // WOW!
+      setPhase('wow');
     } catch (e) {
-      console.error('[CONFIRM_RELEASE] Exception:', e);
+      console.error('[CONFIRM_RELEASE]', e);
       toast({ title: 'Errore: ' + (e.message || 'Sconosciuto'), variant: 'destructive' });
+      setPhase('idle');
+      setProgress(0);
     }
-    setLoading('');
+  };
+
+  useEffect(() => { return () => { if (progressRef.current) clearInterval(progressRef.current); }; }, []);
+
+  const onWowComplete = () => {
+    setPhase('done');
+    onRefresh();
   };
 
   const discardFilm = async () => {
-    setLoading('discard');
+    if (phase !== 'idle') return;
+    setPhase('calling');
     try {
       await api.post(`/films/${film.id}/discard-final`);
       toast({ title: 'Film scartato.' });
@@ -2591,26 +2635,24 @@ const StepFinale = ({ film, onRefresh, toast }) => {
     } catch (e) {
       toast({ title: '' + (e.message || 'Errore'), variant: 'destructive' });
     }
-    setLoading('');
-  };
-
-  const onCinemaOverlayDone = () => {
-    setShowReleaseOverlay(false);
-    api.post(`/films/${film.id}/mark-release-played`).catch(() => {});
-    onRefresh();
-    toast({ title: `${film.title} rilasciato! Quality: ${result?.quality_score || '?'}` });
+    setPhase('idle');
   };
 
   const tierColors = { masterpiece: 'text-yellow-400', excellent: 'text-emerald-400', good: 'text-blue-400', mediocre: 'text-orange-400', bad: 'text-red-400' };
 
-  // If confirm succeeded, show result
-  if (result?.success) {
+  // === FASE WOW: CinematicReleaseOverlay ===
+  if (phase === 'wow') {
+    return <CinematicReleaseOverlay film={film} releaseType="cinema" onComplete={onWowComplete} />;
+  }
+
+  // === FASE DONE: mostra risultato reale ===
+  if (phase === 'done' && result?.success) {
     return (
-      <PhaseWrapper title="STEP FINALE — USCITA" subtitle="Il tuo film e al cinema!" icon={Ticket} color="emerald">
+      <PhaseWrapper title="AL CINEMA" subtitle="Il tuo film e al cinema!" icon={Ticket} color="emerald">
         <div className="space-y-3">
           <div className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 text-center space-y-2">
-            <p className="text-[9px] text-gray-500 uppercase">Quality Score Finale</p>
-            <p className="text-3xl font-bold text-white" data-testid="final-quality">{result.quality_score}</p>
+            <p className="text-[9px] text-gray-500 uppercase">IMDb Score Finale</p>
+            <p className="text-4xl font-bold text-white" data-testid="final-quality">{result.quality_score}</p>
             <p className={`text-sm font-bold uppercase ${tierColors[result.tier] || 'text-gray-400'}`}>
               {result.tier || 'N/D'}
             </p>
@@ -2630,13 +2672,38 @@ const StepFinale = ({ film, onRefresh, toast }) => {
             </div>
           </div>
         </div>
-        {showReleaseOverlay && (
-          <CinematicReleaseOverlay film={film} releaseType="cinema" onComplete={onCinemaOverlayDone} />
-        )}
       </PhaseWrapper>
     );
   }
 
+  // === FASE PROGRESS: cerchio animato 0-100% ===
+  if (phase === 'progress' || phase === 'calling') {
+    return (
+      <PhaseWrapper title="STEP FINALE — USCITA" subtitle="Calcolo in corso..." icon={Ticket} color="emerald">
+        <div className="flex flex-col items-center justify-center py-8 space-y-4" data-testid="release-progress">
+          <div className="relative">
+            <svg width="120" height="120">
+              <circle cx="60" cy="60" r="50" stroke="#1f2937" strokeWidth="6" fill="none" />
+              <circle cx="60" cy="60" r="50"
+                stroke="#10b981" strokeWidth="6" fill="none"
+                strokeDasharray={314} strokeDashoffset={314 - (progress / 100) * 314}
+                strokeLinecap="round"
+                style={{ transition: 'stroke-dashoffset 0.4s ease', transform: 'rotate(-90deg)', transformOrigin: 'center' }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-2xl font-bold text-emerald-400">{Math.floor(progress)}%</span>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-400 animate-pulse">
+            {phase === 'calling' ? 'Invio al sistema...' : 'Analisi qualita in corso...'}
+          </p>
+        </div>
+      </PhaseWrapper>
+    );
+  }
+
+  // === FASE IDLE: riepilogo + bottone ===
   return (
     <PhaseWrapper title="STEP FINALE — USCITA" subtitle="Riepilogo prima dell'uscita" icon={Ticket} color="emerald">
       <div className="space-y-3" data-testid="step-finale">
@@ -2699,40 +2766,30 @@ const StepFinale = ({ film, onRefresh, toast }) => {
           </div>
         )}
 
-        {/* Quality Preview */}
+        {/* Quality Preview — SOLO visivo, mai salvato */}
         <div className="p-4 rounded-lg bg-gradient-to-br from-gray-800/60 to-gray-900/60 border border-gray-700/50 text-center space-y-2">
           <p className="text-[9px] text-gray-500 uppercase font-bold">Quality Score Preview</p>
           <p className="text-3xl font-bold text-emerald-400" data-testid="quality-preview">{previewScore}</p>
           <p className="text-[8px] text-gray-500 leading-relaxed max-w-[260px] mx-auto">
             Questo e un valore stimato (pre IMDb).
             Il risultato reale sara determinato solo dopo l'uscita al cinema.
-            Il punteggio finale potrebbe migliorare o peggiorare.
           </p>
         </div>
 
         {/* Action Buttons */}
         <div className="space-y-2 pt-1">
-          <button onClick={confirmRelease} disabled={!!loading}
+          <button onClick={confirmRelease} disabled={phase !== 'idle'}
             className="w-full text-sm py-3 rounded-lg bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 hover:from-emerald-500/30 hover:to-green-500/30 transition-all disabled:opacity-50 font-bold"
             data-testid="confirm-release-btn">
-            {loading === 'confirm' ? (
-              <span className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                Calcolo qualita...
-              </span>
-            ) : 'CONFERMA USCITA'}
+            CONFERMA USCITA
           </button>
-          <button onClick={discardFilm} disabled={!!loading}
+          <button onClick={discardFilm} disabled={phase !== 'idle'}
             className="w-full text-[10px] py-2 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400/70 hover:bg-red-500/10 hover:text-red-400 transition-colors disabled:opacity-50"
             data-testid="discard-final-btn">
-            {loading === 'discard' ? '...' : 'SCARTA FILM'}
+            SCARTA FILM
           </button>
         </div>
       </div>
-
-      {showReleaseOverlay && (
-        <CinematicReleaseOverlay film={film} releaseType="cinema" onComplete={onCinemaOverlayDone} />
-      )}
     </PhaseWrapper>
   );
 };
@@ -3613,11 +3670,15 @@ const BoardView = ({ films, loading, onSelectFilm, onNewFilm }) => {
                     }`}>{f.content_type === 'serie_tv' ? 'SERIE' : 'ANIME'}{f.season_number > 1 ? ` S${f.season_number}` : ''}</span>
                   )}
                   <span className="text-[7px] text-gray-400 capitalize truncate">{f.genre === 'historical' ? 'storico' : (f.genre || '').replace('_', ' ')}</span>
-                  {f.pre_imdb_score > 0 && (
+                  {f.final_quality > 0 ? (
                     <span className="text-[7px] text-yellow-400 font-bold flex items-center gap-0.5">
-                      <Star className="w-1.5 h-1.5" />{f.pre_imdb_score}
+                      <Star className="w-1.5 h-1.5" />{Number(f.final_quality).toFixed(1)}
                     </span>
-                  )}
+                  ) : f.pre_imdb_score > 0 ? (
+                    <span className="text-[7px] text-yellow-400/60 font-bold flex items-center gap-0.5">
+                      <Star className="w-1.5 h-1.5" />{Math.max(1, Math.min(10, (f.pre_imdb_score || 0) / 10)).toFixed(1)}
+                    </span>
+                  ) : null}
                 </div>
                 {(f.subgenres || []).length > 0 && (
                   <div className="flex flex-wrap gap-0.5 mt-0.5">
@@ -3741,7 +3802,8 @@ const PipelineV2 = () => {
           <p><span className="text-gray-500 font-bold">Genere:</span> {f.genre} {f.subgenres?.length > 0 && `(${f.subgenres.join(', ')})`}</p>
           <p><span className="text-gray-500 font-bold">Pre-Trama:</span> {f.pre_screenplay || f.pre_trama || '—'}</p>
           <p><span className="text-gray-500 font-bold">Location:</span> {(f.locations || []).join(', ') || '—'}</p>
-          {f.pre_imdb_score > 0 && <p><span className="text-gray-500 font-bold">Pre-IMDb:</span> {f.pre_imdb_score?.toFixed?.(1)}</p>}
+          {f.final_quality > 0 && <p><span className="text-gray-500 font-bold">IMDb:</span> {Number(f.final_quality).toFixed(1)}</p>}
+          {!f.final_quality && f.pre_imdb_score > 0 && <p><span className="text-gray-500 font-bold">Pre-IMDb:</span> {Math.max(1, Math.min(10, (f.pre_imdb_score || 0) / 10)).toFixed(1)}</p>}
         </div>
       </div>
     );

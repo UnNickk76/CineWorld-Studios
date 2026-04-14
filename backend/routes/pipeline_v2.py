@@ -3058,34 +3058,44 @@ async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)
         }})
         project['release_schedule'] = fallback_schedule
 
-    # CALCOLO REALE — formula utente: (cast*0.4 + hype*0.2 + production*0.2 + marketing*0.2) / 20 + random(-1,1)
+    # CALCOLO REALE — ricalcolo da zero, ignora qualsiasi preview
     metrics = project.get('pipeline_metrics', {})
-    cast_score = metrics.get('cast_quality', 0) or 0
-    hype_score = metrics.get('hype_score', 0) or 0
-    production_score = (
+    cast_raw = metrics.get('cast_quality', 0) or 0
+    hype_raw = metrics.get('hype_score', 0) or 0
+    prod_raw = (
         (metrics.get('shooting_quality', 0) or 0) +
         (metrics.get('prep_quality', 0) or 0) +
         (metrics.get('postprod_quality', 0) or 0)
     ) / 3.0
-    marketing_score = metrics.get('marketing_hype', 0) or 0
+    mkt_raw = metrics.get('marketing_hype', 0) or 0
 
     # Anti-NaN
-    for v in [cast_score, hype_score, production_score, marketing_score]:
-        if not isinstance(v, (int, float)) or math.isnan(v):
-            v = 0
+    if not isinstance(cast_raw, (int, float)) or math.isnan(cast_raw): cast_raw = 0
+    if not isinstance(hype_raw, (int, float)) or math.isnan(hype_raw): hype_raw = 0
+    if not isinstance(prod_raw, (int, float)) or math.isnan(prod_raw): prod_raw = 0
+    if not isinstance(mkt_raw, (int, float)) or math.isnan(mkt_raw): mkt_raw = 0
 
-    base = (
-        cast_score * 0.4 +
-        hype_score * 0.2 +
-        production_score * 0.2 +
-        marketing_score * 0.2
+    # NORMALIZZAZIONE: ogni metrica alla propria scala → 0-10
+    cast10 = min(10, cast_raw / 10)   # cast: 0-100 → /10
+    hype10 = min(10, hype_raw / 100)  # hype: 0-1000 → /100
+    prod10 = min(10, prod_raw / 10)   # prod: 0-100 → /10
+    mkt10 = min(10, mkt_raw / 10)     # mkt: 0-100 → /10
+
+    # Media pesata su scala 0-10
+    final_score = (
+        cast10 * 0.4 +
+        hype10 * 0.2 +
+        prod10 * 0.2 +
+        mkt10 * 0.2
     )
-    randomness = random.uniform(-1.0, 1.0)
-    quality_score = round(max(1, min(10, base / 20 + randomness)), 1)
+    final_score += random.uniform(-0.3, 0.3)
+    quality_score = round(max(1, min(10, final_score)), 1)
 
-    # Anti-NaN final check
+    # Anti-NaN final
     if math.isnan(quality_score) or quality_score is None:
         quality_score = 5.0
+
+    print(f"=== CALCOLO REALE === CAST:{cast_raw}→{cast10:.1f} HYPE:{hype_raw}→{hype10:.1f} PROD:{prod_raw:.1f}→{prod10:.1f} MKT:{mkt_raw}→{mkt10:.1f} FINAL:{quality_score}")
 
     # Determine tier
     if quality_score >= 9.0:

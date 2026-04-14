@@ -2526,8 +2526,21 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   const [showReleaseOverlay, setShowReleaseOverlay] = useState(false);
   const metrics = film.pipeline_metrics || {};
 
-  // PREVIEW quality — SOLO UI, mai salvata, normalizzata 1-10
-  const previewScore = calculatePreviewScore(metrics);
+  // PREVIEW stabile — calcolata UNA SOLA VOLTA per film, no random ad ogni render
+  const [previewScore] = useState(() => {
+    const castRaw = (metrics.cast_quality ?? 0) || 0;
+    const hypeRaw = (metrics.hype_score ?? 0) || 0;
+    const prodRaw = (((metrics.shooting_quality ?? 0) + (metrics.prep_quality ?? 0) + (metrics.postprod_quality ?? 0)) / 3) || 0;
+    const mktRaw = (metrics.marketing_hype ?? 0) || 0;
+    const cast10 = Math.min(10, castRaw / 10);
+    const hype10 = Math.min(10, hypeRaw / 100);
+    const prod10 = Math.min(10, prodRaw / 10);
+    const mkt10 = Math.min(10, mktRaw / 10);
+    const base = cast10 * 0.4 + hype10 * 0.2 + prod10 * 0.2 + mkt10 * 0.2;
+    const withVariance = base + (Math.random() * 0.4 - 0.2);
+    return Math.max(1, Math.min(10, withVariance)).toFixed(1);
+  });
+
   const posterUrl = film.poster_url;
   const cast = film.cast || {};
   const directorName = cast.director?.name || 'N/D';
@@ -2540,6 +2553,7 @@ const StepFinale = ({ film, onRefresh, toast }) => {
   const marketingMessage = film.marketing_message;
 
   const confirmRelease = async () => {
+    if (loading) return;
     setLoading('confirm');
     try {
       const res = await api.post(`/films/${film.id}/confirm-final-release`);
@@ -2547,6 +2561,7 @@ const StepFinale = ({ film, onRefresh, toast }) => {
       toast({ title: `${film.title} rilasciato! Quality: ${res.quality_score}` });
       await onRefresh();
     } catch (e) {
+      console.error('[CONFIRM_RELEASE]', e);
       toast({ title: '' + (e.message || 'Errore rilascio'), variant: 'destructive' });
     }
     setLoading('');
@@ -2698,11 +2713,6 @@ const StepFinale = ({ film, onRefresh, toast }) => {
             {loading === 'discard' ? '...' : 'SCARTA FILM'}
           </button>
         </div>
-
-        {/* UX fallback message */}
-        <p className="text-[7px] text-gray-600 text-center italic">
-          Se il progresso non si aggiorna subito: salva in bozza o aggiorna la pagina.
-        </p>
       </div>
 
       {showReleaseOverlay && (

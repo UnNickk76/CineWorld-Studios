@@ -3028,8 +3028,10 @@ async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)
     """
     project = await _get_project(pid, user['id'])
     state = project.get('pipeline_state', '')
-    if state not in ('release_pending',):
+    if state not in ('release_pending', 'distribution'):
         raise HTTPException(400, f"Film non in fase di conferma uscita (stato: {state})")
+
+    logging.info(f"[CONFIRM_RELEASE] Starting for {pid}, state={state}")
 
     # FALLBACK ANTI-BUG: assicurarsi che i dati essenziali esistano
     if not project.get('release_type'):
@@ -3124,7 +3126,15 @@ async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)
 
     # Advance to released
     try:
-        film = await _advance(pid, user['id'], 'released', release_data, 'final')
+        if state == 'release_pending':
+            film = await _advance(pid, user['id'], 'released', release_data, 'final')
+        else:
+            # Force release for distribution or other edge states
+            await db.film_projects.update_one(
+                {'id': pid},
+                {'$set': {**release_data, 'pipeline_state': 'released', 'pipeline_ui_step': 8}}
+            )
+            film = await db.film_projects.find_one({'id': pid}, {'_id': 0})
     except Exception as e:
         logging.warning(f"[CONFIRM_RELEASE] Advance failed for {pid}: {e}, forcing released state")
         await db.film_projects.update_one(

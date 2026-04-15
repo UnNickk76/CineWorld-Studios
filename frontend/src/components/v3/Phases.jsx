@@ -139,12 +139,21 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
   );
 };
 
+const FILM_FORMATS = [
+  { id: 'cortometraggio', label: 'Cortometraggio', range: '25-40 min' },
+  { id: 'medio', label: 'Medio', range: '50-80 min' },
+  { id: 'standard', label: 'Standard', range: '90-120 min' },
+  { id: 'epico', label: 'Epico', range: '130-180 min' },
+  { id: 'kolossal', label: 'Kolossal', range: '2h10-4h' },
+];
+
 /* ═══════ PREP ═══════ */
 export const PrepPhase = ({ film, onRefresh, toast }) => {
   const [equipment, setEquipment] = useState(film.prep_equipment || []);
   const [cgi, setCgi] = useState(film.prep_cgi || []);
   const [vfx, setVfx] = useState(film.prep_vfx || []);
   const [extras, setExtras] = useState(film.prep_extras || 0);
+  const [filmFormat, setFilmFormat] = useState(film.film_format || 'standard');
   const [options, setOptions] = useState({ equipment: [], cgi: [], vfx: [] });
   const [loading, setLoading] = useState(false);
 
@@ -155,8 +164,10 @@ export const PrepPhase = ({ film, onRefresh, toast }) => {
   const save = async () => {
     setLoading(true);
     try {
-      await v3api(`/films/${film.id}/save-prep-full`, 'POST', { equipment, cgi, vfx, extras_count: extras });
-      await onRefresh(); toast?.('Pre-produzione confermata!');
+      const res = await v3api(`/films/${film.id}/save-prep-full`, 'POST', { equipment, cgi, vfx, extras_count: extras, film_format: filmFormat });
+      await onRefresh();
+      const days = res.shooting_days;
+      toast?.(days ? `Pre-produzione confermata! Riprese stimate: ${days} giorni` : 'Pre-produzione confermata!');
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
@@ -176,8 +187,24 @@ export const PrepPhase = ({ film, onRefresh, toast }) => {
   );
 
   return (
-    <PhaseWrapper title="Pre-Produzione" subtitle="Attrezzature, effetti speciali" icon={Camera} color="blue">
+    <PhaseWrapper title="Pre-Produzione" subtitle="Attrezzature, effetti speciali e formato" icon={Camera} color="blue">
       <div className="space-y-3">
+        {/* Film Format */}
+        <div>
+          <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">Formato Film</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {FILM_FORMATS.map(f => (
+              <button key={f.id} onClick={() => setFilmFormat(f.id)}
+                className={`p-2 rounded-lg border text-left transition-all ${
+                  filmFormat === f.id ? 'bg-blue-500/10 border-blue-500/30' : 'border-gray-800 hover:border-gray-600'
+                }`}>
+                <p className={`text-[9px] font-bold ${filmFormat === f.id ? 'text-blue-400' : 'text-gray-400'}`}>{f.label}</p>
+                <p className="text-[7px] text-gray-600">{f.range}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {renderTags('Attrezzature', options.equipment || [], equipment, setEquipment)}
         {renderTags('CGI', options.cgi || [], cgi, setCgi)}
         {renderTags('VFX', options.vfx || [], vfx, setVfx)}
@@ -188,6 +215,15 @@ export const PrepPhase = ({ film, onRefresh, toast }) => {
           <input type="range" min={0} max={1000} step={50} value={extras} onChange={e => setExtras(+e.target.value)}
             className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
         </div>
+
+        {/* Shooting estimate */}
+        {film.shooting_days > 0 && (
+          <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/15 flex items-center justify-between">
+            <span className="text-[8px] text-gray-400">Riprese stimate</span>
+            <span className="text-[10px] font-bold text-blue-400">{film.shooting_days} giorni</span>
+          </div>
+        )}
+
         <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 disabled:opacity-30 font-bold">
           {loading ? '...' : 'Conferma Pre-Produzione'}
         </button>
@@ -199,28 +235,95 @@ export const PrepPhase = ({ film, onRefresh, toast }) => {
 /* ═══════ CIAK ═══════ */
 export const CiakPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState(false);
+  const [ciakProgress, setCiakProgress] = useState(film.shooting_progress || 0);
+  const progressRef = useRef(null);
+  const shootDays = film.shooting_days || 14;
+
+  // Auto-advance progress
+  useEffect(() => {
+    if (ciakProgress < 100) {
+      progressRef.current = setInterval(() => {
+        setCiakProgress(prev => {
+          const next = prev + Math.random() * 0.4 + 0.05;
+          if (next >= 100) { clearInterval(progressRef.current); return 100; }
+          return next;
+        });
+      }, 4000);
+      return () => { if (progressRef.current) clearInterval(progressRef.current); };
+    }
+  }, [ciakProgress]);
+
   const speedup = async (pct) => {
+    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], ciakProgress);
     setLoading(true);
-    try { await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'ciak', percentage: pct }); await onRefresh(); toast?.(`Velocizzato ${pct}%`); }
-    catch (e) { toast?.(e.message, 'error'); }
+    try {
+      await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'ciak', percentage: pct });
+      const remaining = 100 - ciakProgress;
+      const gain = remaining * (pct / 100);
+      setCiakProgress(prev => Math.min(100, prev + gain));
+      await onRefresh();
+      toast?.(`Velocizzato +${Math.ceil(gain)}% (-${cost} CP)`);
+    } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
+
+  const daysDone = Math.floor((ciakProgress / 100) * shootDays);
+
   return (
     <PhaseWrapper title="CIAK! Riprese" subtitle="Le riprese del film" icon={Clapperboard} color="red">
       <div className="space-y-3">
-        <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/15 text-center">
-          <Clock className="w-6 h-6 text-red-400 mx-auto mb-1.5" />
-          <p className="text-[10px] text-gray-300 font-bold">Riprese in corso...</p>
-          <p className="text-[8px] text-gray-500 mt-1">Usa le velocizzazioni per accelerare</p>
+        {/* Shooting info */}
+        <div className="flex items-center justify-between px-2">
+          <div className="text-center">
+            <p className="text-[7px] text-gray-500 uppercase">Durata riprese</p>
+            <p className="text-sm font-black text-red-400">{shootDays} giorni</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[7px] text-gray-500 uppercase">Giorno attuale</p>
+            <p className="text-sm font-black text-white">{daysDone}/{shootDays}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[7px] text-gray-500 uppercase">Formato</p>
+            <p className="text-[9px] font-bold text-blue-400 capitalize">{(film.film_format || 'standard').replace(/_/g, ' ')}</p>
+          </div>
         </div>
-        <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza Riprese</p>
-        <div className="flex gap-1.5">
-          {[25,50,75,100].map(p => (
-            <button key={p} onClick={() => speedup(p)} disabled={loading}
-              className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30">
-              <Zap className="w-2.5 h-2.5" /> {p}%
-            </button>
-          ))}
+
+        {/* Progress Bar */}
+        <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/15 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[8px] text-gray-500 uppercase font-bold">Avanzamento Riprese</span>
+            <span className="text-[10px] font-black text-red-400">{Math.floor(ciakProgress)}%</span>
+          </div>
+          <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+            <div className="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400 transition-all duration-1000 ease-out"
+              style={{ width: `${Math.min(100, ciakProgress)}%` }} />
+          </div>
+          <p className="text-[7px] text-gray-600 text-center">
+            {ciakProgress >= 100 ? 'Riprese completate! Avanza al prossimo step.' :
+             ciakProgress >= 50 ? 'Le riprese procedono... velocizza per completare!' :
+             'Il set e attivo. Le riprese proseguono giorno dopo giorno.'}
+          </p>
+        </div>
+
+        {/* Speedup buttons with costs */}
+        <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza Riprese (a pagamento)</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[25,50,75,100].map(p => {
+            const cost = getSpeedupCost(SPEEDUP_COSTS[p], ciakProgress);
+            const remaining = 100 - ciakProgress;
+            const gain = Math.ceil(remaining * (p / 100));
+            return (
+              <button key={p} onClick={() => speedup(p)} disabled={loading || ciakProgress >= 100}
+                className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all"
+                data-testid={`ciak-speedup-${p}`}>
+                <Zap className="w-3 h-3" />
+                <span>+{gain}%</span>
+                <span className="flex items-center gap-0.5 text-[7px] text-cyan-400 ml-1">
+                  <Coins className="w-2.5 h-2.5" />{cost}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </PhaseWrapper>
@@ -231,35 +334,115 @@ export const CiakPhase = ({ film, onRefresh, toast }) => {
 export const FinalCutPhase = ({ film, onRefresh, toast }) => {
   const [notes, setNotes] = useState(film.finalcut_notes || '');
   const [loading, setLoading] = useState(false);
+  const [fcProgress, setFcProgress] = useState(film.finalcut_progress || 0);
+  const [filmDuration, setFilmDuration] = useState(null);
+  const progressRef = useRef(null);
+
+  useEffect(() => {
+    if (fcProgress < 100) {
+      progressRef.current = setInterval(() => {
+        setFcProgress(prev => {
+          const next = prev + Math.random() * 0.3 + 0.05;
+          if (next >= 100) { clearInterval(progressRef.current); return 100; }
+          return next;
+        });
+      }, 4000);
+      return () => { if (progressRef.current) clearInterval(progressRef.current); };
+    }
+  }, [fcProgress]);
+
+  // Load film duration after final cut is done
+  useEffect(() => {
+    if (fcProgress >= 100 && !filmDuration) {
+      v3api(`/films/${film.id}/film-duration`).then(d => setFilmDuration(d)).catch(() => {});
+    }
+  }, [fcProgress, film.id, filmDuration]);
+
   const save = async () => {
     setLoading(true);
-    try { await v3api(`/films/${film.id}/save-finalcut`, 'POST', { finalcut_notes: notes }); await onRefresh(); toast?.('Montaggio confermato!'); }
-    catch (e) { toast?.(e.message, 'error'); }
+    try {
+      await v3api(`/films/${film.id}/save-finalcut`, 'POST', { finalcut_notes: notes });
+      await onRefresh();
+      setFcProgress(prev => Math.max(prev, 5));
+      toast?.('Montaggio avviato!');
+    } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
+
   const speedup = async (pct) => {
+    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], fcProgress);
     setLoading(true);
-    try { await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'finalcut', percentage: pct }); await onRefresh(); toast?.(`Velocizzato ${pct}%`); }
-    catch (e) { toast?.(e.message, 'error'); }
+    try {
+      await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'finalcut', percentage: pct });
+      const remaining = 100 - fcProgress;
+      const gain = remaining * (pct / 100);
+      setFcProgress(prev => Math.min(100, prev + gain));
+      await onRefresh();
+      toast?.(`Velocizzato +${Math.ceil(gain)}% (-${cost} CP)`);
+    } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
+
+  const configured = fcProgress > 0;
+
   return (
     <PhaseWrapper title="Final Cut" subtitle="Post-produzione e montaggio" icon={Scissors} color="purple">
       <div className="space-y-3">
-        <textarea value={notes} onChange={e => setNotes(e.target.value)}
-          rows={3} placeholder="Note montaggio..." className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-[10px] text-white placeholder-gray-600" />
-        <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-400 disabled:opacity-30 font-bold">
-          {loading ? '...' : 'Salva Final Cut'}
-        </button>
-        <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza</p>
-        <div className="flex gap-1.5">
-          {[25,50,75,100].map(p => (
-            <button key={p} onClick={() => speedup(p)} disabled={loading}
-              className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30">
-              <Zap className="w-2.5 h-2.5" /> {p}%
+        {/* Progress Bar */}
+        {configured && (
+          <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/15 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[8px] text-gray-500 uppercase font-bold">Avanzamento Montaggio</span>
+              <span className="text-[10px] font-black text-purple-400">{Math.floor(fcProgress)}%</span>
+            </div>
+            <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-gradient-to-r from-purple-600 to-pink-400 transition-all duration-1000 ease-out"
+                style={{ width: `${Math.min(100, fcProgress)}%` }} />
+            </div>
+          </div>
+        )}
+
+        {/* Film Duration - shown after completion */}
+        {filmDuration && (
+          <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15 text-center">
+            <p className="text-[7px] text-gray-500 uppercase font-bold">Durata effettiva del film</p>
+            <p className="text-lg font-black text-emerald-400">{filmDuration.duration_label}</p>
+            <p className="text-[7px] text-gray-600">({filmDuration.duration_minutes} minuti)</p>
+          </div>
+        )}
+
+        {!configured && (
+          <>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)}
+              rows={3} placeholder="Note montaggio..." className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-[10px] text-white placeholder-gray-600" />
+            <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-400 disabled:opacity-30 font-bold">
+              {loading ? '...' : 'Avvia Montaggio'}
             </button>
-          ))}
-        </div>
+          </>
+        )}
+
+        {configured && (
+          <>
+            <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza (a pagamento)</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[25,50,75,100].map(p => {
+                const cost = getSpeedupCost(SPEEDUP_COSTS[p], fcProgress);
+                const remaining = 100 - fcProgress;
+                const gain = Math.ceil(remaining * (p / 100));
+                return (
+                  <button key={p} onClick={() => speedup(p)} disabled={loading || fcProgress >= 100}
+                    className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all">
+                    <Zap className="w-3 h-3" />
+                    <span>+{gain}%</span>
+                    <span className="flex items-center gap-0.5 text-[7px] text-cyan-400 ml-1">
+                      <Coins className="w-2.5 h-2.5" />{cost}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </PhaseWrapper>
   );
@@ -346,12 +529,34 @@ export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
 /* ═══════ LA PRIMA ═══════ */
 export const LaPrimaPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState(false);
+  const [primaProgress, setPrimaProgress] = useState(film.prima_progress || 0);
+  const progressRef = useRef(null);
   const isPremiere = film.release_type === 'premiere';
 
+  useEffect(() => {
+    if (isPremiere && primaProgress < 100) {
+      progressRef.current = setInterval(() => {
+        setPrimaProgress(prev => {
+          const next = prev + Math.random() * 0.3 + 0.05;
+          if (next >= 100) { clearInterval(progressRef.current); return 100; }
+          return next;
+        });
+      }, 4000);
+      return () => { if (progressRef.current) clearInterval(progressRef.current); };
+    }
+  }, [isPremiere, primaProgress]);
+
   const speedup = async (pct) => {
+    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], primaProgress);
     setLoading(true);
-    try { await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'premiere', percentage: pct }); await onRefresh(); toast?.(`Velocizzato ${pct}%`); }
-    catch (e) { toast?.(e.message, 'error'); }
+    try {
+      await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'premiere', percentage: pct });
+      const remaining = 100 - primaProgress;
+      const gain = remaining * (pct / 100);
+      setPrimaProgress(prev => Math.min(100, prev + gain));
+      await onRefresh();
+      toast?.(`Velocizzato +${Math.ceil(gain)}% (-${cost} CP)`);
+    } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
 
@@ -360,19 +565,37 @@ export const LaPrimaPhase = ({ film, onRefresh, toast }) => {
       <div className="space-y-3">
         {isPremiere ? (
           <>
-            <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/15 text-center">
-              <Award className="w-6 h-6 text-yellow-400 mx-auto mb-1.5" />
-              <p className="text-[10px] text-gray-300 font-bold">Premiere in preparazione...</p>
-              <p className="text-[8px] text-gray-500 mt-1">L'anteprima esclusiva sta per avere luogo</p>
+            <div className="p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/15 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[8px] text-gray-500 uppercase font-bold">Preparazione Premiere</span>
+                <span className="text-[10px] font-black text-yellow-400">{Math.floor(primaProgress)}%</span>
+              </div>
+              <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-yellow-600 to-amber-300 transition-all duration-1000 ease-out"
+                  style={{ width: `${Math.min(100, primaProgress)}%` }} />
+              </div>
+              <p className="text-[7px] text-gray-600 text-center">
+                {primaProgress >= 100 ? 'Premiere pronta! Avanza alla distribuzione.' :
+                 'L\'anteprima esclusiva sta prendendo forma...'}
+              </p>
             </div>
-            <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza Premiere</p>
-            <div className="flex gap-1.5">
-              {[25,50,75,100].map(p => (
-                <button key={p} onClick={() => speedup(p)} disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30">
-                  <Zap className="w-2.5 h-2.5" /> {p}%
-                </button>
-              ))}
+            <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza Premiere (a pagamento)</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[25,50,75,100].map(p => {
+                const cost = getSpeedupCost(SPEEDUP_COSTS[p], primaProgress);
+                const remaining = 100 - primaProgress;
+                const gain = Math.ceil(remaining * (p / 100));
+                return (
+                  <button key={p} onClick={() => speedup(p)} disabled={loading || primaProgress >= 100}
+                    className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all">
+                    <Zap className="w-3 h-3" />
+                    <span>+{gain}%</span>
+                    <span className="flex items-center gap-0.5 text-[7px] text-cyan-400 ml-1">
+                      <Coins className="w-2.5 h-2.5" />{cost}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </>
         ) : (

@@ -605,16 +605,48 @@ class SavePrepFull(BaseModel):
     cgi: List[str] = []
     vfx: List[str] = []
     extras_count: int = 0
+    film_format: Optional[str] = "standard"
 
 @router.post("/films/{pid}/save-prep-full")
 async def save_prep_full(pid: str, req: SavePrepFull, user: dict = Depends(get_current_user)):
-    project = await _update_project(pid, user["id"], {
+    from utils.calc_shooting import calculate_shooting_days
+
+    update_data = {
         "prep_equipment": req.equipment,
         "prep_cgi": req.cgi,
         "prep_vfx": req.vfx,
         "prep_extras": req.extras_count,
-    })
-    return {"success": True, "project": project}
+        "film_format": req.film_format or "standard",
+    }
+    # Pre-calculate shooting days
+    project = await _get_project(pid, user["id"])
+    project.update(update_data)
+    shooting_days = calculate_shooting_days(project)
+    update_data["shooting_days"] = shooting_days
+
+    project = await _update_project(pid, user["id"], update_data)
+    return {"success": True, "project": project, "shooting_days": shooting_days}
+
+
+@router.get("/films/{pid}/shooting-estimate")
+async def get_shooting_estimate(pid: str, user: dict = Depends(get_current_user)):
+    """Get calculated shooting duration estimate."""
+    from utils.calc_shooting import calculate_shooting_days
+    project = await _get_project(pid, user["id"])
+    days = calculate_shooting_days(project)
+    return {"shooting_days": days}
+
+
+@router.get("/films/{pid}/film-duration")
+async def get_film_duration(pid: str, user: dict = Depends(get_current_user)):
+    """Get calculated film runtime (after final cut)."""
+    from utils.calc_film_duration import calculate_film_duration
+    project = await _get_project(pid, user["id"])
+    minutes = calculate_film_duration(project)
+    hours = minutes // 60
+    mins = minutes % 60
+    label = f"{hours}h {mins}min" if hours > 0 else f"{mins} min"
+    return {"duration_minutes": minutes, "duration_label": label}
 
 
 @router.post("/films/{pid}/start-ciak")
@@ -672,9 +704,13 @@ async def schedule_release(pid: str, req: ScheduleReleaseRequest, user: dict = D
 
 @router.post("/films/{pid}/speedup")
 async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_current_user)):
-    cp_map = {25: 10, 50: 15, 75: 20, 100: 25}
-    balances = await _spend(user["id"], funds=0, cinepass=cp_map[req.percentage])
+    from utils.calc_speedup import get_speedup_cost
     project = await _get_project(pid, user["id"])
+
+    # Get current progress for cost calculation
+    current_progress = project.get("shooting_progress", 0) if req.stage == "ciak" else 0
+    cost = get_speedup_cost(req.percentage, current_progress)
+    balances = await _spend(user["id"], funds=0, cinepass=cost)
 
     update = {
         "last_speedup": {
@@ -686,7 +722,7 @@ async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_curren
     if req.stage == "ciak":
         update["ciak_complete_at"] = _now()
     project = await _update_project(pid, user["id"], update)
-    return {"success": True, "project": project, "balances": balances}
+    return {"success": True, "project": project, "balances": balances, "cost": cost}
 
 
 @router.post("/films/{pid}/confirm-release")

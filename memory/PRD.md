@@ -3,72 +3,64 @@
 ## Prodotto
 Browser game gestionale cinematografico Full-Stack (FastAPI + React + MongoDB).
 
-## Pipeline V3 — 10 Step Visivi (SEMPRE visibili nello Stepper)
+## Pipeline V3 — 10 Step Visivi
 ```
 IDEA → HYPE → CAST → PREP → CIAK → FINAL CUT → MARKETING → LA PRIMA → DISTRIB. → USCITA
 ```
 
-### Backend State Flow (V3):
-```
-idea → hype → cast → prep → ciak → finalcut → marketing → la_prima → distribution → release_pending → released
-```
+### IdeaPhase — Flusso Sequenziale con OK Checkpoint
+- FASE 0: Titolo + Genere + Sottogeneri (max 3) + Pretrama (min 50 char) + Ambientazione → OK
+- FASE 1: Locandina AI → OK (film entra in PROSSIMAMENTE dopo questo OK)
+- FASE 2: Sceneggiatura AI/manuale → OK → Avanti HYPE si sblocca
 
-### Step Mapping (0-9):
-0: IDEA | 1: HYPE | 2: CAST | 3: PREP | 4: CIAK | 5: FINAL CUT | 6: MARKETING | 7: LA PRIMA | 8: DISTRIB. | 9: USCITA
+### Hype — Barra 0-100% + Velocizzazioni a Pagamento
+- Configura strategia (Sprint/Bilanciata/Costruzione) + durata
+- Barra avanzamento 0-100% con progresso automatico
+- Velocizza: costo CP decresce esponenzialmente col progresso
 
-### IdeaPhase — Flusso Sequenziale con OK Checkpoint:
-- FASE 0: Titolo + Genere + Sottogeneri (max 3 tag) + Pretrama (min 50 char) + Ambientazione → OK (giallo, frozen finche' incompleto)
-- FASE 1: Locandina AI (genera da pretrama o prompt custom) → OK (frozen finche' no poster). Dopo OK locandina il film entra in PROSSIMAMENTE FILM nella dashboard.
-- FASE 2: Sceneggiatura AI (1000-2000 char, scrollabile) oppure manuale (min 100 char) → OK (frozen finche' vuota)
-- Dopo FASE 2 OK → bottone "Avanti HYPE" si sblocca
+### Cast
+- Auto-cast: 1 regista, 1 sceneggiatore, 5 attori, 1 compositore
+- Ruoli: generico (default), protagonista, antagonista, Co Protagonista, supporto
+- Click su nome mostra modal Skills
 
-### Marketing = Hub (step 6)
-- Mostra pacchetti marketing
-- Scelta rilascio (La Prima / Diretto) come sub-phase
-- Pulsante avanza a distribuzione
+### Pre-Produzione
+- **Formato Film**: Cortometraggio (25-40min), Medio (50-80min), Standard (90-120min), Epico (130-180min), Kolossal (150-240min)
+- Attrezzature, CGI, VFX, Comparse
+- Calcolo automatico giorni riprese (3-40 giorni)
 
-### La Prima (step 7)
-- Se premiere: preparazione evento con velocizzazioni
-- Se diretto: messaggio semplice, avanza alla distribuzione
+### CIAK — Riprese
+- Durata riprese calcolata (basata su formato, genere, cast, attrezzature)
+- Barra progresso 0-100% con giorno attuale/totale
+- Velocizzazioni a pagamento CP (stesso sistema Hype)
 
-### Quality Score
-- Calcoli qualita' **in file separato** (NON nei componenti pipeline)
-- **Invisibile fino uscita** — mostra "n.d." durante il pipeline
+### Final Cut
+- Note montaggio + avvio
+- Barra progresso montaggio 0-100%
+- **Durata effettiva film** mostrata al completamento
+- Velocizzazioni a pagamento CP
 
-## Prossimamente Film (Dashboard)
-- Film V3 con poster appaiono in "PROSSIMAMENTE FILM" dopo conferma OK locandina
-- Badge stato colorato per pipeline_state (Idea=amber, Hype=orange, Cast=cyan, etc.)
-- Card poster-style, scrollabili lateralmente, dal piu recente
-- Tutti i player visibili
+### La Prima
+- Se premiere: barra progresso + velocizzazioni a pagamento CP
+- Se diretto: salta alla distribuzione
+
+## File Calcoli Dedicati
+- `/app/backend/utils/calc_shooting.py` — Durata riprese (3-40 giorni)
+- `/app/backend/utils/calc_film_duration.py` — Durata effettiva film (minuti)
+- `/app/backend/utils/calc_speedup.py` — Costi velocizzazione unificati
 
 ## Endpoint Chiave V3
-- POST /api/pipeline-v3/films/create
-- POST /api/pipeline-v3/films/{pid}/save-idea (accetta subgenres, locations)
-- POST /api/pipeline-v3/films/{pid}/advance (next_state)
-- POST /api/pipeline-v3/films/{pid}/generate-poster
-- POST /api/pipeline-v3/films/{pid}/generate-screenplay (AI con Emergent LLM Key)
-- POST /api/pipeline-v3/films/{pid}/confirm-release
-- GET /api/coming-soon (include V3 films con poster)
-
-## Architettura Frontend V3
-- `PipelineV3.jsx` — Orchestratore principale
-- `V3Shared.jsx` — Costanti, StepperBar, V3_STEPS (10 step con LA PRIMA)
-- `IdeaPhase.jsx` — Flusso sequenziale (Titolo/Genere → Poster → Script)
-- `CastPhase.jsx` — Selezione NPC attori
-- `Phases.jsx` — Hype, Prep, Ciak, FinalCut, Marketing, LaPrima, Distribution, StepFinale
-- `ComingSoonSection.jsx` — Dashboard sezione "Prossimamente" con badge colorati
-
-## Architettura Backend V3
-- `routes/pipeline_v3.py` — State machine, AI poster/screenplay, advance
-- `routes/series_pipeline.py` — Include query V3 nel /coming-soon endpoint
+- POST /api/pipeline-v3/films/{pid}/save-prep-full (accetta film_format, ritorna shooting_days)
+- GET /api/pipeline-v3/films/{pid}/shooting-estimate
+- GET /api/pipeline-v3/films/{pid}/film-duration
+- POST /api/pipeline-v3/films/{pid}/speedup (costo CP da calc_speedup)
 
 ## Backlog
-- (P0) Motore calcolo qualita' in file dedicato (dopo 100% verifica UI)
-- (P1) CinemaStatsModal + ProducerProfileModal — dati reali
+- (P0) Motore calcolo qualita totale in file dedicato
+- (P1) CinemaStatsModal + ProducerProfileModal dati reali
 - (P1) Fase 3 Mercato: vendita serie/anime
 - (P2) Sfida della Settimana
 - (P3) Previsioni Festival, Marketplace diritti TV/Anime
 
 ## Integrazioni
-- Emergent LLM Key (AI Poster via OpenAI Image Gen, AI Screenplay via LlmChat)
+- Emergent LLM Key (AI Poster, AI Screenplay)
 - Stripe (Payments)

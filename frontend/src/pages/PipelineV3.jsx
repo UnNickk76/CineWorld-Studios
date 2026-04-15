@@ -199,8 +199,10 @@ export default function PipelineV3() {
   };
 
   const createProject = () => run(async () => {
+    console.log('[V3] Creating new project...');
     const defaultIdea = { title: 'Nuovo Film', genre: 'comedy', subgenre: '', preplot: '' };
     const res = await api('/films/create', 'POST', defaultIdea);
+    console.log('[V3] Created:', res.project?.id);
     setSelected(res.project);
     syncForm(res.project);
   }, 'Progetto creato!');
@@ -266,16 +268,8 @@ export default function PipelineV3() {
       <div className="min-h-screen bg-black text-white pb-28">
         {showProgress && <ProgressOverlay value={progress} />}
         {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-        <div className="px-4 pt-6">
-          <div className="flex items-center gap-3 mb-5">
-            <button onClick={() => navigate('/')} className="w-8 h-8 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center" data-testid="back-btn">
-              <ChevronLeft className="w-4 h-4 text-gray-400" />
-            </button>
-            <div>
-              <h1 className="text-lg font-black tracking-wide">PRODUCI FILM</h1>
-              <p className="text-[10px] text-gray-500">Inizia un nuovo film o continua quelli in lavorazione</p>
-            </div>
-          </div>
+        <div className="px-4 pt-24">
+          <p className="text-[10px] text-gray-500 mb-4">Inizia un nuovo film o continua quelli in lavorazione</p>
 
           <div className="grid grid-cols-3 gap-2">
             {/* NEW PROJECT CARD */}
@@ -455,7 +449,7 @@ export default function PipelineV3() {
     <div className="min-h-screen bg-black text-white pb-28">
       {showProgress && <ProgressOverlay value={progress} />}
       {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-24">
         {/* Header */}
         <div className="flex items-center gap-3 mb-3">
           <button onClick={() => { setSelected(null); loadProjects(); }} className="w-8 h-8 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center">

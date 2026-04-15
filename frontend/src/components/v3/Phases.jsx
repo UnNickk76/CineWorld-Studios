@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check, Coins } from 'lucide-react';
+import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check, Coins, Trash2, AlertTriangle, Handshake } from 'lucide-react';
 import { PhaseWrapper, ProgressCircle, v3api } from './V3Shared';
 
 const SPEEDUP_COSTS = { 25: 10, 50: 15, 75: 20, 100: 25 };
@@ -635,6 +635,50 @@ export const FinalCutPhase = ({ film, onRefresh, toast }) => {
   );
 };
 
+/* ═══════ SCARTA FILM DIALOG ═══════ */
+export const DiscardFilmButton = ({ filmId, onDiscard }) => {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const doDiscard = async () => {
+    setLoading(true);
+    try {
+      await v3api(`/films/${filmId}/discard`, 'POST');
+      onDiscard?.();
+    } catch (e) { /* handled by parent */ }
+    setLoading(false);
+  };
+
+  return (
+    <>
+      <button onClick={() => setShowConfirm(true)}
+        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-red-500/5 border border-red-500/15 text-red-400/60 text-[8px] font-bold hover:bg-red-500/10 hover:text-red-400 transition-all mt-4"
+        data-testid="discard-film-btn">
+        <Trash2 className="w-3 h-3" /> Scarta Film
+      </button>
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setShowConfirm(false)}>
+          <div className="bg-gray-900 border border-red-500/30 rounded-xl p-5 mx-6 max-w-sm w-full space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
+              <h4 className="text-sm font-bold text-white">Conferma Scarto</h4>
+            </div>
+            <p className="text-[10px] text-gray-400">Sei sicuro di voler scartare questo film? Il progetto verra inviato al mercato e non potrai piu modificarlo.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowConfirm(false)}
+                className="flex-1 py-2 rounded-lg border border-gray-700 text-gray-400 text-[9px] font-bold">Annulla</button>
+              <button onClick={doDiscard} disabled={loading}
+                className="flex-1 py-2 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-bold disabled:opacity-50">
+                {loading ? '...' : 'Conferma Scarto'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 /* ═══════ MARKETING ═══════ */
 const MKT_PACKAGES = [
   { name: 'Teaser Digitale', cost: 20000, hype: 5 },
@@ -645,12 +689,41 @@ const MKT_PACKAGES = [
 ];
 
 export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
+  const [proposals, setProposals] = useState([]);
+  const [selectedSponsors, setSelectedSponsors] = useState(film.selected_sponsors?.map(s => s.sponsor_id) || []);
+  const [sponsorsConfirmed, setSponsorsConfirmed] = useState(!!film.sponsors_confirmed);
   const [pkgs, setPkgs] = useState(film.marketing_packages || []);
   const [releaseType, setReleaseType] = useState(film.release_type || 'direct');
   const [loading, setLoading] = useState(false);
   const done = film.marketing_completed;
 
-  const save = async () => {
+  useEffect(() => {
+    if (!sponsorsConfirmed) {
+      v3api(`/films/${film.id}/sponsor-proposals`).then(d => setProposals(d.proposals || [])).catch(() => {});
+    }
+  }, [film.id, sponsorsConfirmed]);
+
+  const toggleSponsor = (id) => {
+    setSelectedSponsors(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id);
+      if (prev.length >= 6) return prev;
+      return [...prev, id];
+    });
+    onDirty?.();
+  };
+
+  const confirmSponsors = async () => {
+    setLoading(true);
+    try {
+      await v3api(`/films/${film.id}/save-sponsors`, 'POST', { sponsor_ids: selectedSponsors });
+      await onRefresh();
+      setSponsorsConfirmed(true);
+      toast?.(`${selectedSponsors.length} sponsor confermati!`);
+    } catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  const saveMarketing = async () => {
     setLoading(true);
     try {
       await v3api(`/films/${film.id}/save-marketing`, 'POST', { packages: pkgs });
@@ -660,54 +733,123 @@ export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
     setLoading(false);
   };
 
+  const tierColors = { A: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20', B: 'text-blue-400 bg-blue-500/10 border-blue-500/20', C: 'text-gray-400 bg-gray-500/10 border-gray-500/20' };
+  const tierLabels = { A: 'Premium', B: 'Standard', C: 'Emergente' };
+
   return (
-    <PhaseWrapper title="Sponsor & Marketing" subtitle="Promuovi e scegli il lancio" icon={Megaphone} color="green">
+    <PhaseWrapper title="Sponsor & Marketing" subtitle="Trova sponsor e promuovi il film" icon={Megaphone} color="green">
       <div className="space-y-3">
-        {!done && (
+
+        {/* ═══ STEP 1: SPONSORS ═══ */}
+        {!sponsorsConfirmed ? (
           <>
-            <p className="text-[8px] text-gray-500 uppercase font-bold">Pacchetti Marketing</p>
-            {MKT_PACKAGES.map(pkg => {
-              const sel = pkgs.includes(pkg.name);
-              return (
-                <button key={pkg.name} onClick={() => { setPkgs(v => sel ? v.filter(x => x !== pkg.name) : [...v, pkg.name]); onDirty?.(); }}
-                  className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all ${
-                    sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'
-                  }`}>
-                  <Megaphone className={`w-3.5 h-3.5 shrink-0 ${sel ? 'text-green-400' : 'text-gray-600'}`} />
-                  <div className="flex-1">
-                    <p className={`text-[9px] font-bold ${sel ? 'text-green-400' : 'text-gray-300'}`}>{pkg.name}</p>
-                    <p className="text-[7px] text-gray-500">${pkg.cost.toLocaleString()} | +{pkg.hype} hype</p>
-                  </div>
+            <div className="flex items-center gap-2 mb-1">
+              <Handshake className="w-3.5 h-3.5 text-green-400" />
+              <p className="text-[8px] text-gray-500 uppercase font-bold">Sponsor disponibili ({proposals.length})</p>
+              <span className="text-[7px] text-cyan-400 font-bold ml-auto">{selectedSponsors.length}/6</span>
+            </div>
+
+            {proposals.length === 0 && (
+              <p className="text-[9px] text-gray-600 text-center py-2">Nessuno sponsor interessato al momento</p>
+            )}
+
+            <div className="space-y-1.5 max-h-72 overflow-y-auto">
+              {proposals.map(s => {
+                const sel = selectedSponsors.includes(s.sponsor_id);
+                return (
+                  <button key={s.sponsor_id} onClick={() => toggleSponsor(s.sponsor_id)}
+                    className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all ${
+                      sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'
+                    }`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[9px] font-bold ${sel ? 'text-green-400' : 'text-white'}`}>{s.sponsor_name}</span>
+                        <span className={`text-[6px] px-1 py-0.5 rounded border font-bold ${tierColors[s.tier] || tierColors.C}`}>{tierLabels[s.tier] || s.tier}</span>
+                        {s.genre_match && <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">Match</span>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <span className="text-[7px] text-yellow-400">${(s.offer_amount || 0).toLocaleString()}</span>
+                        <span className="text-[7px] text-orange-400">{s.daily_share_pct}% giornaliero</span>
+                      </div>
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                      sel ? 'border-green-400 bg-green-500/20' : 'border-gray-700'
+                    }`}>
+                      {sel && <Check className="w-3 h-3 text-green-400" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button onClick={confirmSponsors} disabled={loading}
+              className="w-full text-[9px] py-2 rounded-xl bg-green-500/15 border border-green-500/30 text-green-400 disabled:opacity-30 font-bold">
+              {loading ? '...' : selectedSponsors.length > 0 ? `Conferma ${selectedSponsors.length} Sponsor` : 'Prosegui senza Sponsor'}
+            </button>
+          </>
+        ) : (
+          <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/15 flex items-center gap-2">
+            <Handshake className="w-3.5 h-3.5 text-green-400" />
+            <p className="text-[9px] text-green-400 font-bold">
+              {(film.selected_sponsors || []).length > 0
+                ? `${(film.selected_sponsors || []).length} sponsor confermati — $${(film.sponsors_total_offer || 0).toLocaleString()} al rilascio`
+                : 'Nessuno sponsor selezionato'}
+            </p>
+          </div>
+        )}
+
+        {/* ═══ STEP 2: MARKETING (after sponsors confirmed) ═══ */}
+        {sponsorsConfirmed && (
+          <>
+            {!done && (
+              <>
+                <p className="text-[8px] text-gray-500 uppercase font-bold">Pacchetti Marketing</p>
+                {MKT_PACKAGES.map(pkg => {
+                  const sel = pkgs.includes(pkg.name);
+                  return (
+                    <button key={pkg.name} onClick={() => { setPkgs(v => sel ? v.filter(x => x !== pkg.name) : [...v, pkg.name]); onDirty?.(); }}
+                      className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all ${
+                        sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'
+                      }`}>
+                      <Megaphone className={`w-3.5 h-3.5 shrink-0 ${sel ? 'text-green-400' : 'text-gray-600'}`} />
+                      <div className="flex-1">
+                        <p className={`text-[9px] font-bold ${sel ? 'text-green-400' : 'text-gray-300'}`}>{pkg.name}</p>
+                        <p className="text-[7px] text-gray-500">${pkg.cost.toLocaleString()} | +{pkg.hype} hype</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </>
+            )}
+            {done && (
+              <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/15 flex items-center gap-2">
+                <Check className="w-4 h-4 text-green-400" />
+                <p className="text-[9px] text-green-400 font-bold">Marketing confermato</p>
+              </div>
+            )}
+            {/* Release type */}
+            <div className="border-t border-gray-800 pt-3 space-y-2">
+              <p className="text-[8px] text-gray-500 uppercase font-bold text-center">Come vuoi rilasciare il film?</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => { setReleaseType('premiere'); onDirty?.(); }}
+                  className={`p-3 rounded-xl border text-center ${releaseType === 'premiere' ? 'bg-yellow-500/15 border-yellow-500/50' : 'bg-gray-800/30 border-gray-700'}`}>
+                  <Award className={`w-5 h-5 mx-auto mb-1 ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-600'}`} />
+                  <p className={`text-[9px] font-bold ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-500'}`}>La Prima</p>
                 </button>
-              );
-            })}
+                <button onClick={() => { setReleaseType('direct'); onDirty?.(); }}
+                  className={`p-3 rounded-xl border text-center ${releaseType === 'direct' ? 'bg-emerald-500/15 border-emerald-500/50' : 'bg-gray-800/30 border-gray-700'}`}>
+                  <Ticket className={`w-5 h-5 mx-auto mb-1 ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-600'}`} />
+                  <p className={`text-[9px] font-bold ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-500'}`}>Diretto</p>
+                </button>
+              </div>
+            </div>
+            {!done && (
+              <button onClick={saveMarketing} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-green-500/15 border border-green-500/30 text-green-400 disabled:opacity-30 font-bold">
+                {loading ? '...' : 'Conferma Marketing e Rilascio'}
+              </button>
+            )}
           </>
         )}
-        {done && (
-          <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/15 flex items-center gap-2">
-            <Check className="w-4 h-4 text-green-400" />
-            <p className="text-[9px] text-green-400 font-bold">Marketing confermato</p>
-          </div>
-        )}
-        {/* Release type */}
-        <div className="border-t border-gray-800 pt-3 space-y-2">
-          <p className="text-[8px] text-gray-500 uppercase font-bold text-center">Come vuoi rilasciare il film?</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => { setReleaseType('premiere'); onDirty?.(); }}
-              className={`p-3 rounded-xl border text-center ${releaseType === 'premiere' ? 'bg-yellow-500/15 border-yellow-500/50' : 'bg-gray-800/30 border-gray-700'}`}>
-              <Award className={`w-5 h-5 mx-auto mb-1 ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-600'}`} />
-              <p className={`text-[9px] font-bold ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-500'}`}>La Prima</p>
-            </button>
-            <button onClick={() => { setReleaseType('direct'); onDirty?.(); }}
-              className={`p-3 rounded-xl border text-center ${releaseType === 'direct' ? 'bg-emerald-500/15 border-emerald-500/50' : 'bg-gray-800/30 border-gray-700'}`}>
-              <Ticket className={`w-5 h-5 mx-auto mb-1 ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-600'}`} />
-              <p className={`text-[9px] font-bold ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-500'}`}>Diretto</p>
-            </button>
-          </div>
-        </div>
-        <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-green-500/15 border border-green-500/30 text-green-400 disabled:opacity-30 font-bold">
-          {loading ? '...' : 'Conferma Marketing e Rilascio'}
-        </button>
       </div>
     </PhaseWrapper>
   );

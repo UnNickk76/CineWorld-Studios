@@ -5,7 +5,7 @@ import CinematicReleaseOverlay from '../components/CinematicReleaseOverlay';
 import { V3_STEPS, StepperBar, GENRE_LABELS, v3api } from '../components/v3/V3Shared';
 import { IdeaPhase } from '../components/v3/IdeaPhase';
 import { CastPhase } from '../components/v3/CastPhase';
-import { HypePhase, PrepPhase, CiakPhase, FinalCutPhase, MarketingPhase, LaPrimaPhase, DistributionPhase, StepFinale } from '../components/v3/Phases';
+import { HypePhase, PrepPhase, CiakPhase, FinalCutPhase, MarketingPhase, LaPrimaPhase, DistributionPhase, StepFinale, DiscardFilmButton } from '../components/v3/Phases';
 
 export default function PipelineV3() {
   const navigate = useNavigate();
@@ -271,6 +271,13 @@ export default function PipelineV3() {
 
         <StepperBar current={currentStep} />
         {renderPhase()}
+
+        {/* Scarta Film — in every step except idea */}
+        {currentStep !== 'idea' && currentStep !== 'release_pending' && (
+          <div className="px-3 pb-4">
+            <DiscardFilmButton filmId={selected.id} onDiscard={() => { setSelected(null); refreshProjects(); showToast('Film scartato'); }} />
+          </div>
+        )}
       </div>
     </div>
   );

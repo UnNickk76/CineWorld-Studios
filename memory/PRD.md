@@ -1,33 +1,43 @@
 # CineWorld Studio's — PRD
 
-## Prodotto
-Browser game gestionale cinematografico Full-Stack (FastAPI + React + MongoDB).
+## Pipeline V3 — 10 Step con Timer Reali e Sponsor
 
-## Pipeline V3 — 10 Step con Timer Reali
+### Flusso completo:
 ```
-IDEA → HYPE → CAST → PREP → CIAK → FINAL CUT → MARKETING → LA PRIMA → DISTRIB. → USCITA
+IDEA → HYPE → CAST → PREP → CIAK → FINAL CUT → SPONSOR & MARKETING → LA PRIMA → DISTRIB. → USCITA
 ```
+
+### Sponsor (dentro Marketing step)
+- 0-15 sponsor si presentano (basato su formato, hype, cast)
+- Max 6 selezionabili, conferma con OK
+- Soldi NON accreditati subito (anti-exploit scarta film)
+- Rientro sponsor sottratto dal costo totale nel riepilogo pre-rilascio
+- File: `calc_sponsors.py`
+
+### Scarta Film
+- Bottone in ogni step ESCLUSO Idea
+- Conferma custom (non di sistema)
+- Film va nel market esistente
 
 ### Timer Reali:
-- **CIAK**: 1 giorno = 1 ora reale (3-40h)
-- **Final Cut**: 3-48h basato su formato, genere, CGI/VFX, giorni riprese
+- CIAK: 1 giorno = 1 ora reale (3-40h)
+- Final Cut: 3-48h
 
-### Final Cut — Post-Produzione
-- Timer reale con countdown (ore/minuti/secondi)
-- ~100 messaggi rotanti in *corsivo* durante il montaggio
-- Durata effettiva film mostrata al completamento (header + sezione dedicata)
-- Velocizzazioni a pagamento CP con costo decrescente
+### Ricordare per fine step:
+- Riepilogo costi pre-rilascio (1M-200M + 5-25 CP)
+- Click possibile solo con fondi sufficienti
+- Rientro sponsor sottratto dal costo
+- File: `calc_production_cost.py` (da creare)
 
-### Bottone Advance — FREEZATO in ogni step finche non completo
-
-### File Calcoli Dedicati
-- `calc_shooting.py` — Durata riprese (3-40 giorni)
-- `calc_film_duration.py` — Durata effettiva film (minuti)
-- `calc_finalcut.py` — Durata Final Cut (3-48h) + messaggi rotanti
-- `calc_speedup.py` — Costi velocizzazione unificati
+## File Calcoli Dedicati
+- `calc_shooting.py` — Durata riprese
+- `calc_film_duration.py` — Durata effettiva film
+- `calc_finalcut.py` — Durata Final Cut + messaggi
+- `calc_speedup.py` — Costi velocizzazione
+- `calc_sponsors.py` — Sponsor proposals e offerte
 
 ## Backlog
+- (P0) Riepilogo costi pre-rilascio + calc_production_cost.py
 - (P0) Motore calcolo qualita totale
 - (P1) CinemaStatsModal + ProducerProfileModal
 - (P1) Fase 3 Mercato: vendita serie/anime
-- (P2) Sfida della Settimana

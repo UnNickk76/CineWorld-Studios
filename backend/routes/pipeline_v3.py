@@ -719,6 +719,56 @@ async def get_finalcut_messages(pid: str, user: dict = Depends(get_current_user)
     return {"messages": FINALCUT_MESSAGES}
 
 
+@router.get("/films/{pid}/sponsor-proposals")
+async def get_sponsor_proposals(pid: str, user: dict = Depends(get_current_user)):
+    """Get sponsor proposals for this film."""
+    from utils.calc_sponsors import calculate_sponsor_count, select_sponsors_for_film, calculate_sponsor_offer
+
+    project = await _get_project(pid, user["id"])
+    count = calculate_sponsor_count(project)
+
+    all_sponsors = await db.sponsors.find({}, {"_id": 0}).to_list(100)
+    if not all_sponsors:
+        return {"proposals": [], "max_selectable": 6}
+
+    selected = select_sponsors_for_film(all_sponsors, project, count)
+    proposals = [calculate_sponsor_offer(s, project) for s in selected]
+
+    return {"proposals": proposals, "max_selectable": 6}
+
+
+class SaveSponsorsRequest(BaseModel):
+    sponsor_ids: List[str] = []
+
+
+@router.post("/films/{pid}/save-sponsors")
+async def save_sponsors(pid: str, req: SaveSponsorsRequest, user: dict = Depends(get_current_user)):
+    """Save selected sponsors (max 6). Money NOT credited now — subtracted from cost at release."""
+    from utils.calc_sponsors import calculate_sponsor_offer
+
+    project = await _get_project(pid, user["id"])
+    if len(req.sponsor_ids) > 6:
+        raise HTTPException(400, "Massimo 6 sponsor selezionabili")
+
+    # Fetch sponsor details
+    sponsors_data = []
+    for sid in req.sponsor_ids:
+        s = await db.sponsors.find_one({"id": sid}, {"_id": 0})
+        if s:
+            offer = calculate_sponsor_offer(s, project)
+            sponsors_data.append(offer)
+
+    total_offer = sum(s.get("offer_amount", 0) for s in sponsors_data)
+
+    project = await _update_project(pid, user["id"], {
+        "selected_sponsors": sponsors_data,
+        "sponsors_total_offer": total_offer,
+        "sponsors_confirmed": True,
+    })
+    return {"success": True, "project": project, "sponsors": sponsors_data, "total_offer": total_offer}
+
+
+
 @router.post("/films/{pid}/save-marketing")
 async def save_marketing(pid: str, req: MarketingRequest, user: dict = Depends(get_current_user)):
     package_costs = {

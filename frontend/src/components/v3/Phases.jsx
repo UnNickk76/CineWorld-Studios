@@ -1,0 +1,339 @@
+import React, { useState, useEffect } from 'react';
+import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check } from 'lucide-react';
+import { PhaseWrapper, v3api } from './V3Shared';
+
+/* ═══════ HYPE ═══════ */
+export const HypePhase = ({ film, onRefresh, toast }) => {
+  const [strategy, setStrategy] = useState(film.hype_strategy || 'balanced');
+  const [duration, setDuration] = useState(film.hype_duration || 12);
+  const [loading, setLoading] = useState(false);
+
+  const save = async () => {
+    setLoading(true);
+    try {
+      await v3api(`/films/${film.id}/save-hype`, 'POST', { hype_notes: strategy, budget: duration });
+      await onRefresh(); toast?.('Hype configurato!');
+    } catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  const speedup = async (pct) => {
+    setLoading(true);
+    try { await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'hype', percentage: pct }); await onRefresh(); toast?.(`Velocizzato ${pct}%`); }
+    catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  return (
+    <PhaseWrapper title="Hype Machine" subtitle="Costruisci aspettativa strategica" icon={TrendingUp} color="orange">
+      <div className="space-y-3">
+        <p className="text-[8px] text-gray-500 uppercase font-bold">Strategia</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {['sprint','balanced','slow_build'].map(s => (
+            <button key={s} onClick={() => setStrategy(s)}
+              className={`p-2 rounded-lg text-center border text-[9px] font-bold ${
+                strategy === s ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'border-gray-800 text-gray-500'
+              }`}>{s === 'sprint' ? 'Sprint' : s === 'balanced' ? 'Bilanciata' : 'Costruzione'}</button>
+          ))}
+        </div>
+        <div>
+          <div className="flex justify-between text-[8px] mb-1">
+            <span className="text-gray-500">Durata campagna</span>
+            <span className="text-orange-400 font-bold">{duration}h</span>
+          </div>
+          <input type="range" min={2} max={24} value={duration} onChange={e => setDuration(+e.target.value)}
+            className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-orange-500" />
+        </div>
+        <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza</p>
+        <div className="flex gap-1.5">
+          {[25,50,75,100].map(p => (
+            <button key={p} onClick={() => speedup(p)} disabled={loading}
+              className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30">
+              <Zap className="w-2.5 h-2.5" /> {p}%
+            </button>
+          ))}
+        </div>
+        <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-orange-500/15 border border-orange-500/30 text-orange-400 disabled:opacity-30 font-bold" data-testid="save-hype-btn">
+          {loading ? '...' : 'Configura Hype'}
+        </button>
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+/* ═══════ PREP ═══════ */
+export const PrepPhase = ({ film, onRefresh, toast }) => {
+  const [equipment, setEquipment] = useState(film.prep_equipment || []);
+  const [cgi, setCgi] = useState(film.prep_cgi || []);
+  const [vfx, setVfx] = useState(film.prep_vfx || []);
+  const [extras, setExtras] = useState(film.prep_extras || 0);
+  const [options, setOptions] = useState({ equipment: [], cgi: [], vfx: [] });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => { v3api(`/films/${film.id}/prep-options`).then(setOptions).catch(() => {}); }, [film.id]);
+
+  const toggle = (list, set, id) => set(v => v.includes(id) ? v.filter(x => x !== id) : [...v, id]);
+
+  const save = async () => {
+    setLoading(true);
+    try {
+      await v3api(`/films/${film.id}/save-prep-full`, 'POST', { equipment, cgi, vfx, extras_count: extras });
+      await onRefresh(); toast?.('Pre-produzione confermata!');
+    } catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  const renderTags = (label, items, selected, set) => (
+    <div>
+      <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map(it => (
+          <button key={it.id} onClick={() => toggle(selected, set, it.id)}
+            className={`px-2 py-1 rounded-lg text-[8px] font-bold border ${
+              selected.includes(it.id) ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'border-gray-800 text-gray-500'
+            }`}>{it.name} <span className="text-[6px] opacity-60">${(it.cost/1000).toFixed(0)}K</span></button>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <PhaseWrapper title="Pre-Produzione" subtitle="Attrezzature, effetti speciali" icon={Camera} color="blue">
+      <div className="space-y-3">
+        {renderTags('Attrezzature', options.equipment || [], equipment, setEquipment)}
+        {renderTags('CGI', options.cgi || [], cgi, setCgi)}
+        {renderTags('VFX', options.vfx || [], vfx, setVfx)}
+        <div>
+          <div className="flex justify-between text-[8px] mb-1">
+            <span className="text-gray-500">Comparse</span><span className="text-blue-400 font-bold">{extras}</span>
+          </div>
+          <input type="range" min={0} max={1000} step={50} value={extras} onChange={e => setExtras(+e.target.value)}
+            className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
+        </div>
+        <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 disabled:opacity-30 font-bold">
+          {loading ? '...' : 'Conferma Pre-Produzione'}
+        </button>
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+/* ═══════ CIAK ═══════ */
+export const CiakPhase = ({ film, onRefresh, toast }) => {
+  const [loading, setLoading] = useState(false);
+  const speedup = async (pct) => {
+    setLoading(true);
+    try { await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'ciak', percentage: pct }); await onRefresh(); toast?.(`Velocizzato ${pct}%`); }
+    catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+  return (
+    <PhaseWrapper title="CIAK! Riprese" subtitle="Le riprese del film" icon={Clapperboard} color="red">
+      <div className="space-y-3">
+        <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/15 text-center">
+          <Clock className="w-6 h-6 text-red-400 mx-auto mb-1.5" />
+          <p className="text-[10px] text-gray-300 font-bold">Riprese in corso...</p>
+          <p className="text-[8px] text-gray-500 mt-1">Usa le velocizzazioni per accelerare</p>
+        </div>
+        <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza Riprese</p>
+        <div className="flex gap-1.5">
+          {[25,50,75,100].map(p => (
+            <button key={p} onClick={() => speedup(p)} disabled={loading}
+              className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30">
+              <Zap className="w-2.5 h-2.5" /> {p}%
+            </button>
+          ))}
+        </div>
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+/* ═══════ FINAL CUT ═══════ */
+export const FinalCutPhase = ({ film, onRefresh, toast }) => {
+  const [notes, setNotes] = useState(film.finalcut_notes || '');
+  const [loading, setLoading] = useState(false);
+  const save = async () => {
+    setLoading(true);
+    try { await v3api(`/films/${film.id}/save-finalcut`, 'POST', { finalcut_notes: notes }); await onRefresh(); toast?.('Montaggio confermato!'); }
+    catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+  const speedup = async (pct) => {
+    setLoading(true);
+    try { await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'finalcut', percentage: pct }); await onRefresh(); toast?.(`Velocizzato ${pct}%`); }
+    catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+  return (
+    <PhaseWrapper title="Final Cut" subtitle="Post-produzione e montaggio" icon={Scissors} color="purple">
+      <div className="space-y-3">
+        <textarea value={notes} onChange={e => setNotes(e.target.value)}
+          rows={3} placeholder="Note montaggio..." className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-[10px] text-white placeholder-gray-600" />
+        <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-400 disabled:opacity-30 font-bold">
+          {loading ? '...' : 'Salva Final Cut'}
+        </button>
+        <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza</p>
+        <div className="flex gap-1.5">
+          {[25,50,75,100].map(p => (
+            <button key={p} onClick={() => speedup(p)} disabled={loading}
+              className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30">
+              <Zap className="w-2.5 h-2.5" /> {p}%
+            </button>
+          ))}
+        </div>
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+/* ═══════ MARKETING ═══════ */
+const MKT_PACKAGES = [
+  { name: 'Teaser Digitale', cost: 20000, hype: 5 },
+  { name: 'Campagna Social', cost: 40000, hype: 12 },
+  { name: 'Stampa e TV', cost: 60000, hype: 18 },
+  { name: 'Tour Cast', cost: 80000, hype: 25 },
+  { name: 'Mega Globale', cost: 150000, hype: 40 },
+];
+
+export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
+  const [pkgs, setPkgs] = useState(film.marketing_packages || []);
+  const [releaseType, setReleaseType] = useState(film.release_type || 'direct');
+  const [loading, setLoading] = useState(false);
+  const done = film.marketing_completed;
+
+  const save = async () => {
+    setLoading(true);
+    try {
+      await v3api(`/films/${film.id}/save-marketing`, 'POST', { packages: pkgs });
+      await v3api(`/films/${film.id}/set-release-type`, 'POST', { release_type: releaseType });
+      await onRefresh(); toast?.('Marketing + rilascio confermati!');
+    } catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  return (
+    <PhaseWrapper title="Sponsor & Marketing" subtitle="Promuovi e scegli il lancio" icon={Megaphone} color="green">
+      <div className="space-y-3">
+        {!done && (
+          <>
+            <p className="text-[8px] text-gray-500 uppercase font-bold">Pacchetti Marketing</p>
+            {MKT_PACKAGES.map(pkg => {
+              const sel = pkgs.includes(pkg.name);
+              return (
+                <button key={pkg.name} onClick={() => { setPkgs(v => sel ? v.filter(x => x !== pkg.name) : [...v, pkg.name]); onDirty?.(); }}
+                  className={`w-full flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all ${
+                    sel ? 'bg-green-500/10 border-green-500/40' : 'bg-gray-800/30 border-gray-700'
+                  }`}>
+                  <Megaphone className={`w-3.5 h-3.5 shrink-0 ${sel ? 'text-green-400' : 'text-gray-600'}`} />
+                  <div className="flex-1">
+                    <p className={`text-[9px] font-bold ${sel ? 'text-green-400' : 'text-gray-300'}`}>{pkg.name}</p>
+                    <p className="text-[7px] text-gray-500">${pkg.cost.toLocaleString()} | +{pkg.hype} hype</p>
+                  </div>
+                </button>
+              );
+            })}
+          </>
+        )}
+        {done && (
+          <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/15 flex items-center gap-2">
+            <Check className="w-4 h-4 text-green-400" />
+            <p className="text-[9px] text-green-400 font-bold">Marketing confermato</p>
+          </div>
+        )}
+        {/* Release type */}
+        <div className="border-t border-gray-800 pt-3 space-y-2">
+          <p className="text-[8px] text-gray-500 uppercase font-bold text-center">Come vuoi rilasciare il film?</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => { setReleaseType('premiere'); onDirty?.(); }}
+              className={`p-3 rounded-xl border text-center ${releaseType === 'premiere' ? 'bg-yellow-500/15 border-yellow-500/50' : 'bg-gray-800/30 border-gray-700'}`}>
+              <Award className={`w-5 h-5 mx-auto mb-1 ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-600'}`} />
+              <p className={`text-[9px] font-bold ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-500'}`}>La Prima</p>
+            </button>
+            <button onClick={() => { setReleaseType('direct'); onDirty?.(); }}
+              className={`p-3 rounded-xl border text-center ${releaseType === 'direct' ? 'bg-emerald-500/15 border-emerald-500/50' : 'bg-gray-800/30 border-gray-700'}`}>
+              <Ticket className={`w-5 h-5 mx-auto mb-1 ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-600'}`} />
+              <p className={`text-[9px] font-bold ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-500'}`}>Diretto</p>
+            </button>
+          </div>
+        </div>
+        <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-green-500/15 border border-green-500/30 text-green-400 disabled:opacity-30 font-bold">
+          {loading ? '...' : 'Conferma Marketing e Rilascio'}
+        </button>
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+/* ═══════ DISTRIBUTION ═══════ */
+const DATES = ['Immediato','6 ore','12 ore','24 ore','2 giorni','3 giorni'];
+
+export const DistributionPhase = ({ film, onRefresh, toast, onDirty }) => {
+  const [date, setDate] = useState(film.release_date_label || 'Immediato');
+  const [world, setWorld] = useState(film.distribution_world ?? true);
+  const [loading, setLoading] = useState(false);
+  const isPremiere = film.release_type === 'premiere';
+
+  const save = async () => {
+    setLoading(true);
+    try {
+      await v3api(`/films/${film.id}/schedule-release`, 'POST', { release_date_label: date, world, zones: [] });
+      await onRefresh(); toast?.('Distribuzione confermata!');
+    } catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  return (
+    <PhaseWrapper title="Distribuzione" subtitle="Zone e data di uscita" icon={Globe} color="blue">
+      <div className="space-y-3">
+        <p className="text-[8px] text-gray-500 uppercase font-bold">Data uscita</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {DATES.map(label => {
+            const disabled = isPremiere && label === 'Immediato';
+            return (
+              <button key={label} onClick={() => !disabled && setDate(label)} disabled={disabled}
+                title={disabled ? 'La Prima richiede attesa' : ''}
+                className={`py-2 rounded-lg text-[8px] font-bold border ${
+                  disabled ? 'opacity-20 cursor-not-allowed border-gray-800 text-gray-600' :
+                  date === label ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' :
+                  'border-gray-800 text-gray-400 hover:border-gray-600'
+                }`}>{label}</button>
+            );
+          })}
+        </div>
+        <label className="flex items-center gap-2 text-[9px] text-gray-400">
+          <input type="checkbox" checked={world} onChange={e => { setWorld(e.target.checked); onDirty?.(); }} className="rounded" />
+          Distribuzione Mondiale
+        </label>
+        <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 disabled:opacity-30 font-bold">
+          {loading ? '...' : 'Conferma Distribuzione'}
+        </button>
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+/* ═══════ STEP FINALE ═══════ */
+export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType }) => (
+  <PhaseWrapper title="STEP FINALE" subtitle="Riepilogo e conferma uscita" icon={Ticket} color="emerald">
+    <div className="space-y-3">
+      <div className="flex justify-center">
+        {film.poster_url ? <img src={film.poster_url} alt="" className="w-24 h-36 rounded-lg border border-gray-700 object-cover shadow-lg" /> :
+          <div className="w-24 h-36 rounded-lg border border-gray-700 bg-gray-800/50 flex items-center justify-center"><Film className="w-6 h-6 text-gray-600" /></div>}
+      </div>
+      <div className="p-3 rounded-xl bg-gray-800/30 border border-gray-700/50 text-center space-y-1">
+        <p className="text-lg font-black text-white">{film.title}</p>
+        <p className="text-[9px] text-gray-400">{releaseType === 'premiere' ? 'La Prima' : 'Rilascio Diretto'}</p>
+        <p className="text-[8px] text-gray-600">Qualita: n.d. (calcolata dopo uscita)</p>
+      </div>
+      <button onClick={onConfirm} disabled={loading}
+        className="w-full text-sm py-3 rounded-xl bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 font-bold disabled:opacity-50" data-testid="confirm-release-btn">
+        CONFERMA USCITA
+      </button>
+      <button onClick={onDiscard} disabled={loading}
+        className="w-full text-[9px] py-2 rounded-xl bg-red-500/5 border border-red-500/20 text-red-400/70 disabled:opacity-50">
+        SCARTA FILM
+      </button>
+    </div>
+  </PhaseWrapper>
+);

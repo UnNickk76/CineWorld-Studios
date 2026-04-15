@@ -659,10 +659,12 @@ async def get_film_duration(pid: str, user: dict = Depends(get_current_user)):
 
 @router.post("/films/{pid}/start-ciak")
 async def start_ciak(pid: str, user: dict = Depends(get_current_user)):
+    project = await _get_project(pid, user["id"])
+    shooting_days = project.get("shooting_days", 14)
     now = datetime.now(timezone.utc)
     project = await _update_project(pid, user["id"], {
         "ciak_started_at": now.isoformat(),
-        "ciak_complete_at": (now + timedelta(hours=6)).isoformat(),
+        "ciak_complete_at": (now + timedelta(hours=shooting_days)).isoformat(),
     })
     return {"success": True, "project": project}
 

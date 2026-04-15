@@ -244,6 +244,13 @@ export const CiakPhase = ({ film, onRefresh, toast }) => {
     return () => clearInterval(timer);
   }, []);
 
+  // Auto-start timer if missing (film was in CIAK before timer code deployed)
+  useEffect(() => {
+    if (!film.ciak_started_at && film.pipeline_state === 'ciak') {
+      v3api(`/films/${film.id}/start-ciak`, 'POST').then(() => onRefresh?.()).catch(() => {});
+    }
+  }, [film.id, film.ciak_started_at, film.pipeline_state, onRefresh]);
+
   // Calculate real progress from timestamps
   const startedAt = film.ciak_started_at ? new Date(film.ciak_started_at).getTime() : now;
   const completeAt = film.ciak_complete_at ? new Date(film.ciak_complete_at).getTime() : startedAt + shootDays * 3600000;

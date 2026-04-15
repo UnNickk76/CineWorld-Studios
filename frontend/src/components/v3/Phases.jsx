@@ -1202,26 +1202,129 @@ export const DistributionPhase = ({ film, onRefresh, toast, onDirty }) => {
 };
 
 /* ═══════ STEP FINALE ═══════ */
-export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType }) => (
-  <PhaseWrapper title="STEP FINALE" subtitle="Riepilogo e conferma uscita" icon={Ticket} color="emerald">
-    <div className="space-y-3">
-      <div className="flex justify-center">
-        {film.poster_url ? <img src={film.poster_url} alt="" className="w-24 h-36 rounded-lg border border-gray-700 object-cover shadow-lg" /> :
-          <div className="w-24 h-36 rounded-lg border border-gray-700 bg-gray-800/50 flex items-center justify-center"><Film className="w-6 h-6 text-gray-600" /></div>}
+export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType }) => {
+  const [cost, setCost] = useState(null);
+  const [savingsOptions, setSavingsOptions] = useState([]);
+  const [showReview, setShowReview] = useState(false);
+  const [velionResult, setVelionResult] = useState(null);
+  const [applying, setApplying] = useState(false);
+
+  useEffect(() => {
+    v3api(`/films/${film.id}/production-cost`).then(setCost).catch(() => {});
+    v3api(`/films/${film.id}/savings-options`).then(d => setSavingsOptions(d.options || [])).catch(() => {});
+  }, [film.id]);
+
+  const refreshCost = async () => {
+    const c = await v3api(`/films/${film.id}/production-cost`);
+    setCost(c);
+    const s = await v3api(`/films/${film.id}/savings-options`);
+    setSavingsOptions(s.options || []);
+  };
+
+  const applySaving = async (savingId) => {
+    setApplying(true);
+    try {
+      await v3api(`/films/${film.id}/apply-saving-option`, 'POST', { saving_id: savingId });
+      await refreshCost();
+    } catch (e) { /* */ }
+    setApplying(false);
+  };
+
+  const velionOptimize = async () => {
+    setApplying(true);
+    try {
+      const res = await v3api(`/films/${film.id}/velion-optimize`, 'POST');
+      setVelionResult(res.velion_savings);
+      await refreshCost();
+    } catch (e) { /* */ }
+    setApplying(false);
+  };
+
+  const totalFunds = cost?.total_funds || 0;
+  const totalCp = cost?.total_cp || 0;
+
+  return (
+    <PhaseWrapper title="STEP FINALE" subtitle="Riepilogo e conferma uscita" icon={Ticket} color="emerald">
+      <div className="space-y-3">
+        {/* Poster */}
+        <div className="flex justify-center">
+          {film.poster_url ? <img src={film.poster_url} alt="" className="w-24 h-36 rounded-lg border border-gray-700 object-cover shadow-lg" /> :
+            <div className="w-24 h-36 rounded-lg border border-gray-700 bg-gray-800/50 flex items-center justify-center"><Film className="w-6 h-6 text-gray-600" /></div>}
+        </div>
+        <div className="p-3 rounded-xl bg-gray-800/30 border border-gray-700/50 text-center space-y-1">
+          <p className="text-lg font-black text-white">{film.title}</p>
+          <p className="text-[9px] text-gray-400">{releaseType === 'premiere' ? 'La Prima' : 'Rilascio Diretto'}</p>
+          {film.film_duration_label && <p className="text-[8px] text-emerald-400">{film.film_duration_label}</p>}
+        </div>
+
+        {/* Cost Breakdown */}
+        {cost && (
+          <div className="p-3 rounded-xl bg-gray-800/20 border border-gray-700/40 space-y-1.5">
+            <p className="text-[8px] text-gray-500 uppercase font-bold">Riepilogo Costi Produzione</p>
+            {(cost.breakdown || []).map((b, i) => (
+              <div key={i} className={`flex items-center justify-between text-[8px] ${b.funds < 0 ? 'text-emerald-400' : 'text-gray-300'}`}>
+                <span className="truncate flex-1">{b.label}</span>
+                <span className="font-bold ml-2 shrink-0">
+                  {b.funds < 0 ? `-$${Math.abs(b.funds).toLocaleString()}` : `$${b.funds.toLocaleString()}`}
+                </span>
+              </div>
+            ))}
+            <div className="border-t border-gray-700 pt-1.5 mt-1.5 flex items-center justify-between">
+              <span className="text-[9px] font-bold text-white">TOTALE</span>
+              <span className="text-[10px] font-black text-yellow-400">${totalFunds.toLocaleString()} + {totalCp} CP</span>
+            </div>
+          </div>
+        )}
+
+        {/* Review options */}
+        {!showReview ? (
+          <button onClick={() => setShowReview(true)}
+            className="w-full text-[8px] py-2 rounded-lg bg-blue-500/5 border border-blue-500/15 text-blue-400 font-bold hover:bg-blue-500/10 transition-all">
+            Vuoi rivedere qualcosa?
+          </button>
+        ) : (
+          <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/20 space-y-2">
+            <p className="text-[8px] text-blue-400 uppercase font-bold">Opzioni Risparmio</p>
+            {savingsOptions.length === 0 && <p className="text-[8px] text-gray-500">Nessuna opzione disponibile</p>}
+            {savingsOptions.map(opt => (
+              <button key={opt.id} onClick={() => applySaving(opt.id)} disabled={applying}
+                className="w-full flex items-center justify-between p-2 rounded-lg bg-gray-800/30 border border-gray-700 hover:border-blue-500/30 transition-all text-left disabled:opacity-50">
+                <div>
+                  <p className="text-[8px] font-bold text-gray-300">{opt.label}</p>
+                  <p className="text-[7px] text-gray-500">{opt.description}</p>
+                </div>
+                <span className="text-[8px] text-emerald-400 font-bold shrink-0 ml-2">
+                  -${opt.savings_funds.toLocaleString()}{opt.savings_cp > 0 ? ` -${opt.savings_cp}CP` : ''}
+                </span>
+              </button>
+            ))}
+            {/* Velion auto */}
+            <button onClick={velionOptimize} disabled={applying}
+              className="w-full flex items-center justify-between p-2.5 rounded-lg bg-teal-500/5 border border-teal-500/20 hover:bg-teal-500/10 transition-all disabled:opacity-50">
+              <div>
+                <p className="text-[8px] font-bold text-teal-400">Ci pensa Velion</p>
+                <p className="text-[7px] text-gray-500">Auto-ottimizzazione intelligente</p>
+              </div>
+              {velionResult ? (
+                <span className="text-[8px] text-emerald-400 font-bold">-{velionResult.savings_pct}%</span>
+              ) : (
+                <span className="text-[8px] text-teal-400 font-bold">8-15%</span>
+              )}
+            </button>
+            <button onClick={() => setShowReview(false)} className="text-[7px] text-gray-500 underline w-full text-center">Chiudi</button>
+          </div>
+        )}
+
+        {/* Confirm Button with cost */}
+        <button onClick={onConfirm} disabled={loading}
+          className="w-full text-sm py-3 rounded-xl bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 font-bold disabled:opacity-50" data-testid="confirm-release-btn">
+          {loading ? '...' : `Confermi spendendo $${totalFunds.toLocaleString()} e ${totalCp}CP?`}
+        </button>
+        <button onClick={onDiscard} disabled={loading}
+          className="w-full text-[9px] py-2 rounded-xl bg-red-500/5 border border-red-500/20 text-red-400/70 disabled:opacity-50">
+          SCARTA FILM
+        </button>
       </div>
-      <div className="p-3 rounded-xl bg-gray-800/30 border border-gray-700/50 text-center space-y-1">
-        <p className="text-lg font-black text-white">{film.title}</p>
-        <p className="text-[9px] text-gray-400">{releaseType === 'premiere' ? 'La Prima' : 'Rilascio Diretto'}</p>
-        <p className="text-[8px] text-gray-600">Qualita: n.d. (calcolata dopo uscita)</p>
-      </div>
-      <button onClick={onConfirm} disabled={loading}
-        className="w-full text-sm py-3 rounded-xl bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 font-bold disabled:opacity-50" data-testid="confirm-release-btn">
-        CONFERMA USCITA
-      </button>
-      <button onClick={onDiscard} disabled={loading}
-        className="w-full text-[9px] py-2 rounded-xl bg-red-500/5 border border-red-500/20 text-red-400/70 disabled:opacity-50">
-        SCARTA FILM
-      </button>
-    </div>
-  </PhaseWrapper>
-);
+    </PhaseWrapper>
+  );
+};

@@ -275,15 +275,15 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
 
     update = {**defaults, "pipeline_state": req.next_state}
 
-    # Auto-start CIAK timer: 1 day = 1 hour real
-    if req.next_state == "ciak":
+    # Auto-start CIAK timer: 1 day = 1 hour real (only if not already started)
+    if req.next_state == "ciak" and not project.get("ciak_started_at"):
         shooting_days = project.get("shooting_days") or defaults.get("shooting_days", 14)
         now = datetime.now(timezone.utc)
         update["ciak_started_at"] = now.isoformat()
         update["ciak_complete_at"] = (now + timedelta(hours=shooting_days)).isoformat()
 
-    # Auto-start Final Cut timer
-    if req.next_state == "finalcut":
+    # Auto-start Final Cut timer (only if not already started)
+    if req.next_state == "finalcut" and not project.get("finalcut_started_at"):
         from utils.calc_finalcut import calculate_finalcut_hours
         merged = {**project, **defaults}
         fc_hours = calculate_finalcut_hours(merged)
@@ -930,8 +930,190 @@ async def calc_distribution_cost_endpoint(pid: str, req: DistributionSaveRequest
     return calculate_distribution_cost(selections)
 
 
+@router.get("/films/{pid}/production-cost")
+async def get_production_cost(pid: str, user: dict = Depends(get_current_user)):
+    """Get full production cost breakdown."""
+    from utils.calc_production_cost import calculate_production_cost
+    project = await _get_project(pid, user["id"])
+    return calculate_production_cost(project)
+
+
+@router.get("/films/{pid}/savings-options")
+async def get_savings_options(pid: str, user: dict = Depends(get_current_user)):
+    """Get manual savings options."""
+    from utils.calc_production_cost import calculate_production_cost, calculate_savings_options
+    project = await _get_project(pid, user["id"])
+    cost = calculate_production_cost(project)
+    options = calculate_savings_options(project, cost)
+    return {"options": options, "current_cost": cost}
+
+
+@router.post("/films/{pid}/apply-saving")
+async def apply_saving(pid: str, saving_id: str = "", user: dict = Depends(get_current_user)):
+    """Apply a specific savings option."""
+    from utils.calc_production_cost import calculate_production_cost, calculate_savings_options
+    project = await _get_project(pid, user["id"])
+    cost = calculate_production_cost(project)
+    options = calculate_savings_options(project, cost)
+    
+    opt = next((o for o in options if o["id"] == saving_id), None)
+    if not opt:
+        raise HTTPException(400, "Opzione non trovata")
+    
+    update = {}
+    if saving_id == "reduce_cast":
+        cast = project.get("cast") or {}
+        actors = cast.get("actors") or []
+        if actors:
+            expensive = max(actors, key=lambda a: a.get("stars", 1) if isinstance(a, dict) else 1)
+            actors = [a for a in actors if a.get("id") != expensive.get("id")]
+            cast["actors"] = actors
+            update["cast"] = cast
+    elif saving_id == "reduce_equipment":
+        equipment = list(project.get("prep_equipment") or [])
+        if equipment:
+            from utils.calc_production_cost import EQUIPMENT_COSTS
+            most_exp = max(equipment, key=lambda e: EQUIPMENT_COSTS.get(e, 0))
+            equipment.remove(most_exp)
+            update["prep_equipment"] = equipment
+    elif saving_id == "reduce_fx":
+        cgi = list(project.get("prep_cgi") or [])
+        vfx = list(project.get("prep_vfx") or [])
+        from utils.calc_production_cost import CGI_COSTS, VFX_COSTS
+        all_fx = [(c, CGI_COSTS.get(c, 0), "cgi") for c in cgi] + [(v, VFX_COSTS.get(v, 0), "vfx") for v in vfx]
+        if all_fx:
+            most_exp = max(all_fx, key=lambda x: x[1])
+            if most_exp[2] == "cgi":
+                cgi.remove(most_exp[0])
+            else:
+                vfx.remove(most_exp[0])
+            update["prep_cgi"] = cgi
+            update["prep_vfx"] = vfx
+    elif saving_id == "reduce_marketing":
+        from utils.calc_production_cost import MARKETING_COSTS
+        mkt = list(project.get("marketing_packages") or [])
+        if mkt:
+            most_exp = max(mkt, key=lambda p: MARKETING_COSTS.get(p, 0))
+            mkt.remove(most_exp)
+            update["marketing_packages"] = mkt
+    elif saving_id == "reduce_distribution":
+        dist_cost = project.get("distribution_cost") or {}
+        if dist_cost.get("total_funds"):
+            update["distribution_mondiale"] = False
+            update["distribution_continents"] = []
+            update["distribution_cost"] = {"total_funds": round(dist_cost["total_funds"] * 0.6), "total_cp": max(1, dist_cost.get("total_cp", 0) - dist_cost.get("total_cp", 0) // 3), "breakdown": []}
+    elif saving_id == "reduce_extras":
+        extras = project.get("prep_extras", 0) or 0
+        update["prep_extras"] = extras // 2
+    
+    if update:
+        project = await _update_project(pid, user["id"], update)
+    
+    new_cost = calculate_production_cost(project)
+    return {"success": True, "project": project, "new_cost": new_cost}
+
+
+class ApplySavingRequest(BaseModel):
+    saving_id: str
+
+
+@router.post("/films/{pid}/apply-saving-option")
+async def apply_saving_option(pid: str, req: ApplySavingRequest, user: dict = Depends(get_current_user)):
+    """Apply a specific savings option (POST with body)."""
+    from utils.calc_production_cost import calculate_production_cost, calculate_savings_options
+    project = await _get_project(pid, user["id"])
+    cost = calculate_production_cost(project)
+    options = calculate_savings_options(project, cost)
+    
+    opt = next((o for o in options if o["id"] == req.saving_id), None)
+    if not opt:
+        raise HTTPException(400, "Opzione non trovata")
+    
+    update = {}
+    if req.saving_id == "reduce_cast":
+        cast = dict(project.get("cast") or {})
+        actors = list(cast.get("actors") or [])
+        if actors:
+            expensive = max(actors, key=lambda a: a.get("stars", 1) if isinstance(a, dict) else 1)
+            actors = [a for a in actors if a.get("id") != expensive.get("id")]
+            cast["actors"] = actors
+            update["cast"] = cast
+    elif req.saving_id == "reduce_equipment":
+        equipment = list(project.get("prep_equipment") or [])
+        if equipment:
+            from utils.calc_production_cost import EQUIPMENT_COSTS
+            most_exp = max(equipment, key=lambda e: EQUIPMENT_COSTS.get(e, 0))
+            equipment.remove(most_exp)
+            update["prep_equipment"] = equipment
+    elif req.saving_id == "reduce_fx":
+        cgi = list(project.get("prep_cgi") or [])
+        vfx = list(project.get("prep_vfx") or [])
+        from utils.calc_production_cost import CGI_COSTS, VFX_COSTS
+        all_fx = [(c, CGI_COSTS.get(c, 0), "cgi") for c in cgi] + [(v, VFX_COSTS.get(v, 0), "vfx") for v in vfx]
+        if all_fx:
+            most_exp = max(all_fx, key=lambda x: x[1])
+            if most_exp[2] == "cgi":
+                cgi.remove(most_exp[0])
+            else:
+                vfx.remove(most_exp[0])
+            update["prep_cgi"] = cgi
+            update["prep_vfx"] = vfx
+    elif req.saving_id == "reduce_marketing":
+        from utils.calc_production_cost import MARKETING_COSTS
+        mkt = list(project.get("marketing_packages") or [])
+        if mkt:
+            most_exp = max(mkt, key=lambda p: MARKETING_COSTS.get(p, 0))
+            mkt.remove(most_exp)
+            update["marketing_packages"] = mkt
+    elif req.saving_id == "reduce_distribution":
+        dist_cost = project.get("distribution_cost") or {}
+        if dist_cost.get("total_funds"):
+            update["distribution_mondiale"] = False
+            update["distribution_continents"] = []
+            update["distribution_cost"] = {"total_funds": round(dist_cost["total_funds"] * 0.6), "total_cp": max(1, dist_cost.get("total_cp", 0) - dist_cost.get("total_cp", 0) // 3), "breakdown": []}
+    elif req.saving_id == "reduce_extras":
+        extras = project.get("prep_extras", 0) or 0
+        update["prep_extras"] = extras // 2
+    
+    if update:
+        project = await _update_project(pid, user["id"], update)
+    
+    new_cost = calculate_production_cost(project)
+    return {"success": True, "project": project, "new_cost": new_cost}
+
+
+@router.post("/films/{pid}/velion-optimize")
+async def velion_optimize(pid: str, user: dict = Depends(get_current_user)):
+    """Velion auto-optimizes costs."""
+    from utils.calc_production_cost import calculate_production_cost, calculate_velion_savings
+    project = await _get_project(pid, user["id"])
+    cost = calculate_production_cost(project)
+    savings = calculate_velion_savings(project, cost)
+    
+    # Apply Velion savings by reducing editable categories proportionally
+    update = {}
+    for b in cost.get("breakdown", []):
+        if b.get("editable") and b["funds"] > 0:
+            if b["id"] == "marketing":
+                mkt = list(project.get("marketing_packages") or [])
+                if len(mkt) > 1:
+                    mkt.pop()
+                    update["marketing_packages"] = mkt
+            elif b["id"] == "extras":
+                extras = project.get("prep_extras", 0) or 0
+                update["prep_extras"] = max(0, int(extras * 0.8))
+    
+    if update:
+        project = await _update_project(pid, user["id"], update)
+    
+    new_cost = calculate_production_cost(project)
+    return {"success": True, "project": project, "new_cost": new_cost, "velion_savings": savings}
+
+
+
 @router.post("/films/{pid}/confirm-release")
 async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
+    from utils.calc_production_cost import calculate_production_cost
     project = await _get_project(pid, user["id"])
 
     if project.get("pipeline_state") == "released":
@@ -941,6 +1123,10 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
             "status": "released",
             "quality_score": None,
         }
+
+    # Calculate and deduct production cost
+    cost = calculate_production_cost(project)
+    balances = await _spend(user["id"], funds=cost["total_funds"], cinepass=cost["total_cp"])
 
     film_doc = {
         "id": str(uuid.uuid4()),

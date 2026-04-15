@@ -1,39 +1,88 @@
-import React, { useState, useEffect } from 'react';
-import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check } from 'lucide-react';
-import { PhaseWrapper, v3api } from './V3Shared';
+import React, { useState, useEffect, useRef } from 'react';
+import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check, Coins } from 'lucide-react';
+import { PhaseWrapper, ProgressCircle, v3api } from './V3Shared';
+
+const SPEEDUP_COSTS = { 25: 10, 50: 15, 75: 20, 100: 25 };
 
 /* ═══════ HYPE ═══════ */
 export const HypePhase = ({ film, onRefresh, toast }) => {
-  const [strategy, setStrategy] = useState(film.hype_strategy || 'balanced');
-  const [duration, setDuration] = useState(film.hype_duration || 12);
+  const [strategy, setStrategy] = useState(film.hype_strategy || film.hype_notes || 'balanced');
+  const [duration, setDuration] = useState(film.hype_duration || film.hype_budget || 12);
   const [loading, setLoading] = useState(false);
+  const [configured, setConfigured] = useState(!!(film.hype_notes || film.hype_budget > 0));
+  const [hypeProgress, setHypeProgress] = useState(film.hype_progress || 0);
+  const progressRef = useRef(null);
+
+  // Simulate hype progress after configuration
+  useEffect(() => {
+    if (configured && hypeProgress < 100) {
+      progressRef.current = setInterval(() => {
+        setHypeProgress(prev => {
+          const next = prev + Math.random() * 0.5 + 0.1;
+          if (next >= 100) { clearInterval(progressRef.current); return 100; }
+          return next;
+        });
+      }, 3000);
+      return () => { if (progressRef.current) clearInterval(progressRef.current); };
+    }
+  }, [configured, hypeProgress]);
 
   const save = async () => {
     setLoading(true);
     try {
       await v3api(`/films/${film.id}/save-hype`, 'POST', { hype_notes: strategy, budget: duration });
-      await onRefresh(); toast?.('Hype configurato!');
+      await onRefresh();
+      setConfigured(true);
+      setHypeProgress(prev => Math.max(prev, 5));
+      toast?.('Hype configurato!');
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
 
   const speedup = async (pct) => {
+    const cost = SPEEDUP_COSTS[pct];
     setLoading(true);
-    try { await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'hype', percentage: pct }); await onRefresh(); toast?.(`Velocizzato ${pct}%`); }
-    catch (e) { toast?.(e.message, 'error'); }
+    try {
+      await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'hype', percentage: pct });
+      setHypeProgress(prev => Math.min(100, prev + pct * 0.8));
+      await onRefresh();
+      toast?.(`Velocizzato ${pct}% (-${cost} CP)`);
+    } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
 
   return (
     <PhaseWrapper title="Hype Machine" subtitle="Costruisci aspettativa strategica" icon={TrendingUp} color="orange">
       <div className="space-y-3">
+
+        {/* Hype Progress Bar — always visible when configured */}
+        {configured && (
+          <div className="p-3 rounded-xl bg-orange-500/5 border border-orange-500/15 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[8px] text-gray-500 uppercase font-bold">Avanzamento Hype</span>
+              <span className="text-[10px] font-black text-orange-400">{Math.floor(hypeProgress)}%</span>
+            </div>
+            <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-orange-600 to-amber-400 transition-all duration-1000 ease-out"
+                style={{ width: `${Math.min(100, hypeProgress)}%` }}
+              />
+            </div>
+            <p className="text-[7px] text-gray-600 text-center">
+              {hypeProgress >= 100 ? 'Hype al massimo! Avanza al prossimo step.' :
+               hypeProgress >= 50 ? 'L\'hype cresce... velocizza per completare!' :
+               'Campagna in corso. L\'hype si costruisce nel tempo.'}
+            </p>
+          </div>
+        )}
+
         <p className="text-[8px] text-gray-500 uppercase font-bold">Strategia</p>
         <div className="grid grid-cols-3 gap-1.5">
           {['sprint','balanced','slow_build'].map(s => (
-            <button key={s} onClick={() => setStrategy(s)}
-              className={`p-2 rounded-lg text-center border text-[9px] font-bold ${
+            <button key={s} onClick={() => setStrategy(s)} disabled={configured}
+              className={`p-2 rounded-lg text-center border text-[9px] font-bold transition-all ${
                 strategy === s ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'border-gray-800 text-gray-500'
-              }`}>{s === 'sprint' ? 'Sprint' : s === 'balanced' ? 'Bilanciata' : 'Costruzione'}</button>
+              } disabled:opacity-60`}>{s === 'sprint' ? 'Sprint' : s === 'balanced' ? 'Bilanciata' : 'Costruzione'}</button>
           ))}
         </div>
         <div>
@@ -42,20 +91,35 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
             <span className="text-orange-400 font-bold">{duration}h</span>
           </div>
           <input type="range" min={2} max={24} value={duration} onChange={e => setDuration(+e.target.value)}
-            className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-orange-500" />
+            disabled={configured}
+            className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-orange-500 disabled:opacity-50" />
         </div>
-        <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza</p>
-        <div className="flex gap-1.5">
-          {[25,50,75,100].map(p => (
-            <button key={p} onClick={() => speedup(p)} disabled={loading}
-              className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30">
-              <Zap className="w-2.5 h-2.5" /> {p}%
-            </button>
-          ))}
-        </div>
-        <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-orange-500/15 border border-orange-500/30 text-orange-400 disabled:opacity-30 font-bold" data-testid="save-hype-btn">
-          {loading ? '...' : 'Configura Hype'}
-        </button>
+
+        {!configured && (
+          <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-orange-500/15 border border-orange-500/30 text-orange-400 disabled:opacity-30 font-bold" data-testid="save-hype-btn">
+            {loading ? '...' : 'Configura Hype'}
+          </button>
+        )}
+
+        {configured && (
+          <>
+            <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza (a pagamento)</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[25,50,75,100].map(p => (
+                <button key={p} onClick={() => speedup(p)} disabled={loading || hypeProgress >= 100}
+                  className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all"
+                  data-testid={`speedup-${p}`}>
+                  <Zap className="w-3 h-3" />
+                  <span>{p}%</span>
+                  <span className="flex items-center gap-0.5 text-[7px] text-cyan-400 ml-1">
+                    <Coins className="w-2.5 h-2.5" />{SPEEDUP_COSTS[p]}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
       </div>
     </PhaseWrapper>
   );

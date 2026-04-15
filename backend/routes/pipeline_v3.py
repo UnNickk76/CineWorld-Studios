@@ -672,9 +672,8 @@ async def schedule_release(pid: str, req: ScheduleReleaseRequest, user: dict = D
 
 @router.post("/films/{pid}/speedup")
 async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_current_user)):
-    funds_map = {25: 10000, 50: 20000, 75: 30000, 100: 40000}
-    cp_map = {25: 2, 50: 4, 75: 6, 100: 8}
-    balances = await _spend(user["id"], funds=funds_map[req.percentage], cinepass=cp_map[req.percentage])
+    cp_map = {25: 10, 50: 15, 75: 20, 100: 25}
+    balances = await _spend(user["id"], funds=0, cinepass=cp_map[req.percentage])
     project = await _get_project(pid, user["id"])
 
     update = {

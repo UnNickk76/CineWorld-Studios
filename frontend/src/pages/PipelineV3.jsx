@@ -127,7 +127,7 @@ export default function PipelineV3() {
 
   // ═══ TOAST ═══
   const toastEl = toast ? (
-    <div className={`fixed top-16 left-3 right-3 z-40 px-4 py-2.5 rounded-xl text-[10px] font-bold ${
+    <div className={`fixed top-28 left-3 right-3 z-40 px-4 py-2.5 rounded-xl text-[10px] font-bold ${
       toast.type === 'error' ? 'bg-red-500/15 border border-red-500/30 text-red-300' : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
     }`} onClick={() => setToast(null)}>{toast.msg}<button className="absolute top-1.5 right-2"><X className="w-3 h-3 text-gray-500" /></button></div>
   ) : null;

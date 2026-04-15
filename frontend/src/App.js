@@ -1995,8 +1995,8 @@ function App() {
                 <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
                 <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
                 <Route path="/series/:id" element={<ProtectedRoute><SeriesDetail /></ProtectedRoute>} />
-                <Route path="/create" element={<ProtectedRoute><PipelineV2 /></ProtectedRoute>} />
-                <Route path="/create-film" element={<ProtectedRoute><PipelineV2 /></ProtectedRoute>} />
+                <Route path="/create" element={<ProtectedRoute><PipelineV3 /></ProtectedRoute>} />
+                <Route path="/create-film" element={<ProtectedRoute><PipelineV3 /></ProtectedRoute>} />
                 <Route path="/pipeline-v2" element={<ProtectedRoute><PipelineV2 /></ProtectedRoute>} />
                 <Route path="/pipeline-v3" element={<ProtectedRoute><PipelineV3 /></ProtectedRoute>} />
                 <Route path="/create-legacy" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />

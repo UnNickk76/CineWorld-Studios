@@ -14,6 +14,35 @@ from auth_utils import get_current_user
 router = APIRouter(prefix="/api/pipeline-v3", tags=["pipeline-v3"])
 
 
+@router.get("/debug-agencies")
+async def debug_agencies(user: dict = Depends(get_current_user)):
+    """Debug: show agency structure."""
+    doc = await db.npc_agencies.find_one({"active": True}, {"_id": 0})
+    if not doc:
+        doc = await db.npc_agencies.find_one({}, {"_id": 0})
+    if not doc:
+        return {"error": "No agencies found", "count": await db.npc_agencies.count_documents({})}
+    keys = list(doc.keys())
+    roster = doc.get("roster", [])
+    sample = roster[0] if roster else None
+    return {"keys": keys, "roster_count": len(roster), "sample_member": sample, "agency_name": doc.get("name")}
+
+
+@router.post("/seed-agencies")
+async def seed_agencies(user: dict = Depends(get_current_user)):
+    """Force-seed NPC agencies if empty."""
+    count = await db.npc_agencies.count_documents({})
+    if count >= 20:
+        return {"message": f"Already seeded: {count} agencies"}
+    try:
+        from routes.pipeline_v2 import ensure_agencies_seeded
+        await ensure_agencies_seeded()
+        new_count = await db.npc_agencies.count_documents({})
+        return {"message": f"Seeded {new_count} agencies"}
+    except Exception as e:
+        return {"message": f"Seed failed: {e}", "count": count}
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -210,7 +239,6 @@ async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_cur
         "genre": req.genre.strip(),
         "subgenre": (req.subgenre or "").strip() or None,
         "preplot": req.preplot.strip(),
-        "pipeline_state": "hype",
         "status": "pipeline_active",
     })
     return {"success": True, "project": project}
@@ -219,18 +247,50 @@ async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_cur
 @router.post("/films/{pid}/generate-poster")
 async def generate_poster(pid: str, req: PromptRequest, user: dict = Depends(get_current_user)):
     project = await _get_project(pid, user["id"])
-    prompt = (project.get("preplot") or "").strip() if req.source == "preplot" else (req.custom_prompt or "").strip()
-    if not prompt:
-        raise HTTPException(400, "Manca il prompt per la locandina")
+    preplot = (project.get("preplot") or "").strip()
+    title = project.get("title", "Film")
+    genre = project.get("genre", "drama")
 
-    note = "Prompt locandina = pretrama utente" if req.source == "preplot" else "Prompt locandina = prompt utente personalizzato"
+    if req.source == "custom_prompt" and req.custom_prompt:
+        prompt_text = req.custom_prompt.strip()
+    else:
+        prompt_text = preplot or f"A {genre} movie called {title}"
+
+    # Build full AI prompt
+    full_prompt = (
+        f"Professional cinematic movie poster, portrait orientation 2:3 ratio, for the film '{title}'. "
+        f"Genre: {genre}. "
+        f"Story context: {prompt_text[:500]}. "
+        f"Film title '{title}' displayed prominently with professional typography. "
+        f"Dramatic lighting, Hollywood quality, style matching the genre."
+    )
+
+    poster_url = None
+    try:
+        import os, uuid as _uuid
+        import poster_storage
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        api_key = os.environ.get('EMERGENT_LLM_KEY', '')
+        img_gen = OpenAIImageGeneration(api_key=api_key)
+        images = await img_gen.generate_images(prompt=full_prompt, model="gpt-image-1", number_of_images=1)
+        if images and len(images) > 0:
+            fname = f"v3_{pid}_{_uuid.uuid4().hex[:6]}.jpg"
+            await poster_storage.save_poster(fname, images[0], 'image/png')
+            poster_url = f"/api/posters/{fname}"
+    except Exception as e:
+        import logging
+        logging.warning(f"[V3] AI poster failed: {e}")
+        poster_url = f"/posters/placeholder_{genre}.jpg"
+
+    if not poster_url:
+        poster_url = f"/posters/placeholder_{genre}.jpg"
+
     project = await _update_project(pid, user["id"], {
+        "poster_url": poster_url,
         "poster_source": req.source,
-        "poster_prompt": prompt,
-        "poster_prompt_note": note,
-        # Qui niente AI: si salva il prompt corretto e basta.
+        "poster_prompt": prompt_text,
     })
-    return {"success": True, "project": project, "prompt_used": prompt, "note": note}
+    return {"success": True, "project": project, "poster_url": poster_url}
 
 
 @router.post("/films/{pid}/generate-screenplay")
@@ -261,7 +321,6 @@ async def save_hype(pid: str, req: HypeRequest, user: dict = Depends(get_current
     project = await _update_project(pid, user["id"], {
         "hype_notes": req.hype_notes,
         "hype_budget": req.budget,
-        "pipeline_state": "cast",
     })
     return {"success": True, "project": project, "balances": balances}
 
@@ -271,16 +330,215 @@ async def save_cast(pid: str, req: CastRequest, user: dict = Depends(get_current
     project = await _update_project(pid, user["id"], {
         "cast_notes": req.cast_notes,
         "chemistry_mode": req.chemistry_mode,
-        "pipeline_state": "prep",
     })
     return {"success": True, "project": project}
+
+
+@router.get("/films/{pid}/cast-proposals")
+async def get_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
+    """Get NPC cast proposals from people collection, grouped by role."""
+    project = await _get_project(pid, user["id"])
+
+    all_npcs = await db.people.find({"type": {"$in": ["director","screenwriter","actor","composer"]}}, {"_id": 0}).sort("stars", -1).limit(100).to_list(100)
+    proposals = {"directors": [], "screenwriters": [], "actors": [], "composers": []}
+
+    for npc in all_npcs:
+        role = npc.get("type", "actor")
+        entry = {
+            "id": npc.get("id", ""),
+            "name": npc.get("name", "???"),
+            "age": npc.get("age"),
+            "nationality": npc.get("nationality", ""),
+            "gender": npc.get("gender", ""),
+            "stars": npc.get("stars", 1),
+            "fame": npc.get("fame_score", npc.get("fame", 0)),
+            "fame_category": npc.get("fame_category", ""),
+            "role_type": role,
+            "skills": npc.get("skills", {}),
+            "primary_skills": npc.get("primary_skills", []),
+            "cost": npc.get("cost", 50000),
+            "avatar_url": npc.get("avatar_url", ""),
+            "avatar_initial": (npc.get("name", "?")[0]).upper(),
+        }
+        if role == "director":
+            proposals["directors"].append(entry)
+        elif role in ("screenwriter", "writer"):
+            proposals["screenwriters"].append(entry)
+        elif role == "composer":
+            proposals["composers"].append(entry)
+        else:
+            proposals["actors"].append(entry)
+
+    for key in proposals:
+        proposals[key].sort(key=lambda x: (x.get("stars", 0), x.get("fame", 0)), reverse=True)
+
+    return proposals
+
+
+class SelectCastBody(BaseModel):
+    npc_id: str
+    role: str  # director, screenwriter, actor, composer
+    cast_role: Optional[str] = None  # protagonista, antagonista, supporto, etc.
+
+@router.post("/films/{pid}/select-cast-member")
+async def select_cast_member(pid: str, req: SelectCastBody, user: dict = Depends(get_current_user)):
+    """Select a specific NPC for the cast."""
+    project = await _get_project(pid, user["id"])
+    cast = project.get("cast", {"director": None, "screenwriters": [], "actors": [], "composer": None})
+    cast.setdefault("screenwriters", [])
+    cast.setdefault("actors", [])
+
+    # Find NPC from people collection
+    npc = None
+    npc_doc = await db.people.find_one({"id": req.npc_id}, {"_id": 0})
+    if npc_doc:
+        npc = npc_doc
+    if not npc:
+        raise HTTPException(404, "NPC non trovato")
+
+    # Validate role limits
+    role = req.role
+    if role == "writer":
+        role = "screenwriter"
+    if role == "director" and cast.get("director"):
+        raise HTTPException(400, "Hai gia un regista (max 1)")
+    if role == "composer" and cast.get("composer"):
+        raise HTTPException(400, "Hai gia un compositore (max 1)")
+    if role == "screenwriter" and len(cast.get("screenwriters", [])) >= 3:
+        raise HTTPException(400, "Hai gia 3 sceneggiatori (max 3)")
+
+    entry = {
+        "id": npc.get("id"),
+        "name": npc.get("name"),
+        "age": npc.get("age"),
+        "nationality": npc.get("nationality"),
+        "stars": npc.get("stars", 1),
+        "fame": npc.get("fame", 0),
+        "role_type": role,
+        "cast_role": req.cast_role or "generico",
+        "cost": npc.get("cost", 50000),
+        "skills": npc.get("skills", {}),
+    }
+
+    if role == "director":
+        cast["director"] = entry
+    elif role == "composer":
+        cast["composer"] = entry
+    elif role == "screenwriter":
+        cast["screenwriters"].append(entry)
+    else:
+        entry["cast_role"] = req.cast_role or "protagonista"
+        cast["actors"].append(entry)
+
+    # Deduct cost
+    try:
+        await _spend(user["id"], funds=entry["cost"], cinepass=0)
+    except:
+        pass  # V3 non blocca per fondi
+
+    project = await _update_project(pid, user["id"], {"cast": cast})
+    return {"success": True, "project": project, "cast": cast}
+
+
+@router.post("/films/{pid}/auto-cast")
+async def auto_cast(pid: str, user: dict = Depends(get_current_user)):
+    """Auto-fill cast from people collection."""
+    project = await _get_project(pid, user["id"])
+    cast = project.get("cast", {"director": None, "screenwriters": [], "actors": [], "composer": None})
+    cast.setdefault("screenwriters", [])
+    cast.setdefault("actors", [])
+
+    all_npcs = await db.people.find({"type": {"$in": ["director","screenwriter","actor","composer"]}}, {"_id": 0}).sort("stars", -1).limit(100).to_list(100)
+    by_role = {"director": [], "screenwriter": [], "actor": [], "composer": []}
+    for n in all_npcs:
+        r = n.get("type", "actor")
+        if r == "writer": r = "screenwriter"
+        if r in by_role:
+            by_role[r].append(n)
+
+    for key in by_role:
+        by_role[key].sort(key=lambda x: (x.get("stars", 0), x.get("fame_score", 0)), reverse=True)
+
+    used_ids = set()
+    def pick(role_list):
+        for n in role_list:
+            nid = n.get("id")
+            if nid and nid not in used_ids:
+                used_ids.add(nid)
+                return {"id": nid, "name": n.get("name"), "age": n.get("age"),
+                        "nationality": n.get("nationality"), "stars": n.get("stars", 1),
+                        "fame": n.get("fame_score", 0), "role_type": n.get("type", "actor"),
+                        "cost": n.get("cost", 50000), "skills": n.get("skills", {})}
+        return None
+
+    roles_order = ["protagonista", "antagonista", "co_protagonista", "supporto", "supporto"]
+    if not cast.get("director"):
+        d = pick(by_role["director"])
+        if d: d["role_type"] = "director"; cast["director"] = d
+    if not cast.get("composer"):
+        c = pick(by_role["composer"])
+        if c: c["role_type"] = "composer"; cast["composer"] = c
+    while len(cast["screenwriters"]) < 1:
+        s = pick(by_role["screenwriter"])
+        if not s: break
+        s["role_type"] = "screenwriter"; cast["screenwriters"].append(s)
+    idx = 0
+    while len(cast["actors"]) < 5:
+        a = pick(by_role["actor"])
+        if not a: break
+        a["role_type"] = "actor"; a["cast_role"] = roles_order[idx] if idx < len(roles_order) else "generico"
+        cast["actors"].append(a); idx += 1
+
+    project = await _update_project(pid, user["id"], {"cast": cast})
+    return {"success": True, "project": project, "cast": cast}
 
 
 @router.post("/films/{pid}/save-prep")
 async def save_prep(pid: str, req: PrepRequest, user: dict = Depends(get_current_user)):
     project = await _update_project(pid, user["id"], {
         "prep_notes": req.prep_notes,
-        "pipeline_state": "ciak",
+    })
+    return {"success": True, "project": project}
+
+
+@router.get("/films/{pid}/prep-options")
+async def get_prep_options(pid: str, user: dict = Depends(get_current_user)):
+    """Return available equipment, CGI, VFX options."""
+    return {
+        "equipment": [
+            {"id": "steadicam", "name": "Steadicam Pro", "cost": 80000},
+            {"id": "drone", "name": "Drone Cinematico", "cost": 120000},
+            {"id": "crane", "name": "Gru Cinematografica", "cost": 200000},
+            {"id": "underwater", "name": "Kit Subacqueo", "cost": 150000},
+            {"id": "anamorphic", "name": "Lenti Anamorfiche", "cost": 180000},
+        ],
+        "cgi": [
+            {"id": "basic_cgi", "name": "CGI Base", "cost": 300000},
+            {"id": "advanced_cgi", "name": "CGI Avanzato", "cost": 800000},
+            {"id": "full_cgi", "name": "CGI Totale", "cost": 2000000},
+        ],
+        "vfx": [
+            {"id": "explosions", "name": "Esplosioni", "cost": 200000},
+            {"id": "creatures", "name": "Creature Digitali", "cost": 500000},
+            {"id": "environments", "name": "Ambienti Digitali", "cost": 400000},
+            {"id": "de_aging", "name": "De-aging", "cost": 600000},
+        ],
+    }
+
+
+class SavePrepFull(BaseModel):
+    equipment: List[str] = []
+    cgi: List[str] = []
+    vfx: List[str] = []
+    extras_count: int = 0
+
+@router.post("/films/{pid}/save-prep-full")
+async def save_prep_full(pid: str, req: SavePrepFull, user: dict = Depends(get_current_user)):
+    project = await _update_project(pid, user["id"], {
+        "prep_equipment": req.equipment,
+        "prep_cgi": req.cgi,
+        "prep_vfx": req.vfx,
+        "prep_extras": req.extras_count,
     })
     return {"success": True, "project": project}
 
@@ -291,7 +549,6 @@ async def start_ciak(pid: str, user: dict = Depends(get_current_user)):
     project = await _update_project(pid, user["id"], {
         "ciak_started_at": now.isoformat(),
         "ciak_complete_at": (now + timedelta(hours=6)).isoformat(),
-        "pipeline_state": "finalcut",
     })
     return {"success": True, "project": project}
 
@@ -300,7 +557,6 @@ async def start_ciak(pid: str, user: dict = Depends(get_current_user)):
 async def save_finalcut(pid: str, req: FinalCutRequest, user: dict = Depends(get_current_user)):
     project = await _update_project(pid, user["id"], {
         "finalcut_notes": req.finalcut_notes,
-        "pipeline_state": "marketing",
     })
     return {"success": True, "project": project}
 
@@ -318,7 +574,7 @@ async def save_marketing(pid: str, req: MarketingRequest, user: dict = Depends(g
     balances = await _spend(user["id"], funds=total_cost, cinepass=0)
     project = await _update_project(pid, user["id"], {
         "marketing_packages": req.packages,
-        "pipeline_state": "distribution",
+        "marketing_completed": True,
     })
     return {"success": True, "project": project, "balances": balances}
 
@@ -336,7 +592,6 @@ async def schedule_release(pid: str, req: ScheduleReleaseRequest, user: dict = D
         "release_date_label": req.release_date_label or "Immediato",
         "distribution_world": req.world,
         "distribution_zones": req.zones,
-        "pipeline_state": "release_pending",
     })
     return {"success": True, "project": project, "balances": balances}
 

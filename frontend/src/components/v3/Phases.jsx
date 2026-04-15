@@ -939,18 +939,186 @@ export const LaPrimaPhase = ({ film, onRefresh, toast }) => {
 };
 
 /* ═══════ DISTRIBUTION ═══════ */
+import { ChevronDown, ChevronRight, MapPin } from 'lucide-react';
+
 const DATES = ['Immediato','6 ore','12 ore','24 ore','2 giorni','3 giorni'];
 
+const ZoneTree = ({ zones, mondiale, setMondiale, selConts, setSelConts, selNations, setSelNations, selCities, setSelCities }) => {
+  const [expanded, setExpanded] = useState({});
+  const [expandedNations, setExpandedNations] = useState({});
+
+  const toggleExpand = (id) => setExpanded(p => ({ ...p, [id]: !p[id] }));
+  const toggleExpandNation = (id) => setExpandedNations(p => ({ ...p, [id]: !p[id] }));
+
+  const toggleContinent = (cid) => {
+    if (mondiale) return;
+    setSelConts(p => p.includes(cid) ? p.filter(x => x !== cid) : [...p, cid]);
+  };
+
+  const toggleNation = (cid, nid) => {
+    if (mondiale || selConts.includes(cid)) return;
+    setSelNations(p => {
+      const curr = p[cid] || [];
+      const next = curr.includes(nid) ? curr.filter(x => x !== nid) : [...curr, nid];
+      return { ...p, [cid]: next };
+    });
+  };
+
+  const toggleCity = (cid, nid, city) => {
+    if (mondiale || selConts.includes(cid) || (selNations[cid] || []).includes(nid)) return;
+    setSelCities(p => {
+      const contMap = p[cid] || {};
+      const curr = contMap[nid] || [];
+      const next = curr.includes(city) ? curr.filter(x => x !== city) : [...curr, city];
+      return { ...p, [cid]: { ...contMap, [nid]: next } };
+    });
+  };
+
+  const toggleAllCities = (cid, nid, allCities) => {
+    if (mondiale || selConts.includes(cid) || (selNations[cid] || []).includes(nid)) return;
+    setSelCities(p => {
+      const contMap = p[cid] || {};
+      const curr = contMap[nid] || [];
+      const allSelected = allCities.every(c => curr.includes(c));
+      return { ...p, [cid]: { ...contMap, [nid]: allSelected ? [] : [...allCities] } };
+    });
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {/* Mondiale */}
+      <button onClick={() => setMondiale(!mondiale)}
+        className={`w-full flex items-center justify-between p-2.5 rounded-lg border transition-all ${
+          mondiale ? 'bg-blue-500/10 border-blue-500/40' : 'border-gray-800 hover:border-gray-600'
+        }`}>
+        <div className="flex items-center gap-2">
+          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${mondiale ? 'border-blue-400 bg-blue-500/20' : 'border-gray-700'}`}>
+            {mondiale && <Check className="w-2.5 h-2.5 text-blue-400" />}
+          </div>
+          <span className={`text-[9px] font-bold ${mondiale ? 'text-blue-400' : 'text-white'}`}>Mondiale</span>
+          <span className="text-[7px] text-gray-500">Tutti i continenti</span>
+        </div>
+        <span className="text-[7px] text-yellow-400 font-bold">$200K 20CP</span>
+      </button>
+
+      {!mondiale && (
+        <p className="text-[7px] text-gray-600 text-center">— oppure seleziona zone —</p>
+      )}
+
+      {/* Continents */}
+      {Object.entries(zones).map(([cid, cont]) => {
+        const isFullCont = mondiale || selConts.includes(cid);
+        const isExpanded = expanded[cid];
+        const nationCount = Object.keys(cont.nations || {}).length;
+        const selNationCount = (selNations[cid] || []).length;
+        const selCityCount = Object.values(selCities[cid] || {}).reduce((s, arr) => s + arr.length, 0);
+
+        return (
+          <div key={cid} className={`rounded-lg border overflow-hidden ${isFullCont ? 'border-blue-500/30 bg-blue-500/5' : 'border-gray-800'}`}>
+            <div className="flex items-center">
+              <button onClick={() => toggleContinent(cid)} disabled={mondiale}
+                className="flex items-center gap-2 flex-1 p-2 text-left disabled:opacity-60">
+                <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 ${isFullCont ? 'border-blue-400 bg-blue-500/20' : 'border-gray-700'}`}>
+                  {isFullCont && <Check className="w-2 h-2 text-blue-400" />}
+                </div>
+                <span className={`text-[9px] font-bold ${isFullCont ? 'text-blue-400' : 'text-white'}`}>{cont.label}</span>
+                {(selNationCount > 0 || selCityCount > 0) && !isFullCont && (
+                  <span className="text-[6px] text-cyan-400">{selNationCount > 0 ? `${selNationCount}N` : ''}{selCityCount > 0 ? ` ${selCityCount}C` : ''}</span>
+                )}
+              </button>
+              <button onClick={() => toggleExpand(cid)} className="p-2 text-gray-500">
+                {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            {/* Nations */}
+            {isExpanded && (
+              <div className="border-t border-gray-800/50 pl-4 py-1 space-y-0.5">
+                {Object.entries(cont.nations || {}).map(([nid, nat]) => {
+                  const isFullNation = isFullCont || (selNations[cid] || []).includes(nid);
+                  const isNatExpanded = expandedNations[`${cid}/${nid}`];
+                  const cities = nat.cities || [];
+                  const selCitiesHere = (selCities[cid] || {})[nid] || [];
+
+                  return (
+                    <div key={nid}>
+                      <div className="flex items-center">
+                        <button onClick={() => toggleNation(cid, nid)} disabled={mondiale || isFullCont}
+                          className="flex items-center gap-1.5 flex-1 py-1 text-left disabled:opacity-50">
+                          <div className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${isFullNation ? 'border-cyan-400 bg-cyan-500/20' : 'border-gray-700'}`}>
+                            {isFullNation && <Check className="w-2 h-2 text-cyan-400" />}
+                          </div>
+                          <span className={`text-[8px] font-medium ${isFullNation ? 'text-cyan-400' : 'text-gray-300'}`}>{nat.label}</span>
+                          {selCitiesHere.length > 0 && !isFullNation && (
+                            <span className="text-[6px] text-emerald-400">{selCitiesHere.length}/{cities.length}</span>
+                          )}
+                        </button>
+                        <button onClick={() => toggleExpandNation(`${cid}/${nid}`)} className="p-1 text-gray-600">
+                          {isNatExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                        </button>
+                      </div>
+
+                      {/* Cities */}
+                      {isNatExpanded && (
+                        <div className="pl-4 py-1 space-y-0.5">
+                          <button onClick={() => toggleAllCities(cid, nid, cities)} disabled={mondiale || isFullCont || isFullNation}
+                            className="text-[7px] text-blue-400 underline mb-1 disabled:opacity-30">
+                            {cities.every(c => selCitiesHere.includes(c)) ? 'Deseleziona tutte' : 'Seleziona tutte'}
+                          </button>
+                          <div className="flex flex-wrap gap-1">
+                            {cities.map(city => {
+                              const sel = isFullNation || isFullCont || mondiale || selCitiesHere.includes(city);
+                              return (
+                                <button key={city} onClick={() => toggleCity(cid, nid, city)}
+                                  disabled={mondiale || isFullCont || isFullNation}
+                                  className={`px-1.5 py-0.5 rounded text-[7px] font-medium border transition-all disabled:opacity-50 ${
+                                    sel ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'border-gray-800 text-gray-500 hover:border-gray-600'
+                                  }`}>
+                                  {city}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export const DistributionPhase = ({ film, onRefresh, toast, onDirty }) => {
-  const [date, setDate] = useState(film.release_date_label || 'Immediato');
-  const [world, setWorld] = useState(film.distribution_world ?? true);
+  const [zones, setZones] = useState({});
   const [loading, setLoading] = useState(false);
-  const isPremiere = film.release_type === 'premiere';
+  const [date, setDate] = useState(film.distribution_release_delay || 'immediato');
+  const [theaterDays, setTheaterDays] = useState(film.distribution_theater_days || 21);
+  const [mondiale, setMondiale] = useState(!!film.distribution_mondiale);
+  const [selConts, setSelConts] = useState(film.distribution_continents || []);
+  const [selNations, setSelNations] = useState(film.distribution_nations || {});
+  const [selCities, setSelCities] = useState(film.distribution_cities || {});
+  const [costPreview, setCostPreview] = useState(null);
+  const done = !!film.distribution_confirmed;
+
+  useEffect(() => { v3api(`/films/${film.id}/distribution-zones`).then(d => setZones(d.zones || {})).catch(() => {}); }, [film.id]);
+
+  // Live cost preview
+  useEffect(() => {
+    const hasSelections = mondiale || selConts.length > 0 || Object.values(selNations).some(a => a.length > 0) || Object.values(selCities).some(o => Object.values(o).some(a => a.length > 0));
+    if (!hasSelections) { setCostPreview(null); return; }
+    const body = { mondiale, continents: selConts, nations: selNations, cities: selCities, release_delay: date, theater_days: theaterDays };
+    v3api(`/films/${film.id}/calc-distribution-cost`, 'POST', body).then(setCostPreview).catch(() => {});
+  }, [mondiale, selConts, selNations, selCities, film.id, date, theaterDays]);
 
   const save = async () => {
     setLoading(true);
     try {
-      await v3api(`/films/${film.id}/schedule-release`, 'POST', { release_date_label: date, world, zones: [] });
+      await v3api(`/films/${film.id}/save-distribution`, 'POST', { mondiale, continents: selConts, nations: selNations, cities: selCities, release_delay: date, theater_days: theaterDays });
       await onRefresh(); toast?.('Distribuzione confermata!');
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
@@ -959,28 +1127,75 @@ export const DistributionPhase = ({ film, onRefresh, toast, onDirty }) => {
   return (
     <PhaseWrapper title="Distribuzione" subtitle="Zone e data di uscita" icon={Globe} color="blue">
       <div className="space-y-3">
-        <p className="text-[8px] text-gray-500 uppercase font-bold">Data uscita</p>
-        <div className="grid grid-cols-3 gap-1.5">
-          {DATES.map(label => {
-            const disabled = isPremiere && label === 'Immediato';
-            return (
-              <button key={label} onClick={() => !disabled && setDate(label)} disabled={disabled}
-                title={disabled ? 'La Prima richiede attesa' : ''}
-                className={`py-2 rounded-lg text-[8px] font-bold border ${
-                  disabled ? 'opacity-20 cursor-not-allowed border-gray-800 text-gray-600' :
-                  date === label ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' :
-                  'border-gray-800 text-gray-400 hover:border-gray-600'
-                }`}>{label}</button>
-            );
-          })}
-        </div>
-        <label className="flex items-center gap-2 text-[9px] text-gray-400">
-          <input type="checkbox" checked={world} onChange={e => { setWorld(e.target.checked); onDirty?.(); }} className="rounded" />
-          Distribuzione Mondiale
-        </label>
-        <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 disabled:opacity-30 font-bold">
-          {loading ? '...' : 'Conferma Distribuzione'}
-        </button>
+        {done ? (
+          <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/15 flex items-center gap-2">
+            <Check className="w-4 h-4 text-blue-400" />
+            <p className="text-[9px] text-blue-400 font-bold">Distribuzione confermata</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-[8px] text-gray-500 uppercase font-bold">Data uscita</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {DATES.map(label => {
+                const val = label.toLowerCase().replace(/ /g, '_');
+                return (
+                  <button key={label} onClick={() => { setDate(val); onDirty?.(); }}
+                    className={`py-2 rounded-lg text-[8px] font-bold border ${
+                      date === val ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : 'border-gray-800 text-gray-400 hover:border-gray-600'
+                    }`}>{label}</button>
+                );
+              })}
+            </div>
+
+            <p className="text-[8px] text-gray-500 uppercase font-bold">Zone di distribuzione</p>
+            <ZoneTree zones={zones} mondiale={mondiale} setMondiale={(v) => { setMondiale(v); onDirty?.(); }}
+              selConts={selConts} setSelConts={(v) => { setSelConts(v); onDirty?.(); }}
+              selNations={selNations} setSelNations={(v) => { setSelNations(v); onDirty?.(); }}
+              selCities={selCities} setSelCities={(v) => { setSelCities(v); onDirty?.(); }} />
+
+            {/* Velion Intelligence */}
+            <div className="p-3 rounded-xl bg-teal-500/5 border border-teal-500/15 space-y-1.5">
+              <p className="text-[8px] text-teal-400 font-bold">Velion — Intelligence Distribuzione</p>
+              <p className="text-[7px] text-gray-400 italic">
+                Per il tuo film '{film.title}', considera che: le zone con maggiore affinita al genere '{film.genre}' porteranno incassi migliori.
+                Singole citta strategiche possono avere piu valore di interi continenti se scelte bene.
+              </p>
+            </div>
+
+            {/* Theater days */}
+            <div>
+              <div className="flex justify-between text-[8px] mb-1">
+                <span className="text-gray-500">Durata programmazione in sala</span>
+                <span className="text-blue-400 font-bold">{theaterDays} giorni</span>
+              </div>
+              <input type="range" min={7} max={60} value={theaterDays} onChange={e => { setTheaterDays(+e.target.value); onDirty?.(); }}
+                className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
+            </div>
+
+            {/* Cost preview */}
+            {costPreview && (
+              <div className="p-2.5 rounded-xl bg-yellow-500/5 border border-yellow-500/20 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] text-gray-400">Costo distribuzione</span>
+                  <span className="text-[10px] font-bold text-yellow-400">
+                    ${(costPreview.total_funds || 0).toLocaleString()} + {costPreview.total_cp || 0} CP
+                  </span>
+                </div>
+                {(costPreview.breakdown || []).map((b, i) => (
+                  <div key={i} className="flex items-center justify-between text-[7px]">
+                    <span className="text-gray-500 truncate flex-1">{b.label}</span>
+                    <span className="text-gray-400 ml-2 shrink-0">${(b.funds || 0).toLocaleString()} {b.cp}CP</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button onClick={save} disabled={loading || (!mondiale && selConts.length === 0 && Object.values(selNations).every(a => a.length === 0) && Object.values(selCities).every(o => Object.values(o).every(a => a.length === 0)))}
+              className="w-full text-[9px] py-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 disabled:opacity-30 font-bold">
+              {loading ? '...' : 'Conferma Distribuzione'}
+            </button>
+          </>
+        )}
       </div>
     </PhaseWrapper>
   );

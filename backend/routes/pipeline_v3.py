@@ -864,6 +864,72 @@ async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_curren
     return {"success": True, "project": project, "balances": balances, "cost": cost}
 
 
+@router.get("/films/{pid}/distribution-zones")
+async def get_distribution_zones(pid: str, user: dict = Depends(get_current_user)):
+    """Get available distribution zones with cities."""
+    from utils.calc_distribution import DISTRIBUTION_DATA, MONDIALE_COST
+    zones = {}
+    for cont_id, cont in DISTRIBUTION_DATA.items():
+        nations = {}
+        for nat_id, nat in cont.get("nations", {}).items():
+            nations[nat_id] = {"label": nat["label"], "cities": nat["cities"]}
+        zones[cont_id] = {
+            "label": cont["label"],
+            "cost_funds": cont["cost_funds"],
+            "cost_cp": cont["cost_cp"],
+            "nations": nations,
+        }
+    return {"zones": zones, "mondiale": MONDIALE_COST}
+
+
+class DistributionSaveRequest(BaseModel):
+    mondiale: bool = False
+    continents: List[str] = []
+    nations: Optional[dict] = {}
+    cities: Optional[dict] = {}
+    release_delay: str = "immediato"
+    theater_days: int = 21
+
+
+@router.post("/films/{pid}/save-distribution")
+async def save_distribution(pid: str, req: DistributionSaveRequest, user: dict = Depends(get_current_user)):
+    """Save distribution selections and calculate cost."""
+    from utils.calc_distribution import calculate_distribution_cost
+
+    selections = {
+        "mondiale": req.mondiale,
+        "continents": req.continents,
+        "nations": req.nations or {},
+        "cities": req.cities or {},
+    }
+    cost = calculate_distribution_cost(selections)
+
+    project = await _update_project(pid, user["id"], {
+        "distribution_mondiale": req.mondiale,
+        "distribution_continents": req.continents,
+        "distribution_nations": req.nations or {},
+        "distribution_cities": req.cities or {},
+        "distribution_cost": cost,
+        "distribution_release_delay": req.release_delay,
+        "distribution_theater_days": req.theater_days,
+        "distribution_confirmed": True,
+    })
+    return {"success": True, "project": project, "cost": cost}
+
+
+@router.post("/films/{pid}/calc-distribution-cost")
+async def calc_distribution_cost_endpoint(pid: str, req: DistributionSaveRequest, user: dict = Depends(get_current_user)):
+    """Preview distribution cost without saving."""
+    from utils.calc_distribution import calculate_distribution_cost
+    selections = {
+        "mondiale": req.mondiale,
+        "continents": req.continents,
+        "nations": req.nations or {},
+        "cities": req.cities or {},
+    }
+    return calculate_distribution_cost(selections)
+
+
 @router.post("/films/{pid}/confirm-release")
 async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     project = await _get_project(pid, user["id"])

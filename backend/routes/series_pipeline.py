@@ -1688,13 +1688,26 @@ async def get_coming_soon():
          'user_id': 1, 'hype_score': 1, 'created_at': 1, 'remaster_end': 1}
     )
     remaster_items = await remaster_cursor.to_list(50)
+
+    # V3 Pipeline films (have poster, not yet released/discarded)
+    v3_cursor = db.film_projects.find(
+        {'pipeline_version': 3,
+         'poster_url': {'$nin': [None, '']},
+         'pipeline_state': {'$nin': ['released', 'completed', 'discarded']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
+         'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
+         'pre_imdb_score': 1, 'pipeline_state': 1, 'pipeline_ui_step': 1,
+         'pipeline_version': 1}
+    ).sort('created_at', -1)
+    v3_items = await v3_cursor.to_list(50)
     
     # Enrich with production house names
     user_ids = list(set(
         [s['user_id'] for s in series_items] +
         [f['user_id'] for f in film_items] +
         [r['user_id'] for r in remaster_items] +
-        [v['user_id'] for v in v2_items]
+        [v['user_id'] for v in v2_items] +
+        [v3['user_id'] for v3 in v3_items]
     ))
     users = {}
     if user_ids:
@@ -1744,6 +1757,26 @@ async def get_coming_soon():
             **v,
             'content_type': 'film',
             'genre_name': v.get('genre', ''),
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+            'pipeline_status_label': state_label,
+            'is_v2': True,
+        })
+
+    # V3 pipeline films — map pipeline_state to a readable status label
+    V3_STATE_LABEL = {
+        'idea': 'Idea', 'hype': 'Hype', 'cast': 'Cast',
+        'prep': 'Preparazione', 'ciak': 'Riprese',
+        'finalcut': 'Final Cut', 'marketing': 'Marketing',
+        'la_prima': 'La Prima', 'distribution': 'Distribuzione',
+        'release_pending': 'Uscita',
+    }
+    for v3 in v3_items:
+        owner = users.get(v3['user_id'], {})
+        state_label = V3_STATE_LABEL.get(v3.get('pipeline_state', ''), v3.get('pipeline_state', ''))
+        items.append({
+            **v3,
+            'content_type': 'film',
+            'genre_name': v3.get('genre', ''),
             'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
             'pipeline_status_label': state_label,
             'is_v2': True,

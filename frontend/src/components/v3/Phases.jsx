@@ -265,6 +265,49 @@ export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
   );
 };
 
+/* ═══════ LA PRIMA ═══════ */
+export const LaPrimaPhase = ({ film, onRefresh, toast }) => {
+  const [loading, setLoading] = useState(false);
+  const isPremiere = film.release_type === 'premiere';
+
+  const speedup = async (pct) => {
+    setLoading(true);
+    try { await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'premiere', percentage: pct }); await onRefresh(); toast?.(`Velocizzato ${pct}%`); }
+    catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  return (
+    <PhaseWrapper title="La Prima" subtitle="L'evento esclusivo di anteprima" icon={Award} color="yellow">
+      <div className="space-y-3">
+        {isPremiere ? (
+          <>
+            <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/15 text-center">
+              <Award className="w-6 h-6 text-yellow-400 mx-auto mb-1.5" />
+              <p className="text-[10px] text-gray-300 font-bold">Premiere in preparazione...</p>
+              <p className="text-[8px] text-gray-500 mt-1">L'anteprima esclusiva sta per avere luogo</p>
+            </div>
+            <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza Premiere</p>
+            <div className="flex gap-1.5">
+              {[25,50,75,100].map(p => (
+                <button key={p} onClick={() => speedup(p)} disabled={loading}
+                  className="flex-1 flex items-center justify-center gap-1 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30">
+                  <Zap className="w-2.5 h-2.5" /> {p}%
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="p-3 rounded-xl bg-gray-800/20 border border-gray-700/30 text-center">
+            <p className="text-[10px] text-gray-400">Nessuna premiere selezionata (rilascio diretto)</p>
+            <p className="text-[8px] text-gray-500 mt-1">Premi Avanti per continuare alla distribuzione</p>
+          </div>
+        )}
+      </div>
+    </PhaseWrapper>
+  );
+};
+
 /* ═══════ DISTRIBUTION ═══════ */
 const DATES = ['Immediato','6 ore','12 ore','24 ore','2 giorni','3 giorni'];
 

@@ -56,10 +56,11 @@ def _step_index(state: str) -> int:
         "ciak": 4,
         "finalcut": 5,
         "marketing": 6,
-        "distribution": 7,
-        "release_pending": 8,
-        "released": 8,
-        "discarded": 8,
+        "la_prima": 7,
+        "distribution": 8,
+        "release_pending": 9,
+        "released": 9,
+        "discarded": 9,
     }
     return order.get(state, 0)
 
@@ -129,6 +130,8 @@ class IdeaSaveRequest(BaseModel):
     genre: str = Field(min_length=1, max_length=40)
     subgenre: Optional[str] = None
     preplot: str = Field(default="", max_length=4000)
+    subgenres: Optional[List[str]] = None
+    locations: Optional[List[str]] = None
 
 
 class PromptRequest(BaseModel):
@@ -239,9 +242,37 @@ async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_cur
         "genre": req.genre.strip(),
         "subgenre": (req.subgenre or "").strip() or None,
         "preplot": req.preplot.strip(),
+        "subgenres": req.subgenres or [],
+        "locations": req.locations or [],
         "status": "pipeline_active",
     })
     return {"success": True, "project": project}
+
+
+class AdvanceRequest(BaseModel):
+    next_state: str
+
+
+VALID_V3_STATES = [
+    "idea", "hype", "cast", "prep", "ciak", "finalcut",
+    "marketing", "la_prima", "distribution", "release_pending",
+]
+
+
+@router.post("/films/{pid}/advance")
+async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_current_user)):
+    """Move the project to the specified pipeline state."""
+    if req.next_state not in VALID_V3_STATES:
+        raise HTTPException(400, f"Stato non valido: {req.next_state}")
+    project = await _get_project(pid, user["id"])
+    current = project.get("pipeline_state", "idea")
+    if current in ("released", "discarded"):
+        raise HTTPException(400, "Progetto già completato")
+    project = await _update_project(pid, user["id"], {
+        "pipeline_state": req.next_state,
+    })
+    return {"success": True, "project": project}
+
 
 
 @router.post("/films/{pid}/generate-poster")
@@ -267,7 +298,8 @@ async def generate_poster(pid: str, req: PromptRequest, user: dict = Depends(get
 
     poster_url = None
     try:
-        import os, uuid as _uuid
+        import os
+        import uuid as _uuid
         import poster_storage
         from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
         api_key = os.environ.get('EMERGENT_LLM_KEY', '')
@@ -300,13 +332,55 @@ async def generate_screenplay(pid: str, req: PromptRequest, user: dict = Depends
     if not prompt:
         raise HTTPException(400, "Manca il prompt per la sceneggiatura")
 
-    screenplay_text = (
-        "SCENEGGIATURA V3\n\n"
-        f"Titolo: {project.get('title', '')}\n"
-        f"Genere: {project.get('genre', '')}\n\n"
-        f"Prompt usato:\n{prompt}\n\n"
-        "Bozza generata senza calcoli qualità."
-    )
+    title = project.get("title", "Film")
+    genre = project.get("genre", "drama")
+    subgenres = project.get("subgenres", [])
+    subgenre_str = ", ".join(subgenres) if subgenres else ""
+
+    screenplay_text = ""
+    try:
+        import os
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+        api_key = os.environ.get("EMERGENT_LLM_KEY", "")
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"screenplay_{pid}",
+            system_message=(
+                "Sei uno sceneggiatore cinematografico professionista italiano. "
+                "Scrivi sceneggiature in italiano, formato cinematografico con scene numerate, "
+                "dialoghi e descrizioni delle azioni. Sii creativo e coinvolgente."
+            ),
+        )
+
+        user_msg = UserMessage(
+            text=(
+                f"Scrivi una sceneggiatura cinematografica in italiano per il film '{title}'. "
+                f"Genere: {genre}. "
+                + (f"Sottogeneri: {subgenre_str}. " if subgenre_str else "")
+                + f"Trama di base: {prompt[:800]}\n\n"
+                "La sceneggiatura deve essere tra 1000 e 2000 caratteri, "
+                "in formato cinematografico con scene numerate, dialoghi tra i personaggi, "
+                "e descrizioni delle ambientazioni. Non aggiungere commenti o spiegazioni extra."
+            )
+        )
+
+        response = await chat.send_message(user_msg)
+        if response and len(response) > 50:
+            screenplay_text = response.strip()
+    except Exception as e:
+        import logging
+        logging.warning(f"[V3] AI screenplay failed: {e}")
+
+    if not screenplay_text or len(screenplay_text) < 50:
+        screenplay_text = (
+            f"SCENEGGIATURA - {title}\n"
+            f"Genere: {genre}\n\n"
+            f"SCENA 1 - INTERNO/GIORNO\n\n"
+            f"La storia prende forma dalla pretrama:\n{prompt[:500]}\n\n"
+            f"[Sceneggiatura generata come bozza - AI non disponibile]"
+        )
+
     project = await _update_project(pid, user["id"], {
         "screenplay_source": req.source,
         "screenplay_prompt": prompt,

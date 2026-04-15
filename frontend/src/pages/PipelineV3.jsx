@@ -5,7 +5,7 @@ import CinematicReleaseOverlay from '../components/CinematicReleaseOverlay';
 import { V3_STEPS, StepperBar, GENRE_LABELS, v3api } from '../components/v3/V3Shared';
 import { IdeaPhase } from '../components/v3/IdeaPhase';
 import { CastPhase } from '../components/v3/CastPhase';
-import { HypePhase, PrepPhase, CiakPhase, FinalCutPhase, MarketingPhase, DistributionPhase, StepFinale } from '../components/v3/Phases';
+import { HypePhase, PrepPhase, CiakPhase, FinalCutPhase, MarketingPhase, LaPrimaPhase, DistributionPhase, StepFinale } from '../components/v3/Phases';
 
 export default function PipelineV3() {
   const navigate = useNavigate();
@@ -177,6 +177,7 @@ export default function PipelineV3() {
       case 'ciak': return <CiakPhase {...phaseProps} />;
       case 'finalcut': return <FinalCutPhase {...phaseProps} />;
       case 'marketing': return <MarketingPhase {...phaseProps} />;
+      case 'la_prima': return <LaPrimaPhase {...phaseProps} />;
       case 'distribution': return <DistributionPhase {...phaseProps} />;
       case 'release_pending': return <StepFinale film={selected} onConfirm={confirmRelease} onDiscard={discard} loading={loading || releasePhase !== 'idle'} releaseType={selected.release_type || 'direct'} />;
       default: return <p className="text-gray-500 text-sm p-4">Stato: {currentStep}</p>;

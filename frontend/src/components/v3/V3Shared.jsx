@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Check, Sparkles, TrendingUp, Users, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket } from 'lucide-react';
+import { Check, Sparkles, TrendingUp, Users, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Award } from 'lucide-react';
 
 export const V3_STEPS = [
   { id: 'idea', label: 'IDEA', icon: Sparkles, color: 'amber' },
@@ -9,6 +9,7 @@ export const V3_STEPS = [
   { id: 'ciak', label: 'CIAK', icon: Clapperboard, color: 'red' },
   { id: 'finalcut', label: 'FINAL CUT', icon: Scissors, color: 'purple' },
   { id: 'marketing', label: 'MARKETING', icon: Megaphone, color: 'green' },
+  { id: 'la_prima', label: 'LA PRIMA', icon: Award, color: 'yellow' },
   { id: 'distribution', label: 'DISTRIB.', icon: Globe, color: 'blue' },
   { id: 'release_pending', label: 'USCITA', icon: Ticket, color: 'emerald' },
 ];

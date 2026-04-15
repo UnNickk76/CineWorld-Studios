@@ -5,8 +5,8 @@ import { PhaseWrapper, GENRES, GENRE_LABELS, SUBGENRE_MAP, LOCATION_TAGS, Progre
 export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
   const [title, setTitle] = useState(film.title || '');
   const [genre, setGenre] = useState(film.genre || 'action');
-  const [subgenre, setSubgenre] = useState(film.subgenre || '');
   const [preplot, setPreplot] = useState(film.preplot || '');
+  const [subgenres, setSubgenres] = useState(film.subgenres || (film.subgenre ? [film.subgenre] : []));
   const [locations, setLocations] = useState(film.locations || []);
   const [posterPrompt, setPosterPrompt] = useState(film.poster_prompt || '');
   const [screenplaySource, setScreenplaySource] = useState('preplot');
@@ -17,14 +17,14 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
   const posterInt = useRef(null);
   const scriptInt = useRef(null);
 
-  const subgenres = useMemo(() => SUBGENRE_MAP[genre] || [], [genre]);
+  const subgenreOptions = useMemo(() => SUBGENRE_MAP[genre] || [], [genre]);
   const mark = () => onDirty?.();
   const hasPoster = !!film.poster_url;
 
   const saveIdea = async () => {
     setLoading('save');
     try {
-      await v3api(`/films/${film.id}/save-idea`, 'POST', { title, genre, subgenre, preplot });
+      await v3api(`/films/${film.id}/save-idea`, 'POST', { title, genre, subgenre: subgenres.join(', '), preplot, subgenres });
       await onRefresh(); toast?.('Idea salvata!');
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading('');
@@ -69,18 +69,27 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
         <input value={title} onChange={e => { setTitle(e.target.value); mark(); }}
           placeholder="Titolo del film" className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm text-white placeholder-gray-600" data-testid="title-input" />
 
-        {/* Genre + Subgenre */}
-        <div className="grid grid-cols-2 gap-2">
-          <select value={genre} onChange={e => { setGenre(e.target.value); setSubgenre(''); mark(); }}
-            className="rounded-xl border border-gray-800 bg-gray-950 px-2 py-2 text-[10px] text-white">
-            {GENRES.map(g => <option key={g} value={g}>{GENRE_LABELS[g]}</option>)}
-          </select>
-          <select value={subgenre} onChange={e => { setSubgenre(e.target.value); mark(); }}
-            className="rounded-xl border border-gray-800 bg-gray-950 px-2 py-2 text-[10px] text-white">
-            <option value="">Sottogenere</option>
-            {subgenres.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
+        {/* Genre + Subgenres */}
+        <select value={genre} onChange={e => { setGenre(e.target.value); setSubgenres([]); mark(); }}
+          className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-[10px] text-white">
+          {GENRES.map(g => <option key={g} value={g}>{GENRE_LABELS[g]}</option>)}
+        </select>
+        {subgenreOptions.length > 0 && (
+          <div>
+            <div className="flex justify-between mb-1">
+              <span className="text-[8px] text-gray-500 uppercase font-bold">Sottogeneri</span>
+              <span className={`text-[8px] ${subgenres.length > 0 ? 'text-cyan-400' : 'text-gray-600'}`}>{subgenres.length}/3</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {subgenreOptions.map(s => (
+                <button key={s} onClick={() => { setSubgenres(v => v.includes(s) ? v.filter(x => x !== s) : v.length < 3 ? [...v, s] : v); mark(); }}
+                  className={`px-2 py-1 rounded-lg text-[8px] font-bold border transition-all ${
+                    subgenres.includes(s) ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'border-gray-800 text-gray-500 hover:border-gray-600'
+                  }`}>{s}</button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Pretrama */}
         <div>

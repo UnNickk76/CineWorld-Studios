@@ -452,7 +452,7 @@ async def get_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
             "role_type": role,
             "skills": npc.get("skills", {}),
             "primary_skills": npc.get("primary_skills", []),
-            "cost": npc.get("cost", 50000),
+            "cost": npc.get("cost_per_film", npc.get("cost", 50000)),
             "avatar_url": npc.get("avatar_url", ""),
             "avatar_initial": (npc.get("name", "?")[0]).upper(),
         }

@@ -17,16 +17,18 @@ export default function CinematicReleaseOverlay({ film, releaseType, onComplete 
   const productionHouse = film?.production_house_name || 'STUDIO INDIPENDENTE';
   const isLaPrima = releaseType === 'premiere';
 
-  const exit = useCallback(() => {
-    setExiting(true);
-    setTimeout(() => {
-      document.body.style.overflow = '';
-      onComplete();
-    }, 600);
-  }, [onComplete]);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
+    const doExit = () => {
+      setExiting(true);
+      setTimeout(() => {
+        document.body.style.overflow = '';
+        onCompleteRef.current?.();
+      }, 600);
+    };
     const t = [
       setTimeout(() => setPhase(1), 300),
       setTimeout(() => setPhase(2), 1100),
@@ -36,10 +38,10 @@ export default function CinematicReleaseOverlay({ film, releaseType, onComplete 
       setTimeout(() => setPhase(6), 4400),
       setTimeout(() => setPhase(7), 5300),
       setTimeout(() => setPhase(8), 5900),
-      setTimeout(() => exit(), 6500),
+      setTimeout(doExit, 6500),
     ];
     return () => { t.forEach(clearTimeout); document.body.style.overflow = ''; };
-  }, [exit]);
+  }, []); // No dependencies — runs once on mount only
 
   return (
     <div

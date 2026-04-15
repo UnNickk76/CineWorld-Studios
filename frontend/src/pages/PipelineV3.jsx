@@ -116,7 +116,12 @@ export default function PipelineV3() {
     }
   };
 
-  const onWowDone = () => { setReleasePhase('done'); setSelected(null); loadProjects(); navigate('/'); };
+  const onWowDone = useCallback(() => {
+    setReleasePhase('done');
+    setSelected(null);
+    loadProjects();
+    navigate('/');
+  }, [navigate]);
 
   const discard = async () => {
     if (!selected?.id) return;

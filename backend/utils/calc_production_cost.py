@@ -26,11 +26,11 @@ FORMAT_BASE_CP = {
 
 # Cast cost multipliers by star rating
 CAST_STAR_COST = {
-    1: 50_000,
-    2: 150_000,
-    3: 400_000,
-    4: 1_000_000,
-    5: 3_000_000,
+    1: 30_000,
+    2: 80_000,
+    3: 200_000,
+    4: 500_000,
+    5: 1_200_000,
 }
 
 # Equipment costs

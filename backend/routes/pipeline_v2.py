@@ -2911,37 +2911,28 @@ def _build_fallback_schedule() -> dict:
 
 def _compute_final_release_score(project: dict) -> dict:
     metrics = project.get('pipeline_metrics', {}) or {}
-    cast_raw = _safe_num(metrics.get('cast_quality', 0))
-    hype_raw = _safe_num(metrics.get('hype_score', 0))
+    cast_score = _safe_num(metrics.get('cast_quality', 0))
+    hype_score = _safe_num(metrics.get('hype_score', 0))
     prep_score = _safe_num(metrics.get('prep_quality', 0))
     shooting_score = _safe_num(metrics.get('shooting_quality', 0))
     postprod_score = _safe_num(metrics.get('postprod_quality', 0))
-    prod_raw = (prep_score + shooting_score + postprod_score) / 3 if any([prep_score, shooting_score, postprod_score]) else 0
-    mkt_raw = _safe_num(metrics.get('marketing_hype', 0))
-
-    # Normalizzazione per metrica: ogni valore → scala 0-10
-    cast10 = min(10, cast_raw / 10)    # cast: 0-100 → /10
-    hype10 = min(10, hype_raw / 100)   # hype: 0-1000 → /100
-    prod10 = min(10, prod_raw / 10)    # prod: 0-100 → /10
-    mkt10 = min(10, mkt_raw / 10)      # mkt: 0-100 → /10
+    production_score = (prep_score + shooting_score + postprod_score) / 3 if any([prep_score, shooting_score, postprod_score]) else 0
+    marketing_score = _safe_num(metrics.get('marketing_hype', 0))
 
     base = (
-        cast10 * 0.4 +
-        hype10 * 0.2 +
-        prod10 * 0.2 +
-        mkt10 * 0.2
+        cast_score * 0.4 +
+        hype_score * 0.2 +
+        production_score * 0.2 +
+        marketing_score * 0.2
     )
     randomness = random.uniform(-0.3, 0.3)
-    final_score = round(max(1, min(10, base + randomness)), 1)
+    final_score = round(max(1, min(10, (base / 100.0) + randomness)), 1)
     tier = _determine_release_tier(final_score)
-
-    print(f"=== CALCOLO REALE === CAST:{cast_raw}→{cast10:.1f} HYPE:{hype_raw}→{hype10:.1f} PROD:{prod_raw:.1f}→{prod10:.1f} MKT:{mkt_raw}→{mkt10:.1f} BASE:{base:.1f} FINAL:{final_score}")
-
     return {
-        'cast_score': cast_raw,
-        'hype_score': hype_raw,
-        'production_score': prod_raw,
-        'marketing_score': mkt_raw,
+        'cast_score': cast_score,
+        'hype_score': hype_score,
+        'production_score': production_score,
+        'marketing_score': marketing_score,
         'base': base,
         'randomness': randomness,
         'final_score': final_score,
@@ -3102,12 +3093,6 @@ async def _finalize_release(project: dict, user: dict) -> dict:
 
     film_doc = await _create_or_get_released_film(project, quality_score, tier, opening_day)
 
-    # === CHECK CRITICO: film creato? ===
-    print(f"=== FILM_DOC: id={film_doc.get('id')} title={film_doc.get('title')} quality={film_doc.get('quality_score')} ===")
-    if not film_doc or not film_doc.get('id'):
-        print("=== ERRORE CRITICO: FILM NON CREATO ===")
-        raise HTTPException(500, "Film non creato correttamente nella collection films")
-
     project_update = {
         'quality_score': quality_score,
         'final_quality': quality_score,
@@ -3128,18 +3113,15 @@ async def _finalize_release(project: dict, user: dict) -> dict:
     }
 
     await db.film_projects.update_one({'id': project['id'], 'user_id': user['id']}, {'$set': project_update})
-
-    # === VERIFICA: pipeline aggiornata? ===
-    updated_pipeline = await db.film_projects.find_one({'id': project['id']}, {'_id': 0, 'pipeline_state': 1, 'film_id': 1, 'final_quality': 1})
-    print(f"=== PIPELINE UPDATED: state={updated_pipeline.get('pipeline_state')} film_id={updated_pipeline.get('film_id')} final_q={updated_pipeline.get('final_quality')} ===")
-    if updated_pipeline.get('pipeline_state') != 'released':
-        print("=== ERRORE CRITICO: PIPELINE NON AGGIORNATA A RELEASED ===")
-
     await db.users.update_one({'id': user['id']}, {'$inc': {'fame': fame_change, 'xp': xp_reward, 'funds': opening_day}})
     released_project = await db.film_projects.find_one({'id': project['id']}, {'_id': 0})
 
     return {
         'success': True,
+        'film_id': film_doc['id'],
+        'project_id': project['id'],
+        'step': 'released',
+        'pipeline_state': 'released',
         'film': film_doc,
         'project': released_project,
         'quality_score': quality_score,
@@ -3266,14 +3248,28 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
 
 @router.post("/films/{pid}/confirm-final-release")
 async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)):
-    """Canonical final release endpoint.
-    Real IMDb is computed here, once, from backend metrics only.
-    """
+    """FORZATO: rilascia il film SEMPRE, senza condizioni bloccanti."""
     project = await _get_project(pid, user['id'])
     state = project.get('pipeline_state', '')
-    if state not in ('release_pending', 'distribution', 'released', 'completed'):
-        raise HTTPException(400, f"Film non in fase di conferma uscita (stato: {state})")
+    print(f"=== CONFIRM-FINAL-RELEASE === pid={pid} state={state}")
+
+    # Se già rilasciato, ritorna i dati esistenti senza ricalcolare
+    if state in ('released', 'completed') and project.get('film_id'):
+        existing = await db.films.find_one({'id': project['film_id']}, {'_id': 0})
+        if existing:
+            return {
+                'success': True,
+                'film': existing,
+                'quality_score': project.get('final_quality', 5.0),
+                'tier': project.get('final_tier', 'good'),
+                'fame_change': 0,
+                'xp_reward': 0,
+                'opening_day_revenue': existing.get('opening_day_revenue', 0),
+            }
+
+    # NESSUN BLOCCO — esegui SEMPRE il release
     result = await _finalize_release(project, user)
+    print(f"=== RELEASE COMPLETATO === quality={result.get('quality_score')} film_id={result.get('film',{}).get('id','?')}")
     logging.info(f"[CONFIRM_RELEASE] Film {pid} released. Quality={result['quality_score']}, Tier={result['tier']}")
     return result
 

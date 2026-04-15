@@ -71,7 +71,12 @@ export const StepperBar = ({ current }) => {
   useEffect(() => {
     if (ref.current) {
       const el = ref.current.querySelector(`[data-sid="${current}"]`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      if (el) {
+        // Use scrollLeft instead of scrollIntoView to avoid page scroll bounce
+        const container = ref.current;
+        const scrollLeft = el.offsetLeft - container.offsetWidth / 2 + el.offsetWidth / 2;
+        container.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
+      }
     }
   }, [current]);
   return (

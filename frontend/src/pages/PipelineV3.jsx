@@ -103,6 +103,10 @@ export default function PipelineV3() {
   const nextStep = V3_STEPS[stepIndex + 1]?.id;
   const prevStep = stepIndex > 0 ? V3_STEPS[stepIndex - 1]?.id : null;
 
+  // Idea phase: advance only if all 3 sub-phases complete (poster + screenplay)
+  const ideaComplete = !!(selected?.screenplay_text && selected.screenplay_text.length > 50 && selected?.poster_url);
+  const canAdvance = currentStep === 'idea' ? ideaComplete : true;
+
   // ═══ OVERLAY STATES ═══
   if (releasePhase === 'progress' || releasePhase === 'calling') {
     return (
@@ -186,7 +190,7 @@ export default function PipelineV3() {
 
   // ═══ PROJECT VIEW ═══
   return (
-    <div className="min-h-screen bg-black text-white pb-28">
+    <div className="min-h-screen bg-black text-white pb-28" style={{ overscrollBehavior: 'none' }}>
       {toastEl}
       <div className="pt-20">
         {/* Header */}
@@ -218,9 +222,11 @@ export default function PipelineV3() {
               <button onClick={() => advance(prevStep)} disabled={loading}
                 className="px-3 py-1.5 rounded-lg border border-gray-800 text-gray-500 text-[8px] font-bold disabled:opacity-30">Indietro</button>
             )}
-            <button onClick={() => advance(nextStep)} disabled={loading}
-              className="flex-1 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[9px] font-bold disabled:opacity-30" data-testid="advance-btn">
-              {loading ? '...' : `Avanti ${V3_STEPS[stepIndex + 1]?.label}`}
+            <button onClick={() => advance(nextStep)} disabled={loading || !canAdvance}
+              className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold disabled:opacity-30 ${
+                canAdvance ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400' : 'bg-gray-800/50 border border-gray-700/30 text-gray-600 cursor-not-allowed'
+              }`} data-testid="advance-btn">
+              {loading ? '...' : !canAdvance ? `Completa ${V3_STEPS[stepIndex]?.label} prima` : `Avanti ${V3_STEPS[stepIndex + 1]?.label}`}
             </button>
           </div>
         )}

@@ -28,7 +28,7 @@ export default function PipelineV3() {
     return () => clearInterval(t);
   }, []);
 
-  const showToast = (msg, type = 'ok') => setToast({ msg, type });
+  const showToast = (msg, type = 'ok') => setToast({ msg: String(msg || ''), type });
   const markDirty = () => setDirty(true);
 
   const loadProjects = useCallback(async () => {

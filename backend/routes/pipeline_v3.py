@@ -269,11 +269,15 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
     if current in ("released", "discarded"):
         raise HTTPException(400, "Progetto già completato")
 
-    update = {"pipeline_state": req.next_state}
+    # Auto-fill defaults for any skipped steps
+    from utils.calc_defaults import fill_missing_defaults
+    defaults = fill_missing_defaults(project, req.next_state)
+
+    update = {**defaults, "pipeline_state": req.next_state}
 
     # Auto-start CIAK timer: 1 day = 1 hour real
     if req.next_state == "ciak":
-        shooting_days = project.get("shooting_days", 14)
+        shooting_days = project.get("shooting_days") or defaults.get("shooting_days", 14)
         now = datetime.now(timezone.utc)
         update["ciak_started_at"] = now.isoformat()
         update["ciak_complete_at"] = (now + timedelta(hours=shooting_days)).isoformat()
@@ -281,7 +285,8 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
     # Auto-start Final Cut timer
     if req.next_state == "finalcut":
         from utils.calc_finalcut import calculate_finalcut_hours
-        fc_hours = calculate_finalcut_hours(project)
+        merged = {**project, **defaults}
+        fc_hours = calculate_finalcut_hours(merged)
         now = datetime.now(timezone.utc)
         update["finalcut_hours"] = fc_hours
         update["finalcut_started_at"] = now.isoformat()

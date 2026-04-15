@@ -14,27 +14,27 @@ import random
 def calculate_sponsor_count(project: dict) -> int:
     """Quanti sponsor si presentano (0-15). Basato su hype e formato."""
     film_format = project.get("film_format", "standard")
-    hype_budget = project.get("hype_budget", 0)
-    cast = project.get("cast", {})
-    actors_count = len(cast.get("actors", []))
+    hype_budget = project.get("hype_budget", 0) or 0
+    cast = project.get("cast") or {}
+    actors_count = len(cast.get("actors", []) or [])
 
     # Base by format
     base = {
-        "cortometraggio": 2,
-        "medio": 4,
+        "cortometraggio": 3,
+        "medio": 5,
         "standard": 7,
         "epico": 10,
         "kolossal": 13,
     }.get(film_format, 7)
 
     # Hype bonus
-    hype_bonus = min(3, hype_budget // 6)
+    hype_bonus = min(3, int(hype_budget) // 6) if hype_budget else 0
 
     # Cast bonus (famous actors attract sponsors)
     cast_bonus = min(2, actors_count // 3)
 
     total = base + hype_bonus + cast_bonus + random.randint(-1, 2)
-    return max(0, min(15, total))
+    return max(3, min(15, total))
 
 
 def select_sponsors_for_film(all_sponsors: list, project: dict, count: int) -> list:

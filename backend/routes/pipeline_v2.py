@@ -3248,14 +3248,28 @@ async def schedule_release_v2(pid: str, body: ScheduleReleaseBody, user: dict = 
 
 @router.post("/films/{pid}/confirm-final-release")
 async def confirm_final_release(pid: str, user: dict = Depends(get_current_user)):
-    """Canonical final release endpoint.
-    Real IMDb is computed here, once, from backend metrics only.
-    """
+    """FORZATO: rilascia il film SEMPRE, senza condizioni bloccanti."""
     project = await _get_project(pid, user['id'])
     state = project.get('pipeline_state', '')
-    if state not in ('release_pending', 'distribution', 'released', 'completed'):
-        raise HTTPException(400, f"Film non in fase di conferma uscita (stato: {state})")
+    print(f"=== CONFIRM-FINAL-RELEASE === pid={pid} state={state}")
+
+    # Se già rilasciato, ritorna i dati esistenti senza ricalcolare
+    if state in ('released', 'completed') and project.get('film_id'):
+        existing = await db.films.find_one({'id': project['film_id']}, {'_id': 0})
+        if existing:
+            return {
+                'success': True,
+                'film': existing,
+                'quality_score': project.get('final_quality', 5.0),
+                'tier': project.get('final_tier', 'good'),
+                'fame_change': 0,
+                'xp_reward': 0,
+                'opening_day_revenue': existing.get('opening_day_revenue', 0),
+            }
+
+    # NESSUN BLOCCO — esegui SEMPRE il release
     result = await _finalize_release(project, user)
+    print(f"=== RELEASE COMPLETATO === quality={result.get('quality_score')} film_id={result.get('film',{}).get('id','?')}")
     logging.info(f"[CONFIRM_RELEASE] Film {pid} released. Quality={result['quality_score']}, Tier={result['tier']}")
     return result
 

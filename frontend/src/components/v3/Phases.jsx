@@ -4,6 +4,12 @@ import { PhaseWrapper, ProgressCircle, v3api } from './V3Shared';
 
 const SPEEDUP_COSTS = { 25: 10, 50: 15, 75: 20, 100: 25 };
 
+// Cost decreases exponentially inverse based on current progress
+function getSpeedupCost(baseCost, currentProgress) {
+  const remaining = (100 - currentProgress) / 100;
+  return Math.max(1, Math.ceil(baseCost * remaining));
+}
+
 /* ═══════ HYPE ═══════ */
 export const HypePhase = ({ film, onRefresh, toast }) => {
   const [strategy, setStrategy] = useState(film.hype_strategy || film.hype_notes || 'balanced');
@@ -40,13 +46,16 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
   };
 
   const speedup = async (pct) => {
-    const cost = SPEEDUP_COSTS[pct];
+    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], hypeProgress);
     setLoading(true);
     try {
       await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'hype', percentage: pct });
-      setHypeProgress(prev => Math.min(100, prev + pct * 0.8));
+      // Add percentage of REMAINING progress (so 100% always reaches 100%)
+      const remaining = 100 - hypeProgress;
+      const gain = remaining * (pct / 100);
+      setHypeProgress(prev => Math.min(100, prev + gain));
       await onRefresh();
-      toast?.(`Velocizzato ${pct}% (-${cost} CP)`);
+      toast?.(`Velocizzato +${Math.ceil(gain)}% (-${cost} CP)`);
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
@@ -105,17 +114,22 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
           <>
             <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza (a pagamento)</p>
             <div className="grid grid-cols-2 gap-1.5">
-              {[25,50,75,100].map(p => (
-                <button key={p} onClick={() => speedup(p)} disabled={loading || hypeProgress >= 100}
-                  className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all"
-                  data-testid={`speedup-${p}`}>
-                  <Zap className="w-3 h-3" />
-                  <span>{p}%</span>
-                  <span className="flex items-center gap-0.5 text-[7px] text-cyan-400 ml-1">
-                    <Coins className="w-2.5 h-2.5" />{SPEEDUP_COSTS[p]}
-                  </span>
-                </button>
-              ))}
+              {[25,50,75,100].map(p => {
+                const cost = getSpeedupCost(SPEEDUP_COSTS[p], hypeProgress);
+                const remaining = 100 - hypeProgress;
+                const gain = Math.ceil(remaining * (p / 100));
+                return (
+                  <button key={p} onClick={() => speedup(p)} disabled={loading || hypeProgress >= 100}
+                    className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all"
+                    data-testid={`speedup-${p}`}>
+                    <Zap className="w-3 h-3" />
+                    <span>+{gain}%</span>
+                    <span className="flex items-center gap-0.5 text-[7px] text-cyan-400 ml-1">
+                      <Coins className="w-2.5 h-2.5" />{cost}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </>
         )}

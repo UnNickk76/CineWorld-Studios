@@ -501,7 +501,7 @@ async def select_cast_member(pid: str, req: SelectCastBody, user: dict = Depends
     elif role == "screenwriter":
         cast["screenwriters"].append(entry)
     else:
-        entry["cast_role"] = req.cast_role or "protagonista"
+        entry["cast_role"] = req.cast_role or "generico"
         cast["actors"].append(entry)
 
     # Deduct cost
@@ -545,7 +545,7 @@ async def auto_cast(pid: str, user: dict = Depends(get_current_user)):
                         "cost": n.get("cost", 50000), "skills": n.get("skills", {})}
         return None
 
-    roles_order = ["protagonista", "antagonista", "co_protagonista", "supporto", "supporto"]
+    roles_order = ["protagonista", "antagonista", "co protagonista", "supporto", "generico"]
     if not cast.get("director"):
         d = pick(by_role["director"])
         if d: d["role_type"] = "director"; cast["director"] = d

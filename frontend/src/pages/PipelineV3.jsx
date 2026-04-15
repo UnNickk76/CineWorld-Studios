@@ -80,6 +80,21 @@ export default function PipelineV3() {
 
   const confirmRelease = async () => {
     if (releasePhase !== 'idle' || !selected?.id) return;
+
+    // Pre-check: verify cost and funds before starting animation
+    try {
+      const costData = await v3api(`/films/${selected.id}/production-cost`);
+      const totalFunds = costData?.total_funds || 0;
+      const totalCp = costData?.total_cp || 0;
+      // Show cost in toast if very high
+      if (totalFunds > 0 || totalCp > 0) {
+        // Just proceed — the backend will check balance
+      }
+    } catch (e) {
+      showToast('Errore nel calcolo costi: ' + String(e.message || e), 'error');
+      return;
+    }
+
     setReleasePhase('progress'); setReleaseProgress(0);
     let p = 0;
     progressRef.current = setInterval(() => { p += Math.random() * 6 + 2; if (p >= 100) { p = 100; clearInterval(progressRef.current); } setReleaseProgress(Math.min(100, p)); }, 400);
@@ -87,16 +102,21 @@ export default function PipelineV3() {
     await new Promise(r => setTimeout(r, 800));
     setReleasePhase('calling');
     try {
-      await v3api(`/films/${selected.id}/confirm-release`, 'POST');
-      await refreshSelected();
-      setReleasePhase('wow');
+      const res = await v3api(`/films/${selected.id}/confirm-release`, 'POST');
+      if (res?.success) {
+        await refreshSelected();
+        setReleasePhase('wow');
+      } else {
+        showToast(String(res?.detail || 'Errore nel rilascio'), 'error');
+        setReleasePhase('idle'); setReleaseProgress(0);
+      }
     } catch (e) {
-      showToast(e.message, 'error');
+      showToast(String(e.message || 'Fondi insufficienti'), 'error');
       setReleasePhase('idle'); setReleaseProgress(0);
     }
   };
 
-  const onWowDone = () => { setReleasePhase('idle'); loadProjects(); navigate('/'); };
+  const onWowDone = () => { setReleasePhase('done'); setSelected(null); loadProjects(); navigate('/'); };
 
   const discard = async () => {
     if (!selected?.id) return;

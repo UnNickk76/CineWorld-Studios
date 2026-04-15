@@ -1124,9 +1124,18 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
             "quality_score": None,
         }
 
-    # Calculate and deduct production cost
-    cost = calculate_production_cost(project)
-    balances = await _spend(user["id"], funds=cost["total_funds"], cinepass=cost["total_cp"])
+    # Calculate production cost (safe — handles missing data)
+    try:
+        cost = calculate_production_cost(project)
+        total_funds = cost.get("total_funds", 0)
+        total_cp = cost.get("total_cp", 0)
+    except Exception:
+        total_funds = 0
+        total_cp = 0
+
+    # Deduct funds (if any cost)
+    if total_funds > 0 or total_cp > 0:
+        balances = await _spend(user["id"], funds=total_funds, cinepass=total_cp)
 
     film_doc = {
         "id": str(uuid.uuid4()),

@@ -278,6 +278,15 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
         update["ciak_started_at"] = now.isoformat()
         update["ciak_complete_at"] = (now + timedelta(hours=shooting_days)).isoformat()
 
+    # Auto-start Final Cut timer
+    if req.next_state == "finalcut":
+        from utils.calc_finalcut import calculate_finalcut_hours
+        fc_hours = calculate_finalcut_hours(project)
+        now = datetime.now(timezone.utc)
+        update["finalcut_hours"] = fc_hours
+        update["finalcut_started_at"] = now.isoformat()
+        update["finalcut_complete_at"] = (now + timedelta(hours=fc_hours)).isoformat()
+
     project = await _update_project(pid, user["id"], update)
     return {"success": True, "project": project}
 
@@ -654,6 +663,8 @@ async def get_film_duration(pid: str, user: dict = Depends(get_current_user)):
     hours = minutes // 60
     mins = minutes % 60
     label = f"{hours}h {mins}min" if hours > 0 else f"{mins} min"
+    # Save to project for header display
+    await _update_project(pid, user["id"], {"film_duration_minutes": minutes, "film_duration_label": label})
     return {"duration_minutes": minutes, "duration_label": label}
 
 
@@ -671,10 +682,41 @@ async def start_ciak(pid: str, user: dict = Depends(get_current_user)):
 
 @router.post("/films/{pid}/save-finalcut")
 async def save_finalcut(pid: str, req: FinalCutRequest, user: dict = Depends(get_current_user)):
+    from utils.calc_finalcut import calculate_finalcut_hours
+    project = await _get_project(pid, user["id"])
+    fc_hours = calculate_finalcut_hours(project)
+    now = datetime.now(timezone.utc)
     project = await _update_project(pid, user["id"], {
         "finalcut_notes": req.finalcut_notes,
+        "finalcut_hours": fc_hours,
+        "finalcut_started_at": now.isoformat(),
+        "finalcut_complete_at": (now + timedelta(hours=fc_hours)).isoformat(),
     })
-    return {"success": True, "project": project}
+    return {"success": True, "project": project, "finalcut_hours": fc_hours}
+
+
+@router.post("/films/{pid}/start-finalcut")
+async def start_finalcut(pid: str, user: dict = Depends(get_current_user)):
+    """Auto-start finalcut timer if missing."""
+    from utils.calc_finalcut import calculate_finalcut_hours
+    project = await _get_project(pid, user["id"])
+    if project.get("finalcut_started_at"):
+        return {"success": True, "project": project, "already_started": True}
+    fc_hours = calculate_finalcut_hours(project)
+    now = datetime.now(timezone.utc)
+    project = await _update_project(pid, user["id"], {
+        "finalcut_hours": fc_hours,
+        "finalcut_started_at": now.isoformat(),
+        "finalcut_complete_at": (now + timedelta(hours=fc_hours)).isoformat(),
+    })
+    return {"success": True, "project": project, "finalcut_hours": fc_hours}
+
+
+@router.get("/films/{pid}/finalcut-messages")
+async def get_finalcut_messages(pid: str, user: dict = Depends(get_current_user)):
+    """Return final cut status messages."""
+    from utils.calc_finalcut import FINALCUT_MESSAGES
+    return {"messages": FINALCUT_MESSAGES}
 
 
 @router.post("/films/{pid}/save-marketing")
@@ -719,9 +761,18 @@ async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_curren
 
     # For CIAK: calculate progress from real time
     current_progress = 0
+    time_field_start = None
+    time_field_end = None
     if req.stage == "ciak":
-        started = project.get("ciak_started_at")
-        complete = project.get("ciak_complete_at")
+        time_field_start = "ciak_started_at"
+        time_field_end = "ciak_complete_at"
+    elif req.stage == "finalcut":
+        time_field_start = "finalcut_started_at"
+        time_field_end = "finalcut_complete_at"
+
+    if time_field_start and time_field_end:
+        started = project.get(time_field_start)
+        complete = project.get(time_field_end)
         if started and complete:
             now = datetime.now(timezone.utc)
             start_dt = datetime.fromisoformat(started.replace("Z", "+00:00")) if isinstance(started, str) else started
@@ -741,9 +792,9 @@ async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_curren
         }
     }
 
-    # CIAK: reduce real remaining time by percentage
-    if req.stage == "ciak":
-        complete = project.get("ciak_complete_at")
+    # Reduce real remaining time for timed stages
+    if time_field_end:
+        complete = project.get(time_field_end)
         if complete:
             now = datetime.now(timezone.utc)
             end_dt = datetime.fromisoformat(complete.replace("Z", "+00:00")) if isinstance(complete, str) else complete
@@ -752,7 +803,7 @@ async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_curren
             new_end = end_dt - timedelta(seconds=reduction)
             if new_end <= now:
                 new_end = now
-            update["ciak_complete_at"] = new_end.isoformat()
+            update[time_field_end] = new_end.isoformat()
 
     project = await _update_project(pid, user["id"], update)
     return {"success": True, "project": project, "balances": balances, "cost": cost}

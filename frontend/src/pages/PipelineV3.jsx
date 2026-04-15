@@ -127,8 +127,10 @@ export default function PipelineV3() {
         if (!selected.ciak_complete_at) return false;
         return new Date(selected.ciak_complete_at) <= new Date();
       }
-      case 'finalcut':
-        return !!(selected.finalcut_notes);
+      case 'finalcut': {
+        if (!selected.finalcut_complete_at) return !!(selected.finalcut_notes);
+        return new Date(selected.finalcut_complete_at) <= new Date();
+      }
       case 'marketing':
         return !!(selected.marketing_completed);
       case 'la_prima':
@@ -235,9 +237,12 @@ export default function PipelineV3() {
             <div className="w-9 h-12 rounded bg-gray-800 border border-gray-700 flex items-center justify-center shrink-0"><Film className="w-3.5 h-3.5 text-gray-600" /></div>}
           <div className="flex-1 min-w-0">
             <h2 className="text-xs font-bold text-white truncate">{selected.title || 'Nuovo Progetto'}</h2>
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
               <span className="text-[7px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium uppercase">{GENRE_LABELS[selected.genre] || selected.genre}</span>
               <span className="text-[6px] px-1 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/15 font-bold">V3</span>
+              {selected.film_duration_label && (
+                <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">{selected.film_duration_label}</span>
+              )}
             </div>
           </div>
           <button onClick={saveDraft} disabled={loading || !dirty}

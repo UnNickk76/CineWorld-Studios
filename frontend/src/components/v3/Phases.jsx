@@ -355,117 +355,279 @@ export const CiakPhase = ({ film, onRefresh, toast }) => {
   );
 };
 
+/* ═══════ FINAL CUT MESSAGES ═══════ */
+const FC_MESSAGES = [
+  "Sincronizzazione audio e video in corso...",
+  "Il montatore sta analizzando le scene migliori...",
+  "Correzione colore della scena d'apertura...",
+  "Taglio delle scene superflue...",
+  "Aggiunta delle transizioni tra le sequenze...",
+  "Mixaggio della colonna sonora...",
+  "Bilanciamento dei livelli audio...",
+  "Revisione del ritmo narrativo...",
+  "Inserimento degli effetti sonori ambientali...",
+  "Ottimizzazione della fotografia...",
+  "Il regista sta rivedendo il primo montaggio...",
+  "Rifinitura dei dialoghi in post-produzione...",
+  "Stabilizzazione delle riprese in movimento...",
+  "Aggiunta dei titoli di testa...",
+  "Rendering delle scene in CGI...",
+  "Compositing degli effetti visivi...",
+  "Correzione delle imperfezioni visive...",
+  "Il colorist sta lavorando alla palette cromatica...",
+  "Inserimento della musica di sottofondo...",
+  "Taglio e cucitura delle scene d'azione...",
+  "Revisione della continuita tra le scene...",
+  "Aggiunta degli effetti di transizione...",
+  "Sincronizzazione del labiale...",
+  "Ottimizzazione della scena climax...",
+  "Rifinitura del finale del film...",
+  "Mixaggio finale in Dolby Surround...",
+  "Il sound designer crea atmosfere uniche...",
+  "Inserimento dei sottotitoli...",
+  "Revisione del montaggio alternato...",
+  "Correzione della grana dell'immagine...",
+  "Aggiunta del logo della casa di produzione...",
+  "Il regista approva la scena del confronto...",
+  "Rifinitura delle scene romantiche...",
+  "Ottimizzazione dei tempi comici...",
+  "Bilanciamento delle scene di tensione...",
+  "Aggiunta della dissolvenza in chiusura...",
+  "Rendering finale delle scene notturne...",
+  "Revisione del flashback centrale...",
+  "Aggiunta degli effetti di pioggia digitale...",
+  "Il montatore taglia 15 minuti superflui...",
+  "Inserimento del tema musicale principale...",
+  "Correzione dell'esposizione nelle scene esterne...",
+  "Aggiunta dei crediti finali...",
+  "Revisione dell'arco narrativo del protagonista...",
+  "Ottimizzazione della scena d'inseguimento...",
+  "Il colorist aggiunge toni caldi al tramonto...",
+  "Sincronizzazione dei movimenti di camera...",
+  "Rifinitura della scena del colpo di scena...",
+  "Aggiunta del sonoro ambientale della citta...",
+  "Rendering degli effetti particellari...",
+  "Revisione del montaggio parallelo...",
+  "Il regista vuole rifare il finale...",
+  "Aggiunta delle scritte in sovrimpressione...",
+  "Correzione del bilanciamento del bianco...",
+  "Ottimizzazione della scena onirica...",
+  "Mixaggio della voce narrante...",
+  "Inserimento degli effetti di slow-motion...",
+  "Il montatore riordina le sequenze temporali...",
+  "Aggiunta della colonna sonora orchestrale...",
+  "Rifinitura delle scene di massa...",
+  "Correzione delle ombre nelle scene interne...",
+  "Rendering delle esplosioni in CGI...",
+  "Revisione del pacing del secondo atto...",
+  "Il sound designer aggiunge il battito cardiaco...",
+  "Aggiunta del filtro vintage alle scene retro...",
+  "Ottimizzazione della scena subacquea...",
+  "Inserimento dei rumori di fondo realistici...",
+  "Correzione del contrasto nelle scene buie...",
+  "Il regista e soddisfatto della scena madre...",
+  "Aggiunta delle particelle di polvere atmosferica...",
+  "Rifinitura della scena di apertura...",
+  "Rendering delle creature digitali...",
+  "Mixaggio dei livelli di dialogo e musica...",
+  "Revisione dell'epilogo...",
+  "Aggiunta degli easter egg nascosti...",
+  "Il colorist crea il look definitivo del film...",
+  "Ottimizzazione delle scene di volo...",
+  "Inserimento del tema dell'antagonista...",
+  "Correzione dei riflessi nelle scene con vetro...",
+  "Aggiunta delle dissolvenze incrociate...",
+  "Rifinitura della colonna sonora emotiva...",
+  "Il montatore lavora alla versione Director's Cut...",
+  "Rendering finale a risoluzione 4K...",
+  "Revisione complessiva del montaggio...",
+  "Aggiunta dei suoni foley personalizzati...",
+  "Ottimizzazione della compressione dinamica...",
+  "Il regista firma l'approvazione del montaggio...",
+  "Inserimento del teaser per i titoli di coda...",
+  "Correzione finale della timeline...",
+  "Esportazione del master in formato DCP...",
+  "Controllo qualita dell'output finale...",
+  "Verifica della sincronizzazione su tutti i canali...",
+  "Il film sta prendendo la sua forma definitiva...",
+  "Preparazione del pacchetto per la distribuzione...",
+  "Ultimi ritocchi al mix audio 7.1...",
+  "Generazione della versione per il cinema...",
+  "Il montaggio e quasi pronto...",
+  "Revisione finale prima dell'approvazione...",
+  "Il team di post-produzione da gli ultimi tocchi...",
+  "Encoding del master file definitivo...",
+];
+
 /* ═══════ FINAL CUT ═══════ */
 export const FinalCutPhase = ({ film, onRefresh, toast }) => {
   const [notes, setNotes] = useState(film.finalcut_notes || '');
   const [loading, setLoading] = useState(false);
-  const [fcProgress, setFcProgress] = useState(film.finalcut_progress || 0);
+  const [now, setNow] = useState(Date.now());
+  const [msgIdx, setMsgIdx] = useState(0);
   const [filmDuration, setFilmDuration] = useState(null);
-  const progressRef = useRef(null);
+  const started = !!film.finalcut_started_at;
 
+  // Tick every second for countdown
   useEffect(() => {
-    if (fcProgress < 100) {
-      progressRef.current = setInterval(() => {
-        setFcProgress(prev => {
-          const next = prev + Math.random() * 0.3 + 0.05;
-          if (next >= 100) { clearInterval(progressRef.current); return 100; }
-          return next;
-        });
-      }, 4000);
-      return () => { if (progressRef.current) clearInterval(progressRef.current); };
-    }
-  }, [fcProgress]);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-  // Load film duration after final cut is done
+  // Rotate messages every 4 seconds
   useEffect(() => {
-    if (fcProgress >= 100 && !filmDuration) {
-      v3api(`/films/${film.id}/film-duration`).then(d => setFilmDuration(d)).catch(() => {});
+    if (started) {
+      const msgTimer = setInterval(() => setMsgIdx(prev => (prev + 1) % FC_MESSAGES.length), 4000);
+      return () => clearInterval(msgTimer);
     }
-  }, [fcProgress, film.id, filmDuration]);
+  }, [started]);
+
+  // Auto-start timer if in finalcut but no timestamps
+  useEffect(() => {
+    if (!film.finalcut_started_at && film.pipeline_state === 'finalcut') {
+      v3api(`/films/${film.id}/start-finalcut`, 'POST').then(() => onRefresh?.()).catch(() => {});
+    }
+  }, [film.id, film.finalcut_started_at, film.pipeline_state, onRefresh]);
+
+  // Calculate progress from timestamps
+  const startedAt = film.finalcut_started_at ? new Date(film.finalcut_started_at).getTime() : now;
+  const completeAt = film.finalcut_complete_at ? new Date(film.finalcut_complete_at).getTime() : startedAt + 12 * 3600000;
+  const totalMs = Math.max(1, completeAt - startedAt);
+  const elapsedMs = now - startedAt;
+  const remainingMs = Math.max(0, completeAt - now);
+  const progress = Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100));
+  const isComplete = remainingMs <= 0;
+
+  const remainH = Math.floor(remainingMs / 3600000);
+  const remainM = Math.floor((remainingMs % 3600000) / 60000);
+  const remainS = Math.floor((remainingMs % 60000) / 1000);
+  const remainLabel = isComplete ? 'Completato!' : remainH > 0 ? `${remainH}h ${remainM}m` : `${remainM}m ${remainS}s`;
+  const fcHours = film.finalcut_hours || Math.round(totalMs / 3600000);
+
+  // Load film duration after complete
+  useEffect(() => {
+    if (isComplete && !filmDuration) {
+      v3api(`/films/${film.id}/film-duration`).then(d => {
+        setFilmDuration(d);
+        // Save to project for header display
+        v3api(`/films/${film.id}/save-idea`, 'POST', {
+          title: film.title || '', genre: film.genre || 'drama',
+          preplot: film.preplot || '',
+          subgenres: film.subgenres || [], locations: film.locations || [],
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+  }, [isComplete, film.id, filmDuration]);
 
   const save = async () => {
     setLoading(true);
     try {
-      await v3api(`/films/${film.id}/save-finalcut`, 'POST', { finalcut_notes: notes });
+      const res = await v3api(`/films/${film.id}/save-finalcut`, 'POST', { finalcut_notes: notes });
       await onRefresh();
-      setFcProgress(prev => Math.max(prev, 5));
-      toast?.('Montaggio avviato!');
+      toast?.(`Montaggio avviato! Durata: ${res.finalcut_hours}h`);
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
 
   const speedup = async (pct) => {
-    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], fcProgress);
+    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], progress);
     setLoading(true);
     try {
       await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'finalcut', percentage: pct });
-      const remaining = 100 - fcProgress;
-      const gain = remaining * (pct / 100);
-      setFcProgress(prev => Math.min(100, prev + gain));
       await onRefresh();
-      toast?.(`Velocizzato +${Math.ceil(gain)}% (-${cost} CP)`);
+      toast?.(`Velocizzato (-${cost} CP)`);
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
 
-  const configured = fcProgress > 0;
-
   return (
     <PhaseWrapper title="Final Cut" subtitle="Post-produzione e montaggio" icon={Scissors} color="purple">
       <div className="space-y-3">
-        {/* Progress Bar */}
-        {configured && (
-          <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/15 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[8px] text-gray-500 uppercase font-bold">Avanzamento Montaggio</span>
-              <span className="text-[10px] font-black text-purple-400">{Math.floor(fcProgress)}%</span>
-            </div>
-            <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-purple-600 to-pink-400 transition-all duration-1000 ease-out"
-                style={{ width: `${Math.min(100, fcProgress)}%` }} />
-            </div>
-          </div>
-        )}
-
-        {/* Film Duration - shown after completion */}
-        {filmDuration && (
-          <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15 text-center">
-            <p className="text-[7px] text-gray-500 uppercase font-bold">Durata effettiva del film</p>
-            <p className="text-lg font-black text-emerald-400">{filmDuration.duration_label}</p>
-            <p className="text-[7px] text-gray-600">({filmDuration.duration_minutes} minuti)</p>
-          </div>
-        )}
-
-        {!configured && (
+        {/* Not started: show notes form */}
+        {!started && (
           <>
             <textarea value={notes} onChange={e => setNotes(e.target.value)}
-              rows={3} placeholder="Note montaggio..." className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-[10px] text-white placeholder-gray-600" />
-            <button onClick={save} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-400 disabled:opacity-30 font-bold">
+              rows={3} placeholder="Note per il montaggio..."
+              className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-[10px] text-white placeholder-gray-600" />
+            <button onClick={save} disabled={loading}
+              className="w-full text-[9px] py-2 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-400 disabled:opacity-30 font-bold">
               {loading ? '...' : 'Avvia Montaggio'}
             </button>
           </>
         )}
 
-        {configured && (
+        {/* Timer active */}
+        {started && (
           <>
-            <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza (a pagamento)</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[25,50,75,100].map(p => {
-                const cost = getSpeedupCost(SPEEDUP_COSTS[p], fcProgress);
-                const remaining = 100 - fcProgress;
-                const gain = Math.ceil(remaining * (p / 100));
-                return (
-                  <button key={p} onClick={() => speedup(p)} disabled={loading || fcProgress >= 100}
-                    className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all">
-                    <Zap className="w-3 h-3" />
-                    <span>+{gain}%</span>
-                    <span className="flex items-center gap-0.5 text-[7px] text-cyan-400 ml-1">
-                      <Coins className="w-2.5 h-2.5" />{cost}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Progress + countdown */}
+            <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/15 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[8px] text-gray-500 uppercase font-bold">Montaggio ({fcHours}h totali)</span>
+                <span className="text-[10px] font-black text-purple-400">{Math.floor(progress)}%</span>
+              </div>
+              <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-gradient-to-r from-purple-600 to-pink-400 transition-all duration-1000 ease-out"
+                  style={{ width: `${Math.min(100, progress)}%` }} />
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <Clock className="w-3 h-3 text-purple-400" />
+                <span className={`text-[10px] font-bold ${isComplete ? 'text-emerald-400' : 'text-purple-300'}`}>
+                  {isComplete ? 'Montaggio completato!' : remainLabel + ' rimanenti'}
+                </span>
+              </div>
             </div>
+
+            {/* Rotating message in italic */}
+            {!isComplete && (
+              <div className="px-3 py-2 rounded-lg bg-purple-500/3 border border-purple-500/10 min-h-[32px] flex items-center justify-center">
+                <p className="text-[9px] text-purple-300/80 italic text-center transition-opacity duration-500" key={msgIdx}>
+                  {FC_MESSAGES[msgIdx]}
+                </p>
+              </div>
+            )}
+
+            {/* Speedup buttons */}
+            {!isComplete && (
+              <>
+                <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza (a pagamento)</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[25,50,75,100].map(p => {
+                    const cost = getSpeedupCost(SPEEDUP_COSTS[p], progress);
+                    const remH = Math.floor((remainingMs * (p / 100)) / 3600000);
+                    const remM = Math.floor(((remainingMs * (p / 100)) % 3600000) / 60000);
+                    const saved = remH > 0 ? `-${remH}h${remM}m` : `-${remM}m`;
+                    return (
+                      <button key={p} onClick={() => speedup(p)} disabled={loading}
+                        className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all">
+                        <div className="flex items-center gap-1">
+                          <Zap className="w-3 h-3" />
+                          <span>{p}%</span>
+                          <span className="flex items-center gap-0.5 text-[7px] text-cyan-400">
+                            <Coins className="w-2.5 h-2.5" />{cost}
+                          </span>
+                        </div>
+                        <span className="text-[6px] text-gray-500">{saved}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Film Duration — shown after completion */}
+            {isComplete && filmDuration && (
+              <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-center space-y-1">
+                <p className="text-[7px] text-gray-500 uppercase font-bold tracking-wider">Durata Effettiva del Film</p>
+                <p className="text-2xl font-black text-emerald-400">{filmDuration.duration_label}</p>
+                <p className="text-[8px] text-gray-500">({filmDuration.duration_minutes} minuti)</p>
+              </div>
+            )}
+
+            {isComplete && (
+              <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15 text-center">
+                <p className="text-[9px] text-emerald-400 font-bold">Montaggio completato! Premi Avanti per il prossimo step.</p>
+              </div>
+            )}
           </>
         )}
       </div>

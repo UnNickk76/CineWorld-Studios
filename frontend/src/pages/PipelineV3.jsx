@@ -20,6 +20,7 @@ export default function PipelineV3() {
   const [releasePhase, setReleasePhase] = useState('idle');
   const [releaseProgress, setReleaseProgress] = useState(0);
   const progressRef = useRef(null);
+  const releaseCompletedRef = useRef(false); // ANTI-LOOP: once true, never show overlay again
   const [clockTick, setClockTick] = useState(0);
 
   // Tick every 5s for real-time checks (CIAK timer)
@@ -79,48 +80,35 @@ export default function PipelineV3() {
   };
 
   const confirmRelease = async () => {
-    if (releasePhase !== 'idle' || !selected?.id) return;
+    if (releasePhase !== 'idle' || !selected?.id || releaseCompletedRef.current) return;
+    releaseCompletedRef.current = true; // Lock immediately — prevents any re-trigger
 
-    // Pre-check: verify cost and funds before starting animation
-    try {
-      const costData = await v3api(`/films/${selected.id}/production-cost`);
-      const totalFunds = costData?.total_funds || 0;
-      const totalCp = costData?.total_cp || 0;
-      // Show cost in toast if very high
-      if (totalFunds > 0 || totalCp > 0) {
-        // Just proceed — the backend will check balance
-      }
-    } catch (e) {
-      showToast('Errore nel calcolo costi: ' + String(e.message || e), 'error');
-      return;
-    }
-
-    setReleasePhase('progress'); setReleaseProgress(0);
-    let p = 0;
-    progressRef.current = setInterval(() => { p += Math.random() * 6 + 2; if (p >= 100) { p = 100; clearInterval(progressRef.current); } setReleaseProgress(Math.min(100, p)); }, 400);
-    await new Promise(r => { const c = setInterval(() => { if (p >= 100) { clearInterval(c); r(); } }, 200); });
-    await new Promise(r => setTimeout(r, 800));
+    // Call API first (no animation until success confirmed)
     setReleasePhase('calling');
     try {
       const res = await v3api(`/films/${selected.id}/confirm-release`, 'POST');
-      if (res?.success) {
-        await refreshSelected();
-        setReleasePhase('wow');
-      } else {
+      if (!res?.success) {
         showToast(String(res?.detail || 'Errore nel rilascio'), 'error');
-        setReleasePhase('idle'); setReleaseProgress(0);
+        setReleasePhase('idle');
+        releaseCompletedRef.current = false;
+        return;
       }
     } catch (e) {
-      showToast(String(e.message || 'Fondi insufficienti'), 'error');
-      setReleasePhase('idle'); setReleaseProgress(0);
+      showToast(String(e.message || 'Errore nel rilascio'), 'error');
+      setReleasePhase('idle');
+      releaseCompletedRef.current = false;
+      return;
     }
+
+    // API succeeded — NOW show the cinema animation
+    setReleasePhase('wow');
   };
 
   const onWowDone = useCallback(() => {
     setReleasePhase('done');
     setSelected(null);
-    loadProjects();
-    navigate('/');
+    // Navigate to dashboard
+    setTimeout(() => navigate('/dashboard'), 100);
   }, [navigate]);
 
   const discard = async () => {
@@ -168,18 +156,11 @@ export default function PipelineV3() {
   })();
 
   // ═══ OVERLAY STATES ═══
-  if (releasePhase === 'progress' || releasePhase === 'calling') {
+  if (releasePhase === 'calling') {
     return (
       <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center">
-        <div className="relative w-[120px] h-[120px]">
-          <svg width="120" height="120"><circle cx="60" cy="60" r="50" stroke="#1f2937" strokeWidth="6" fill="none" />
-            <circle cx="60" cy="60" r="50" stroke="#10b981" strokeWidth="6" fill="none"
-              strokeDasharray={314} strokeDashoffset={314 - (releaseProgress / 100) * 314} strokeLinecap="round"
-              style={{ transition: 'stroke-dashoffset 0.4s ease', transform: 'rotate(-90deg)', transformOrigin: 'center' }} />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center text-3xl font-bold text-emerald-400">{Math.floor(releaseProgress)}%</div>
-        </div>
-        <p className="text-gray-400 text-sm mt-6">{releasePhase === 'calling' ? 'Invio al sistema...' : 'Analisi in corso...'}</p>
+        <div className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />
+        <p className="text-gray-400 text-sm mt-6">Invio al sistema...</p>
       </div>
     );
   }

@@ -18,11 +18,14 @@ export default function CinematicReleaseOverlay({ film, releaseType, onComplete 
   const isLaPrima = releaseType === 'premiere';
 
   const onCompleteRef = useRef(onComplete);
+  const calledRef = useRef(false); // Prevent double-call
   onCompleteRef.current = onComplete;
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     const doExit = () => {
+      if (calledRef.current) return; // Already called — prevent loop
+      calledRef.current = true;
       setExiting(true);
       setTimeout(() => {
         document.body.style.overflow = '';

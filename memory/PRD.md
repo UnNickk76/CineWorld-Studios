@@ -8,58 +8,42 @@ Browser game gestionale cinematografico Full-Stack (FastAPI + React + MongoDB).
 IDEA → HYPE → CAST → PREP → CIAK → FINAL CUT → MARKETING → LA PRIMA → DISTRIB. → USCITA
 ```
 
-### IdeaPhase — Flusso Sequenziale con OK Checkpoint
-- FASE 0: Titolo + Genere + Sottogeneri (max 3) + Pretrama (min 50 char) + Ambientazione → OK
-- FASE 1: Locandina AI → OK (film entra in PROSSIMAMENTE dopo questo OK)
-- FASE 2: Sceneggiatura AI/manuale → OK → Avanti HYPE si sblocca
+### Bottone Advance — FREEZATO in ogni step finche non completo:
+- IDEA: serve poster + screenplay
+- HYPE: serve configurazione hype
+- CAST: serve almeno un regista o attore
+- PREP: serve formato film + conferma
+- CIAK: serve timer completato (tempo reale)
+- FINAL CUT: serve note montaggio
+- MARKETING: serve conferma marketing
+- LA PRIMA/DISTRIB: sempre passabile
 
-### Hype — Barra 0-100% + Velocizzazioni a Pagamento
-- Configura strategia (Sprint/Bilanciata/Costruzione) + durata
-- Barra avanzamento 0-100% con progresso automatico
-- Velocizza: costo CP decresce esponenzialmente col progresso
+### CIAK — Timer Reale
+- 1 giorno di riprese = 1 ora reale
+- Range: 3-40 giorni = 3-40 ore reali
+- Countdown live (ore/minuti/secondi rimanenti)
+- Barra progresso 0-100% basata su tempo reale
+- Speedup riduce tempo reale rimanente (non simulato)
+- Al completamento timer: bottone advance si sblocca
 
-### Cast
-- Auto-cast: 1 regista, 1 sceneggiatore, 5 attori, 1 compositore
-- Ruoli: generico (default), protagonista, antagonista, Co Protagonista, supporto
-- Click su nome mostra modal Skills
-
-### Pre-Produzione
-- **Formato Film**: Cortometraggio (25-40min), Medio (50-80min), Standard (90-120min), Epico (130-180min), Kolossal (150-240min)
-- Attrezzature, CGI, VFX, Comparse
-- Calcolo automatico giorni riprese (3-40 giorni)
-
-### CIAK — Riprese
-- Durata riprese calcolata (basata su formato, genere, cast, attrezzature)
-- Barra progresso 0-100% con giorno attuale/totale
-- Velocizzazioni a pagamento CP (stesso sistema Hype)
-
-### Final Cut
-- Note montaggio + avvio
-- Barra progresso montaggio 0-100%
-- **Durata effettiva film** mostrata al completamento
-- Velocizzazioni a pagamento CP
-
-### La Prima
-- Se premiere: barra progresso + velocizzazioni a pagamento CP
-- Se diretto: salta alla distribuzione
-
-## File Calcoli Dedicati
+### File Calcoli Dedicati
 - `/app/backend/utils/calc_shooting.py` — Durata riprese (3-40 giorni)
 - `/app/backend/utils/calc_film_duration.py` — Durata effettiva film (minuti)
 - `/app/backend/utils/calc_speedup.py` — Costi velocizzazione unificati
 
-## Endpoint Chiave V3
-- POST /api/pipeline-v3/films/{pid}/save-prep-full (accetta film_format, ritorna shooting_days)
-- GET /api/pipeline-v3/films/{pid}/shooting-estimate
-- GET /api/pipeline-v3/films/{pid}/film-duration
-- POST /api/pipeline-v3/films/{pid}/speedup (costo CP da calc_speedup)
+### Sistema Velocizzazione Unificato (tutti gli step)
+- Costi base: 25%=10CP, 50%=15CP, 75%=20CP, 100%=25CP
+- Costo diminuisce inversamente al progresso
+- Per CIAK: riduce tempo reale rimanente
+
+### Pre-Produzione — Formato Film
+- Cortometraggio (25-40 min), Medio (50-80 min), Standard (90-120 min), Epico (130-180 min), Kolossal (150-240 min)
 
 ## Backlog
-- (P0) Motore calcolo qualita totale in file dedicato
-- (P1) CinemaStatsModal + ProducerProfileModal dati reali
+- (P0) Motore calcolo qualita totale
+- (P1) CinemaStatsModal + ProducerProfileModal
 - (P1) Fase 3 Mercato: vendita serie/anime
 - (P2) Sfida della Settimana
-- (P3) Previsioni Festival, Marketplace diritti TV/Anime
 
 ## Integrazioni
 - Emergent LLM Key (AI Poster, AI Screenplay)

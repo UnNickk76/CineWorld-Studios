@@ -235,39 +235,42 @@ export const PrepPhase = ({ film, onRefresh, toast }) => {
 /* ═══════ CIAK ═══════ */
 export const CiakPhase = ({ film, onRefresh, toast }) => {
   const [loading, setLoading] = useState(false);
-  const [ciakProgress, setCiakProgress] = useState(film.shooting_progress || 0);
-  const progressRef = useRef(null);
+  const [now, setNow] = useState(Date.now());
   const shootDays = film.shooting_days || 14;
 
-  // Auto-advance progress
+  // Real-time countdown tick every second
   useEffect(() => {
-    if (ciakProgress < 100) {
-      progressRef.current = setInterval(() => {
-        setCiakProgress(prev => {
-          const next = prev + Math.random() * 0.4 + 0.05;
-          if (next >= 100) { clearInterval(progressRef.current); return 100; }
-          return next;
-        });
-      }, 4000);
-      return () => { if (progressRef.current) clearInterval(progressRef.current); };
-    }
-  }, [ciakProgress]);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Calculate real progress from timestamps
+  const startedAt = film.ciak_started_at ? new Date(film.ciak_started_at).getTime() : now;
+  const completeAt = film.ciak_complete_at ? new Date(film.ciak_complete_at).getTime() : startedAt + shootDays * 3600000;
+  const totalMs = Math.max(1, completeAt - startedAt);
+  const elapsedMs = now - startedAt;
+  const remainingMs = Math.max(0, completeAt - now);
+  const progress = Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100));
+  const isComplete = remainingMs <= 0;
+
+  // Format remaining time
+  const remainH = Math.floor(remainingMs / 3600000);
+  const remainM = Math.floor((remainingMs % 3600000) / 60000);
+  const remainS = Math.floor((remainingMs % 60000) / 1000);
+  const remainLabel = isComplete ? 'Completato!' : remainH > 0 ? `${remainH}h ${remainM}m` : `${remainM}m ${remainS}s`;
+
+  const daysDone = Math.min(shootDays, Math.floor((progress / 100) * shootDays));
 
   const speedup = async (pct) => {
-    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], ciakProgress);
+    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], progress);
     setLoading(true);
     try {
       await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'ciak', percentage: pct });
-      const remaining = 100 - ciakProgress;
-      const gain = remaining * (pct / 100);
-      setCiakProgress(prev => Math.min(100, prev + gain));
       await onRefresh();
-      toast?.(`Velocizzato +${Math.ceil(gain)}% (-${cost} CP)`);
+      toast?.(`Velocizzato (-${cost} CP)`);
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
-
-  const daysDone = Math.floor((ciakProgress / 100) * shootDays);
 
   return (
     <PhaseWrapper title="CIAK! Riprese" subtitle="Le riprese del film" icon={Clapperboard} color="red">
@@ -279,7 +282,7 @@ export const CiakPhase = ({ film, onRefresh, toast }) => {
             <p className="text-sm font-black text-red-400">{shootDays} giorni</p>
           </div>
           <div className="text-center">
-            <p className="text-[7px] text-gray-500 uppercase">Giorno attuale</p>
+            <p className="text-[7px] text-gray-500 uppercase">Giorno</p>
             <p className="text-sm font-black text-white">{daysDone}/{shootDays}</p>
           </div>
           <div className="text-center">
@@ -288,43 +291,58 @@ export const CiakPhase = ({ film, onRefresh, toast }) => {
           </div>
         </div>
 
-        {/* Progress Bar */}
+        {/* Real countdown + progress */}
         <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/15 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[8px] text-gray-500 uppercase font-bold">Avanzamento Riprese</span>
-            <span className="text-[10px] font-black text-red-400">{Math.floor(ciakProgress)}%</span>
+            <span className="text-[10px] font-black text-red-400">{Math.floor(progress)}%</span>
           </div>
           <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
             <div className="h-full rounded-full bg-gradient-to-r from-red-600 to-orange-400 transition-all duration-1000 ease-out"
-              style={{ width: `${Math.min(100, ciakProgress)}%` }} />
+              style={{ width: `${Math.min(100, progress)}%` }} />
           </div>
-          <p className="text-[7px] text-gray-600 text-center">
-            {ciakProgress >= 100 ? 'Riprese completate! Avanza al prossimo step.' :
-             ciakProgress >= 50 ? 'Le riprese procedono... velocizza per completare!' :
-             'Il set e attivo. Le riprese proseguono giorno dopo giorno.'}
-          </p>
+          <div className="flex items-center justify-center gap-2">
+            <Clock className="w-3 h-3 text-red-400" />
+            <span className={`text-[10px] font-bold ${isComplete ? 'text-emerald-400' : 'text-red-300'}`}>
+              {isComplete ? 'Riprese completate!' : remainLabel + ' rimanenti'}
+            </span>
+          </div>
         </div>
 
-        {/* Speedup buttons with costs */}
-        <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza Riprese (a pagamento)</p>
-        <div className="grid grid-cols-2 gap-1.5">
-          {[25,50,75,100].map(p => {
-            const cost = getSpeedupCost(SPEEDUP_COSTS[p], ciakProgress);
-            const remaining = 100 - ciakProgress;
-            const gain = Math.ceil(remaining * (p / 100));
-            return (
-              <button key={p} onClick={() => speedup(p)} disabled={loading || ciakProgress >= 100}
-                className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all"
-                data-testid={`ciak-speedup-${p}`}>
-                <Zap className="w-3 h-3" />
-                <span>+{gain}%</span>
-                <span className="flex items-center gap-0.5 text-[7px] text-cyan-400 ml-1">
-                  <Coins className="w-2.5 h-2.5" />{cost}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        {/* Speedup buttons */}
+        {!isComplete && (
+          <>
+            <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza Riprese (a pagamento)</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[25,50,75,100].map(p => {
+                const cost = getSpeedupCost(SPEEDUP_COSTS[p], progress);
+                const remH = Math.floor((remainingMs * (p / 100)) / 3600000);
+                const remM = Math.floor(((remainingMs * (p / 100)) % 3600000) / 60000);
+                const saved = remH > 0 ? `-${remH}h${remM}m` : `-${remM}m`;
+                return (
+                  <button key={p} onClick={() => speedup(p)} disabled={loading}
+                    className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all"
+                    data-testid={`ciak-speedup-${p}`}>
+                    <div className="flex items-center gap-1">
+                      <Zap className="w-3 h-3" />
+                      <span>{p}%</span>
+                      <span className="flex items-center gap-0.5 text-[7px] text-cyan-400">
+                        <Coins className="w-2.5 h-2.5" />{cost}
+                      </span>
+                    </div>
+                    <span className="text-[6px] text-gray-500">{saved}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {isComplete && (
+          <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15 text-center">
+            <p className="text-[9px] text-emerald-400 font-bold">Riprese completate! Premi Avanti per il prossimo step.</p>
+          </div>
+        )}
       </div>
     </PhaseWrapper>
   );

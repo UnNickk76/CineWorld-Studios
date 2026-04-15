@@ -20,6 +20,13 @@ export default function PipelineV3() {
   const [releasePhase, setReleasePhase] = useState('idle');
   const [releaseProgress, setReleaseProgress] = useState(0);
   const progressRef = useRef(null);
+  const [clockTick, setClockTick] = useState(0);
+
+  // Tick every 5s for real-time checks (CIAK timer)
+  useEffect(() => {
+    const t = setInterval(() => setClockTick(c => c + 1), 5000);
+    return () => clearInterval(t);
+  }, []);
 
   const showToast = (msg, type = 'ok') => setToast({ msg, type });
   const markDirty = () => setDirty(true);
@@ -103,9 +110,35 @@ export default function PipelineV3() {
   const nextStep = V3_STEPS[stepIndex + 1]?.id;
   const prevStep = stepIndex > 0 ? V3_STEPS[stepIndex - 1]?.id : null;
 
-  // Idea phase: advance only if all 3 sub-phases complete (poster + screenplay)
-  const ideaComplete = !!(selected?.screenplay_text && selected.screenplay_text.length > 50 && selected?.poster_url);
-  const canAdvance = currentStep === 'idea' ? ideaComplete : true;
+  // eslint-disable-next-line
+  const canAdvance = (() => {
+    void clockTick; // trigger re-eval on tick
+    if (!selected) return false;
+    switch (currentStep) {
+      case 'idea':
+        return !!(selected.screenplay_text && selected.screenplay_text.length > 50 && selected.poster_url);
+      case 'hype':
+        return !!(selected.hype_notes || selected.hype_budget > 0);
+      case 'cast':
+        return !!(selected.cast?.director || selected.cast?.actors?.length > 0);
+      case 'prep':
+        return !!(selected.film_format && selected.shooting_days > 0);
+      case 'ciak': {
+        if (!selected.ciak_complete_at) return false;
+        return new Date(selected.ciak_complete_at) <= new Date();
+      }
+      case 'finalcut':
+        return !!(selected.finalcut_notes);
+      case 'marketing':
+        return !!(selected.marketing_completed);
+      case 'la_prima':
+        return selected.release_type !== 'premiere' || true;
+      case 'distribution':
+        return true;
+      default:
+        return true;
+    }
+  })();
 
   // ═══ OVERLAY STATES ═══
   if (releasePhase === 'progress' || releasePhase === 'calling') {

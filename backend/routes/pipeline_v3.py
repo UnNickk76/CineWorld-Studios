@@ -268,9 +268,17 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
     current = project.get("pipeline_state", "idea")
     if current in ("released", "discarded"):
         raise HTTPException(400, "Progetto già completato")
-    project = await _update_project(pid, user["id"], {
-        "pipeline_state": req.next_state,
-    })
+
+    update = {"pipeline_state": req.next_state}
+
+    # Auto-start CIAK timer: 1 day = 1 hour real
+    if req.next_state == "ciak":
+        shooting_days = project.get("shooting_days", 14)
+        now = datetime.now(timezone.utc)
+        update["ciak_started_at"] = now.isoformat()
+        update["ciak_complete_at"] = (now + timedelta(hours=shooting_days)).isoformat()
+
+    project = await _update_project(pid, user["id"], update)
     return {"success": True, "project": project}
 
 
@@ -707,8 +715,19 @@ async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_curren
     from utils.calc_speedup import get_speedup_cost
     project = await _get_project(pid, user["id"])
 
-    # Get current progress for cost calculation
-    current_progress = project.get("shooting_progress", 0) if req.stage == "ciak" else 0
+    # For CIAK: calculate progress from real time
+    current_progress = 0
+    if req.stage == "ciak":
+        started = project.get("ciak_started_at")
+        complete = project.get("ciak_complete_at")
+        if started and complete:
+            now = datetime.now(timezone.utc)
+            start_dt = datetime.fromisoformat(started.replace("Z", "+00:00")) if isinstance(started, str) else started
+            end_dt = datetime.fromisoformat(complete.replace("Z", "+00:00")) if isinstance(complete, str) else complete
+            total = (end_dt - start_dt).total_seconds()
+            elapsed = (now - start_dt).total_seconds()
+            current_progress = min(100, max(0, (elapsed / total) * 100)) if total > 0 else 100
+
     cost = get_speedup_cost(req.percentage, current_progress)
     balances = await _spend(user["id"], funds=0, cinepass=cost)
 
@@ -719,8 +738,20 @@ async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_curren
             "applied_at": _now(),
         }
     }
+
+    # CIAK: reduce real remaining time by percentage
     if req.stage == "ciak":
-        update["ciak_complete_at"] = _now()
+        complete = project.get("ciak_complete_at")
+        if complete:
+            now = datetime.now(timezone.utc)
+            end_dt = datetime.fromisoformat(complete.replace("Z", "+00:00")) if isinstance(complete, str) else complete
+            remaining_secs = max(0, (end_dt - now).total_seconds())
+            reduction = remaining_secs * (req.percentage / 100)
+            new_end = end_dt - timedelta(seconds=reduction)
+            if new_end <= now:
+                new_end = now
+            update["ciak_complete_at"] = new_end.isoformat()
+
     project = await _update_project(pid, user["id"], update)
     return {"success": True, "project": project, "balances": balances, "cost": cost}
 

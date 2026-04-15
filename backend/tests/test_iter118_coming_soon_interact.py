@@ -19,7 +19,7 @@ import os
 import uuid
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://pipeline-v2-fix.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://pipeline-v3-idea.preview.emergentagent.com')
 
 # Test content ID from the context
 COMING_SOON_CONTENT_ID = "a30221a2-442d-4349-8c01-aa4a37cafc54"

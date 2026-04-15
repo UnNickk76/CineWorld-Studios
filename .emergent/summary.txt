@@ -1,145 +1,159 @@
-<analysis><handoff summary>
-**original_problem_statement**: 
-OBIETTIVO: 
-1) Nuova impaginazione della UI per la pagina dettaglio Film/Serie/Anime (), in ordine specifico (barra stato top, blocco locandina+trama breve, titolo, cast, barra dati con IMDb/durata, box giornali, box pubblico/eventi, sceneggiatura completa scrollabile internamente, placeholder trailer). 
-2) Aggiungere un nuovo Sistema Durata in pipeline *solo* per i nuovi contenuti (il player sceglie la categoria es: Cortometraggio/Kolossal, il backend calcola i minuti in base a genere/trama).
-REGOLE FONDAMENTALI: Retrocompatibilità assoluta. Nessuna rottura per i vecchi contenuti. Fallback sicuri. Mobile-first.
-VINCOLO DI PROCESSO: L'agente DEVE presentare il piano esatto dei file da toccare e attendere la conferma dell'utente prima di scrivere il codice.
+<analysis>**original_problem_statement**: 
+PRODUCT REQUIREMENTS:
+The project required fixing critical blocking issues and React #310 errors in Pipeline V2. After multiple iterations, the user requested a complete clean-slate rewrite called Pipeline V3. 
+Pipeline V3 must be completely stable, modular, free of any composite quality calculations (for now), without blocking conditions, and use a dedicated UI. 
+The current active requirement is to restructure the  in Pipeline V3 into a strictly sequential flow with OK confirmation checkpoints:
+1. Name, Genre, Subgenres (Tags), Setting -> OK button (frozen until filled).
+2. Poster Generation (AI uses pre-plot as context) -> OK button (frozen until poster generated).
+3. Screenplay Generation (AI uses pre-plot, max 1000-2000 chars, readable/scrollable) -> OK button (frozen until script > 100 chars).
+4. Advance to HYPE step.
+Additionally, the La Prima step needs to be visibly restored in the Pipeline V3 Stepper.
 
-**User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
+**User's preferred language**: Italian (You MUST respond in Italian only).
 
-**what currently exists?** 
-CineWorld Studio's è un browser game gestionale cinematografico. In questa sessione sono stati implementati enormi aggiornamenti: 
-- Fase 3 completa (Dinamiche città nascoste, Hype dei film, sistema di suggerimento Velion per LaPrima, notifiche narrative senza numeri).
-- Un sofisticato Tutorial Manager nell'Admin Panel in grado di generare tutorial guidati tramite AI (Emergent LLM Key).
-- Le pagine Note di Rilascio e Note di Sistema sono state visivamente congelate/disattivate.
-- Bugfix per l'accumulo infinito delle notifiche fantasma.
-- Aggiunta funzione Azzera Palinsesto e UI per palinsesto vuoto nella gestione Emittente TV.
-- Aggiunto un tool nell'Admin Panel per migrare le vecchie Serie/Anime (V1) nel nuovo sistema Pipeline (V2) generando titoli e trame episodi tramite AI.
-- Sostituito il tasto Eventi con La Mia TV nella bottom nav mobile.
+**what currently exists?**: 
+CineWorld Studio's is a Full-Stack management game (React + FastAPI + MongoDB). 
+A new Pipeline V3 has just been built and set as the default for . It features a highly modular React frontend (split into , , , , etc.) ensuring file sizes stay under 1000 lines. The V3 backend () is fully functional, properly serializes ObjectIds, and uses the  collection for Cast NPCs (replacing the deprecated ). The V3 UI currently features a poster-style grid layout, clickable tags for subgenres (380 available), and a completely non-blocking flow.
 
 **Last working item**: 
-    - Last item agent was working: Analisi del codice (, ,  e backend associato) per implementare il nuovo restyling della pagina di dettaglio e il sistema di durata.
-    - Status: USER VERIFICATION PENDING (L'agente ha raccolto il contesto ma deve ancora stampare il piano d'azione e chiedere conferma all'utente, come esplicitamente richiesto nell'ultimo prompt).
-    - Agent Testing Done: N
-    - Which testing method agent to use? Frontend testing agent (una volta implementato).
+    - Last item agent was working: Rewriting  to implement the sequential step-by-step unlock flow (Title/Genre -> OK -> Poster -> OK -> Script -> OK -> Advance) and restoring the La Prima step in the Stepper UI.
+    - Status: IN PROGRESS
+    - Agent Testing Done: N (File was just overwritten, no testing done yet).
+    - Which testing method agent to use?: Frontend testing agent/screenshot tool
     - User Testing Done: N
 
-**All Pending/In progress Issue list**:  
-Nessun bug bloccante. L'unica issue è la task in corso (P0).
+**All Pending/In progress Issue list**: 
+  - Issue 1: Idea Phase Sequential Flow & AI Integration
+     - Attempted fixes: Agent just created the  file to start the rewrite.
+     - Next debug checklist: 
+       - Verify  enforces the sequential unlocking via local state.
+       - Ensure the yellow OK buttons are frozen until conditions are met (e.g., subgenres selected, poster exists, script > 100 chars).
+       - Ensure the Poster AI prompt includes the preplot text as context.
+       - Ensure the Script AI generates 1000-2000 chars based on the preplot and is displayed in a scrollable container.
+       - Restore La Prima to the  and stepper configuration in  / .
+     - Why fix this issue and what will be achieved with the fix?: Fulfills the user's specific UX request for a guided, step-by-step creation process.
+     - Status: IN PROGRESS
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix?: Frontend
+     - Blocked on other issue: None
 
 **In progress Task List**: 
-  Task 1: Restyling UI Dettaglio Contenuti & Sistema Durata (P0)
-     - Where to resume: L'agente ha appena letto  e i file backend. Deve ORA usare l'output testuale (nessun tool) per rispondere all'utente con il piano esatto di implementazione (file che toccherà, dove inserirà la logica, come gestirà la retrocompatibilità), ed eventualmente usare  o attendere risposta.
-     - What will be achieved with this? Una UI molto più pulita, stile Netflix/IMDb per i dettagli film, senza popup invasivi per le locandine e con un sistema di durata generato proceduralmente per le nuove pipeline.
-     - Status: NOT STARTED (Analysis complete, waiting to present plan).
-     - Should Test frontend/backend/both after fix? Both (Frontend UI overhaul + Backend pipeline logic).
-     - Blocked on something: Approvazione del piano da parte dell'utente.
+  - Task 1: IdeaPhase Sequential Flow implementation
+     - Where to resume: Review the recently created . Complete the step-by-step logic, connect the AI poster/script functions properly using the backend endpoints, and add the La Prima step back to the V3 stepper.
+     - What will be achieved with this?: A guided, bug-free start to the film creation pipeline.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix?: Frontend
+     - Blocked on something: None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Fase 3 Mercato: Possibilità di vendere le serie/anime e far gestire la distribuzione a chi acquista.
-    - (P2) Sfida della Settimana (minigioco rotante con premi extra).
-    - Completare la migrazione delle restanti 5 serie V1 -> V2 dal pannello Admin (azione manuale dell'utente, ma il tool è pronto).
+    - (P0) Architecture: Move all V3 quality calculations into a dedicated separate file (e.g.,  or a backend equivalent) ONCE the pure UI flow is 100% verified by the user. Do NOT add calculations back into the pipeline components.
+    - (P1) Link real data to  and .
+    - (P1) Phase 3 Market: TV/Anime sales and distribution rights.
     
     Future Tasks:
-    - (P3) Previsioni Festival.
-    - (P3) Marketplace diritti TV/Anime.
-    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Livelli.
-    - (P3) Refactoring  (diventato molto grande).
+    - (P2) Weekly Challenges (rotating minigame with extra prizes).
+    - (P2) Festival Predictions and TV/Anime Rights Marketplace.
 
 **Completed work in this session**
-- Test e validazione  post-refactoring (DONE)
-- Sistema dinamico Città invisibili + Hype film + Velion LaPrima suggestion (DONE)
-- Sistema notifiche narrative text-based per performance città (DONE)
-- Tutorial Manager in Admin Panel con generazione AI (Emergent LLM Key) (DONE)
-- Freeze UI delle pagine Note Rilascio e Note Sistema (DONE)
-- Pulsanti manuali per avvio Tutorial Velion e Guest Pipeline (DONE)
-- Bugfix: risolto counter sessionStorage che accumulava notifiche fantasma (DONE)
-- Feature: Aggiunto Azzera Palinsesto in Gestione TV mantenendo le statistiche (DONE)
-- Feature: UI slot vuoti per palinsesto TV azzerato (DONE)
-- Feature: Tool di migrazione Admin per vecchie Serie TV / Anime verso Pipeline V2 con generazione AI di episodi e mini-plot (DONE)
-- UX: Bottom Nav mobile aggiornata (Eventi rimosso, aggiunto La Mia TV se sbloccata) (DONE)
+- Fixed major Pipeline V2 blockers (Quality Score 1-10 normalization, double-click bugs, missing  on release).
+- Created completely new Pipeline V3 architecture (Clean Slate).
+- Built V3 backend () and routed .
+- Built modular V3 frontend (, , , , ).
+- Rerouted  and  to V3.
+- Fixed NPC auto-cast to pull from the  collection (bypassing the missing ).
+- Replaced subgenre dropdowns with 380 clickable tags (max 3 selections).
+- Fixed Z-index padding issue () that blocked the New Project button.
 
 **Earlier issues found/mentioned but not fixed**
-  Nessuna.
+  - Issue 1: V3 Poster and Screenplay AI Generation
+    - Debug checklist: Check  and  endpoints to ensure they are properly utilizing the  integration with the user's provided  as context.
+    - Why to solve this issue and what will be achieved with this?: AI generation was noted as broken/defaulting in the user's latest message. Needs to work perfectly for the new IdeaPhase flow.
+    - Should Test frontend/backend/both after fix: Both
+    - Is recurring issue? Y
 
 **Known issue recurrence from previous fork**
-  Nessuna ricorrenza.
+  - Issue recurrence in previous fork: React Error #310 (Objects as React child) and infinite state machine loops.
+  - Recurrence count: High
+  - Status: RESOLVED (Mitigated by rewriting V3 from scratch with strict primitive data handling and a non-blocking flow).
+  - Note: DO NOT reintroduce complex composite quality calculations directly into the V3 component files. They must be kept separate.
 
 **Code Architecture**
-- Frontend: 
-  -  (FILE CHIAVE per la task corrente: gestisce l'UI unificata per Dettaglio Film, Serie e Anime).
-  -  e  (Wrappers per ContentTemplate).
-  -  (Contiene ora il Tutorial Manager e il Migration Tool).
-- Backend:
-  -  (Nuovo router per generazione AI tutorial).
-  -  (Gestione emittenti, ora include reset palinsesto e tool di migrazione serie).
-  -  (Nuovo motore per calcolo città/hype).
+- **Frontend V3**:
+  - : Main orchestrator (routing, state management, stepper).
+  - : Constants, StepperBar, shared UI components.
+  - : Title, Genre, AI Poster, AI Script.
+  - : NPC actor selection tabs.
+  - : Contains Hype, Prep, Ciak, FinalCut, Marketing, Distribution, StepFinale.
+- **Backend V3**:
+  - : Simplified, non-blocking state machine endpoints.
 
 **Key Technical Concepts**
-- **Emergent LLM Key**: Usata pesantemente (tramite l'integrazione interna) per generare i testi dei tutorial dinamicamente e per generare i titoli/plot degli episodi durante la migrazione delle serie TV dal vecchio al nuovo formato.
-- **Retrocompatibilità**: È il concetto cardine della task corrente. I nuovi campi (duration_category, short_plot) non esisteranno sui documenti vecchi. Il frontend in  dovrà usare accessi sicuri ().
+React, FastAPI, MongoDB (Motor), APScheduler (background tasks), Emergent Integrations (LLMs).
 
 **key DB schema**
-  -  / : 
-    (Nuovi campi da aggiungere):  (string),  (int),  (string).
-  -  / :
-    (Nuovi campi da aggiungere):  (string),  (int),  (int),  (string).
-  - : Nuova collection usata per salvare gli step generati dall'AI.
+  - : Active V3 pipeline projects.
+  - : Released films (Must always contain ).
+  - : NPC Cast database (used for directors, actors, writers, composers).
 
 **changes in tech stack**
-  - Installata libreria  per l'uso dell'AI via Emergent LLM Key.
+  - Shifted from monolithic V2 pipeline (~4500 lines) to modular V3 pipeline (components < 300 lines each).
+  - Cast NPCs are now fetched from the  collection using the  field instead of .
 
 **All files of reference** 
-  -  (Da modificare interamente per la UX della pagina di dettaglio).
-  -  /  (Dove inserire lo step di calcolo della durata).
-  -  (Modificato massivamente in questa sessione).
+  - 
+  -  (Currently working here)
+  - 
+  - 
+  - 
+  - 
+  - 
 
 **Areas that need refactoring**: 
-  -  (già segnalato in backlog).
-  -  (Sta per essere rifattorizzato nella task corrente. Attenzione a non romperlo!).
+  - Future calculations will require a dedicated scoring engine file, keeping  purely for UI and flow.
 
 **key api endpoints**
-  -  (Generazione AI/Statica tutorial).
-  -  (Azzeramento palinsesto).
-  -  (Migrazione vecchie serie).
+  - 
+  - 
+  - 
 
 **Critical Info for New Agent** 
-- **LINGUA:** Rispondi SEMPRE in Italiano.
-- **STATO CORRENTE:** L'utente ti ha inviato le specifiche lunghissime per il restyling di  e il Sistema Durata. L'ultima riga del suo prompt dice: *Prima di procedere... 1. dimmi esattamente quali file tocchi 2. dimmi dove inserisci la nuova fase durata 3. confermami come garantisci retrocompatibilità assoluta 4. solo dopo la mia conferma applichi il codice. Chiedi conferma prima di procedere.*
-- **TUA PRIMA AZIONE:** NON SCRIVERE CODICE. Rispondi all'utente (senza usare tool, se non  se necessario, ma un semplice messaggio diretto in risposta al prompt è meglio) fornendo esattamente i 3 punti richiesti. Mostragli che hai capito l'importanza dei fallback per la retrocompatibilità (es.  senza crashare se manca).
+- **LANGUAGE**: You MUST respond to the user exclusively in **Italian**.
+- **PIPELINE V3 RULES**: Do NOT reintroduce old V2 bugs. Do not add complex quality calculations to V3 yet. Do not add blocking logic that prevents release.
+- **ACTIVE TASK**: Focus immediately on . The user specifically requested a sequential flow: Name/Tags -> OK -> Poster -> OK -> Script -> OK. Ensure the OK buttons are styled as bold black text on solid yellow background, and remain frozen/disabled until the respective section is complete.
+- **LA PRIMA**: The user noticed La Prima is missing from the V3 Stepper. Make sure to re-add it to the visual stepper configuration in /.
 
 **documents and test reports created in this job** 
-  -  (Costantemente aggiornato).
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - *User*: Richiesta di integrazione AI per i Tutorial nell'Admin panel.
- - *User*: Richiesta bottoni Tutorial Velion e Pipeline Film nel menu.
- - *User*: (Foto inviate) Bug 19 notifiche fantasma, richiesta tasto Azzera Palinsesto TV.
- - *User*: (Foto inviate) Quando la TV è vuota, mostrare slot cliccabili pellicola.
- - *User*: Creare tool di migrazione Serie/Anime (da V1 a V2) nell'Admin panel usando AI per trame/episodi ma tenendo invariato IMDb.
- - *User*: Rimuovere Eventi e aggiungere La Mia TV nella nav bar in basso da mobile.
- - *User*: **(PENDING)** Lunghissima specifica per (1) Nuova UI Pagina Dettaglio Film/Serie e (2) Sistema Durata in pipeline. Ha richiesto esplicitamente di leggere i file e poi proporre un piano prima di agire. (L'agente ha letto i file e si è fermato).
+1. *User*: Uploaded custom  and  files to force a specific structure.
+2. *Agent*: Replaced files, backend restarted.
+3. *User*: Frontend doesn't update state after release, needs  before and after WOW overlay.
+4. *Agent*: Fixed frontend refresh logic.
+5. *User*: Critical Bug - Film not created in  collection.
+6. *Agent*: Fixed backend to ensure  properly inserts doc and links .
+7. *User*: Uploaded  and  to mandate a total reset (V3).
+8. *Agent*: Registered V3 routes, fixed ObjectId serialization, routed  to V3, made frontend modular.
+9. *User*: Subgenres must be up to 3 clickable tags. Make 20 subgenres per genre. Future calculations must be in a separate file.
+10. *User*: **(PENDING)**  needs a sequential unlock flow with OK buttons. AI Poster/Script must use  as context. Script must be scrollable (1000-2000 chars). Noticed La Prima step is missing from V3.
 
 **Project Health Check:**
-Molto stabile. Le pipeline V2 sono robuste, la migrazione V1->V2 funziona. Il codice frontend è complesso ma ben componentizzato.
+  - Broken: IdeaPhase AI Generation integration needs mapping to the newly structured sequential flow.
+  - Mocked: Quality calculations in V3 are currently bypassed/mocked as  or n.d. by user design until the flow is 100% verified.
 
 **3rd Party Integrations** 
- - Stripe (Payments) — requires User API Key
- - Emergent LLM Key — Usata attivamente in questa sessione per le feature di AI testuale ().
+  - Stripe (Payments) — requires User API Key
+  - Emergent LLM Key — Used for AI Poster Generation and AI Screenplay Generation.
 
 **Testing status**
-  - Testing agent used after significant changes: YES (usato all'inizio per Phase 3).
-  - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: N/A recentemente.
-  - Known regressions: Nessuna nota.
+  - Testing agent used after significant changes: NO (Tested manually via bash/curl/screenshot due to context size).
+  - Test files created: None
+  - Known regressions: None currently.
 
 **Credentials to test flow:**
- - Email: fandrex1@gmail.com
- - Password: Fandrel2776
- - Nickname: NeoMorpheus (Admin)
+- Email: fandrex1@gmail.com
+- Password: Fandrel2776
 
 **What agent forgot to execute**
-L'agente precedente ha fatto esattamente ciò che doveva: ha letto i file per l'ultima enorme task e si è fermato (fine contesto) prima di inviare il piano all'utente. Tocca a te inviare questo piano ora.
-</handoff summary></analysis>
+- The agent created the  file to implement the sequential flow, but the session ended before writing the sequential state logic, the yellow OK buttons, and restoring the La Prima step to the stepper.</analysis>

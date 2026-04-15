@@ -1,45 +1,38 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Plus, Film, ChevronLeft, Save, Sparkles, TrendingUp, Users, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Check, Award, X } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
 const STEPS = [
-  { id: 'idea', label: 'IDEA' },
-  { id: 'hype', label: 'HYPE' },
-  { id: 'cast', label: 'CAST' },
-  { id: 'prep', label: 'PREP' },
-  { id: 'ciak', label: 'CIAK' },
-  { id: 'finalcut', label: 'FINAL CUT' },
-  { id: 'marketing', label: 'MARKETING' },
-  { id: 'distribution', label: 'DISTRIBUZIONE' },
-  { id: 'release_pending', label: 'USCITA' },
+  { id: 'idea', label: 'IDEA', icon: Sparkles, color: 'amber' },
+  { id: 'hype', label: 'HYPE', icon: TrendingUp, color: 'orange' },
+  { id: 'cast', label: 'CAST', icon: Users, color: 'cyan' },
+  { id: 'prep', label: 'PREP', icon: Camera, color: 'blue' },
+  { id: 'ciak', label: 'CIAK', icon: Clapperboard, color: 'red' },
+  { id: 'finalcut', label: 'FINAL CUT', icon: Scissors, color: 'purple' },
+  { id: 'marketing', label: 'MARKETING', icon: Megaphone, color: 'green' },
+  { id: 'distribution', label: 'DISTRIB.', icon: Globe, color: 'blue' },
+  { id: 'release_pending', label: 'USCITA', icon: Ticket, color: 'emerald' },
 ];
 
-const GENRES = ['action', 'comedy', 'drama', 'horror', 'sci_fi', 'romance', 'thriller', 'animation', 'documentary', 'fantasy', 'adventure'];
+const GENRES = ['action','comedy','drama','horror','sci_fi','romance','thriller','animation','documentary','fantasy','adventure'];
+const GENRE_LABELS = { action:'Azione', comedy:'Commedia', drama:'Dramma', horror:'Horror', sci_fi:'Fantascienza', romance:'Romantico', thriller:'Thriller', animation:'Animazione', documentary:'Documentario', fantasy:'Fantasy', adventure:'Avventura' };
 const SUBGENRES = {
-  action: ['militare', 'spy', 'vendetta', 'arti marziali'],
-  comedy: ['demenziale', 'surreale', 'familiare', 'satirica'],
-  drama: ['romantico', 'psicologico', 'sociale', 'familiare'],
-  horror: ['slasher', 'soprannaturale', 'psicologico', 'zombie'],
-  sci_fi: ['cyberpunk', 'distopia', 'alieni', 'mecha'],
-  romance: ['tragico', 'proibito', 'teen romance', 'commedia romantica'],
-  thriller: ['crime', 'mistero', 'suspense', 'paranoia'],
-  animation: ['anime', 'CGI', '2D classico', 'stop motion'],
-  documentary: ['true crime', 'storico', 'sociale', 'natura'],
-  fantasy: ['epico', 'dark fantasy', 'urban fantasy', 'mitologico'],
-  adventure: ['giungla', 'tesoro', 'survival', 'oceano'],
+  action:['militare','spy','vendetta','arti marziali'], comedy:['demenziale','surreale','familiare','satirica'],
+  drama:['romantico','psicologico','sociale','familiare'], horror:['slasher','soprannaturale','psicologico','zombie'],
+  sci_fi:['cyberpunk','distopia','alieni','mecha'], romance:['tragico','proibito','teen romance','commedia romantica'],
+  thriller:['crime','mistero','suspense','paranoia'], animation:['anime','CGI','2D classico','stop motion'],
+  documentary:['true crime','storico','sociale','natura'], fantasy:['epico','dark fantasy','urban fantasy','mitologico'],
+  adventure:['giungla','tesoro','survival','oceano'],
 };
-const RELEASE_OPTIONS = ['6 ore', '12 ore', 'Immediato', 'Tra 24 ore', '2 giorni', '3 giorni', '4 giorni', '5 giorni', '6 giorni'];
-const MARKETING_PACKAGES = ['Teaser Digitale', 'Campagna Social Virale', 'Stampa e TV', 'Tour del Cast', 'Mega Campagna Globale'];
+const RELEASE_OPTIONS = ['Immediato','6 ore','12 ore','24 ore','2 giorni','3 giorni'];
+const MARKETING_PACKAGES = ['Teaser Digitale','Campagna Social','Stampa e TV','Tour Cast','Mega Globale'];
 
 async function api(path, method = 'GET', body) {
   const token = localStorage.getItem('cineworld_token');
   const res = await fetch(`${API}/api/pipeline-v3${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
@@ -47,50 +40,84 @@ async function api(path, method = 'GET', body) {
   return data;
 }
 
-function Stepper({ current }) {
+/* ═══════ STEPPER ═══════ */
+const Stepper = ({ current }) => {
+  const ci = STEPS.findIndex(s => s.id === current);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current) {
+      const el = ref.current.querySelector(`[data-sid="${current}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [current]);
   return (
-    <div className="flex items-center gap-1 overflow-x-auto py-3">
+    <div ref={ref} className="flex items-center gap-0 overflow-x-auto py-2 px-1 scrollbar-hide" data-testid="v3-stepper">
       {STEPS.map((s, i) => {
-        const active = s.id === current;
-        const done = STEPS.findIndex(x => x.id === current) > i;
+        const Icon = s.icon;
+        const done = i < ci;
+        const active = i === ci;
         return (
-          <div key={s.id} className="flex items-center gap-1 shrink-0">
-            <div className={`w-9 h-9 rounded-full border text-[10px] flex items-center justify-center font-bold ${active ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10' : done ? 'border-cyan-400 text-cyan-400 bg-cyan-500/10' : 'border-slate-700 text-slate-500 bg-slate-900'}`}>
-              {done ? '✓' : i + 1}
+          <React.Fragment key={s.id}>
+            {i > 0 && <div className={`w-3 h-[2px] shrink-0 ${done || active ? 'bg-emerald-500' : 'bg-gray-800'}`} />}
+            <div className="flex flex-col items-center shrink-0 gap-0.5" data-sid={s.id}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all ${
+                active ? 'border-emerald-400 bg-emerald-500/15 text-emerald-400 scale-110' :
+                done ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400' :
+                'border-gray-800 bg-gray-900/50 text-gray-600 opacity-40'
+              }`}>
+                {done ? <Check className="w-2.5 h-2.5" /> : <Icon className="w-2.5 h-2.5" />}
+              </div>
+              <span className={`text-[5px] font-bold uppercase tracking-wider ${
+                active ? 'text-emerald-300' : done ? 'text-emerald-500/60' : 'text-gray-700'
+              }`}>{s.label}</span>
             </div>
-            <span className={`text-[10px] font-bold ${active ? 'text-emerald-300' : done ? 'text-cyan-300' : 'text-slate-500'}`}>{s.label}</span>
-            {i < STEPS.length - 1 && <div className="w-4 h-[2px] bg-slate-800" />}
-          </div>
+          </React.Fragment>
         );
       })}
     </div>
   );
-}
+};
 
-function ProgressOverlay({ value }) {
+/* ═══════ PROGRESS OVERLAY ═══════ */
+const ProgressOverlay = ({ value }) => (
+  <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center">
+    <svg width="120" height="120">
+      <circle cx="60" cy="60" r="50" stroke="#1f2937" strokeWidth="6" fill="none" />
+      <circle cx="60" cy="60" r="50" stroke="#10b981" strokeWidth="6" fill="none"
+        strokeDasharray={314} strokeDashoffset={314 - (value / 100) * 314}
+        strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.4s ease', transform: 'rotate(-90deg)', transformOrigin: 'center' }} />
+    </svg>
+    <div className="absolute text-3xl font-bold text-emerald-400">{Math.floor(value)}%</div>
+    <p className="text-gray-400 text-sm mt-6">Rilascio in corso...</p>
+  </div>
+);
+
+/* ═══════ TOAST ═══════ */
+const Toast = ({ msg, type, onClose }) => {
+  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center px-6">
-      <div className="text-2xl font-bold text-emerald-300 mb-6">Rilascio in corso…</div>
-      <div className="w-40 h-40 rounded-full border-[10px] border-slate-800 relative flex items-center justify-center">
-        <div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(#23d3a6 ${value * 3.6}deg, #1e293b 0deg)` }} />
-        <div className="absolute inset-[10px] rounded-full bg-black flex items-center justify-center text-4xl text-emerald-300 font-bold">{value}%</div>
-      </div>
-      <div className="text-slate-400 mt-6 text-sm">Nessun calcolo qualità. Solo chiusura del rilascio.</div>
+    <div className={`fixed top-4 left-4 right-4 z-40 px-4 py-3 rounded-xl text-sm font-bold ${
+      type === 'error' ? 'bg-red-500/15 border border-red-500/30 text-red-300' : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
+    }`}>
+      {msg}
+      <button onClick={onClose} className="absolute top-2 right-3 text-gray-500"><X className="w-4 h-4" /></button>
     </div>
   );
-}
+};
 
+/* ═══════ MAIN ═══════ */
 export default function PipelineV3() {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const [balances, setBalances] = useState(null);
-  const [progress, setProgress] = useState(0);
+  const [toast, setToast] = useState(null);
   const [showProgress, setShowProgress] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [dirty, setDirty] = useState(false);
+  const autosaveRef = useRef(null);
 
+  // Form state
   const [idea, setIdea] = useState({ title: '', genre: 'action', subgenre: '', preplot: '' });
   const [posterSource, setPosterSource] = useState('preplot');
   const [posterPrompt, setPosterPrompt] = useState('');
@@ -107,353 +134,375 @@ export default function PipelineV3() {
   const [releaseDate, setReleaseDate] = useState('Immediato');
   const [world, setWorld] = useState(true);
 
+  const showToast = (msg, type = 'ok') => setToast({ msg, type });
+
+  // Load projects
   const loadProjects = useCallback(async () => {
-    const data = await api('/films');
-    setProjects(data.items || []);
-    if (!selected && data.items?.length) setSelected(data.items[0]);
-    if (selected) {
-      const fresh = (data.items || []).find(x => x.id === selected.id);
-      if (fresh) setSelected(fresh);
-    }
-  }, [selected]);
+    try {
+      const data = await api('/films');
+      setProjects(data.items || []);
+    } catch (e) { showToast(e.message, 'error'); }
+  }, []);
 
-  const refreshSelected = useCallback(async (id) => {
-    if (!id && !selected?.id) return null;
-    const data = await api(`/films/${id || selected.id}`);
-    setSelected(data);
-    setIdea({ title: data.title || '', genre: data.genre || 'action', subgenre: data.subgenre || '', preplot: data.preplot || '' });
-    setHypeNotes(data.hype_notes || '');
-    setHypeBudget(data.hype_budget || 0);
-    setCastNotes(data.cast_notes || '');
-    setChemistryMode(data.chemistry_mode || 'auto');
-    setPrepNotes(data.prep_notes || '');
-    setFinalcutNotes(data.finalcut_notes || '');
-    setMarketingPackages(data.marketing_packages || []);
-    setReleaseType(data.release_type || 'direct');
-    setReleaseDate(data.release_date_label || 'Immediato');
-    setWorld(data.distribution_world ?? true);
-    setPosterSource(data.poster_source || 'preplot');
-    setPosterPrompt(data.poster_source === 'custom_prompt' ? (data.poster_prompt || '') : '');
-    setScreenplaySource(data.screenplay_source || 'preplot');
-    setScreenplayPrompt(data.screenplay_source === 'custom_prompt' ? (data.screenplay_prompt || '') : '');
-    return data;
-  }, [selected]);
+  // Sync form from project
+  const syncForm = useCallback((p) => {
+    if (!p) return;
+    setIdea({ title: p.title || '', genre: p.genre || 'action', subgenre: p.subgenre || '', preplot: p.preplot || '' });
+    setHypeNotes(p.hype_notes || ''); setHypeBudget(p.hype_budget || 0);
+    setCastNotes(p.cast_notes || ''); setChemistryMode(p.chemistry_mode || 'auto');
+    setPrepNotes(p.prep_notes || ''); setFinalcutNotes(p.finalcut_notes || '');
+    setMarketingPackages(p.marketing_packages || []); setReleaseType(p.release_type || 'direct');
+    setReleaseDate(p.release_date_label || 'Immediato'); setWorld(p.distribution_world ?? true);
+    setPosterSource(p.poster_source || 'preplot'); setPosterPrompt(p.poster_prompt || '');
+    setScreenplaySource(p.screenplay_source || 'preplot'); setScreenplayPrompt(p.screenplay_prompt || '');
+    setDirty(false);
+  }, []);
 
-  useEffect(() => { loadProjects().catch(e => setError(e.message)); }, [loadProjects]);
-  useEffect(() => { if (selected?.id) refreshSelected(selected.id).catch(() => {}); }, [selected?.id, refreshSelected]);
+  const selectProject = useCallback(async (p) => {
+    try {
+      const data = await api(`/films/${p.id}`);
+      setSelected(data);
+      syncForm(data);
+    } catch (e) { showToast(e.message, 'error'); }
+  }, [syncForm]);
+
+  useEffect(() => { loadProjects(); }, [loadProjects]);
 
   const currentStep = selected?.pipeline_state || 'idea';
+  const stepIndex = STEPS.findIndex(s => s.id === currentStep);
   const subgenreOptions = useMemo(() => SUBGENRES[idea.genre] || [], [idea.genre]);
 
-  const run = async (fn) => {
-    setError(''); setMessage(''); setLoading(true);
+  // Mark dirty on form changes
+  const markDirty = () => setDirty(true);
+
+  // Autosave every 10s if dirty
+  useEffect(() => {
+    if (!selected || !dirty) return;
+    autosaveRef.current = setTimeout(async () => {
+      try {
+        await api(`/films/${selected.id}/save-idea`, 'POST', idea);
+        setDirty(false);
+      } catch {}
+    }, 10000);
+    return () => clearTimeout(autosaveRef.current);
+  }, [dirty, selected, idea]);
+
+  // API helpers
+  const run = async (fn, msg) => {
+    setLoading(true);
     try {
       await fn();
+      if (msg) showToast(msg);
       await loadProjects();
-    } catch (e) {
-      setError(e.message || 'Errore');
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { showToast(e.message, 'error'); }
+    setLoading(false);
   };
 
   const createProject = () => run(async () => {
-    const res = await api('/films/create', 'POST', idea);
+    const defaultIdea = { title: 'Nuovo Film', genre: 'comedy', subgenre: '', preplot: '' };
+    const res = await api('/films/create', 'POST', defaultIdea);
     setSelected(res.project);
-    setMessage('Progetto V3 creato');
-  });
+    syncForm(res.project);
+  }, 'Progetto creato!');
 
-  const saveIdea = () => run(async () => {
-    const res = await api(`/films/${selected.id}/save-idea`, 'POST', idea);
-    setSelected(res.project);
-    setMessage('Idea salvata');
-  });
+  const saveDraft = () => run(async () => {
+    await api(`/films/${selected.id}/save-idea`, 'POST', idea);
+    setDirty(false);
+  }, 'Bozza salvata');
 
-  const generatePoster = () => run(async () => {
-    const res = await api(`/films/${selected.id}/generate-poster`, 'POST', {
-      source: posterSource,
-      custom_prompt: posterPrompt,
-    });
-    setSelected(res.project);
-    setMessage(res.note);
-  });
-
-  const generateScreenplay = () => run(async () => {
-    const res = await api(`/films/${selected.id}/generate-screenplay`, 'POST', {
-      source: screenplaySource,
-      custom_prompt: screenplayPrompt,
-    });
-    setSelected(res.project);
-    setMessage('Sceneggiatura aggiornata');
-  });
-
-  const saveHype = () => run(async () => {
-    const res = await api(`/films/${selected.id}/save-hype`, 'POST', { hype_notes: hypeNotes, budget: Number(hypeBudget || 0) });
-    setSelected(res.project); setBalances(res.balances || null); setMessage('Hype salvato');
-  });
-
-  const saveCast = () => run(async () => {
-    const res = await api(`/films/${selected.id}/save-cast`, 'POST', { cast_notes: castNotes, chemistry_mode: chemistryMode });
-    setSelected(res.project); setMessage('Cast salvato');
-  });
-
-  const savePrep = () => run(async () => {
-    const res = await api(`/films/${selected.id}/save-prep`, 'POST', { prep_notes: prepNotes });
-    setSelected(res.project); setMessage('Prep salvato');
-  });
-
-  const startCiak = () => run(async () => {
-    const res = await api(`/films/${selected.id}/start-ciak`, 'POST');
-    setSelected(res.project); setMessage('Ciak completato');
-  });
-
-  const saveFinalcut = () => run(async () => {
-    const res = await api(`/films/${selected.id}/save-finalcut`, 'POST', { finalcut_notes: finalcutNotes });
-    setSelected(res.project); setMessage('Final cut salvato');
-  });
-
-  const saveMarketing = () => run(async () => {
-    const res = await api(`/films/${selected.id}/save-marketing`, 'POST', { packages: marketingPackages });
-    setSelected(res.project); setBalances(res.balances || null); setMessage('Marketing salvato');
-  });
-
-  const saveReleaseType = () => run(async () => {
-    const res = await api(`/films/${selected.id}/set-release-type`, 'POST', { release_type: releaseType });
-    setSelected(res.project); setMessage('Tipo rilascio salvato');
-  });
-
-  const saveDistribution = () => run(async () => {
-    const res = await api(`/films/${selected.id}/schedule-release`, 'POST', {
-      release_date_label: releaseDate,
-      world,
-      zones: [],
-    });
-    setSelected(res.project); setBalances(res.balances || null); setMessage('Distribuzione salvata');
-  });
-
-  const speedup = (stage, percentage) => run(async () => {
-    const res = await api(`/films/${selected.id}/speedup`, 'POST', { stage, percentage });
-    setSelected(res.project); setBalances(res.balances || null); setMessage(`Accelerazione ${percentage}% applicata`);
-  });
+  const advance = (nextState) => run(async () => {
+    // Save current step data first
+    const st = currentStep;
+    if (st === 'idea') await api(`/films/${selected.id}/save-idea`, 'POST', idea);
+    if (st === 'hype') await api(`/films/${selected.id}/save-hype`, 'POST', { hype_notes: hypeNotes, budget: Number(hypeBudget || 0) });
+    if (st === 'cast') await api(`/films/${selected.id}/save-cast`, 'POST', { cast_notes: castNotes, chemistry_mode: chemistryMode });
+    if (st === 'prep') await api(`/films/${selected.id}/save-prep`, 'POST', { prep_notes: prepNotes });
+    if (st === 'ciak') await api(`/films/${selected.id}/start-ciak`, 'POST');
+    if (st === 'finalcut') await api(`/films/${selected.id}/save-finalcut`, 'POST', { finalcut_notes: finalcutNotes });
+    if (st === 'marketing') {
+      await api(`/films/${selected.id}/save-marketing`, 'POST', { packages: marketingPackages });
+      await api(`/films/${selected.id}/set-release-type`, 'POST', { release_type: releaseType });
+    }
+    if (st === 'distribution') await api(`/films/${selected.id}/schedule-release`, 'POST', { release_date_label: releaseDate, world, zones: [] });
+    // Advance
+    await api(`/films/${selected.id}/advance`, 'POST', { next_state: nextState });
+    const fresh = await api(`/films/${selected.id}`);
+    setSelected(fresh);
+    syncForm(fresh);
+    setDirty(false);
+  }, `Avanzato a ${nextState}`);
 
   const confirmRelease = async () => {
     if (loading || !selected?.id) return;
-    setError(''); setMessage(''); setLoading(true);
-    setShowProgress(true);
-    setProgress(0);
-    let current = 0;
-    const timer = setInterval(() => {
-      current += 5;
-      setProgress(Math.min(current, 100));
-      if (current >= 100) clearInterval(timer);
-    }, 100);
-
+    setLoading(true); setShowProgress(true); setProgress(0);
+    let p = 0;
+    const timer = setInterval(() => { p += Math.random() * 6 + 2; setProgress(Math.min(100, p)); if (p >= 100) clearInterval(timer); }, 400);
+    await new Promise(r => setTimeout(r, 2500));
     try {
-      await new Promise(r => setTimeout(r, 2300));
-      const res = await api(`/films/${selected.id}/confirm-release`, 'POST');
+      await api(`/films/${selected.id}/confirm-release`, 'POST');
       setProgress(100);
-      await new Promise(r => setTimeout(r, 700));
+      await new Promise(r => setTimeout(r, 800));
       setShowProgress(false);
-      setMessage('Film rilasciato senza calcoli qualità. Reindirizzamento…');
-      await loadProjects();
-      setTimeout(() => navigate('/'), 900);
-      return res;
+      showToast('Film rilasciato!');
+      setTimeout(() => navigate('/'), 800);
     } catch (e) {
-      setError(e.message || 'Errore rilascio');
       setShowProgress(false);
-    } finally {
-      setLoading(false);
+      showToast(e.message, 'error');
     }
+    setLoading(false);
   };
 
   const discard = () => run(async () => {
-    const res = await api(`/films/${selected.id}/discard`, 'POST');
-    setSelected(res.project); setMessage('Film scartato e inviato al mercato');
-  });
+    await api(`/films/${selected.id}/discard`, 'POST');
+    setSelected(null);
+  }, 'Film scartato');
 
-  return (
-    <div className="min-h-screen bg-black text-white pb-28">
-      {showProgress && <ProgressOverlay value={progress} />}
-      <div className="px-4 pt-8">
-        <div className="flex items-center gap-3 mb-4">
-          <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800">←</button>
-          <div>
-            <div className="text-2xl font-black tracking-wide">PIPELINE V3</div>
-            <div className="text-slate-400 text-sm">Nessun calcolo qualità. Nessun fattore bloccante.</div>
-          </div>
-        </div>
+  // Active projects (not released/discarded)
+  const active = projects.filter(p => !['released','completed','discarded'].includes(p.pipeline_state));
 
-        {balances && <div className="mb-3 text-sm text-emerald-300">Saldo aggiornato → Fondi: ${balances.funds?.toLocaleString?.() ?? balances.funds} · CinePass: {balances.cinepass}</div>}
-        {message && <div className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-emerald-300">{message}</div>}
-        {error && <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-red-300">{error}</div>}
-
-        <div className="grid grid-cols-1 lg:grid-cols-[320px,1fr] gap-4">
-          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
-            <div className="text-sm font-bold text-slate-300 mb-3">Progetti V3</div>
-            <button onClick={createProject} disabled={loading || !idea.title.trim()} className="w-full mb-3 rounded-xl bg-emerald-500 py-3 font-bold text-black disabled:opacity-50">Crea nuovo progetto V3</button>
-            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-              {projects.map(p => (
-                <button key={p.id} onClick={() => setSelected(p)} className={`w-full text-left rounded-xl border px-3 py-3 ${selected?.id === p.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-slate-800 bg-slate-900'}`}>
-                  <div className="font-bold truncate">{p.title || 'Senza titolo'}</div>
-                  <div className="text-xs text-slate-400">{p.genre || '—'} · {p.pipeline_state || 'idea'}</div>
-                </button>
-              ))}
+  /* ═══════ BOARD VIEW (no project selected) ═══════ */
+  if (!selected) {
+    return (
+      <div className="min-h-screen bg-black text-white pb-28">
+        {showProgress && <ProgressOverlay value={progress} />}
+        {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+        <div className="px-4 pt-6">
+          <div className="flex items-center gap-3 mb-5">
+            <button onClick={() => navigate('/')} className="w-8 h-8 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center" data-testid="back-btn">
+              <ChevronLeft className="w-4 h-4 text-gray-400" />
+            </button>
+            <div>
+              <h1 className="text-lg font-black tracking-wide">PRODUCI FILM</h1>
+              <p className="text-[10px] text-gray-500">Inizia un nuovo film o continua quelli in lavorazione</p>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
-            {!selected ? (
-              <div className="text-slate-400">Crea o seleziona un progetto V3.</div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between gap-4 mb-3">
-                  <div>
-                    <div className="text-2xl font-black">{selected.title || 'Nuovo film'}</div>
-                    <div className="text-slate-400">{selected.genre || 'genere'} · qualità preview/finale: null</div>
-                  </div>
-                  <div className="text-right text-sm text-slate-400">
-                    <div>stato: <span className="text-cyan-300 font-bold">{selected.pipeline_state}</span></div>
-                    <div>rilascio: <span className="text-emerald-300 font-bold">{selected.release_type || '—'}</span></div>
+          <div className="grid grid-cols-3 gap-2">
+            {/* NEW PROJECT CARD */}
+            <button onClick={createProject} disabled={loading}
+              className="aspect-[2/3] rounded-xl border-2 border-dashed border-gray-700 hover:border-emerald-500/50 bg-gray-900/30 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+              data-testid="new-project-btn">
+              <div className="w-10 h-10 rounded-full border-2 border-dashed border-gray-600 flex items-center justify-center">
+                <Plus className="w-5 h-5 text-gray-500" />
+              </div>
+              <p className="text-[10px] font-bold text-gray-400">Nuovo Film</p>
+              <p className="text-[7px] text-gray-600">Crea da zero</p>
+            </button>
+
+            {/* EXISTING PROJECT CARDS */}
+            {active.map(p => (
+              <button key={p.id} onClick={() => selectProject(p)}
+                className="aspect-[2/3] rounded-xl border border-gray-800 bg-gray-900/60 hover:border-emerald-500/30 flex flex-col overflow-hidden transition-all active:scale-95"
+                data-testid={`project-card-${p.id}`}>
+                <div className="flex-1 w-full bg-gray-800 relative">
+                  {p.poster_url ? (
+                    <img src={p.poster_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Film className="w-6 h-6 text-gray-700" />
+                    </div>
+                  )}
+                  <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-full bg-black/70 text-[6px] font-bold text-emerald-400 uppercase">
+                    {p.pipeline_state || 'idea'}
                   </div>
                 </div>
-
-                <Stepper current={currentStep} />
-
-                <div className="mt-4 space-y-5">
-                  <section className="rounded-2xl border border-slate-800 p-4 bg-black/30">
-                    <div className="font-bold mb-3">IDEA — pretrama, prompt locandina e sceneggiatura</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                      <input value={idea.title} onChange={e => setIdea(v => ({ ...v, title: e.target.value }))} placeholder="Titolo" className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-3" />
-                      <select value={idea.genre} onChange={e => setIdea(v => ({ ...v, genre: e.target.value, subgenre: '' }))} className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-3">
-                        {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
-                      </select>
-                    </div>
-                    <select value={idea.subgenre} onChange={e => setIdea(v => ({ ...v, subgenre: e.target.value }))} className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 mb-3">
-                      <option value="">Sottogenere</option>
-                      {subgenreOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                    <textarea value={idea.preplot} onChange={e => setIdea(v => ({ ...v, preplot: e.target.value }))} rows={6} placeholder="Scrivi la pretrama utente" className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 mb-3" />
-                    <button onClick={saveIdea} disabled={loading} className="w-full rounded-xl bg-cyan-500 py-3 font-bold text-black disabled:opacity-50">Salva idea e vai avanti</button>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                      <div className="rounded-2xl border border-slate-800 p-4">
-                        <div className="font-bold mb-2">Locandina</div>
-                        <div className="text-xs text-slate-400 mb-2">“Da pretrama utente” usa la pretrama come prompt. “Da prompt utente” apre un prompt separato.</div>
-                        <div className="flex gap-2 mb-2">
-                          <button onClick={() => setPosterSource('preplot')} className={`flex-1 rounded-lg py-2 ${posterSource === 'preplot' ? 'bg-emerald-500 text-black' : 'bg-slate-900 border border-slate-800'}`}>Da pretrama utente</button>
-                          <button onClick={() => setPosterSource('custom_prompt')} className={`flex-1 rounded-lg py-2 ${posterSource === 'custom_prompt' ? 'bg-emerald-500 text-black' : 'bg-slate-900 border border-slate-800'}`}>Da prompt utente</button>
-                        </div>
-                        {posterSource === 'custom_prompt' && (
-                          <textarea value={posterPrompt} onChange={e => setPosterPrompt(e.target.value)} rows={4} placeholder="Prompt locandina personalizzato" className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 mb-2" />
-                        )}
-                        <button onClick={generatePoster} disabled={loading} className="w-full rounded-xl bg-slate-100 py-3 font-bold text-black disabled:opacity-50">Salva prompt locandina</button>
-                        {selected.poster_prompt_note && <div className="text-xs text-emerald-300 mt-2">{selected.poster_prompt_note}</div>}
-                      </div>
-
-                      <div className="rounded-2xl border border-slate-800 p-4">
-                        <div className="font-bold mb-2">Sceneggiatura</div>
-                        <div className="text-xs text-slate-400 mb-2">“Da pretrama utente” usa davvero la pretrama. “Da prompt utente” usa un prompt personalizzato.</div>
-                        <div className="flex gap-2 mb-2">
-                          <button onClick={() => setScreenplaySource('preplot')} className={`flex-1 rounded-lg py-2 ${screenplaySource === 'preplot' ? 'bg-emerald-500 text-black' : 'bg-slate-900 border border-slate-800'}`}>Da pretrama utente</button>
-                          <button onClick={() => setScreenplaySource('custom_prompt')} className={`flex-1 rounded-lg py-2 ${screenplaySource === 'custom_prompt' ? 'bg-emerald-500 text-black' : 'bg-slate-900 border border-slate-800'}`}>Da prompt utente</button>
-                        </div>
-                        {screenplaySource === 'custom_prompt' && (
-                          <textarea value={screenplayPrompt} onChange={e => setScreenplayPrompt(e.target.value)} rows={4} placeholder="Prompt sceneggiatura personalizzato" className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 mb-2" />
-                        )}
-                        <button onClick={generateScreenplay} disabled={loading} className="w-full rounded-xl bg-slate-100 py-3 font-bold text-black disabled:opacity-50">Genera/scopri prompt sceneggiatura</button>
-                        {!!selected.screenplay_text && <pre className="whitespace-pre-wrap text-xs text-slate-300 mt-2 max-h-40 overflow-y-auto">{selected.screenplay_text}</pre>}
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-800 p-4 bg-black/30">
-                    <div className="font-bold mb-3">HYPE</div>
-                    <textarea value={hypeNotes} onChange={e => setHypeNotes(e.target.value)} rows={3} placeholder="Note hype" className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 mb-3" />
-                    <input type="number" value={hypeBudget} onChange={e => setHypeBudget(e.target.value)} placeholder="Budget hype" className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 mb-3" />
-                    <div className="flex gap-2 flex-wrap mb-3">{[25,50,75,100].map(p => <button key={p} onClick={() => speedup('hype', p)} className="rounded-lg border border-slate-700 px-3 py-2 text-sm">Accelera {p}%</button>)}</div>
-                    <button onClick={saveHype} disabled={loading} className="w-full rounded-xl bg-cyan-500 py-3 font-bold text-black">Salva hype</button>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-800 p-4 bg-black/30">
-                    <div className="font-bold mb-3">CAST</div>
-                    <textarea value={castNotes} onChange={e => setCastNotes(e.target.value)} rows={3} placeholder="Note cast" className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 mb-3" />
-                    <select value={chemistryMode} onChange={e => setChemistryMode(e.target.value)} className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 mb-3">
-                      <option value="auto">Chimica auto</option>
-                      <option value="manual">Chimica manuale</option>
-                      <option value="off">Nessuna chimica</option>
-                    </select>
-                    <button onClick={saveCast} disabled={loading} className="w-full rounded-xl bg-cyan-500 py-3 font-bold text-black">Salva cast</button>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-800 p-4 bg-black/30">
-                    <div className="font-bold mb-3">PREP</div>
-                    <textarea value={prepNotes} onChange={e => setPrepNotes(e.target.value)} rows={3} placeholder="Note prep" className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 mb-3" />
-                    <button onClick={savePrep} disabled={loading} className="w-full rounded-xl bg-cyan-500 py-3 font-bold text-black">Salva prep</button>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-800 p-4 bg-black/30">
-                    <div className="font-bold mb-3">CIAK</div>
-                    <div className="text-sm text-slate-400 mb-3">Nessun fattore bloccante. Il ciak chiude e passa al final cut.</div>
-                    <div className="flex gap-2 flex-wrap mb-3">{[25,50,75,100].map(p => <button key={p} onClick={() => speedup('ciak', p)} className="rounded-lg border border-slate-700 px-3 py-2 text-sm">Accelera {p}%</button>)}</div>
-                    <button onClick={startCiak} disabled={loading} className="w-full rounded-xl bg-cyan-500 py-3 font-bold text-black">Completa ciak</button>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-800 p-4 bg-black/30">
-                    <div className="font-bold mb-3">FINAL CUT</div>
-                    <textarea value={finalcutNotes} onChange={e => setFinalcutNotes(e.target.value)} rows={3} placeholder="Note final cut" className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-3 mb-3" />
-                    <div className="flex gap-2 flex-wrap mb-3">{[25,50,75,100].map(p => <button key={p} onClick={() => speedup('finalcut', p)} className="rounded-lg border border-slate-700 px-3 py-2 text-sm">Accelera {p}%</button>)}</div>
-                    <button onClick={saveFinalcut} disabled={loading} className="w-full rounded-xl bg-cyan-500 py-3 font-bold text-black">Salva final cut</button>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-800 p-4 bg-black/30">
-                    <div className="font-bold mb-3">MARKETING</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
-                      {MARKETING_PACKAGES.map(name => (
-                        <button key={name} onClick={() => setMarketingPackages(v => v.includes(name) ? v.filter(x => x !== name) : [...v, name])} className={`rounded-xl border px-3 py-3 text-left ${marketingPackages.includes(name) ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300' : 'border-slate-800 bg-slate-950'}`}>{name}</button>
-                      ))}
-                    </div>
-                    <div className="flex gap-2 mb-3">
-                      <button onClick={() => setReleaseType('premiere')} className={`flex-1 rounded-xl py-3 ${releaseType === 'premiere' ? 'bg-yellow-500 text-black' : 'bg-slate-900 border border-slate-800'}`}>La Prima</button>
-                      <button onClick={() => setReleaseType('direct')} className={`flex-1 rounded-xl py-3 ${releaseType === 'direct' ? 'bg-emerald-500 text-black' : 'bg-slate-900 border border-slate-800'}`}>Rilascio diretto</button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
-                      <button onClick={saveMarketing} disabled={loading} className="rounded-xl bg-cyan-500 py-3 font-bold text-black">Salva marketing</button>
-                      <button onClick={saveReleaseType} disabled={loading} className="rounded-xl bg-slate-100 py-3 font-bold text-black">Salva tipo rilascio</button>
-                    </div>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-800 p-4 bg-black/30">
-                    <div className="font-bold mb-3">DISTRIBUZIONE</div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3">
-                      {RELEASE_OPTIONS.map(label => (
-                        <button key={label} onClick={() => setReleaseDate(label)} className={`rounded-xl py-3 ${releaseDate === label ? 'bg-emerald-500 text-black' : 'bg-slate-900 border border-slate-800'}`}>{label}</button>
-                      ))}
-                    </div>
-                    <label className="flex items-center gap-2 mb-3 text-sm text-slate-300">
-                      <input type="checkbox" checked={world} onChange={e => setWorld(e.target.checked)} /> Mondiale (scala subito fondi e cinepass)
-                    </label>
-                    <div className="flex gap-2 flex-wrap mb-3">{[25,50,75,100].map(p => <button key={p} onClick={() => speedup('premiere', p)} className="rounded-lg border border-slate-700 px-3 py-2 text-sm">Accelera premiere {p}%</button>)}</div>
-                    <button onClick={saveDistribution} disabled={loading} className="w-full rounded-xl bg-cyan-500 py-3 font-bold text-black">Salva distribuzione</button>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-800 p-4 bg-black/30">
-                    <div className="font-bold mb-3">USCITA</div>
-                    <div className="text-slate-400 text-sm mb-3">Qualità preview/finale volutamente assente. Valore mostrato: null.</div>
-                    <div className="rounded-xl border border-slate-800 p-4 mb-3 bg-slate-950">
-                      <div className="text-sm text-slate-400">Titolo</div>
-                      <div className="text-xl font-black">{selected.title}</div>
-                      <div className="text-sm text-slate-400 mt-2">Genere: {selected.genre} · Rilascio: {releaseType} · Data: {releaseDate}</div>
-                      <div className="text-sm text-slate-400 mt-2">Poster da: {posterSource === 'preplot' ? 'pretrama utente' : 'prompt utente'} · Sceneggiatura da: {screenplaySource === 'preplot' ? 'pretrama utente' : 'prompt utente'}</div>
-                      <div className="text-sm text-slate-400 mt-2">Quality preview/finale: null</div>
-                    </div>
-                    <button onClick={confirmRelease} disabled={loading} className="w-full rounded-xl bg-emerald-500 py-4 text-lg font-black text-black disabled:opacity-50">CONFERMA USCITA</button>
-                    <button onClick={discard} disabled={loading} className="w-full rounded-xl border border-red-500/30 bg-red-500/10 py-4 text-lg font-black text-red-300 mt-3 disabled:opacity-50">SCARTA FILM</button>
-                  </section>
+                <div className="p-1.5">
+                  <p className="text-[9px] font-bold text-white truncate">{p.title || 'Senza titolo'}</p>
+                  <p className="text-[7px] text-gray-500">{GENRE_LABELS[p.genre] || p.genre || '—'}</p>
                 </div>
-              </>
-            )}
+              </button>
+            ))}
+          </div>
+
+          {active.length === 0 && (
+            <p className="text-center text-gray-600 text-xs mt-6">Nessun film in lavorazione. Crea il tuo primo!</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ═══════ STEP VIEWS ═══════ */
+  const nextStep = STEPS[stepIndex + 1]?.id;
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 'idea': return (
+        <div className="space-y-3">
+          <input value={idea.title} onChange={e => { setIdea(v => ({ ...v, title: e.target.value })); markDirty(); }}
+            placeholder="Titolo del film" className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm" />
+          <select value={idea.genre} onChange={e => { setIdea(v => ({ ...v, genre: e.target.value, subgenre: '' })); markDirty(); }}
+            className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm">
+            {GENRES.map(g => <option key={g} value={g}>{GENRE_LABELS[g] || g}</option>)}
+          </select>
+          {subgenreOptions.length > 0 && (
+            <select value={idea.subgenre} onChange={e => { setIdea(v => ({ ...v, subgenre: e.target.value })); markDirty(); }}
+              className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm">
+              <option value="">Sottogenere</option>
+              {subgenreOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
+          <textarea value={idea.preplot} onChange={e => { setIdea(v => ({ ...v, preplot: e.target.value })); markDirty(); }}
+            rows={4} placeholder="Pretrama del film..." className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm" />
+        </div>
+      );
+      case 'hype': return (
+        <div className="space-y-3">
+          <textarea value={hypeNotes} onChange={e => { setHypeNotes(e.target.value); markDirty(); }}
+            rows={3} placeholder="Strategia hype..." className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm" />
+          <input type="number" value={hypeBudget} onChange={e => { setHypeBudget(e.target.value); markDirty(); }}
+            placeholder="Budget hype ($)" className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm" />
+        </div>
+      );
+      case 'cast': return (
+        <div className="space-y-3">
+          <textarea value={castNotes} onChange={e => { setCastNotes(e.target.value); markDirty(); }}
+            rows={3} placeholder="Note cast..." className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm" />
+          <select value={chemistryMode} onChange={e => { setChemistryMode(e.target.value); markDirty(); }}
+            className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm">
+            <option value="auto">Chimica auto</option>
+            <option value="manual">Chimica manuale</option>
+            <option value="off">Nessuna chimica</option>
+          </select>
+        </div>
+      );
+      case 'prep': return (
+        <div className="space-y-3">
+          <textarea value={prepNotes} onChange={e => { setPrepNotes(e.target.value); markDirty(); }}
+            rows={3} placeholder="Note preparazione..." className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm" />
+        </div>
+      );
+      case 'ciak': return (
+        <div className="space-y-3">
+          <p className="text-[10px] text-gray-400">Avvia le riprese. Il ciak completa e avanza al final cut.</p>
+        </div>
+      );
+      case 'finalcut': return (
+        <div className="space-y-3">
+          <textarea value={finalcutNotes} onChange={e => { setFinalcutNotes(e.target.value); markDirty(); }}
+            rows={3} placeholder="Note final cut..." className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm" />
+        </div>
+      );
+      case 'marketing': return (
+        <div className="space-y-3">
+          <p className="text-[9px] text-gray-500 uppercase font-bold">Pacchetti Marketing</p>
+          <div className="grid grid-cols-2 gap-2">
+            {MARKETING_PACKAGES.map(name => (
+              <button key={name} onClick={() => { setMarketingPackages(v => v.includes(name) ? v.filter(x => x !== name) : [...v, name]); markDirty(); }}
+                className={`rounded-xl border p-2.5 text-[10px] text-left font-bold transition-all ${
+                  marketingPackages.includes(name) ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' : 'border-gray-800 bg-gray-900/50 text-gray-400'
+                }`}>{name}</button>
+            ))}
+          </div>
+          <p className="text-[9px] text-gray-500 uppercase font-bold mt-3">Tipo rilascio</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => { setReleaseType('premiere'); markDirty(); }}
+              className={`p-3 rounded-xl border text-center ${releaseType === 'premiere' ? 'border-yellow-500/50 bg-yellow-500/10' : 'border-gray-800'}`}>
+              <Award className={`w-5 h-5 mx-auto mb-1 ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-600'}`} />
+              <p className={`text-[10px] font-bold ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-500'}`}>La Prima</p>
+            </button>
+            <button onClick={() => { setReleaseType('direct'); markDirty(); }}
+              className={`p-3 rounded-xl border text-center ${releaseType === 'direct' ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-gray-800'}`}>
+              <Ticket className={`w-5 h-5 mx-auto mb-1 ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-600'}`} />
+              <p className={`text-[10px] font-bold ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-500'}`}>Diretto</p>
+            </button>
           </div>
         </div>
+      );
+      case 'distribution': return (
+        <div className="space-y-3">
+          <p className="text-[9px] text-gray-500 uppercase font-bold">Data uscita</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            {RELEASE_OPTIONS.map(label => (
+              <button key={label} onClick={() => { setReleaseDate(label); markDirty(); }}
+                className={`rounded-lg py-2 text-[9px] font-bold border ${
+                  releaseDate === label ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : 'border-gray-800 text-gray-400'
+                }`}>{label}</button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 text-[10px] text-gray-400 mt-2">
+            <input type="checkbox" checked={world} onChange={e => { setWorld(e.target.checked); markDirty(); }} className="rounded" />
+            Distribuzione Mondiale
+          </label>
+        </div>
+      );
+      case 'release_pending': return (
+        <div className="space-y-3">
+          <div className="p-3 rounded-xl bg-gray-800/30 border border-gray-700/50 text-center space-y-1">
+            <p className="text-[9px] text-gray-500 uppercase font-bold">Riepilogo</p>
+            <p className="text-lg font-black text-white">{selected.title}</p>
+            <p className="text-[10px] text-gray-400">{GENRE_LABELS[selected.genre] || selected.genre} | {releaseType === 'premiere' ? 'La Prima' : 'Diretto'} | {releaseDate}</p>
+            <p className="text-[9px] text-gray-600">Qualita: n.d.</p>
+          </div>
+          <button onClick={confirmRelease} disabled={loading}
+            className="w-full text-sm py-3 rounded-xl bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 font-bold disabled:opacity-50"
+            data-testid="confirm-release-btn">
+            CONFERMA USCITA
+          </button>
+          <button onClick={discard} disabled={loading}
+            className="w-full text-[10px] py-2 rounded-xl bg-red-500/5 border border-red-500/20 text-red-400/70 disabled:opacity-50"
+            data-testid="discard-btn">
+            SCARTA FILM
+          </button>
+        </div>
+      );
+      default: return <p className="text-gray-500 text-sm">Stato sconosciuto: {currentStep}</p>;
+    }
+  };
+
+  /* ═══════ PROJECT VIEW ═══════ */
+  return (
+    <div className="min-h-screen bg-black text-white pb-28">
+      {showProgress && <ProgressOverlay value={progress} />}
+      {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      <div className="px-4 pt-4">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-3">
+          <button onClick={() => { setSelected(null); loadProjects(); }} className="w-8 h-8 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center">
+            <ChevronLeft className="w-4 h-4 text-gray-400" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black truncate">{selected.title || 'Nuovo film'}</p>
+            <p className="text-[9px] text-gray-500">{GENRE_LABELS[selected.genre] || selected.genre}</p>
+          </div>
+          <button onClick={saveDraft} disabled={loading || !dirty}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-bold border transition-all ${
+              dirty ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' : 'border-gray-800 bg-gray-900 text-gray-600'
+            } disabled:opacity-30`} data-testid="save-draft-btn">
+            <Save className="w-3 h-3" />
+            {dirty ? 'Salva bozza' : 'Salvato'}
+          </button>
+        </div>
+
+        <Stepper current={currentStep} />
+
+        {/* Step content */}
+        <div className="mt-3 rounded-2xl border border-gray-800 bg-gray-950/50 p-4">
+          <p className="text-[9px] text-gray-500 uppercase font-bold mb-3">
+            {STEPS[stepIndex]?.label || currentStep}
+          </p>
+          {renderStep()}
+        </div>
+
+        {/* Navigation */}
+        {currentStep !== 'release_pending' && (
+          <div className="mt-3 flex gap-2">
+            {stepIndex > 0 && (
+              <button onClick={() => { const prev = STEPS[stepIndex - 1]?.id; if (prev) advance(prev); }}
+                disabled={loading}
+                className="flex-1 py-2.5 rounded-xl border border-gray-800 text-gray-400 text-[10px] font-bold disabled:opacity-30">
+                Indietro
+              </button>
+            )}
+            {nextStep && (
+              <button onClick={() => advance(nextStep)} disabled={loading}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold disabled:opacity-30"
+                data-testid="advance-btn">
+                {loading ? '...' : `Avanti → ${STEPS[stepIndex + 1]?.label}`}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

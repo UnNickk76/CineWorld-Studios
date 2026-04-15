@@ -166,12 +166,14 @@ export default function PipelineV3() {
   if (releasePhase === 'progress' || releasePhase === 'calling') {
     return (
       <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center">
-        <svg width="120" height="120"><circle cx="60" cy="60" r="50" stroke="#1f2937" strokeWidth="6" fill="none" />
-          <circle cx="60" cy="60" r="50" stroke="#10b981" strokeWidth="6" fill="none"
-            strokeDasharray={314} strokeDashoffset={314 - (releaseProgress / 100) * 314} strokeLinecap="round"
-            style={{ transition: 'stroke-dashoffset 0.4s ease', transform: 'rotate(-90deg)', transformOrigin: 'center' }} />
-        </svg>
-        <div className="absolute text-3xl font-bold text-emerald-400">{Math.floor(releaseProgress)}%</div>
+        <div className="relative w-[120px] h-[120px]">
+          <svg width="120" height="120"><circle cx="60" cy="60" r="50" stroke="#1f2937" strokeWidth="6" fill="none" />
+            <circle cx="60" cy="60" r="50" stroke="#10b981" strokeWidth="6" fill="none"
+              strokeDasharray={314} strokeDashoffset={314 - (releaseProgress / 100) * 314} strokeLinecap="round"
+              style={{ transition: 'stroke-dashoffset 0.4s ease', transform: 'rotate(-90deg)', transformOrigin: 'center' }} />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center text-3xl font-bold text-emerald-400">{Math.floor(releaseProgress)}%</div>
+        </div>
         <p className="text-gray-400 text-sm mt-6">{releasePhase === 'calling' ? 'Invio al sistema...' : 'Analisi in corso...'}</p>
       </div>
     );

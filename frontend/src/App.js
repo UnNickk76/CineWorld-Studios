@@ -76,6 +76,7 @@ const FilmMarketplace = React.lazy(() => import('./pages/FilmMarketplace'));
 const FilmWizard = React.lazy(() => import('./pages/FilmWizard'));
 const FilmPipeline = React.lazy(() => import('./pages/FilmPipeline'));
 const PipelineV2 = React.lazy(() => import('./pages/PipelineV2'));
+const PipelineV3 = React.lazy(() => import('./pages/PipelineV3'));
 const FriendsPage = React.lazy(() => import('./pages/FriendsPage'));
 const InfrastructurePage = React.lazy(() => import('./pages/InfrastructurePage'));
 const ParcoStudioPage = React.lazy(() => import('./pages/ParcoStudioPage'));
@@ -1997,6 +1998,7 @@ function App() {
                 <Route path="/create" element={<ProtectedRoute><PipelineV2 /></ProtectedRoute>} />
                 <Route path="/create-film" element={<ProtectedRoute><PipelineV2 /></ProtectedRoute>} />
                 <Route path="/pipeline-v2" element={<ProtectedRoute><PipelineV2 /></ProtectedRoute>} />
+                <Route path="/pipeline-v3" element={<ProtectedRoute><PipelineV3 /></ProtectedRoute>} />
                 <Route path="/create-legacy" element={<ProtectedRoute><FilmPipeline /></ProtectedRoute>} />
                 <Route path="/create-series" element={<ProtectedRoute><SeriesTVPipeline /></ProtectedRoute>} />
                 <Route path="/create-anime" element={<ProtectedRoute><AnimePipeline /></ProtectedRoute>} />

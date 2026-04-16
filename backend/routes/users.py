@@ -352,8 +352,11 @@ async def get_player_public_profile(player_id: str, user: dict = Depends(get_cur
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
     
-    # Get films
-    films = await db.films.find({'user_id': player_id}, {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'genre': 1, 'released_at': 1, 'type': 1}).sort('released_at', -1).to_list(100)
+    # Get films (search both user_id and producer_id for V2 compat)
+    films = await db.films.find(
+        {'$or': [{'user_id': player_id}, {'producer_id': player_id}]},
+        {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'genre': 1, 'released_at': 1, 'type': 1, 'status': 1}
+    ).sort('released_at', -1).to_list(100)
     # Get series
     series = await db.tv_series.find({'user_id': player_id}, {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'type': 1, 'released_at': 1}).sort('released_at', -1).to_list(100)
     
@@ -367,15 +370,34 @@ async def get_player_public_profile(player_id: str, user: dict = Depends(get_cur
     anime_list = [s for s in series if s.get('type') == 'anime']
     
     all_content = films + series
-    scores = [c.get('quality_score', 0) or 0 for c in all_content if c.get('quality_score')]
+    # Normalize scores: V2 uses 0-100 scale, V3 uses 1-10 CWSv
+    scores = []
+    for c in all_content:
+        q = c.get('quality_score')
+        if q is not None and q > 0:
+            # V2 films have quality_score > 10 (0-100 scale) — convert to CWSv
+            scores.append(q / 10 if q > 10 else q)
     avg_cwsv = round(sum(scores) / len(scores), 1) if scores else 0
     total_rev = sum((c.get('total_revenue', 0) or 0) for c in all_content)
     
-    # Best film (highest CWSv)
-    best = max(all_content, key=lambda c: c.get('quality_score') or 0, default=None) if all_content else None
+    # Best film (highest CWSv, normalized)
+    best = None
+    best_score = 0
+    for c in all_content:
+        q = c.get('quality_score') or 0
+        norm_q = q / 10 if q > 10 else q
+        if norm_q > best_score:
+            best_score = norm_q
+            display = c.get('cwsv_display') or (str(int(norm_q)) if norm_q == int(norm_q) else f"{norm_q:.1f}")
+            best = {'title': c.get('title', '?'), 'quality_score': norm_q, 'cwsv_display': display}
     
-    # Filmography (recent 5)
-    filmography = [{'title': c.get('title', '?'), 'quality_score': c.get('quality_score'), 'cwsv_display': c.get('cwsv_display'), 'type': c.get('type', 'film')} for c in all_content[:5]]
+    # Filmography (recent 5, with normalized CWSv)
+    filmography = []
+    for c in all_content[:5]:
+        q = c.get('quality_score') or 0
+        norm_q = q / 10 if q > 10 else q
+        display = c.get('cwsv_display') or (str(int(norm_q)) if norm_q == int(norm_q) else f"{norm_q:.1f}")
+        filmography.append({'title': c.get('title', '?'), 'quality_score': norm_q, 'cwsv_display': display, 'type': c.get('type', 'film')})
     
     return {
         'id': player['id'],
@@ -394,7 +416,7 @@ async def get_player_public_profile(player_id: str, user: dict = Depends(get_cur
         'total_likes_received': player.get('total_likes_received', 0),
         'total_revenue': total_rev,
         'avg_cwsv': avg_cwsv,
-        'best_film': {'title': best.get('title'), 'quality_score': best.get('quality_score'), 'cwsv_display': best.get('cwsv_display')} if best else None,
+        'best_film': best,
         'filmography': filmography,
         'leaderboard_score': calculate_leaderboard_score(player),
         'created_at': player.get('created_at')

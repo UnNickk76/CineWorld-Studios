@@ -358,21 +358,39 @@ async def get_released_film_detail(film_id: str, user: dict = Depends(get_curren
     # Calculate days in theater
     theater_start = film.get("theater_start") or film.get("released_at") or film.get("created_at")
     now = datetime.now(timezone.utc)
+    start_dt = None
     if theater_start:
         if isinstance(theater_start, str):
             try:
-                start_dt = datetime.fromisoformat(theater_start.replace("Z", "+00:00"))
+                ts = theater_start.replace("Z", "+00:00")
+                if "+" not in ts and "T" in ts:
+                    ts = ts + "+00:00"
+                start_dt = datetime.fromisoformat(ts)
             except Exception:
-                start_dt = now
-        else:
+                start_dt = None
+        elif isinstance(theater_start, datetime):
             start_dt = theater_start if theater_start.tzinfo else theater_start.replace(tzinfo=timezone.utc)
-        days_in = (now - start_dt).days
+
+    if start_dt:
+        days_in = max(0, (now - start_dt).days)
         theater_days = film.get("theater_days", 21) or 21
-        film["days_in_theater"] = max(0, days_in)
+        film["days_in_theater"] = days_in
         film["days_remaining"] = max(0, theater_days - days_in)
     else:
-        film["days_in_theater"] = 0
-        film["days_remaining"] = film.get("theater_days", 21) or 21
+        # Fallback: use released_at or estimate from theater_days
+        theater_days = film.get("theater_days", 21) or 21
+        film["days_in_theater"] = 1
+        film["days_remaining"] = theater_days - 1
+
+    # Backfill opening_day_revenue if $0 for in_theater films
+    if film.get("status") == "in_theaters" and (film.get("opening_day_revenue") or 0) == 0:
+        cwsv = film.get("quality_score") or 5.0
+        base_rev = int(100000 * ((cwsv / 10) ** 2) * 5 * max(1, film.get("current_cinemas", 1) * 0.05))
+        film["opening_day_revenue"] = base_rev
+        await db.films.update_one(
+            {"$or": [{"id": film_id}, {"film_id": film_id}]},
+            {"$set": {"opening_day_revenue": base_rev}}
+        )
 
     # CWSv: calculate on-the-fly if missing
     if not film.get("quality_score"):

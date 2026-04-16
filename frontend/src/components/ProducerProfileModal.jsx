@@ -31,7 +31,7 @@ export default function ProducerProfileModal({ producerId, producerData, isOpen,
 
     // If we have a producerId, fetch from backend; otherwise use producerData
     if (producerId) {
-      api.get(`/users/${producerId}/public-profile`).then(r => {
+      api.get(`/players/${producerId}/profile`).then(r => {
         setStats(r.data);
         setLoading(false);
       }).catch(() => {

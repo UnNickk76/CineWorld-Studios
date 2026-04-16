@@ -223,6 +223,7 @@ async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_use
         'sponsors', 'sponsor_contracts',
         'casting_school_students',
         'reset_tokens', 'major_members',
+        'series_projects_v3',
     ]
     
     for col_name in content_collections:

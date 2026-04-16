@@ -82,6 +82,7 @@ from routes.film_pipeline import router as film_pipeline_router
 from routes.pipeline_v2 import router as pipeline_v2_router
 from routes.pipeline_v3 import router as pipeline_v3_router
 from routes.series_pipeline import router as series_pipeline_router
+from routes.pipeline_series_v3 import router as pipeline_series_v3_router
 from routes.admin_recovery import router as admin_recovery_router
 from routes.city_tastes import router as city_tastes_router
 from routes.ri_cinema import router as ri_cinema_router
@@ -9915,6 +9916,7 @@ app.include_router(film_pipeline_router, prefix="/api")
 app.include_router(pipeline_v2_router)
 app.include_router(pipeline_v3_router)
 app.include_router(series_pipeline_router, prefix="/api")
+app.include_router(pipeline_series_v3_router)
 app.include_router(sequel_pipeline_router, prefix="/api")
 app.include_router(emittente_tv_router, prefix="/api")
 app.include_router(tv_stations_router, prefix="/api")

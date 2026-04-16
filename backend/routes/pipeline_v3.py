@@ -249,6 +249,30 @@ async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_cur
     return {"success": True, "project": project}
 
 
+@router.get("/recent-releases")
+async def get_recent_releases(user: dict = Depends(get_current_user)):
+    """Get recent films in theaters (V3 dedicated endpoint)."""
+    items = await db.films.find(
+        {"status": "in_theaters"},
+        {"_id": 0, "id": 1, "title": 1, "poster_url": 1, "user_id": 1,
+         "quality_score": 1, "total_revenue": 1, "genre": 1, "status": 1,
+         "pipeline_version": 1, "created_at": 1, "released_at": 1,
+         "film_duration_label": 1, "theater_days": 1, "theater_start": 1}
+    ).sort("created_at", -1).to_list(20)
+
+    # Enrich with producer names
+    uids = list(set(i.get("user_id") for i in items if i.get("user_id")))
+    producers = {}
+    if uids:
+        pdocs = await db.users.find({"id": {"$in": uids}}, {"_id": 0, "id": 1, "nickname": 1, "production_house_name": 1}).to_list(50)
+        producers = {p["id"]: p for p in pdocs}
+    for item in items:
+        p = producers.get(item.get("user_id"), {})
+        item["producer_nickname"] = p.get("nickname", "?")
+        item["producer_house"] = p.get("production_house_name", "")
+    return {"items": items}
+
+
 class AdvanceRequest(BaseModel):
     next_state: str
 
@@ -1139,33 +1163,51 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
 
     film_doc = {
         "id": str(uuid.uuid4()),
+        "film_id": str(uuid.uuid4()),
         "source_project_id": project["id"],
         "user_id": user["id"],
         "type": "film",
         "title": project.get("title"),
         "genre": project.get("genre"),
         "subgenre": project.get("subgenre"),
+        "subgenres": project.get("subgenres", []),
         "preplot": project.get("preplot"),
         "poster_url": project.get("poster_url", ""),
         "screenplay_text": project.get("screenplay_text", ""),
+        "cast": project.get("cast", {}),
         "cast_notes": project.get("cast_notes", ""),
         "release_type": project.get("release_type") or "direct",
         "release_date_label": project.get("release_date_label") or "Immediato",
-        "distribution_world": project.get("distribution_world", True),
-        "distribution_zones": project.get("distribution_zones", []),
+        "distribution_world": project.get("distribution_mondiale", True),
+        "distribution_zones": project.get("distribution_continents", []),
+        "distribution_cost": project.get("distribution_cost", {}),
+        "film_format": project.get("film_format", "standard"),
+        "film_duration_minutes": project.get("film_duration_minutes"),
+        "film_duration_label": project.get("film_duration_label"),
+        "shooting_days": project.get("shooting_days"),
+        "selected_sponsors": project.get("selected_sponsors", []),
+        "marketing_packages": project.get("marketing_packages", []),
         "quality_score": None,
         "final_quality": None,
-        "status": "in_cinema",
+        "status": "in_theaters",
         "released": True,
+        "pipeline_version": 3,
+        "theater_days": project.get("distribution_theater_days", 21),
+        "theater_start": _now(),
+        "released_at": _now(),
+        "likes_count": 0,
+        "liked_by": [],
+        "total_revenue": 0,
+        "opening_day_revenue": 0,
+        "current_cinemas": 1,
         "created_at": _now(),
         "updated_at": _now(),
     }
 
     result = await db.films.insert_one(film_doc)
-    inserted_id = str(result.inserted_id)
 
     project = await _update_project(pid, user["id"], {
-        "film_id": inserted_id,
+        "film_id": film_doc["id"],
         "pipeline_state": "released",
         "status": "released",
         "quality_score": None,
@@ -1174,11 +1216,30 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
 
     return {
         "success": True,
-        "film_id": inserted_id,
+        "film_id": film_doc["id"],
         "status": "released",
         "quality_score": None,
         "project": project,
     }
+
+
+@router.post("/films/{pid}/withdraw-theaters")
+async def withdraw_from_theaters(pid: str, user: dict = Depends(get_current_user)):
+    """Togli il film dalle sale."""
+    project = await _get_project(pid, user["id"])
+    film_id = project.get("film_id")
+    if not film_id:
+        raise HTTPException(400, "Film non rilasciato")
+    result = await db.films.update_one(
+        {"id": film_id, "user_id": user["id"]},
+        {"$set": {"status": "completed", "current_cinemas": 0, "updated_at": _now()}}
+    )
+    if result.modified_count == 0:
+        await db.films.update_one(
+            {"film_id": film_id, "user_id": user["id"]},
+            {"$set": {"status": "completed", "current_cinemas": 0, "updated_at": _now()}}
+        )
+    return {"success": True}
 
 
 @router.post("/films/{pid}/discard")

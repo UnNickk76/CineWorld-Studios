@@ -138,10 +138,17 @@ const Dashboard = () => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
   }, [api]);
 
+  // Load recent releases directly from V3 endpoint (independent of economy/stats)
+  useEffect(() => {
+    api.get('/pipeline-v3/recent-releases').then(r => {
+      if (r.data?.items?.length) setRecentReleases(r.data.items);
+    }).catch(() => {});
+  }, [api]);
+
   useEffect(() => {
     if (!batchData) return;
     const d = batchData;
-    setRecentReleases(d.recent_releases || []);
+    if (d.recent_releases?.length) setRecentReleases(prev => prev.length ? prev : d.recent_releases);
     setMySeries(d.my_series || []);
     setMyAnime(d.my_anime || []);
     setPendingFilms(d.pending_films || []);
@@ -431,26 +438,33 @@ const Dashboard = () => {
           </div>
 
           {/* 4. Ultimi Aggiornamenti FILM */}
-          {recentReleases.length > 0 && (
-            <div className="mb-4 rounded-xl glow-purple" data-testid="recent-releases-film">
-              <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/5 border border-purple-500/20">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-['Bebas_Neue'] text-base flex items-center gap-2">
-                      <Film className="w-3.5 h-3.5 text-yellow-400" />
-                      ULTIMI AGGIORNAMENTI FILM
-                    </h3>
-                    <Button variant="ghost" size="sm" onClick={() => navigate('/social')} className="h-5 text-[9px] text-purple-400 hover:text-purple-300 px-1.5">
-                      CineBoard <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
-                    </Button>
-                  </div>
+          {/* 4. Ultimi Film Al Cinema */}
+          <div className="mb-4 rounded-xl glow-purple" data-testid="recent-releases-film">
+            <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/5 border border-purple-500/20">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-['Bebas_Neue'] text-base flex items-center gap-2">
+                    <Film className="w-3.5 h-3.5 text-yellow-400" />
+                    ULTIMI FILM AL CINEMA
+                  </h3>
+                  <Button variant="ghost" size="sm" onClick={() => navigate('/social')} className="h-5 text-[9px] text-purple-400 hover:text-purple-300 px-1.5">
+                    CineBoard <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
+                  </Button>
+                </div>
+                {recentReleases.length > 0 ? (
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
                     {recentReleases.slice(0, 10).map(film => (
                       <div key={film.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate(`/films/${film.id}`)} data-testid={`recent-film-${film.id}`}>
                         <div className="aspect-[2/3] relative rounded-lg overflow-hidden" style={{ boxShadow: film.status === 'premiere_live' ? '0 0 8px rgba(212,175,55,0.3)' : film.status === 'in_theaters' ? '0 0 6px rgba(80,160,80,0.2)' : 'none' }}>
                           <MasterpieceBadge isMasterpiece={film.is_masterpiece} size="xs" />
                           <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 active:scale-110 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
-                          {/* Status badge */}
+                          {/* Status badge — LIVE pulse for in_theaters */}
+                          {film.status === 'in_theaters' && (
+                            <div className="absolute top-0.5 right-0.5 flex items-center gap-0.5 bg-black/70 rounded px-1 py-0.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                              <span className="text-[5px] font-bold text-green-400">LIVE</span>
+                            </div>
+                          )}
                           {film.status && film.status !== 'released' && film.status !== 'completed' && (
                             <div className={`absolute bottom-0 inset-x-0 py-0.5 text-center text-[5px] font-bold tracking-wider ${
                               film.status === 'premiere_live' ? 'bg-amber-600/90 text-amber-100' :
@@ -472,10 +486,15 @@ const Dashboard = () => {
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+                ) : (
+                  <div className="text-center py-4">
+                    <Film className="w-5 h-5 text-gray-600 mx-auto mb-1" />
+                    <p className="text-[9px] text-gray-600">Nessun film al cinema</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
           {/* 5. Prossimamente SERIE TV */}
           <div className="mb-4 rounded-xl glow-blue" data-testid="dashboard-coming-soon-series">

@@ -6689,11 +6689,9 @@ async def get_film_virtual_audience(film_id: str, user: dict = Depends(get_curre
     
     # Generate reviews if needed (for notable films)
     reviews = existing_reviews
-    quality = film.get('quality_score', 50)
-    satisfaction = film.get('audience_satisfaction', 50)
+    quality = film.get('quality_score') or 50
+    satisfaction = film.get('audience_satisfaction') or 50
     avg_score = (quality + satisfaction) / 2
-    
-    # Only generate reviews for notable films (very good or very bad)
     if len(existing_reviews) < 3 and (avg_score >= 70 or avg_score <= 35):
         num_to_generate = min(3 - len(existing_reviews), 2 if avg_score <= 35 else 3)
         language = user.get('language', 'it')

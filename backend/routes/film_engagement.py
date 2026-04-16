@@ -538,8 +538,8 @@ async def get_film_virtual_audience(film_id: str, user: dict = Depends(get_curre
 
     existing_reviews = await db.virtual_reviews.find({'film_id': film_id}, {'_id': 0}).to_list(5)
     reviews = existing_reviews
-    quality = film.get('quality_score', 50)
-    satisfaction = film.get('audience_satisfaction', 50)
+    quality = film.get('quality_score') or 50
+    satisfaction = film.get('audience_satisfaction') or 50
     avg_score = (quality + satisfaction) / 2
 
     if len(existing_reviews) < 3 and (avg_score >= 70 or avg_score <= 35):

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import {
   Film, Star, Clock, Users, Megaphone, X, BookOpen, Eye,
-  Trash2, AlertTriangle, Flame, TrendingUp
+  Trash2, AlertTriangle, Flame, TrendingUp, Tv
 } from 'lucide-react';
 import { AuthContext } from '../../contexts';
 import { toast } from 'sonner';
@@ -384,123 +384,158 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
         </div>
       )}
 
-      {/* ═══ CINEMA STATS POPUP (opened by clicking cyan banner) ═══ */}
+      {/* ═══ CINEMA STATS POPUP — Premium Design ═══ */}
       {showCinemaPopup && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setShowCinemaPopup(false)} data-testid="cinema-popup">
-          <div style={{ background: '#111113', borderRadius: '12px', padding: '20px', width: '100%', maxWidth: '400px', color: '#fff', border: '1px solid rgba(0,255,255,0.2)', maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ color: '#00ffff', fontSize: '16px', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1.5px', margin: 0 }}>Dati Cinema</h3>
-              <button onClick={() => setShowCinemaPopup(false)} style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer' }}><X size={18} /></button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px' }} onClick={() => setShowCinemaPopup(false)} data-testid="cinema-popup">
+          <div style={{ background: 'linear-gradient(180deg, #0d1117 0%, #0a0c10 100%)', borderRadius: '16px', width: '100%', maxWidth: '400px', color: '#fff', border: '1px solid rgba(0,255,255,0.15)', maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 0 40px rgba(0,255,255,0.08)' }} onClick={(e) => e.stopPropagation()}>
+
+            {/* Header con gradient */}
+            <div style={{ padding: '16px 16px 12px', background: 'linear-gradient(135deg, rgba(0,255,255,0.08), rgba(56,189,248,0.05))', borderBottom: '1px solid rgba(0,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '16px 16px 0 0' }}>
+              <div>
+                <h3 style={{ color: '#00ffff', fontSize: '15px', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '2px', margin: 0 }}>Dati Cinema</h3>
+                <p style={{ fontSize: '9px', color: '#4a5568', margin: 0 }}>{film.title}</p>
+              </div>
+              <button onClick={() => setShowCinemaPopup(false)} style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#666', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
             </div>
 
-            {/* Stats grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-              <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '9px', color: '#6b7280', textTransform: 'uppercase' }}>Giorni in sala</div>
-                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#facc15' }}>{cinemaDays}</div>
-              </div>
-              <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '9px', color: '#6b7280', textTransform: 'uppercase' }}>Giorni rimasti</div>
-                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#38bdf8' }}>{cinemaRemain}</div>
-              </div>
-              <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '9px', color: '#6b7280', textTransform: 'uppercase' }}>Cinema attivi</div>
-                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#fff' }}>{film.current_cinemas || 0}</div>
-              </div>
-              <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
-                <div style={{ fontSize: '9px', color: '#6b7280', textTransform: 'uppercase' }}>Incasso totale</div>
-                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#4ade80' }}>${(film.total_revenue || 0).toLocaleString()}</div>
-              </div>
-            </div>
+            <div style={{ padding: '14px' }}>
+              {/* Performance Label */}
+              {(() => {
+                const cwt = film.cwtrend || 0;
+                const perf = cwt >= 8 ? { l: 'Straordinario', c: '#facc15', bg: 'rgba(250,204,21,0.1)', b: 'rgba(250,204,21,0.2)' }
+                  : cwt >= 6.5 ? { l: 'Ottimo', c: '#4ade80', bg: 'rgba(74,222,128,0.1)', b: 'rgba(74,222,128,0.2)' }
+                  : cwt >= 5 ? { l: 'Discreto', c: '#60a5fa', bg: 'rgba(96,165,250,0.1)', b: 'rgba(96,165,250,0.2)' }
+                  : cwt >= 3 ? { l: 'In Calo', c: '#fb923c', bg: 'rgba(251,146,60,0.1)', b: 'rgba(251,146,60,0.2)' }
+                  : { l: 'Flop', c: '#f87171', bg: 'rgba(248,113,113,0.1)', b: 'rgba(248,113,113,0.2)' };
+                return (
+                  <div style={{ textAlign: 'center', padding: '10px', borderRadius: '10px', background: perf.bg, border: `1px solid ${perf.b}`, marginBottom: '12px' }}>
+                    <div style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>Performance</div>
+                    <div style={{ fontSize: '18px', fontWeight: '900', color: perf.c, fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '2px' }}>{perf.l}</div>
+                  </div>
+                );
+              })()}
 
-            {/* CWTrend */}
-            {film.cwtrend && (
-              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '10px', margin: '0 0 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* Stats 2x2 */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                {[
+                  { label: 'Giorni in sala', value: cinemaDays, color: '#facc15', icon: '📅' },
+                  { label: 'Giorni rimasti', value: cinemaRemain, color: '#38bdf8', icon: '⏳' },
+                  { label: 'Cinema attivi', value: film.current_cinemas || 0, color: '#e2e8f0', icon: '🎬' },
+                  { label: 'Spettatori', value: Math.floor((film.total_revenue || 0) / 12).toLocaleString(), color: '#c084fc', icon: '👥' },
+                ].map((s, i) => (
+                  <div key={i} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px', padding: '10px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ fontSize: '8px', color: '#4a5568', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.icon} {s.label}</div>
+                    <div style={{ fontSize: '22px', fontWeight: '900', color: s.color, fontFamily: "'Bebas Neue', sans-serif" }}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Incassi Breakdown */}
+              <div style={{ background: 'rgba(74,222,128,0.04)', borderRadius: '10px', padding: '12px', border: '1px solid rgba(74,222,128,0.1)', marginBottom: '12px' }}>
+                <div style={{ fontSize: '9px', color: '#4a5568', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Incassi</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '10px', color: '#6b7280' }}>Apertura</span>
+                  <span style={{ fontSize: '10px', color: '#4ade80', fontWeight: 'bold' }}>${(film.opening_day_revenue || 0).toLocaleString()}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '10px', color: '#6b7280' }}>Media giornaliera</span>
+                  <span style={{ fontSize: '10px', color: '#4ade80', fontWeight: 'bold' }}>${cinemaDays > 0 ? Math.floor((film.total_revenue || 0) / cinemaDays).toLocaleString() : '—'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(74,222,128,0.1)', paddingTop: '6px', marginTop: '4px' }}>
+                  <span style={{ fontSize: '11px', color: '#fff', fontWeight: 'bold' }}>Totale</span>
+                  <span style={{ fontSize: '14px', color: '#4ade80', fontWeight: '900' }}>${(film.total_revenue || 0).toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* CWTrend */}
+              <div style={{ background: 'linear-gradient(135deg, rgba(0,255,255,0.04), rgba(167,139,250,0.04))', borderRadius: '10px', padding: '12px', border: '1px solid rgba(0,255,255,0.1)', marginBottom: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div style={{ fontSize: '9px', color: '#6b7280', textTransform: 'uppercase' }}>CWTrend</div>
-                  <div style={{ fontSize: '8px', color: '#555' }}>Andamento attuale del film</div>
+                  <div style={{ fontSize: '11px', color: '#00ffff', fontWeight: 'bold', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>CWTrend</div>
+                  <div style={{ fontSize: '8px', color: '#4a5568' }}>Andamento attuale</div>
                 </div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: film.cwtrend >= 8 ? '#facc15' : film.cwtrend >= 6 ? '#4ade80' : film.cwtrend >= 4 ? '#fb923c' : '#f87171' }}>
-                  {film.cwtrend_display || film.cwtrend}
+                <div style={{ fontSize: '32px', fontWeight: '900', color: (film.cwtrend || 0) >= 8 ? '#facc15' : (film.cwtrend || 0) >= 6 ? '#4ade80' : (film.cwtrend || 0) >= 4 ? '#fb923c' : '#f87171', fontFamily: "'Bebas Neue', sans-serif" }}>
+                  {film.cwtrend_display || film.cwtrend || '—'}
                 </div>
               </div>
-            )}
 
-            {/* ═══ ACTIONS INSIDE POPUP ═══ */}
-            {isOwner && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '12px' }}>
+              {/* Actions */}
+              {isOwner && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px' }}>
 
-                {/* ADV */}
-                {isLive && !showAdv && (
-                  <button onClick={() => setShowAdv(true)} data-testid="open-adv-btn"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px', borderRadius: '8px', border: '1px solid rgba(0,200,255,0.2)', background: 'rgba(0,200,255,0.08)', color: '#00bcd4', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
-                    <Megaphone size={14} /> Lancia Pubblicita (ADV)
-                  </button>
-                )}
-                {showAdv && (
-                  <div>
-                    <AdvPanel filmId={filmId} api={api} onDone={() => { setShowAdv(false); setShowCinemaPopup(false); onRefresh(); }} />
-                    <button onClick={() => setShowAdv(false)} style={{ width: '100%', textAlign: 'center', fontSize: '9px', color: '#666', padding: '4px', cursor: 'pointer', background: 'transparent', border: 'none' }}>Chiudi ADV</button>
-                  </div>
-                )}
+                  {/* ADV */}
+                  {isLive && !showAdv && (
+                    <button onClick={() => setShowAdv(true)} data-testid="open-adv-btn"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '11px', borderRadius: '10px', border: '1px solid rgba(0,200,255,0.2)', background: 'linear-gradient(135deg, rgba(0,200,255,0.08), rgba(0,200,255,0.03))', color: '#00bcd4', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
+                      <Megaphone size={14} /> Lancia Pubblicita (ADV)
+                    </button>
+                  )}
+                  {showAdv && (
+                    <div>
+                      <AdvPanel filmId={filmId} api={api} onDone={() => { setShowAdv(false); setShowCinemaPopup(false); onRefresh(); }} />
+                      <button onClick={() => setShowAdv(false)} style={{ width: '100%', textAlign: 'center', fontSize: '9px', color: '#555', padding: '4px', cursor: 'pointer', background: 'transparent', border: 'none' }}>Chiudi ADV</button>
+                    </div>
+                  )}
 
-                {/* WITHDRAW (orange) */}
-                {isLive && (
-                  <>
-                    {!showWithdraw ? (
-                      <button onClick={() => setShowWithdraw(true)} data-testid="withdraw-btn"
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px', borderRadius: '8px', border: '1px solid rgba(249,115,22,0.2)', background: 'rgba(249,115,22,0.08)', color: '#f97316', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
-                        <Trash2 size={14} /> Ritira dalle Sale
-                      </button>
-                    ) : (
-                      <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(249,115,22,0.05)', border: '1px solid rgba(249,115,22,0.2)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                          <AlertTriangle size={16} color="#f97316" />
-                          <span style={{ fontWeight: 'bold', color: '#fb923c', fontSize: '12px' }}>Ritirare il film?</span>
+                  {/* SEND TO TV (Prossimamente) */}
+                  {isLive && (
+                    <button data-testid="send-to-tv-btn"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '11px', borderRadius: '10px', border: '1px solid rgba(167,139,250,0.2)', background: 'linear-gradient(135deg, rgba(167,139,250,0.08), rgba(167,139,250,0.03))', color: '#a78bfa', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}
+                      onClick={() => toast.info('Prossimamente in TV — disponibile dopo il ritiro dalle sale')}>
+                      <Tv size={14} /> Prossimamente in TV
+                    </button>
+                  )}
+
+                  {/* WITHDRAW */}
+                  {isLive && (
+                    <>
+                      {!showWithdraw ? (
+                        <button onClick={() => setShowWithdraw(true)} data-testid="withdraw-btn"
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '11px', borderRadius: '10px', border: '1px solid rgba(249,115,22,0.15)', background: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.02))', color: '#f97316', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
+                          <Trash2 size={14} /> Ritira dalle Sale
+                        </button>
+                      ) : (
+                        <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(249,115,22,0.04)', border: '1px solid rgba(249,115,22,0.15)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                            <AlertTriangle size={16} color="#f97316" />
+                            <span style={{ fontWeight: 'bold', color: '#fb923c', fontSize: '12px' }}>Ritirare il film?</span>
+                          </div>
+                          <p style={{ fontSize: '10px', color: '#555', marginBottom: '8px' }}>L'incasso accumulato restera invariato.</p>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => setShowWithdraw(false)} style={{ flex: 1, padding: '7px', borderRadius: '8px', border: '1px solid #222', color: '#666', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', background: 'transparent' }}>Annulla</button>
+                            <button onClick={withdrawFromTheaters} disabled={actionLoading} data-testid="confirm-withdraw-btn"
+                              style={{ flex: 1, padding: '7px', borderRadius: '8px', border: '1px solid rgba(249,115,22,0.3)', background: 'rgba(249,115,22,0.12)', color: '#f97316', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', opacity: actionLoading ? 0.5 : 1 }}>
+                              {actionLoading ? '...' : 'Conferma'}
+                            </button>
+                          </div>
                         </div>
-                        <p style={{ fontSize: '10px', color: '#888', marginBottom: '8px' }}>Il film verra rimosso da tutte le sale. L'incasso accumulato restera invariato.</p>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => setShowWithdraw(false)} style={{ flex: 1, padding: '6px', borderRadius: '6px', border: '1px solid #333', color: '#888', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', background: 'transparent' }}>Annulla</button>
-                          <button onClick={withdrawFromTheaters} disabled={actionLoading} data-testid="confirm-withdraw-btn"
-                            style={{ flex: 1, padding: '6px', borderRadius: '6px', border: '1px solid rgba(249,115,22,0.4)', background: 'rgba(249,115,22,0.15)', color: '#f97316', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', opacity: actionLoading ? 0.5 : 1 }}>
-                            {actionLoading ? '...' : 'Conferma Ritiro'}
-                          </button>
-                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* DELETE */}
+                  {!showDelete ? (
+                    <button onClick={() => setShowDelete(true)} data-testid="delete-film-btn"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '11px', borderRadius: '10px', border: '1px solid rgba(239,68,68,0.1)', background: 'rgba(239,68,68,0.03)', color: 'rgba(239,68,68,0.5)', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
+                      <Trash2 size={14} /> Elimina Film
+                    </button>
+                  ) : (
+                    <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.15)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                        <AlertTriangle size={16} color="#ef4444" />
+                        <span style={{ fontWeight: 'bold', color: '#f87171', fontSize: '12px' }}>Eliminazione permanente!</span>
                       </div>
-                    )}
-                  </>
-                )}
-
-                {/* DELETE (red) */}
-                {!showDelete ? (
-                  <button onClick={() => setShowDelete(true)} data-testid="delete-film-btn"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.15)', background: 'rgba(239,68,68,0.05)', color: 'rgba(239,68,68,0.6)', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
-                    <Trash2 size={14} /> Elimina Film
-                  </button>
-                ) : (
-                  <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                      <AlertTriangle size={16} color="#ef4444" />
-                      <span style={{ fontWeight: 'bold', color: '#f87171', fontSize: '12px' }}>Eliminazione permanente!</span>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => setShowDelete(false)} style={{ flex: 1, padding: '7px', borderRadius: '8px', border: '1px solid #222', color: '#666', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', background: 'transparent' }}>Annulla</button>
+                        <button onClick={deleteFilm} disabled={actionLoading} data-testid="confirm-delete-btn"
+                          style={{ flex: 1, padding: '7px', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.12)', color: '#ef4444', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', opacity: actionLoading ? 0.5 : 1 }}>
+                          {actionLoading ? '...' : 'Elimina'}
+                        </button>
+                      </div>
                     </div>
-                    <p style={{ fontSize: '10px', color: '#888', marginBottom: '8px' }}>Il film verra eliminato definitivamente. Questa azione e irreversibile.</p>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => setShowDelete(false)} style={{ flex: 1, padding: '6px', borderRadius: '6px', border: '1px solid #333', color: '#888', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', background: 'transparent' }}>Annulla</button>
-                      <button onClick={deleteFilm} disabled={actionLoading} data-testid="confirm-delete-btn"
-                        style={{ flex: 1, padding: '6px', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', opacity: actionLoading ? 0.5 : 1 }}>
-                        {actionLoading ? '...' : 'Elimina per Sempre'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Close popup button */}
-            <button onClick={() => setShowCinemaPopup(false)}
-              style={{ marginTop: '12px', width: '100%', padding: '8px', borderRadius: '8px', border: 'none', background: '#00ffff', color: '#000', fontWeight: 'bold', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
-              Chiudi
-            </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

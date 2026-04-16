@@ -122,7 +122,7 @@ async def send_challenge(request: ChallengeRequest, user: dict = Depends(get_cur
         'bet_amount': min(request.bet_amount, 10000),
         'status': 'pending',
         'created_at': datetime.now(timezone.utc).isoformat(),
-        'expires_at': (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+        'expires_at': (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
     }
     
     await db.challenges.insert_one(challenge)

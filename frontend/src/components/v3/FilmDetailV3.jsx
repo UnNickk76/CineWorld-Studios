@@ -1,98 +1,98 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import {
-  X, Film, Star, Clock, MapPin, Users, Megaphone, Globe, Award, TrendingUp,
-  Heart, Trash2, AlertTriangle, ChevronDown, ChevronUp, DollarSign,
-  Clapperboard, Eye, BarChart3, Tv, Zap, Music, Pen, Theater
+  Film, Star, Clock, Users, Megaphone, X, BookOpen, Eye,
+  Trash2, AlertTriangle, Flame
 } from 'lucide-react';
 import { AuthContext } from '../../contexts';
 import { toast } from 'sonner';
+import '../../styles/content-template.css';
 
-const GENRE_LABELS = {
-  action: 'Azione', comedy: 'Commedia', drama: 'Dramma', horror: 'Horror',
-  sci_fi: 'Fantascienza', romance: 'Romance', thriller: 'Thriller',
-  animation: 'Animazione', documentary: 'Documentario', fantasy: 'Fantasy',
-  adventure: 'Avventura', musical: 'Musical', western: 'Western',
-  biographical: 'Biografico', mystery: 'Mistero', war: 'Guerra',
-  crime: 'Crime', noir: 'Noir', historical: 'Storico',
+const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
+const posterSrc = (url) => {
+  if (!url) return null;
+  if (url.startsWith('/')) return `${BACKEND}${url}`;
+  return url;
 };
 
-const PERF_MAP = {
-  great: { label: 'Straordinario', color: '#4ade80' },
-  good: { label: 'Ottimo', color: '#34d399' },
-  ok: { label: 'Discreto', color: '#facc15' },
-  declining: { label: 'In calo', color: '#fb923c' },
-  bad: { label: 'Scarso', color: '#f87171' },
-  flop: { label: 'Flop', color: '#ef4444' },
+/* ═══ REVIEW GENERATION (same as ContentTemplate) ═══ */
+const FILM_OUTLETS = ['VARIETY', 'EMPIRE', 'HOLLYWOOD R.'];
+const POSITIVE_QUOTES = {
+  VARIETY: ["Un'esperienza cinematografica straordinaria!", "Un'opera che ridefinisce il genere", "Spettacolare da ogni punto di vista"],
+  EMPIRE: ["Impressionante dall'inizio alla fine", "Un capolavoro moderno del cinema", "Emozionante e visivamente stupendo"],
+  'HOLLYWOOD R.': ["Uno dei migliori film degli ultimi anni", "Un trionfo del cinema contemporaneo", "Destinato a diventare un classico"],
 };
-
-/* ─── Stat Box ─── */
-const StatBox = ({ label, value, color = 'text-white', icon: Icon, sub }) => (
-  <div className="text-center p-2 rounded-lg bg-white/[0.02] border border-white/5" data-testid={`stat-${label.toLowerCase().replace(/\s/g,'-')}`}>
-    <div className="text-[8px] text-gray-500 uppercase tracking-wider flex items-center justify-center gap-0.5 mb-0.5">
-      {Icon && <Icon className="w-2.5 h-2.5" />}{label}
-    </div>
-    <div className={`text-sm font-bold ${color}`}>{value}</div>
-    {sub && <div className="text-[7px] text-gray-600">{sub}</div>}
-  </div>
-);
-
-/* ─── Cast Member Card ─── */
-const CastMemberCard = ({ person, role, roleColor, roleBg }) => {
-  const [open, setOpen] = useState(false);
-  const skills = person?.skills || {};
-  const skillEntries = Object.entries(skills);
-  const avgSkill = skillEntries.length > 0
-    ? Math.round(skillEntries.reduce((a, [, v]) => a + v, 0) / skillEntries.length)
-    : 0;
-
-  return (
-    <div className={`rounded-lg border ${roleBg} overflow-hidden`}>
-      <div className="flex items-center gap-2 p-2 cursor-pointer" onClick={() => skillEntries.length > 0 && setOpen(!open)}>
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${roleColor}`}>
-          {person?.name?.charAt(0) || '?'}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-[10px] font-semibold text-white truncate">{person?.name || 'N/D'}</span>
-            {person?.gender && (
-              <span className={`text-[9px] font-bold ${person.gender === 'female' ? 'text-pink-400' : 'text-cyan-400'}`}>
-                {person.gender === 'female' ? '♀' : '♂'}
-              </span>
-            )}
-            {[...Array(person?.stars || Math.min(5, Math.ceil(avgSkill / 20)))].map((_, i) => (
-              <Star key={i} className="w-2 h-2 text-yellow-500 fill-yellow-500" />
-            ))}
-          </div>
-          <div className="text-[8px] text-gray-500">
-            {role}{avgSkill > 0 && <> &bull; Skill <span className={avgSkill >= 70 ? 'text-emerald-400' : avgSkill >= 50 ? 'text-cyan-400' : 'text-amber-400'}>{avgSkill}</span></>}
-            {person?.nationality && <> &bull; {person.nationality}</>}
-          </div>
-        </div>
-        {skillEntries.length > 0 && (
-          <div className="flex-shrink-0">
-            {open ? <ChevronUp className="w-3 h-3 text-gray-500" /> : <ChevronDown className="w-3 h-3 text-gray-500" />}
-          </div>
-        )}
-      </div>
-      {open && skillEntries.length > 0 && (
-        <div className="px-2 pb-2 grid grid-cols-2 gap-1 border-t border-white/5 pt-1.5">
-          {skillEntries.map(([name, val]) => (
-            <div key={name} className="flex items-center gap-1">
-              <span className="text-[7px] text-gray-500 truncate w-16">{name.replace(/_/g, ' ')}</span>
-              <div className="flex-1 h-1 bg-gray-800 rounded-full">
-                <div className={`h-full rounded-full ${val >= 80 ? 'bg-emerald-500' : val >= 60 ? 'bg-cyan-500' : val >= 40 ? 'bg-amber-500' : 'bg-red-500'}`}
-                  style={{ width: `${Math.min(100, val)}%` }} />
-              </div>
-              <span className="text-[7px] font-mono text-gray-400 w-4 text-right">{val}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+const MIXED_QUOTES = {
+  VARIETY: ["Ambizioso ma non sempre riuscito", "Ha momenti brillanti e altri meno"],
+  EMPIRE: ["Interessante ma con alti e bassi", "Un buon film con qualche difetto"],
+  'HOLLYWOOD R.': ["Promettente ma imperfetto", "Merita una visione, con riserve"],
 };
+function generateReviews(quality, hype) {
+  const score = (quality || 50) / 10;
+  return FILM_OUTLETS.map((outlet) => {
+    const pool = score >= 7 ? POSITIVE_QUOTES[outlet] : MIXED_QUOTES[outlet];
+    const idx = Math.floor((hype || 0) % pool.length);
+    return { outlet, quote: pool[idx] };
+  });
+}
 
-/* ─── ADV Panel ─── */
+/* ═══ PUBLIC PERCEPTION ═══ */
+function getPublicPerception(film) {
+  const q = film?.quality_score || 50;
+  const likes = film?.virtual_likes || film?.likes_count || 0;
+  const hype = film?.hype_score || film?.popularity_score || 0;
+  const lines = [];
+  if (q >= 80) lines.push('Pubblico entusiasta');
+  else if (q >= 60) lines.push('Pubblico soddisfatto');
+  else if (q >= 40) lines.push('Reazioni miste dal pubblico');
+  else lines.push('Pubblico deluso');
+  if (likes > 5000) lines.push('Passaparola in crescita');
+  else if (likes > 1000) lines.push('Interesse moderato');
+  if (hype > 70) lines.push('Boom di interesse');
+  else if (hype > 40) lines.push('Attenzione mediatica stabile');
+  return lines;
+}
+
+/* ═══ CAST EXTRACTOR (V3 format) ═══ */
+function extractCastInfo(cast) {
+  let director = null;
+  let actors = [];
+  if (!cast) return { director, actors: [] };
+  if (typeof cast === 'object' && !Array.isArray(cast)) {
+    if (cast.director?.name) director = cast.director.name;
+    if (Array.isArray(cast.actors)) actors = cast.actors.filter(a => a && a.name);
+    if (cast.screenwriter?.name && !actors.find(a => a.name === cast.screenwriter.name)) {
+      actors.push({ ...cast.screenwriter, role: 'Sceneggiatore' });
+    }
+    if (cast.composer?.name && !actors.find(a => a.name === cast.composer.name)) {
+      actors.push({ ...cast.composer, role: 'Compositore' });
+    }
+  } else if (Array.isArray(cast)) {
+    actors = cast.filter(a => a && a.name);
+  }
+  return { director, actors: actors.slice(0, 5) };
+}
+
+/* ═══ DURATION FORMATTER ═══ */
+function formatDuration(film) {
+  const min = film?.film_duration_minutes;
+  if (min) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+  if (film?.film_duration_label) return film.film_duration_label;
+  return '~110m';
+}
+
+const cleanText = (text) => {
+  if (!text) return '';
+  return text.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1')
+    .replace(/^#{1,3}\s+/gm, '').replace(/^[-*]\s+/gm, '')
+    .replace(/\n{3,}/g, '\n\n').trim();
+};
+const toStr = (v) => typeof v === 'string' ? v : (v?.text || v?.content || '');
+
+/* ═══ ADV PANEL ═══ */
 const AdvPanel = ({ filmId, api, onDone }) => {
   const [platforms, setPlatforms] = useState([]);
   const [selected, setSelected] = useState([]);
@@ -119,64 +119,52 @@ const AdvPanel = ({ filmId, api, onDone }) => {
     if (selected.length === 0) return toast.error('Seleziona almeno una piattaforma');
     setLoading(true);
     try {
-      const r = await api.post(`/films/${filmId}/advertise`, {
-        platforms: selected, days, budget: totalCost,
-      });
+      const r = await api.post(`/films/${filmId}/advertise`, { platforms: selected, days, budget: totalCost });
       toast.success(`Campagna lanciata! Revenue boost: $${(r.data.revenue_boost || 0).toLocaleString()}`);
       onDone?.();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore campagna ADV');
-    }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore campagna ADV'); }
     setLoading(false);
   };
 
   return (
-    <div className="space-y-2" data-testid="adv-panel">
-      <p className="text-[9px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1">
-        <Megaphone className="w-3 h-3" /> Campagna Pubblicitaria
-      </p>
-      <div className="space-y-1">
+    <div style={{ margin: '8px 10px', padding: '12px', borderRadius: '8px', background: 'rgba(0,80,120,0.15)', border: '1px solid rgba(0,200,255,0.2)' }} data-testid="adv-panel">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontFamily: "'Bebas Neue', sans-serif", fontSize: '12px', letterSpacing: '1.5px', color: '#60a8d8' }}>
+        <Megaphone size={14} /> Campagna Pubblicitaria
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px' }}>
         {platforms.map(p => (
-          <button key={p.id} onClick={() => toggle(p.id)}
-            className={`w-full flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
-              selected.includes(p.id)
-                ? 'border-cyan-500/40 bg-cyan-500/10'
-                : 'border-white/5 bg-white/[0.02] hover:border-white/10'
-            }`} data-testid={`adv-platform-${p.id}`}>
-            <div>
-              <span className="text-[9px] font-semibold text-white">{p.name_it || p.name}</span>
-              <span className="text-[7px] text-gray-500 ml-1">x{p.reach_multiplier}</span>
-            </div>
-            <span className="text-[8px] text-yellow-400 font-bold">${(p.cost_per_day * days).toLocaleString()}</span>
+          <button key={p.id} onClick={() => toggle(p.id)} data-testid={`adv-platform-${p.id}`}
+            style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 10px', borderRadius: '6px', border: selected.includes(p.id) ? '1px solid rgba(0,200,255,0.4)' : '1px solid rgba(255,255,255,0.05)', background: selected.includes(p.id) ? 'rgba(0,200,255,0.1)' : 'rgba(255,255,255,0.02)', cursor: 'pointer', color: '#fff', fontSize: '11px', textAlign: 'left' }}>
+            <span>{p.name_it || p.name} <span style={{ color: '#6b7280', fontSize: '9px' }}>x{p.reach_multiplier}</span></span>
+            <span style={{ color: '#f0c040', fontWeight: 'bold' }}>${(p.cost_per_day * days).toLocaleString()}</span>
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-1.5">
-        <span className="text-[8px] text-gray-500">Giorni:</span>
+      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '8px' }}>
+        <span style={{ fontSize: '10px', color: '#6b7280' }}>Giorni:</span>
         {[1, 3, 5, 7].map(d => (
           <button key={d} onClick={() => setDays(d)}
-            className={`px-2 py-0.5 rounded text-[8px] font-bold border transition-all ${
-              days === d ? 'border-cyan-500 bg-cyan-500/15 text-cyan-400' : 'border-gray-700 text-gray-500'
-            }`}>{d}g</button>
+            style={{ padding: '3px 8px', borderRadius: '4px', border: days === d ? '1px solid #00bcd4' : '1px solid #333', background: days === d ? 'rgba(0,188,212,0.15)' : 'transparent', color: days === d ? '#00bcd4' : '#666', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>{d}g</button>
         ))}
       </div>
       {selected.length > 0 && (
-        <div className="flex items-center justify-between px-1">
-          <span className="text-[8px] text-gray-400">Costo totale</span>
-          <span className="text-[10px] font-bold text-yellow-400">${totalCost.toLocaleString()}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px', padding: '0 4px' }}>
+          <span style={{ color: '#6b7280' }}>Costo totale</span>
+          <span style={{ color: '#f0c040', fontWeight: 'bold' }}>${totalCost.toLocaleString()}</span>
         </div>
       )}
-      <button onClick={launch} disabled={loading || selected.length === 0}
-        className="w-full py-2 rounded-lg bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 text-[9px] font-bold disabled:opacity-40 transition-all hover:bg-cyan-600/30"
-        data-testid="launch-adv-btn">
+      <button onClick={launch} disabled={loading || selected.length === 0} data-testid="launch-adv-btn"
+        style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid rgba(0,200,255,0.3)', background: 'rgba(0,200,255,0.12)', color: '#00bcd4', fontWeight: 'bold', fontSize: '11px', cursor: selected.length > 0 ? 'pointer' : 'default', opacity: selected.length === 0 ? 0.4 : 1 }}>
         {loading ? '...' : `Lancia Campagna ($${totalCost.toLocaleString()})`}
       </button>
     </div>
   );
 };
 
-/* ═══════════════════════ MAIN COMPONENT ═══════════════════════ */
 
+/* ═══════════════════════════════════════════════════
+   MAIN COMPONENT — FilmDetailV3 (ContentTemplate style)
+   ═══════════════════════════════════════════════════ */
 export default function FilmDetailV3({ filmId, onClose }) {
   const { api, user } = useContext(AuthContext);
   const [film, setFilm] = useState(null);
@@ -185,39 +173,27 @@ export default function FilmDetailV3({ filmId, onClose }) {
   const [showDelete, setShowDelete] = useState(false);
   const [showAdv, setShowAdv] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [reviews, setReviews] = useState([]);
-  const [expandCast, setExpandCast] = useState(false);
-  const [expandSynopsis, setExpandSynopsis] = useState(false);
 
-  /* ─── Load film data ─── */
-  useEffect(() => {
+  const loadFilm = useCallback(async () => {
     if (!filmId) return;
     setLoading(true);
-    api.get(`/pipeline-v3/released-film/${filmId}`).then(r => {
-      setFilm(r.data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    try {
+      const res = await api.get(`/pipeline-v3/released-film/${filmId}`);
+      setFilm(res.data);
+    } catch { /* */ }
+    setLoading(false);
   }, [filmId, api]);
 
-  /* ─── Load virtual reviews ─── */
-  useEffect(() => {
-    if (!filmId) return;
-    api.get(`/films/${filmId}/virtual-audience`).then(r => {
-      setReviews(r.data?.reviews || []);
-    }).catch(() => {});
-  }, [filmId, api]);
+  useEffect(() => { loadFilm(); }, [loadFilm]);
 
-  /* ─── Actions ─── */
   const withdrawFromTheaters = async () => {
     setActionLoading(true);
     try {
       const pid = film?.source_project_id;
-      if (pid) {
-        await api.post(`/pipeline-v3/films/${pid}/withdraw-theaters`);
-        toast.success('Film ritirato dalle sale');
-      }
+      if (pid) await api.post(`/pipeline-v3/films/${pid}/withdraw-theaters`);
+      toast.success('Film ritirato dalle sale');
       onClose?.();
-    } catch (e) { toast.error('Errore nel ritiro'); }
+    } catch { toast.error('Errore nel ritiro'); }
     setActionLoading(false);
   };
 
@@ -233,338 +209,236 @@ export default function FilmDetailV3({ filmId, onClose }) {
 
   if (!filmId) return null;
 
+  /* ─── Overlay (fixed fullscreen) ─── */
+  return (
+    <div className="fixed inset-0 z-50 bg-black/85 flex items-end sm:items-center justify-center" onClick={onClose} data-testid="film-detail-v3-modal">
+      <div className="w-full max-w-[480px] max-h-[92vh] overflow-y-auto" onClick={e => e.stopPropagation()} style={{ overscrollBehavior: 'contain' }}>
+
+        {loading ? (
+          <div className="ct2-root" data-testid="content-template">
+            <div className="ct2-loading">
+              <div className="ct2-spinner" />
+              <p className="ct2-loading-text">Caricamento...</p>
+            </div>
+          </div>
+        ) : !film ? (
+          <div className="ct2-root" data-testid="content-template">
+            <div className="ct2-loading">
+              <p className="ct2-loading-text">Film non trovato</p>
+            </div>
+          </div>
+        ) : (
+          <FilmContent film={film} filmId={filmId} onClose={onClose} user={user} api={api}
+            showAdv={showAdv} setShowAdv={setShowAdv}
+            showWithdraw={showWithdraw} setShowWithdraw={setShowWithdraw}
+            showDelete={showDelete} setShowDelete={setShowDelete}
+            actionLoading={actionLoading}
+            withdrawFromTheaters={withdrawFromTheaters}
+            deleteFilm={deleteFilm}
+            onRefresh={loadFilm} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══ INNER RENDER — avoids hooks in conditional ═══ */
+function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, showWithdraw, setShowWithdraw, showDelete, setShowDelete, actionLoading, withdrawFromTheaters, deleteFilm, onRefresh }) {
   const isOwner = film?.user_id === user?.id;
   const isLive = film?.status === 'in_theaters';
 
-  /* ─── Derived data ─── */
-  const cast = film?.cast || {};
-  const director = cast.director;
-  const actors = cast.actors || [];
-  const composer = cast.composer;
-  const screenwriter = cast.screenwriter;
-  const distZones = film?.distribution_zones || [];
-  const sponsors = film?.selected_sponsors || [];
-  const revenue = film?.total_revenue || 0;
-  const quality = film?.quality_score;
-  const cinemas = film?.current_cinemas || 0;
-  const likes = film?.likes_count || film?.virtual_likes || 0;
+  const reviews = generateReviews(film.quality_score, film.popularity_score || film.hype_score);
+  const castInfo = extractCastInfo(film.cast);
+  const imdb = film.imdb_rating || (film.quality_score ? (film.quality_score / 10).toFixed(1) : null);
+  const durationStr = formatDuration(film);
+  const screenplay = cleanText(toStr(film.screenplay_text) || toStr(film.preplot) || '');
+  const perception = getPublicPerception(film);
+
+  const cinemaDays = film.days_in_theater ?? 0;
+  const cinemaRemain = film.days_remaining ?? 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 flex items-end sm:items-center justify-center" onClick={onClose} data-testid="film-detail-v3-modal">
-      <div className="bg-[#0a0a0c] border-t sm:border border-gray-800/60 rounded-t-2xl sm:rounded-2xl w-full max-w-[420px] max-h-[92vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()} style={{ overscrollBehavior: 'contain' }}>
+    <div className="ct2-root" data-testid="content-template">
+      {/* CLOSE */}
+      <button className="ct2-back" onClick={onClose} data-testid="close-film-detail" aria-label="Chiudi">
+        <X size={18} />
+      </button>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-24">
-            <div className="w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin" />
-          </div>
-        ) : !film ? (
-          <div className="text-center py-24 text-gray-500 text-sm">Film non trovato</div>
-        ) : (
+      {/* 1. STATUS BAR */}
+      <div className={`ct2-status-bar ${isLive ? 'ct2-status-cinema' : 'ct2-status-catalogo'}`} data-testid="ct-status-bar">
+        <span className="ct2-status-label">{isLive ? 'Al Cinema' : 'Fuori Sala'}</span>
+      </div>
+
+      {/* 2. POSTER + INFO BOX */}
+      <div className="ct2-top-block" data-testid="ct-top-block">
+        <div className="ct2-poster" data-testid="ct-poster">
+          {posterSrc(film.poster_url) ? (
+            <img src={posterSrc(film.poster_url)} alt={film.title} onError={(e) => { e.target.style.display = 'none'; }} />
+          ) : (
+            <div className="ct2-poster-empty"><Film size={28} /></div>
+          )}
+        </div>
+        <div className="ct2-short-plot" data-testid="ct-short-plot">
+          <div className="ct2-info-title">{film.title}</div>
+          {castInfo.director && (
+            <div className="ct2-info-director">Regia di: {castInfo.director}</div>
+          )}
+          {film.producer?.nickname && (
+            <div className="ct2-info-director">{film.producer.production_house_name || film.producer.nickname}</div>
+          )}
+          {castInfo.actors.length > 0 && (
+            <div className="ct2-info-cast">
+              Cast: {castInfo.actors.map(a => a.name).join(', ')}
+            </div>
+          )}
+          {film.preplot ? (
+            <div className="ct2-info-plot">{film.preplot}</div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* 3. TITLE */}
+      <div className="ct2-title-row" data-testid="ct-title">
+        <h1 className="ct2-title" data-testid="film-title">{film.title}</h1>
+      </div>
+      {/* Production House */}
+      {(film.producer?.production_house_name || film.producer?.nickname) && (
+        <div className="px-4 -mt-1 mb-1">
+          <span className="text-[10px] text-amber-400/70 italic">
+            una produzione <span className="font-bold not-italic">{film.producer.production_house_name || film.producer.nickname}</span>
+          </span>
+        </div>
+      )}
+
+      {/* 5. DATA BAR */}
+      <div className="ct2-data-bar" data-testid="ct-data-bar">
+        <span className="ct2-data-type">Film</span>
+        <span className="ct2-data-sep">|</span>
+        {imdb && (
           <>
-            {/* ═══ POSTER HEADER ═══ */}
-            <div className="relative">
-              {film.poster_url ? (
-                <img src={film.poster_url.startsWith('/') ? `${process.env.REACT_APP_BACKEND_URL}${film.poster_url}` : film.poster_url}
-                  alt="" className="w-full aspect-[3/4] object-cover rounded-t-2xl" />
-              ) : (
-                <div className="w-full aspect-[3/4] bg-gray-900 flex items-center justify-center rounded-t-2xl">
-                  <Film className="w-14 h-14 text-gray-700" />
-                </div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/50 to-transparent" />
-
-              <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center border border-white/10 hover:bg-black/80 transition-colors" data-testid="close-film-detail">
-                <X className="w-4 h-4 text-white" />
-              </button>
-
-              {/* Status badge */}
-              {isLive && (
-                <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1 border border-green-500/20">
-                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                  <span className="text-[8px] font-black text-green-400 tracking-wider">AL CINEMA</span>
-                </div>
-              )}
-              {film.status === 'completed' && (
-                <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1 border border-gray-500/20">
-                  <span className="text-[8px] font-black text-gray-400 tracking-wider">FUORI SALA</span>
-                </div>
-              )}
-
-              {/* Title overlay */}
-              <div className="absolute bottom-4 left-4 right-4">
-                <h2 className="text-xl font-black text-white drop-shadow-lg leading-tight" data-testid="film-title">{film.title}</h2>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <span className="text-[8px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-bold border border-amber-500/20">
-                    {GENRE_LABELS[film.genre] || film.genre}
-                  </span>
-                  {film.subgenre && (
-                    <span className="text-[8px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 font-bold border border-purple-500/20">
-                      {GENRE_LABELS[film.subgenre] || film.subgenre}
-                    </span>
-                  )}
-                  {film.film_duration_label && (
-                    <span className="text-[8px] text-gray-300 flex items-center gap-0.5">
-                      <Clock className="w-2.5 h-2.5" />{film.film_duration_label}
-                    </span>
-                  )}
-                  {film.film_format && film.film_format !== 'standard' && (
-                    <span className="text-[8px] text-blue-400 uppercase font-bold">{film.film_format}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* ═══ STATS GRID ═══ */}
-            <div className="px-3 py-3 grid grid-cols-4 gap-1.5" data-testid="film-stats-grid">
-              <StatBox label="Sala" value={`${film.days_in_theater || 0}g`} color="text-green-400" icon={Clapperboard}
-                sub={isLive ? `${film.days_remaining || 0}g rimasti` : 'concluso'} />
-              <StatBox label="Incasso" value={`$${revenue >= 1000000 ? (revenue/1000000).toFixed(1)+'M' : revenue >= 1000 ? (revenue/1000).toFixed(0)+'K' : revenue}`}
-                color="text-emerald-400" icon={DollarSign} />
-              <StatBox label="Likes" value={likes.toLocaleString()} color="text-pink-400" icon={Heart} />
-              <StatBox label="Cinema" value={cinemas} color="text-cyan-400" icon={Globe}
-                sub={distZones.length > 0 ? `${distZones.length} zone` : ''} />
-            </div>
-
-            {/* Quality bar */}
-            {quality != null && (
-              <div className="px-4 pb-2">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[8px] text-gray-500 uppercase tracking-wider">Qualità</span>
-                  <span className={`text-xs font-bold ${quality >= 75 ? 'text-emerald-400' : quality >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-                    {quality}/100
-                  </span>
-                </div>
-                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${quality >= 75 ? 'bg-emerald-500' : quality >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                    style={{ width: `${quality}%` }} />
-                </div>
-              </div>
-            )}
-
-            {/* ═══ PRODUCER ═══ */}
-            <div className="px-4 py-2.5 border-t border-white/5 flex items-center gap-2.5" data-testid="film-producer">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500/30 to-cyan-500/30 flex items-center justify-center text-[10px] font-bold text-white border border-white/10">
-                {(film.producer?.nickname || '?')[0]}
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-white">{film.producer?.nickname || 'Produttore'}</p>
-                <p className="text-[8px] text-gray-500">{film.producer?.production_house_name || 'Studio indipendente'}</p>
-              </div>
-              {isOwner && <span className="ml-auto text-[7px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">TUO</span>}
-            </div>
-
-            {/* ═══ CAST ═══ */}
-            {(director || actors.length > 0 || composer || screenwriter) && (
-              <div className="px-4 py-3 border-t border-white/5" data-testid="film-cast-section">
-                <button className="flex items-center justify-between w-full mb-2" onClick={() => setExpandCast(!expandCast)}>
-                  <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider flex items-center gap-1">
-                    <Users className="w-3 h-3" /> Cast & Crew
-                    <span className="text-[8px] text-gray-600 font-normal ml-1">
-                      ({[director, screenwriter, composer, ...actors].filter(Boolean).length} persone)
-                    </span>
-                  </span>
-                  {expandCast ? <ChevronUp className="w-3.5 h-3.5 text-gray-500" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-500" />}
-                </button>
-
-                {!expandCast ? (
-                  /* Compact view */
-                  <div className="flex flex-wrap gap-1">
-                    {director && (
-                      <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-medium">
-                        Regia: {director.name}
-                      </span>
-                    )}
-                    {actors.slice(0, 3).map((a, i) => (
-                      <span key={i} className="text-[7px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-medium">
-                        {a.name} {a.cast_role ? `(${a.cast_role})` : ''}
-                      </span>
-                    ))}
-                    {actors.length > 3 && <span className="text-[7px] text-gray-500 self-center">+{actors.length - 3} altri</span>}
-                    {composer && (
-                      <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 font-medium">
-                        Musiche: {composer.name}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  /* Expanded view with skills */
-                  <div className="space-y-1.5">
-                    {director && <CastMemberCard person={director} role="Regia" roleColor="bg-purple-500/20 text-purple-400" roleBg="border-purple-500/15 bg-purple-500/5" />}
-                    {screenwriter && <CastMemberCard person={screenwriter} role="Sceneggiatura" roleColor="bg-emerald-500/20 text-emerald-400" roleBg="border-emerald-500/15 bg-emerald-500/5" />}
-                    {actors.map((a, i) => (
-                      <CastMemberCard key={i} person={a} role={a.cast_role || 'Attore'} roleColor="bg-cyan-500/20 text-cyan-400" roleBg="border-cyan-500/15 bg-cyan-500/5" />
-                    ))}
-                    {composer && <CastMemberCard person={composer} role="Compositore" roleColor="bg-yellow-500/20 text-yellow-400" roleBg="border-yellow-500/15 bg-yellow-500/5" />}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ═══ SYNOPSIS ═══ */}
-            {film.preplot && (
-              <div className="px-4 py-3 border-t border-white/5" data-testid="film-synopsis">
-                <button className="flex items-center justify-between w-full mb-1" onClick={() => setExpandSynopsis(!expandSynopsis)}>
-                  <span className="text-[9px] text-gray-400 uppercase font-bold tracking-wider flex items-center gap-1">
-                    <Pen className="w-3 h-3" /> Trama
-                  </span>
-                  {expandSynopsis ? <ChevronUp className="w-3 h-3 text-gray-500" /> : <ChevronDown className="w-3 h-3 text-gray-500" />}
-                </button>
-                <div className={expandSynopsis ? '' : 'max-h-[60px] overflow-hidden relative'}>
-                  <p className="text-[9px] text-gray-400 leading-relaxed italic">"{film.preplot}"</p>
-                  {!expandSynopsis && <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-[#0a0a0c] to-transparent" />}
-                </div>
-              </div>
-            )}
-
-            {/* ═══ DISTRIBUTION ZONES ═══ */}
-            {distZones.length > 0 && (
-              <div className="px-4 py-3 border-t border-white/5" data-testid="film-distribution">
-                <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider mb-1.5 flex items-center gap-1">
-                  <Globe className="w-3 h-3" /> Distribuzione
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {film.distribution_world && (
-                    <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold">Mondiale</span>
-                  )}
-                  {distZones.map((z, i) => (
-                    <span key={i} className="text-[7px] px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                      {typeof z === 'string' ? z : z.name || z.continent || 'Zona'}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ═══ SPONSORS ═══ */}
-            {sponsors.length > 0 && (
-              <div className="px-4 py-3 border-t border-white/5" data-testid="film-sponsors">
-                <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider mb-1.5 flex items-center gap-1">
-                  <Award className="w-3 h-3" /> Sponsor
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {sponsors.map((s, i) => (
-                    <span key={i} className="text-[7px] px-2 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 font-medium">
-                      {s.sponsor_name || s.name}
-                      {s.contribution && <span className="text-green-500/60 ml-1">${(s.contribution / 1000).toFixed(0)}K</span>}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ═══ VIRTUAL REVIEWS ═══ */}
-            {reviews.length > 0 && (
-              <div className="px-4 py-3 border-t border-white/5" data-testid="film-reviews">
-                <p className="text-[9px] text-gray-400 uppercase font-bold tracking-wider mb-2 flex items-center gap-1">
-                  <Eye className="w-3 h-3" /> Recensioni Pubblico
-                </p>
-                <div className="space-y-1.5">
-                  {reviews.slice(0, 3).map((r, i) => (
-                    <div key={i} className="p-2 rounded-lg bg-white/[0.02] border border-white/5">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-[8px] font-semibold text-white">{r.reviewer_name || r.author || 'Anonimo'}</span>
-                        <div className="flex items-center gap-0.5">
-                          {[...Array(5)].map((_, s) => (
-                            <Star key={s} className={`w-2 h-2 ${s < (r.rating || r.score || 3) ? 'text-yellow-500 fill-yellow-500' : 'text-gray-700'}`} />
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-[8px] text-gray-400 leading-relaxed line-clamp-2">{r.text || r.content || r.review || ''}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ═══ ACTION BUTTONS ═══ */}
-            {isOwner && (
-              <div className="px-4 py-4 border-t border-white/5 space-y-2" data-testid="film-actions">
-
-                {/* ADV Button */}
-                {isLive && (
-                  <>
-                    {!showAdv ? (
-                      <button onClick={() => setShowAdv(true)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold hover:bg-cyan-500/15 transition-all"
-                        data-testid="open-adv-btn">
-                        <Megaphone className="w-3.5 h-3.5" /> Lancia Pubblicità (ADV)
-                      </button>
-                    ) : (
-                      <div className="p-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5">
-                        <AdvPanel filmId={filmId} api={api} onDone={() => {
-                          setShowAdv(false);
-                          api.get(`/pipeline-v3/released-film/${filmId}`).then(r => setFilm(r.data)).catch(() => {});
-                        }} />
-                        <button onClick={() => setShowAdv(false)} className="w-full mt-2 text-[8px] text-gray-500 hover:text-gray-300">Chiudi ADV</button>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Withdraw from theaters (Orange) */}
-                {isLive && (
-                  <>
-                    {!showWithdraw ? (
-                      <button onClick={() => setShowWithdraw(true)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 text-[10px] font-bold hover:bg-orange-500/15 transition-all"
-                        data-testid="withdraw-btn">
-                        <Trash2 className="w-3.5 h-3.5" /> Ritira dalle Sale
-                      </button>
-                    ) : (
-                      <div className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/20 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 text-orange-400" />
-                          <p className="text-[10px] text-orange-300 font-bold">Ritirare il film?</p>
-                        </div>
-                        <p className="text-[8px] text-gray-400">Il film verrà rimosso da tutte le sale cinematografiche. L'incasso accumulato resterà invariato.</p>
-                        <div className="flex gap-2">
-                          <button onClick={() => setShowWithdraw(false)}
-                            className="flex-1 py-1.5 rounded-lg border border-gray-700 text-gray-400 text-[9px] font-bold hover:bg-gray-800 transition-all">Annulla</button>
-                          <button onClick={withdrawFromTheaters} disabled={actionLoading}
-                            className="flex-1 py-1.5 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-400 text-[9px] font-bold disabled:opacity-50 hover:bg-orange-500/30 transition-all"
-                            data-testid="confirm-withdraw-btn">
-                            {actionLoading ? '...' : 'Conferma Ritiro'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Delete film (Red) */}
-                {!showDelete ? (
-                  <button onClick={() => setShowDelete(true)}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-red-500/8 border border-red-500/15 text-red-400/70 text-[10px] font-bold hover:bg-red-500/15 hover:text-red-400 transition-all"
-                    data-testid="delete-film-btn">
-                    <Trash2 className="w-3.5 h-3.5" /> Elimina Film
-                  </button>
-                ) : (
-                  <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/20 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-red-400" />
-                      <p className="text-[10px] text-red-300 font-bold">Eliminazione permanente!</p>
-                    </div>
-                    <p className="text-[8px] text-gray-400">Il film verrà eliminato definitivamente dal database. Questa azione è irreversibile.</p>
-                    <div className="flex gap-2">
-                      <button onClick={() => setShowDelete(false)}
-                        className="flex-1 py-1.5 rounded-lg border border-gray-700 text-gray-400 text-[9px] font-bold hover:bg-gray-800 transition-all">Annulla</button>
-                      <button onClick={deleteFilm} disabled={actionLoading}
-                        className="flex-1 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-bold disabled:opacity-50 hover:bg-red-500/30 transition-all"
-                        data-testid="confirm-delete-btn">
-                        {actionLoading ? '...' : 'Elimina per Sempre'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Bottom padding for mobile */}
-            <div className="h-4" />
+            <Star size={13} fill="#f0c040" color="#f0c040" />
+            <span className="ct2-data-imdb">{imdb}</span>
+            <span className="ct2-data-sep">|</span>
           </>
         )}
+        <Clock size={13} />
+        <span className="ct2-data-duration">{durationStr}</span>
       </div>
+
+      {/* IN SALA BAR */}
+      <div style={{ border: '2px solid #00ffff', background: 'rgba(0,255,255,0.08)', padding: '10px', marginTop: '8px', marginLeft: '10px', marginRight: '10px', textAlign: 'center', fontWeight: 'bold', color: '#00ffff', borderRadius: '8px', fontFamily: "'Bebas Neue', sans-serif", fontSize: '14px', letterSpacing: '1px' }} data-testid="in-sala-bar">
+        {isLive
+          ? `IN SALA - ${cinemaDays} giorni - ${cinemaRemain} rimanenti`
+          : 'FUORI SALA'}
+      </div>
+
+      {/* 6. JOURNALIST REVIEWS */}
+      <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>
+      <div className="ct2-reviews-row" data-testid="ct-reviews">
+        {reviews.map((r, i) => (
+          <div key={i} className="ct2-review-box" data-testid={`ct-review-${i}`}>
+            <div className="ct2-review-outlet">{r.outlet}</div>
+            <div className="ct2-review-quote">"{r.quote}"</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 7. PUBLIC + EVENTS */}
+      <div className="ct2-public-box" data-testid="ct-public-box">
+        <div className="ct2-public-header">
+          <Eye size={14} />
+          <span>Pubblico & Eventi</span>
+        </div>
+        <div className="ct2-public-lines">
+          {perception.map((line, i) => <div key={i} className="ct2-public-line">{line}</div>)}
+          {perception.length === 0 && <div className="ct2-public-line">Nessun dato disponibile</div>}
+        </div>
+      </div>
+
+      {/* 8. SCREENPLAY */}
+      {screenplay && (
+        <div className="ct2-screenplay-section" data-testid="ct-screenplay">
+          <div className="ct2-screenplay-header">
+            <BookOpen size={14} />
+            <span>Sceneggiatura completa</span>
+          </div>
+          <div className="ct2-screenplay-box">
+            <div className="ct2-screenplay-content">{screenplay}</div>
+            <div className="ct2-screenplay-fade-top" />
+            <div className="ct2-screenplay-fade-bottom" />
+          </div>
+        </div>
+      )}
+
+      {/* ═══ V3 POST-RELEASE ACTIONS ═══ */}
+      {isOwner && (
+        <div style={{ padding: '10px 10px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }} data-testid="film-actions">
+
+          {/* ADV */}
+          {isLive && !showAdv && (
+            <button onClick={() => setShowAdv(true)} data-testid="open-adv-btn"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px', borderRadius: '8px', border: '1px solid rgba(0,200,255,0.2)', background: 'rgba(0,200,255,0.08)', color: '#00bcd4', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
+              <Megaphone size={14} /> Lancia Pubblicita (ADV)
+            </button>
+          )}
+          {showAdv && (
+            <div>
+              <AdvPanel filmId={filmId} api={api} onDone={() => { setShowAdv(false); onRefresh(); }} />
+              <button onClick={() => setShowAdv(false)} style={{ width: '100%', textAlign: 'center', fontSize: '9px', color: '#666', padding: '4px', cursor: 'pointer', background: 'transparent', border: 'none' }}>Chiudi ADV</button>
+            </div>
+          )}
+
+          {/* WITHDRAW (orange) */}
+          {isLive && (
+            <>
+              {!showWithdraw ? (
+                <button onClick={() => setShowWithdraw(true)} data-testid="withdraw-btn"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px', borderRadius: '8px', border: '1px solid rgba(249,115,22,0.2)', background: 'rgba(249,115,22,0.08)', color: '#f97316', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
+                  <Trash2 size={14} /> Ritira dalle Sale
+                </button>
+              ) : (
+                <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(249,115,22,0.05)', border: '1px solid rgba(249,115,22,0.2)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <AlertTriangle size={16} color="#f97316" />
+                    <span style={{ fontWeight: 'bold', color: '#fb923c', fontSize: '12px' }}>Ritirare il film?</span>
+                  </div>
+                  <p style={{ fontSize: '10px', color: '#888', marginBottom: '8px' }}>Il film verra rimosso da tutte le sale. L'incasso accumulato restera invariato.</p>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => setShowWithdraw(false)} style={{ flex: 1, padding: '6px', borderRadius: '6px', border: '1px solid #333', color: '#888', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', background: 'transparent' }}>Annulla</button>
+                    <button onClick={withdrawFromTheaters} disabled={actionLoading} data-testid="confirm-withdraw-btn"
+                      style={{ flex: 1, padding: '6px', borderRadius: '6px', border: '1px solid rgba(249,115,22,0.4)', background: 'rgba(249,115,22,0.15)', color: '#f97316', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', opacity: actionLoading ? 0.5 : 1 }}>
+                      {actionLoading ? '...' : 'Conferma Ritiro'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* DELETE (red) */}
+          {!showDelete ? (
+            <button onClick={() => setShowDelete(true)} data-testid="delete-film-btn"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.15)', background: 'rgba(239,68,68,0.05)', color: 'rgba(239,68,68,0.6)', fontWeight: 'bold', fontSize: '11px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
+              <Trash2 size={14} /> Elimina Film
+            </button>
+          ) : (
+            <div style={{ padding: '12px', borderRadius: '8px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <AlertTriangle size={16} color="#ef4444" />
+                <span style={{ fontWeight: 'bold', color: '#f87171', fontSize: '12px' }}>Eliminazione permanente!</span>
+              </div>
+              <p style={{ fontSize: '10px', color: '#888', marginBottom: '8px' }}>Il film verra eliminato definitivamente. Questa azione e irreversibile.</p>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => setShowDelete(false)} style={{ flex: 1, padding: '6px', borderRadius: '6px', border: '1px solid #333', color: '#888', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', background: 'transparent' }}>Annulla</button>
+                <button onClick={deleteFilm} disabled={actionLoading} data-testid="confirm-delete-btn"
+                  style={{ flex: 1, padding: '6px', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', opacity: actionLoading ? 0.5 : 1 }}>
+                  {actionLoading ? '...' : 'Elimina per Sempre'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

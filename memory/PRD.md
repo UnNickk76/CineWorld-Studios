@@ -26,28 +26,27 @@
 - `calc_adv.py` — Logica campagne pubblicitarie (ADV)
 
 ### Film Detail V3 Modal (Post-Release) — Completato 16/04/2026
-- Header poster con gradient overlay e badge stato (AL CINEMA / FUORI SALA)
-- Grid statistiche: Sala (giorni), Incasso, Likes, Cinema
-- Barra qualità (se disponibile)
-- Sezione Produttore con badge "TUO" per film di proprietà
-- Cast & Crew espandibile con skill dettagliate per ogni membro
-- Trama/Synopsis collassabile
-- Zone distribuzione
-- Sponsor con contributo
-- Recensioni pubblico virtuale
+Layout identico al V2 "The Gratch" (ContentTemplate.jsx):
+- Header "AL CINEMA" verde con pulsante X
+- Poster thumbnail + Info box affiancati (titolo, studio, trama)
+- Titolo grande giallo in Bebas Neue
+- "una produzione [Studio]" in italico dorato
+- Data bar: FILM | ⭐ score | ⏱ durata (bordo fuchsia)
+- Status bar cyan glowing: "IN SALA - X giorni - Y rimanenti"
+- "COSA NE PENSANO I GIORNALI" — VARIETY, EMPIRE, HOLLYWOOD R. (box verdi)
+- "PUBBLICO & EVENTI" — bullet points celesti
+- "SCENEGGIATURA COMPLETA" — sezione scrollabile
 - 3 Pulsanti azione post-release:
-  - ADV (Pubblicità) — Panel con 6 piattaforme, selezione giorni, costo totale
-  - Ritira dalle Sale (arancione) — Conferma con warning
-  - Elimina Film (rosso) — Conferma con warning eliminazione permanente
+  - LANCIA PUBBLICITA (ADV) — Panel con 6 piattaforme, selezione giorni
+  - RITIRA DALLE SALE (arancione) — Conferma con warning
+  - ELIMINA FILM (rosso) — Conferma con eliminazione permanente
 
-### Bug Fix: Dashboard Batch Endpoint — Corretto 16/04/2026
-- Risolto crash `quality_score: None` nei film V3 in economy.py
-- Risolto crash cast V3 (dict vs list) in game_systems.py
-- Risolto crash virtual-audience endpoint in server.py
-- Risolto crash theater_life.py backfill con quality_score None
+### Bug Fix: NoneType Crash — Corretto 16/04/2026
+- Risolto crash `quality_score: None` in economy.py, game_systems.py, server.py, virtual_audience.py, theater_life.py, film_engagement.py
+- V3 films hanno quality_score=null, ora gestito con `or` fallback
 
 ## Backlog
-- (P0) Motore calcolo qualità totale (`calc_quality.py`) — quality_score attualmente mockato come `null`
+- (P0) Motore calcolo qualita totale (`calc_quality.py`) — quality_score attualmente mockato come `null`
 - (P1) CinemaStatsModal + ProducerProfileModal — collegare dati reali
 - (P1) Fase 3 Mercato: vendita serie/anime
 - (P2) Sfide settimanali (minigame rotanti con premi extra)

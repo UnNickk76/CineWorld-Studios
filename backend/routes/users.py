@@ -343,7 +343,7 @@ async def get_user_badges(user_id: str, user: dict = Depends(get_current_user)):
 
 @router.get("/players/{player_id}/profile")
 async def get_player_public_profile(player_id: str, user: dict = Depends(get_current_user)):
-    """Get public profile of another player."""
+    """Get public profile of another player with CWSv stats."""
     player = await db.users.find_one(
         {'id': player_id},
         {'_id': 0, 'password': 0, 'email': 0}
@@ -352,12 +352,30 @@ async def get_player_public_profile(player_id: str, user: dict = Depends(get_cur
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
     
-    # Get player stats
-    films = await db.films.find({'user_id': player_id}, {'_id': 0}).to_list(100)
+    # Get films
+    films = await db.films.find({'user_id': player_id}, {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'genre': 1, 'released_at': 1, 'type': 1}).sort('released_at', -1).to_list(100)
+    # Get series
+    series = await db.tv_series.find({'user_id': player_id}, {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'type': 1, 'released_at': 1}).sort('released_at', -1).to_list(100)
+    
     infrastructure = await db.infrastructure.find({'owner_id': player_id}, {'_id': 0}).to_list(50)
     
     level_info = get_level_from_xp(player.get('total_xp', 0))
     fame_tier = get_fame_tier(player.get('fame', 50))
+    
+    # Calculate stats
+    tv_series_list = [s for s in series if s.get('type') == 'tv_series']
+    anime_list = [s for s in series if s.get('type') == 'anime']
+    
+    all_content = films + series
+    scores = [c.get('quality_score', 0) or 0 for c in all_content if c.get('quality_score')]
+    avg_cwsv = round(sum(scores) / len(scores), 1) if scores else 0
+    total_rev = sum((c.get('total_revenue', 0) or 0) for c in all_content)
+    
+    # Best film (highest CWSv)
+    best = max(all_content, key=lambda c: c.get('quality_score') or 0, default=None) if all_content else None
+    
+    # Filmography (recent 5)
+    filmography = [{'title': c.get('title', '?'), 'quality_score': c.get('quality_score'), 'cwsv_display': c.get('cwsv_display'), 'type': c.get('type', 'film')} for c in all_content[:5]]
     
     return {
         'id': player['id'],
@@ -368,9 +386,16 @@ async def get_player_public_profile(player_id: str, user: dict = Depends(get_cur
         'level_info': level_info,
         'fame': player.get('fame', 50),
         'fame_tier': fame_tier,
+        'total_films': len(films),
+        'total_series': len(tv_series_list),
+        'total_anime': len(anime_list),
         'films_count': len(films),
         'infrastructure_count': len(infrastructure),
         'total_likes_received': player.get('total_likes_received', 0),
+        'total_revenue': total_rev,
+        'avg_cwsv': avg_cwsv,
+        'best_film': {'title': best.get('title'), 'quality_score': best.get('quality_score'), 'cwsv_display': best.get('cwsv_display')} if best else None,
+        'filmography': filmography,
         'leaderboard_score': calculate_leaderboard_score(player),
         'created_at': player.get('created_at')
     }

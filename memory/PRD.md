@@ -3,43 +3,42 @@
 ## Pipeline V3 Film — Completa
 10 step sequenziali con CWSv. 14 file calcolo in `/app/backend/utils/calc_*.py`.
 
-## Pipeline V3 Serie TV & Anime — Completata (16/04/2026)
+## Pipeline V3 Serie TV & Anime — Completa (16/04/2026)
+9 step con CWSv serie, titoli episodi AI, CWSv per episodio, cliffhanger system.
+Scheduling TV complesso: 4 politiche produttore + opzioni TV (ep per batch, intervallo, split stagione).
 
-### Backend
-- **Router**: `/app/backend/routes/pipeline_series_v3.py` — state machine 9 step
-- **CWSv Serie**: `/app/backend/utils/calc_quality_series.py`
-- 16 generi TV + 18 generi Anime
-- Titoli episodi AI (GPT-4o-mini), CWSv per episodio, cliffhanger ±12%
-- Filler malus anime, Opening/Ending bonus compositore
-- Prossimamente TV toggle, Binge vs Settimanale
+## CWSv System — 1.0-10
+5 file film + 1 file serie. Pre-voto visibile ad ogni step. CWSv 9+ rarissimo.
 
-### Frontend
-- **Componente condiviso**: `/app/frontend/src/components/v3/PipelineSeriesV3.jsx`
-- **Pagine**: `SeriesTVPipelineV3.jsx`, `AnimePipelineV3.jsx`
-- Routing aggiornato in App.js (`/create-series`, `/create-anime`)
-- 9 step UI: Idea (con generi + episodi + titoli AI) → Hype → Cast → Prep → Ciak → FinalCut → Marketing (toggle Prossimamente) → Distribuzione TV (Binge/Settimanale) → Uscita
+## CWTrend System — Implementato
+Score dinamico 1-10 che cambia nel tempo. File: `calc_cwtrend.py`.
+Fattori: 40% CWSv + 15% marketing + 10% sponsor + 15% hype + 10% distribuzione + 10% tempo + casualità.
+Nota: CWTrend può essere scarso anche per film ottimi e viceversa (è il "momento", non la qualità).
 
-### API Endpoints
-- `POST /api/pipeline-series-v3/create` — Crea progetto
-- `GET /api/pipeline-series-v3/projects` — Lista progetti
-- `GET /api/pipeline-series-v3/projects/{pid}` — Dettaglio
-- `POST /api/pipeline-series-v3/projects/{pid}/save-idea` — Salva idea
-- `POST /api/pipeline-series-v3/projects/{pid}/advance` — Avanza step
-- `GET /api/pipeline-series-v3/projects/{pid}/prevoto` — Pre-voto CWSv
-- `POST /api/pipeline-series-v3/projects/{pid}/generate-episode-titles` — Titoli AI
-- `POST /api/pipeline-series-v3/projects/{pid}/save-marketing-data` — Marketing + Prossimamente
-- `POST /api/pipeline-series-v3/projects/{pid}/save-distribution` — Binge/Settimanale
-- `POST /api/pipeline-series-v3/projects/{pid}/confirm-release` — Release finale
+## ProducerProfileModal — Implementato
+Modal profilo produttore con stats, filmografia, CWSv medio, badge livello.
+Si apre cliccando "una produzione [Studio]" nel film detail.
+Endpoint: `GET /api/players/{id}/profile` (evoluto con CWSv, serie, anime, filmografia).
+
+## Sistema Scheduling TV Serie/Anime
+### Dal produttore (release policy):
+- 1 al giorno → TV non ha scelta
+- 3 al giorno → TV sceglie 1/2/3 ep al giorno
+- Due mezze stagioni → TV può split + scegliere ep/intervallo
+- Tutta insieme → TV piena libertà (binge, split, programmazione custom)
+### Dalla TV (entro limiti policy):
+- EP per trasmissione: 1, 2, 3
+- Intervallo: ogni 1, 2, 3 giorni
+- Split stagione: sì/no + pausa 7/14/21/30 giorni
 
 ## Backlog
 ### P0
-- Voto Andamento (dinamico): CWSv + marketing/sponsor/hype/distribuzione
 - Rinnovo Stagione (S2 da CWSv S1 ±10%)
+- Sezione TV gestione: ricezione serie, configurazione programmazione, trasmissione episodi
 
 ### P1
-- CinemaStatsModal + ProducerProfileModal dati reali
-- Integrazione "Prossimamente" sezioni Dashboard (serie/anime)
+- Prossimamente in Dashboard per serie/anime
+- CWSv episodio revealed alla trasmissione
 
 ### P2
-- Sfide settimanali, Festival, Concorrenza
-- Fase Market (film + serie + anime)
+- Sfide settimanali, Festival, Concorrenza, Fase Market

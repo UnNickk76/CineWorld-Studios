@@ -339,10 +339,7 @@ async def generate_episode_titles(pid: str, user: dict = Depends(get_current_use
 @router.post("/projects/{pid}/save-marketing")
 async def save_marketing(pid: str, user: dict = Depends(get_current_user)):
     """Save marketing choices including prossimamente TV toggle."""
-    import json
-    from starlette.requests import Request
-
-    project = await _get_project(pid, user["id"])
+    await _get_project(pid, user["id"])
     return await _update_project(pid, user["id"], {"marketing_completed": True})
 
 
@@ -362,16 +359,44 @@ async def save_marketing_data(pid: str, req: MarketingSaveRequest, user: dict = 
 
 
 class DistributionSaveRequest(BaseModel):
-    distribution_schedule: str = "weekly"  # weekly | binge
-    distribution_delay_hours: int = 0  # 0=immediate, or hours
-    release_type: str = "immediate"
+    # Producer's release policy
+    release_policy: str = "daily_1"  # daily_1 | daily_3 | half_seasons | all_at_once
+    # TV scheduling (set by TV owner, within policy limits)
+    tv_eps_per_batch: int = 1         # 1, 2, or 3 episodes per transmission
+    tv_interval_days: int = 1         # every 1, 2, or 3 days
+    tv_split_season: bool = False     # split into 2 half-seasons
+    tv_split_pause_days: int = 14     # days between half-seasons (7/14/21/30)
+    distribution_delay_hours: int = 0 # 0=immediate, hours delay before first ep
 
 @router.post("/projects/{pid}/save-distribution")
 async def save_distribution(pid: str, req: DistributionSaveRequest, user: dict = Depends(get_current_user)):
+    # Validate TV scheduling against release policy
+    policy = req.release_policy
+    eps = req.tv_eps_per_batch
+    interval = req.tv_interval_days
+
+    # Enforce policy rules
+    if policy == "daily_1":
+        eps = 1
+        interval = 1
+    elif policy == "daily_3":
+        eps = max(1, min(3, eps))
+        interval = 1
+    elif policy == "half_seasons":
+        eps = max(1, min(3, eps))
+        interval = max(1, min(3, interval))
+    elif policy == "all_at_once":
+        eps = max(1, min(3, eps))
+        interval = max(1, min(3, interval))
+
     return await _update_project(pid, user["id"], {
-        "distribution_schedule": req.distribution_schedule,
+        "release_policy": policy,
+        "tv_eps_per_batch": eps,
+        "tv_interval_days": interval,
+        "tv_split_season": req.tv_split_season and policy in ("half_seasons", "all_at_once"),
+        "tv_split_pause_days": max(7, min(30, req.tv_split_pause_days)),
         "distribution_delay_hours": req.distribution_delay_hours,
-        "release_type": req.release_type,
+        "distribution_schedule": "binge" if policy == "all_at_once" and not req.tv_split_season and eps >= 3 else "scheduled",
     })
 
 

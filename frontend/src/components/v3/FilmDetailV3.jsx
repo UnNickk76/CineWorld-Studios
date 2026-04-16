@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import {
   Film, Star, Clock, Users, Megaphone, X, BookOpen, Eye,
-  Trash2, AlertTriangle, Flame
+  Trash2, AlertTriangle, Flame, TrendingUp
 } from 'lucide-react';
 import { AuthContext } from '../../contexts';
 import { toast } from 'sonner';
+import ProducerProfileModal from '../ProducerProfileModal';
 import '../../styles/content-template.css';
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
@@ -174,6 +175,7 @@ export default function FilmDetailV3({ filmId, onClose }) {
   const [showDelete, setShowDelete] = useState(false);
   const [showAdv, setShowAdv] = useState(false);
   const [showCinemaPopup, setShowCinemaPopup] = useState(false);
+  const [showProducerModal, setShowProducerModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   const loadFilm = useCallback(async () => {
@@ -235,6 +237,7 @@ export default function FilmDetailV3({ filmId, onClose }) {
             showWithdraw={showWithdraw} setShowWithdraw={setShowWithdraw}
             showDelete={showDelete} setShowDelete={setShowDelete}
             showCinemaPopup={showCinemaPopup} setShowCinemaPopup={setShowCinemaPopup}
+            showProducerModal={showProducerModal} setShowProducerModal={setShowProducerModal}
             actionLoading={actionLoading}
             withdrawFromTheaters={withdrawFromTheaters}
             deleteFilm={deleteFilm}
@@ -246,7 +249,7 @@ export default function FilmDetailV3({ filmId, onClose }) {
 }
 
 /* ═══ INNER RENDER — avoids hooks in conditional ═══ */
-function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, showWithdraw, setShowWithdraw, showDelete, setShowDelete, showCinemaPopup, setShowCinemaPopup, actionLoading, withdrawFromTheaters, deleteFilm, onRefresh }) {
+function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, showWithdraw, setShowWithdraw, showDelete, setShowDelete, showCinemaPopup, setShowCinemaPopup, showProducerModal, setShowProducerModal, actionLoading, withdrawFromTheaters, deleteFilm, onRefresh }) {
   const isOwner = film?.user_id === user?.id;
   const isLive = film?.status === 'in_theaters';
 
@@ -307,9 +310,9 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
       </div>
       {/* Production House */}
       {(film.producer?.production_house_name || film.producer?.nickname) && (
-        <div className="px-4 -mt-1 mb-1">
-          <span className="text-[10px] text-amber-400/70 italic">
-            una produzione <span className="font-bold not-italic">{film.producer.production_house_name || film.producer.nickname}</span>
+        <div className="px-4 -mt-1 mb-1 cursor-pointer" onClick={() => setShowProducerModal(true)} data-testid="producer-link">
+          <span className="text-[10px] text-amber-400/70 italic hover:text-amber-400 transition-colors">
+            una produzione <span className="font-bold not-italic underline decoration-dotted">{film.producer.production_house_name || film.producer.nickname}</span>
           </span>
         </div>
       )}
@@ -501,6 +504,14 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
           </div>
         </div>
       )}
+
+      {/* Producer Profile Modal */}
+      <ProducerProfileModal
+        producerId={film?.user_id}
+        producerData={film?.producer}
+        isOpen={showProducerModal}
+        onClose={() => setShowProducerModal(false)}
+      />
     </div>
   );
 }

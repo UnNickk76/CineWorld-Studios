@@ -353,46 +353,133 @@ const MarketingPhase = ({ project, onRefresh }) => {
 
 /* ─── DISTRIBUTION PHASE ─── */
 const DistributionPhase = ({ project, onRefresh }) => {
-  const [schedule, setSchedule] = useState(project.distribution_schedule || 'weekly');
+  const [policy, setPolicy] = useState(project.release_policy || 'daily_1');
+  const [epsBatch, setEpsBatch] = useState(project.tv_eps_per_batch || 1);
+  const [interval, setInterval_] = useState(project.tv_interval_days || 1);
+  const [split, setSplit] = useState(project.tv_split_season || false);
+  const [pause, setPause] = useState(project.tv_split_pause_days || 14);
   const [delay, setDelay] = useState(project.distribution_delay_hours || 0);
+
+  const policies = [
+    { id: 'daily_1', label: '1 al giorno', desc: 'La TV trasmette 1 episodio al giorno. Nessuna scelta per la TV.', tvFree: false },
+    { id: 'daily_3', label: '3 al giorno', desc: 'La TV puo scegliere 1, 2 o 3 episodi al giorno.', tvFree: true },
+    { id: 'half_seasons', label: 'Due mezze stagioni', desc: 'La TV puo confermare 2 blocchi o scegliere quanti ep al giorno.', tvFree: true },
+    { id: 'all_at_once', label: 'Tutta insieme', desc: 'La TV ha piena liberta: binge, 2 blocchi, o programmazione personalizzata.', tvFree: true },
+  ];
+  const canChooseEps = policy !== 'daily_1';
+  const canChooseInterval = policy === 'half_seasons' || policy === 'all_at_once';
+  const canSplit = policy === 'half_seasons' || policy === 'all_at_once';
+  const halfEps = Math.ceil((project.num_episodes || 10) / 2);
+
   const save = async () => {
     try {
-      await sapi(`/projects/${project.id}/save-distribution`, 'POST', { distribution_schedule: schedule, distribution_delay_hours: delay, release_type: delay > 0 ? 'scheduled' : 'immediate' });
+      await sapi(`/projects/${project.id}/save-distribution`, 'POST', {
+        release_policy: policy, tv_eps_per_batch: epsBatch, tv_interval_days: interval,
+        tv_split_season: split, tv_split_pause_days: pause, distribution_delay_hours: delay,
+      });
       toast.success('Distribuzione salvata!');
       onRefresh?.();
     } catch (e) { toast.error(e.message); }
   };
+
   return (
     <PhaseWrapper title="Distribuzione TV" subtitle="Scheduling e programmazione" icon={Globe} color="blue">
       <div className="space-y-3">
-        {/* Binge vs Weekly */}
-        <p className="text-[8px] text-gray-500">Modalità trasmissione</p>
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => setSchedule('weekly')}
-            className={`p-3 rounded-lg border text-left ${schedule === 'weekly' ? 'border-blue-500/40 bg-blue-500/10' : 'border-gray-800'}`} data-testid="schedule-weekly">
-            <p className="text-[10px] font-bold text-white">Settimanale</p>
-            <p className="text-[7px] text-gray-500">1 episodio a settimana. Hype crescente, audience costante.</p>
-          </button>
-          <button onClick={() => setSchedule('binge')}
-            className={`p-3 rounded-lg border text-left ${schedule === 'binge' ? 'border-blue-500/40 bg-blue-500/10' : 'border-gray-800'}`} data-testid="schedule-binge">
-            <p className="text-[10px] font-bold text-white">Binge</p>
-            <p className="text-[7px] text-gray-500">Tutti gli episodi subito. Grande impatto iniziale, calo rapido.</p>
-          </button>
+        {/* Release Policy (Producer choice) */}
+        <p className="text-[9px] text-gray-400 font-bold uppercase">Politica di rilascio</p>
+        <div className="space-y-1.5">
+          {policies.map(p => (
+            <button key={p.id} onClick={() => { setPolicy(p.id); if (p.id === 'daily_1') { setEpsBatch(1); setInterval_(1); setSplit(false); } }}
+              className={`w-full p-2.5 rounded-lg border text-left transition-all ${policy === p.id ? 'border-blue-500/40 bg-blue-500/10' : 'border-gray-800 hover:border-gray-700'}`}
+              data-testid={`policy-${p.id}`}>
+              <p className="text-[10px] font-bold text-white">{p.label}</p>
+              <p className="text-[7px] text-gray-500">{p.desc}</p>
+            </button>
+          ))}
         </div>
 
+        {/* TV Scheduling Options */}
+        {canChooseEps && (
+          <div>
+            <p className="text-[9px] text-gray-400 font-bold uppercase mb-1">Episodi per trasmissione</p>
+            <div className="flex gap-1.5">
+              {[1, 2, 3].map(n => (
+                <button key={n} onClick={() => setEpsBatch(n)}
+                  className={`flex-1 py-2 rounded-lg border text-[10px] font-bold ${epsBatch === n ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400' : 'border-gray-800 text-gray-500'}`}>
+                  {n} ep
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {canChooseInterval && (
+          <div>
+            <p className="text-[9px] text-gray-400 font-bold uppercase mb-1">Ogni quanti giorni</p>
+            <div className="flex gap-1.5">
+              {[1, 2, 3].map(n => (
+                <button key={n} onClick={() => setInterval_(n)}
+                  className={`flex-1 py-2 rounded-lg border text-[10px] font-bold ${interval === n ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400' : 'border-gray-800 text-gray-500'}`}>
+                  {n === 1 ? 'Ogni giorno' : `Ogni ${n} giorni`}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {canSplit && (
+          <div className="p-2.5 rounded-lg bg-indigo-500/5 border border-indigo-500/15">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-bold text-white">Dividi in 2 mezze stagioni</p>
+              <button onClick={() => setSplit(!split)}
+                className={`w-10 h-5 rounded-full transition-colors relative ${split ? 'bg-indigo-600' : 'bg-gray-700'}`}>
+                <div className={`w-4 h-4 bg-white rounded-full absolute top-0.5 transition-transform ${split ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+            {split && (
+              <div>
+                <p className="text-[8px] text-gray-500 mb-1">Prima meta: {halfEps} ep — Pausa — Seconda meta: {(project.num_episodes || 10) - halfEps} ep</p>
+                <p className="text-[8px] text-gray-500 mb-1">Pausa tra le due meta:</p>
+                <div className="flex gap-1">
+                  {[7, 14, 21, 30].map(d => (
+                    <button key={d} onClick={() => setPause(d)}
+                      className={`px-2 py-1 rounded text-[8px] font-bold border ${pause === d ? 'border-indigo-500 bg-indigo-500/15 text-indigo-400' : 'border-gray-700 text-gray-500'}`}>
+                      {d}g
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {project.prossimamente_tv && (
-          <>
-            <p className="text-[8px] text-gray-500">Quando trasmettere?</p>
+          <div>
+            <p className="text-[9px] text-gray-400 font-bold uppercase mb-1">Inizio trasmissione</p>
             <div className="flex flex-wrap gap-1.5">
               {[0, 6, 12, 24, 48, 72].map(h => (
                 <button key={h} onClick={() => setDelay(h)}
                   className={`px-3 py-1.5 rounded-lg border text-[9px] font-bold ${delay === h ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400' : 'border-gray-800 text-gray-500'}`}>
-                  {h === 0 ? 'Immediato' : `${h}h`}
+                  {h === 0 ? 'Immediato' : `Dopo ${h}h`}
                 </button>
               ))}
             </div>
-          </>
+          </div>
         )}
+
+        {/* Summary */}
+        <div className="p-2 rounded-lg bg-white/[0.02] border border-white/5">
+          <p className="text-[8px] text-gray-500 font-bold uppercase mb-1">Riepilogo programmazione</p>
+          <p className="text-[9px] text-gray-400">
+            {policy === 'daily_1' && `1 episodio al giorno per ${project.num_episodes || 10} giorni`}
+            {policy === 'daily_3' && `${epsBatch} ep al giorno per ${Math.ceil((project.num_episodes || 10) / epsBatch)} giorni`}
+            {policy === 'half_seasons' && split && `${halfEps} ep (${epsBatch} ogni ${interval}g) — pausa ${pause}g — poi ${(project.num_episodes || 10) - halfEps} ep`}
+            {policy === 'half_seasons' && !split && `${epsBatch} ep ogni ${interval} giorno/i`}
+            {policy === 'all_at_once' && !split && epsBatch >= 3 && interval === 1 && 'Tutti gli episodi subito (binge)'}
+            {policy === 'all_at_once' && !split && (epsBatch < 3 || interval > 1) && `${epsBatch} ep ogni ${interval} giorno/i`}
+            {policy === 'all_at_once' && split && `2 blocchi con pausa ${pause}g`}
+          </p>
+        </div>
 
         <button onClick={save} className="w-full py-2 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-400 text-[10px] font-bold" data-testid="save-distribution-btn">
           Conferma Distribuzione

@@ -2,52 +2,53 @@
 
 ## Pipeline V3 — Completa
 
-### Step Finale — Riepilogo Costi
-- Breakdown completo di ogni voce ($1M-$200M + 5-30CP max)
-- Rientro sponsor sottratto
-- "Vuoi rivedere qualcosa?" — 5-6 opzioni reali di risparmio
-- "Ci pensa Velion" — auto-ottimizzazione 8-15%
-- Conferma con "Confermi spendendo $X e XCP?"
-- Velocizzazioni GIA scalate al momento (non nel totale)
+### CWSv (CineWorld Studio's voto) — Implementato 16/04/2026
+Il sistema di valutazione film in stile IMDb. Voto 1.0-10.0, voti X.0 mostrati senza decimale.
 
-### Fix Timer Restart
-- Timer CIAK/FinalCut NON si riavviano tornando indietro
-- Solo se `*_started_at` non esiste vengono creati
+**File di calcolo (5 file dedicati):**
+- `calc_quality_idea.py` — Step 0: Pre-voto base (titolo, genere, sotto-generi, ambientazione, pre-trama, poster, sceneggiatura, difficoltà genere, casualità) Range: 3.5-8.5
+- `calc_quality_hype.py` — Step 1: Modifica ±5% (completamento hype, velocizzazioni malus probabilistico)
+- `calc_quality_cast.py` — Step 2: Modifica ±12% (coerenza skill-genere regista/attori/compositore/sceneggiatori, chimica, fama)
+- `calc_quality_production.py` — Steps 3+4+5: Modifica ±8% (formato-genere coerenza, comparse, CGI/VFX, velocizzazioni)
+- `calc_quality.py` — Step 9: Voto finale CWSv (composizione step + bonus cura totale + malus velocizzazioni cumulative + fattore fortuna gaussiano ±15%)
 
-### File Calcoli Dedicati (9 totali)
-- `calc_shooting.py` — Durata riprese
-- `calc_film_duration.py` — Durata effettiva film
-- `calc_finalcut.py` — Durata Final Cut + messaggi
-- `calc_speedup.py` — Costi velocizzazione
-- `calc_sponsors.py` — Sponsor proposals
-- `calc_distribution.py` — Zone geografiche + costi
-- `calc_defaults.py` — Auto-fill step saltati
-- `calc_production_cost.py` — Costo totale + savings + Velion
-- `calc_adv.py` — Logica campagne pubblicitarie (ADV)
+**Regole chiave:**
+- Pre-voti cambiano in percentuale, mai salti assoluti
+- CWSv 9+ = rarissimo, richiede eccellenza reale
+- CWSv 10 = quasi impossibile
+- Step 6/7/8 non influenzano CWSv, alimentano futuro "voto Andamento"
+- Pre-voto visibile nel badge header pipeline (al posto di "V3")
+- CWSv visibile nella barra viola del film detail modal
 
-### Film Detail V3 Modal (Post-Release) — Completato 16/04/2026
-Layout identico al V2 "The Gratch" (ContentTemplate.jsx):
-- Header "AL CINEMA" verde con pulsante X
-- Poster thumbnail + Info box affiancati (titolo, studio, trama)
-- Titolo grande giallo in Bebas Neue
-- "una produzione [Studio]" in italico dorato
-- Data bar: FILM | ⭐ score | ⏱ durata (bordo fuchsia)
-- Status bar cyan glowing: "IN SALA - X giorni - Y rimanenti"
-- "COSA NE PENSANO I GIORNALI" — VARIETY, EMPIRE, HOLLYWOOD R. (box verdi)
-- "PUBBLICO & EVENTI" — bullet points celesti
-- "SCENEGGIATURA COMPLETA" — sezione scrollabile
-- 3 Pulsanti azione post-release:
-  - LANCIA PUBBLICITA (ADV) — Panel con 6 piattaforme, selezione giorni
-  - RITIRA DALLE SALE (arancione) — Conferma con warning
-  - ELIMINA FILM (rosso) — Conferma con eliminazione permanente
+### File Calcoli Dedicati (14 totali)
+- `calc_shooting.py`, `calc_film_duration.py`, `calc_finalcut.py`, `calc_speedup.py`
+- `calc_sponsors.py`, `calc_distribution.py`, `calc_defaults.py`, `calc_production_cost.py`
+- `calc_adv.py`
+- `calc_quality.py`, `calc_quality_idea.py`, `calc_quality_hype.py`, `calc_quality_cast.py`, `calc_quality_production.py`
 
-### Bug Fix: NoneType Crash — Corretto 16/04/2026
-- Risolto crash `quality_score: None` in economy.py, game_systems.py, server.py, virtual_audience.py, theater_life.py, film_engagement.py
-- V3 films hanno quality_score=null, ora gestito con `or` fallback
+### Film Detail V3 Modal (Post-Release)
+Layout identico al V2 "The Gratch" (ContentTemplate.jsx) con CWSv nella barra viola.
 
 ## Backlog
-- (P0) Motore calcolo qualita totale (`calc_quality.py`) — quality_score attualmente mockato come `null`
-- (P1) CinemaStatsModal + ProducerProfileModal — collegare dati reali
-- (P1) Fase 3 Mercato: vendita serie/anime
-- (P2) Sfide settimanali (minigame rotanti con premi extra)
-- (P2) Previsioni Festival e Marketplace diritti TV/Anime
+
+### P0 - Alta Priorità
+- Voto Andamento (dinamico, separato da CWSv): CWSv + fattori esterni (hype, marketing, sponsor, LaPrima, distribuzione, personalità città, concorrenza)
+- Serie TV e Anime: stesso sistema CWSv con varianti (episodi, stagioni, binge vs settimanale)
+
+### P1 - Media Priorità
+- CinemaStatsModal + ProducerProfileModal con dati reali
+- Fase 3 Mercato: vendite TV/Anime e diritti distribuzione
+- Verifica casting: attori propri da agenzia acquistata visibili nel casting
+- Miglioramento skill cast nel tempo (già esistente, da verificare)
+
+### P2 - Bassa Priorità
+- Ripetitività genere: malus saturazione mercato se stesso genere consecutivo
+- Concorrenza in sala: fattore Andamento
+- Sfide settimanali (minigame rotanti)
+- Previsioni Festival e Marketplace diritti TV/Anime
+
+## Promemoria
+- Serie TV/Anime: stessa base CWSv ma con varianti
+- Voto Andamento: sviluppo futuro basato su CWSv + fattori esterni
+- Personalità città: influenza su Andamento
+- Concorrenza in sala: fattore Andamento

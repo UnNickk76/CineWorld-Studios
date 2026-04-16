@@ -22,6 +22,7 @@ export default function PipelineV3() {
   const progressRef = useRef(null);
   const releaseCompletedRef = useRef(false); // ANTI-LOOP: once true, never show overlay again
   const [clockTick, setClockTick] = useState(0);
+  const [prevoto, setPrevoto] = useState(null);
 
   // Tick every 5s for real-time checks (CIAK timer)
   useEffect(() => {
@@ -51,6 +52,15 @@ export default function PipelineV3() {
 
   const currentStep = selected?.pipeline_state || 'idea';
   const stepIndex = V3_STEPS.findIndex(s => s.id === currentStep);
+
+  // Fetch pre-voto CWSv when film or step changes
+  useEffect(() => {
+    if (!selected?.id) { setPrevoto(null); return; }
+    // Don't fetch for the very first state without data
+    if (currentStep === 'idea' && !selected?.preplot) { setPrevoto(null); return; }
+    v3api(`/films/${selected.id}/prevoto`).then(r => setPrevoto(r)).catch(() => setPrevoto(null));
+  }, [selected?.id, currentStep, selected?.updated_at]);
+
 
   const createProject = async () => {
     setLoading(true);
@@ -247,7 +257,16 @@ export default function PipelineV3() {
             <h2 className="text-xs font-bold text-white truncate">{selected.title || 'Nuovo Progetto'}</h2>
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
               <span className="text-[7px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium uppercase">{GENRE_LABELS[selected.genre] || selected.genre}</span>
-              <span className="text-[6px] px-1 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/15 font-bold">V3</span>
+              {prevoto?.prevoto ? (
+                <span className={`text-[7px] px-1.5 py-0.5 rounded font-black border ${
+                  prevoto.prevoto >= 8 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
+                  prevoto.prevoto >= 6 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' :
+                  prevoto.prevoto >= 4 ? 'bg-amber-500/15 text-amber-400 border-amber-500/25' :
+                  'bg-red-500/15 text-red-400 border-red-500/25'
+                }`} data-testid="prevoto-badge">CWSv {prevoto.display || prevoto.prevoto}</span>
+              ) : (
+                <span className="text-[6px] px-1 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/15 font-bold">V3</span>
+              )}
               {selected.film_duration_label && (
                 <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">{selected.film_duration_label}</span>
               )}

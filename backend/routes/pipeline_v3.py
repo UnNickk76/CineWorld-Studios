@@ -235,6 +235,28 @@ async def get_project(pid: str, user: dict = Depends(get_current_user)):
     return await _get_project(pid, user["id"])
 
 
+@router.get("/films/{pid}/prevoto")
+async def get_prevoto(pid: str, user: dict = Depends(get_current_user)):
+    """Get the current pre-vote (CWSv preview) for a film project at its current step."""
+    from utils.calc_quality import calculate_prevoto_at_step
+    project = await _get_project(pid, user["id"])
+    state = project.get("pipeline_state", "idea")
+    step_map = {"idea": 0, "hype": 0, "cast": 1, "prep": 2, "ciak": 2, "finalcut": 2, "marketing": 3, "prima": 3, "distribution": 3, "finale": 3}
+    step = step_map.get(state, 0)
+    result = calculate_prevoto_at_step(project, step)
+    return result
+
+
+@router.get("/films/{pid}/cwsv-full")
+async def get_cwsv_full(pid: str, user: dict = Depends(get_current_user)):
+    """Get the full CWSv calculation with all step breakdowns."""
+    from utils.calc_quality import calculate_cwsv
+    project = await _get_project(pid, user["id"])
+    result = calculate_cwsv(project)
+    return result
+
+
+
 @router.post("/films/{pid}/save-idea")
 async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_current_user)):
     project = await _update_project(pid, user["id"], {
@@ -329,10 +351,27 @@ async def get_released_film_detail(film_id: str, user: dict = Depends(get_curren
         film["days_in_theater"] = 0
         film["days_remaining"] = film.get("theater_days", 21) or 21
 
+    # CWSv: calculate on-the-fly if missing
+    if not film.get("quality_score"):
+        try:
+            from utils.calc_quality import calculate_cwsv
+            source_pid = film.get("source_project_id")
+            if source_pid:
+                source = await db.film_projects.find_one({"id": source_pid}, {"_id": 0})
+                if source:
+                    cwsv_result = calculate_cwsv(source)
+                    film["quality_score"] = cwsv_result["cwsv"]
+                    film["cwsv_display"] = cwsv_result["cwsv_display"]
+                    film["cwsv_data"] = cwsv_result
+                    # Persist to avoid recalculating
+                    await db.films.update_one(
+                        {"$or": [{"id": film_id}, {"film_id": film_id}]},
+                        {"$set": {"quality_score": cwsv_result["cwsv"], "cwsv_display": cwsv_result["cwsv_display"], "cwsv_data": cwsv_result}}
+                    )
+        except Exception:
+            pass
+
     return film
-
-
-    return {"items": items}
 
 
 class AdvanceRequest(BaseModel):
@@ -1207,8 +1246,20 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
             "success": True,
             "film_id": project.get("film_id"),
             "status": "released",
-            "quality_score": None,
+            "quality_score": project.get("quality_score"),
         }
+
+    # Calculate CWSv (CineWorld Studio's voto)
+    try:
+        from utils.calc_quality import calculate_cwsv
+        cwsv_result = calculate_cwsv(project)
+        quality_score = cwsv_result["cwsv"]
+        cwsv_display = cwsv_result["cwsv_display"]
+        cwsv_data = cwsv_result
+    except Exception:
+        quality_score = 5.0
+        cwsv_display = "5"
+        cwsv_data = {}
 
     # Calculate production cost (safe — handles missing data)
     try:
@@ -1249,8 +1300,10 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "shooting_days": project.get("shooting_days"),
         "selected_sponsors": project.get("selected_sponsors", []),
         "marketing_packages": project.get("marketing_packages", []),
-        "quality_score": None,
-        "final_quality": None,
+        "quality_score": quality_score,
+        "cwsv_display": cwsv_display,
+        "cwsv_data": cwsv_data,
+        "final_quality": quality_score,
         "status": "in_theaters",
         "released": True,
         "pipeline_version": 3,
@@ -1272,15 +1325,17 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "film_id": film_doc["id"],
         "pipeline_state": "released",
         "status": "released",
-        "quality_score": None,
-        "final_quality": None,
+        "quality_score": quality_score,
+        "cwsv_display": cwsv_display,
+        "final_quality": quality_score,
     })
 
     return {
         "success": True,
         "film_id": film_doc["id"],
         "status": "released",
-        "quality_score": None,
+        "quality_score": quality_score,
+        "cwsv_display": cwsv_display,
         "project": project,
     }
 

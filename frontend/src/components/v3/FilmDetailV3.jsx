@@ -252,7 +252,8 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
 
   const reviews = generateReviews(film.quality_score, film.popularity_score || film.hype_score);
   const castInfo = extractCastInfo(film.cast);
-  const imdb = film.imdb_rating || (film.quality_score ? (film.quality_score / 10).toFixed(1) : null);
+  const cwsv = film.cwsv_display || (film.quality_score ? (film.quality_score % 1 === 0 ? String(Math.round(film.quality_score)) : film.quality_score.toFixed(1)) : null);
+  const cwsvNum = film.quality_score || 0;
   const durationStr = formatDuration(film);
   const screenplay = cleanText(toStr(film.screenplay_text) || toStr(film.preplot) || '');
   const perception = getPublicPerception(film);
@@ -313,14 +314,14 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
         </div>
       )}
 
-      {/* 5. DATA BAR */}
+      {/* 5. DATA BAR — CWSv */}
       <div className="ct2-data-bar" data-testid="ct-data-bar">
         <span className="ct2-data-type">Film</span>
         <span className="ct2-data-sep">|</span>
-        {imdb && (
+        {cwsv && (
           <>
-            <Star size={13} fill="#f0c040" color="#f0c040" />
-            <span className="ct2-data-imdb">{imdb}</span>
+            <Star size={13} fill={cwsvNum >= 8 ? '#f0c040' : cwsvNum >= 6 ? '#4ade80' : cwsvNum >= 4 ? '#facc15' : '#f87171'} color={cwsvNum >= 8 ? '#f0c040' : cwsvNum >= 6 ? '#4ade80' : cwsvNum >= 4 ? '#facc15' : '#f87171'} />
+            <span className="ct2-data-imdb" style={{ color: cwsvNum >= 8 ? '#f0c040' : cwsvNum >= 6 ? '#4ade80' : cwsvNum >= 4 ? '#facc15' : '#f87171' }}>CWSv {cwsv}</span>
             <span className="ct2-data-sep">|</span>
           </>
         )}

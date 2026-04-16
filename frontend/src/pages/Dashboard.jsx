@@ -1,7 +1,7 @@
 // CineWorld Studio's - Dashboard (Vetrina Mobile-First)
 // Sections: LaPrima, Eventi WOW, Prossimamente/Ultimi per tipo
 
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useContext, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext, LanguageContext, useTranslations, useProductionMenu } from '../contexts';
 import { useSWR } from '../contexts/GameStore';
@@ -10,6 +10,8 @@ import { ComingSoonSection } from '../components/ComingSoonSection';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { MasterpieceBadge } from '../components/PlayerBadge';
 import { Card, CardContent } from '../components/ui/card';
+
+const FilmDetailV3 = lazy(() => import('../components/v3/FilmDetailV3'));
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
@@ -79,6 +81,7 @@ const Dashboard = () => {
 
   // Data from batch
   const [recentReleases, setRecentReleases] = useState([]);
+  const [selectedFilmId, setSelectedFilmId] = useState(null);
   const [mySeries, setMySeries] = useState([]);
   const [myAnime, setMyAnime] = useState([]);
   const [eventiWow, setEventiWow] = useState([]);
@@ -454,7 +457,7 @@ const Dashboard = () => {
                 {recentReleases.length > 0 ? (
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
                     {recentReleases.slice(0, 10).map(film => (
-                      <div key={film.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate(`/films/${film.id}`)} data-testid={`recent-film-${film.id}`}>
+                      <div key={film.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => setSelectedFilmId(film.id)} data-testid={`recent-film-${film.id}`}>
                         <div className="aspect-[2/3] relative rounded-lg overflow-hidden" style={{ boxShadow: film.status === 'premiere_live' ? '0 0 8px rgba(212,175,55,0.3)' : film.status === 'in_theaters' ? '0 0 6px rgba(80,160,80,0.2)' : 'none' }}>
                           <MasterpieceBadge isMasterpiece={film.is_masterpiece} size="xs" />
                           <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 active:scale-110 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
@@ -862,6 +865,13 @@ const Dashboard = () => {
 
         </div>
       </div>
+
+      {/* V3 Film Detail Modal */}
+      {selectedFilmId && (
+        <Suspense fallback={null}>
+          <FilmDetailV3 filmId={selectedFilmId} onClose={() => setSelectedFilmId(null)} />
+        </Suspense>
+      )}
     </>
   );
 };

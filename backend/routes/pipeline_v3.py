@@ -252,12 +252,17 @@ async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_cur
 @router.get("/recent-releases")
 async def get_recent_releases(user: dict = Depends(get_current_user)):
     """Get recent films in theaters (V3 dedicated endpoint)."""
+    # Also fix legacy status
+    await db.films.update_many({"status": "in_cinema"}, {"$set": {"status": "in_theaters"}})
+
     items = await db.films.find(
         {"status": "in_theaters"},
         {"_id": 0, "id": 1, "title": 1, "poster_url": 1, "user_id": 1,
          "quality_score": 1, "total_revenue": 1, "genre": 1, "status": 1,
          "pipeline_version": 1, "created_at": 1, "released_at": 1,
-         "film_duration_label": 1, "theater_days": 1, "theater_start": 1}
+         "film_duration_label": 1, "theater_days": 1, "theater_start": 1,
+         "cast": 1, "film_format": 1, "subgenres": 1, "preplot": 1,
+         "screenplay_text": 1, "likes_count": 1, "virtual_likes": 1}
     ).sort("created_at", -1).to_list(20)
 
     # Enrich with producer names
@@ -270,6 +275,63 @@ async def get_recent_releases(user: dict = Depends(get_current_user)):
         p = producers.get(item.get("user_id"), {})
         item["producer_nickname"] = p.get("nickname", "?")
         item["producer_house"] = p.get("production_house_name", "")
+        # Sanitize datetime/ObjectId
+        for key in list(item.keys()):
+            val = item[key]
+            if hasattr(val, '__str__') and type(val).__name__ == 'ObjectId':
+                item[key] = str(val)
+            elif isinstance(val, datetime):
+                item[key] = val.isoformat()
+    return {"items": items}
+
+
+@router.get("/released-film/{film_id}")
+async def get_released_film_detail(film_id: str, user: dict = Depends(get_current_user)):
+    """Get detailed info for a released film (for the detail popup)."""
+    film = await db.films.find_one(
+        {"$or": [{"id": film_id}, {"film_id": film_id}]},
+        {"_id": 0}
+    )
+    if not film:
+        raise HTTPException(404, "Film non trovato")
+
+    # Sanitize ObjectId fields
+    for key in list(film.keys()):
+        val = film[key]
+        if hasattr(val, '__str__') and type(val).__name__ == 'ObjectId':
+            film[key] = str(val)
+        elif isinstance(val, datetime):
+            film[key] = val.isoformat()
+
+    # Get producer info
+    producer = await db.users.find_one(
+        {"id": film.get("user_id")},
+        {"_id": 0, "nickname": 1, "production_house_name": 1, "avatar_url": 1}
+    )
+    film["producer"] = producer or {}
+
+    # Calculate days in theater
+    theater_start = film.get("theater_start") or film.get("released_at") or film.get("created_at")
+    now = datetime.now(timezone.utc)
+    if theater_start:
+        if isinstance(theater_start, str):
+            try:
+                start_dt = datetime.fromisoformat(theater_start.replace("Z", "+00:00"))
+            except Exception:
+                start_dt = now
+        else:
+            start_dt = theater_start if theater_start.tzinfo else theater_start.replace(tzinfo=timezone.utc)
+        days_in = (now - start_dt).days
+        theater_days = film.get("theater_days", 21) or 21
+        film["days_in_theater"] = max(0, days_in)
+        film["days_remaining"] = max(0, theater_days - days_in)
+    else:
+        film["days_in_theater"] = 0
+        film["days_remaining"] = film.get("theater_days", 21) or 21
+
+    return film
+
+
     return {"items": items}
 
 

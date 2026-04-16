@@ -957,13 +957,13 @@ const ResetGamePanel = ({ api }) => {
           <button onClick={() => enabled && setConfirmAction('keep_infra')} disabled={!enabled || !!loading}
             className="w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-orange-500/5 border-orange-500/15 hover:bg-orange-500/10">
             <p className="text-[11px] font-bold text-orange-400">{loading === 'keep_infra' ? 'Reset in corso...' : 'Reset mantenendo infrastrutture'}</p>
-            <p className="text-[8px] text-gray-500 mt-0.5">Cancella: film, serie, anime, classifiche, statistiche, eventi, pipeline. Mantiene: utenti, infrastrutture, monete, cinepass.</p>
+            <p className="text-[8px] text-gray-500 mt-0.5">Cancella: film, serie, progetti pipeline, poster, notifiche, eventi, chat, likes, commenti, voti, premi festival, sponsor, sceneggiature. Mantiene: utenti, denaro, CinePass, livello, infrastrutture, NPC.</p>
           </button>
 
           <button onClick={() => enabled && setConfirmAction('full')} disabled={!enabled || !!loading}
             className="w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-red-500/5 border-red-500/15 hover:bg-red-500/10">
             <p className="text-[11px] font-bold text-red-400">{loading === 'full' ? 'Reset in corso...' : 'Reset totale (eccetto utenti)'}</p>
-            <p className="text-[8px] text-gray-500 mt-0.5">Cancella: film, serie, anime, infrastrutture, progressi, eventi, statistiche, pipeline. Mantiene: utenti registrati.</p>
+            <p className="text-[8px] text-gray-500 mt-0.5">Cancella: TUTTO (film, serie, infrastrutture, poster, notifiche, eventi, chat, premi). Resetta denaro a $10M, CP a 50, livello a 1. Mantiene: account utenti registrati e NPC.</p>
           </button>
         </div>
 

@@ -200,47 +200,73 @@ class ResetGameRequest(_BM):
 
 @router.post("/reset-game")
 async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_user)):
-    """Admin-only: reset game data. NEVER deletes users."""
+    """Admin-only: reset game data. NEVER deletes users or system_config."""
     if user.get('nickname') != 'NeoMorpheus':
         raise HTTPException(403, "Solo admin")
     
     results = {}
     
-    # Collections to delete (content)
-    content_collections = ['film_projects', 'films', 'series_projects', 'anime_projects',
-                           'tv_series', 'notifications', 'marketplace_listings', 'ri_cinema_events',
-                           'challenges', 'game_challenges', 'city_tastes', 'coming_soon_items',
-                           'event_history', 'auto_tick_events']
+    # ─── Content collections (always deleted in both modes) ───
+    content_collections = [
+        'films', 'film_projects', 'film_drafts', 'film_comments', 'film_ratings',
+        'series_projects', 'anime_projects', 'tv_series',
+        'notifications', 'marketplace_listings',
+        'ri_cinema_events', 'auto_tick_events', 'event_history',
+        'challenges', 'game_challenges',
+        'city_tastes', 'coming_soon_items',
+        'likes', 'follows', 'friendships',
+        'premiere_invites', 'premieres',
+        'festival_awards', 'festival_votes',
+        'virtual_reviews', 'emerging_screenplays',
+        'chat_messages', 'chat_rooms',
+        'poster_files', 'studio_drafts',
+        'sponsors', 'sponsor_contracts',
+        'casting_school_students',
+        'reset_tokens', 'major_members',
+    ]
     
     for col_name in content_collections:
         try:
             r = await db[col_name].delete_many({})
-            results[col_name] = r.deleted_count
+            if r.deleted_count > 0:
+                results[col_name] = r.deleted_count
         except Exception as e:
             results[col_name] = f"error: {str(e)}"
     
+    # ─── Full reset: also infrastructure + user stats ───
     if req.type == 'full':
-        for col_name in ['infrastructure', 'tv_stations', 'tv_programming']:
+        infra_collections = ['infrastructure', 'tv_stations', 'tv_programming', 'agencies']
+        for col_name in infra_collections:
             try:
                 r = await db[col_name].delete_many({})
-                results[col_name] = r.deleted_count
+                if r.deleted_count > 0:
+                    results[col_name] = r.deleted_count
             except Exception as e:
                 results[col_name] = f"error: {str(e)}"
         
+        # Reset user stats to starting values
         try:
             await db.users.update_many({}, {'$set': {
                 'funds': 10000000, 'cinepass': 50, 'level': 1, 'fame': 0, 'xp': 0,
+                'total_films_released': 0, 'total_revenue': 0,
+                'daily_bonus_last': None, 'daily_bonus_streak': 0,
             }})
-            results['users_reset'] = 'done'
+            results['users_reset'] = 'funds/stats reset'
         except Exception as e:
             results['users_reset'] = f"error: {str(e)}"
     
+    # ─── Reseed cities (always) ───
     try:
         import city_tastes as ct
         await ct.seed_cities(db)
         results['city_tastes_reseeded'] = True
-    except:
+    except Exception:
         pass
+    
+    # ─── Reseed NPC people if none remain ───
+    people_count = await db.people.count_documents({})
+    if people_count == 0:
+        results['people_warning'] = 'NPC vuoti — rieseguire seed'
     
     logging.warning(f"[ADMIN RESET] Type: {req.type}, By: {user.get('nickname')}, Results: {results}")
     return {'type': req.type, 'results': results}

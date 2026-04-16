@@ -4,7 +4,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 import logging
 
@@ -409,6 +409,20 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     if project.get("pipeline_state") == "released":
         return {"success": True, "series_id": project.get("series_id"), "status": "released"}
 
+    # Check renewal lock for S2+
+    lock_until = project.get("renewal_lock_until")
+    if lock_until:
+        try:
+            lock_dt = datetime.fromisoformat(lock_until.replace("Z", "+00:00"))
+            now_dt = datetime.now(timezone.utc)
+            if lock_dt > now_dt:
+                days_left = (lock_dt - now_dt).days
+                raise HTTPException(400, f"Stagione bloccata per altri {days_left} giorni. Usa CinePass per velocizzare.")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
     # Calculate CWSv
     try:
         cwsv_result = calculate_series_cwsv_final(project)
@@ -509,3 +523,259 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
 async def discard_project(pid: str, user: dict = Depends(get_current_user)):
     await _update_project(pid, user["id"], {"pipeline_state": "discarded", "status": "discarded"})
     return {"success": True}
+
+
+# ═══════════════════════════════════════
+# RINNOVO STAGIONE (S2, S3, ...)
+# ═══════════════════════════════════════
+
+class RenewRequest(BaseModel):
+    speedup_cp: int = 0  # 0=wait 30 days, 15=halve to 15 days, 30=immediate
+
+@router.post("/series/{series_id}/renew-season")
+async def renew_season(series_id: str, req: RenewRequest, user: dict = Depends(get_current_user)):
+    """Create a new season (S2, S3...) from a completed series."""
+    series = await db.tv_series.find_one(
+        {"id": series_id, "user_id": user["id"]},
+        {"_id": 0}
+    )
+    if not series:
+        raise HTTPException(404, "Serie non trovata")
+    if series.get("status") not in ("in_tv", "catalog", "completed"):
+        raise HTTPException(400, "La serie deve essere completata per rinnovare")
+
+    # Check if renewal already exists
+    existing = await db.series_projects_v3.find_one(
+        {"parent_series_id": series_id, "user_id": user["id"], "pipeline_version": 3,
+         "pipeline_state": {"$nin": ["discarded", "deleted"]}},
+        {"_id": 0, "id": 1}
+    )
+    if existing:
+        raise HTTPException(400, "Rinnovo già in corso per questa serie")
+
+    # CP cost for speedup
+    cp_cost = max(0, min(30, req.speedup_cp))
+    if cp_cost > 0:
+        u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "cinepass": 1})
+        if (u.get("cinepass", 0) or 0) < cp_cost:
+            raise HTTPException(400, f"CinePass insufficienti ({cp_cost} richiesti)")
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"cinepass": -cp_cost}})
+
+    # Calculate lock period
+    base_lock_days = 30
+    if cp_cost >= 30:
+        lock_days = 0
+    elif cp_cost >= 15:
+        lock_days = 15
+    elif cp_cost > 0:
+        lock_days = max(0, base_lock_days - cp_cost)
+    else:
+        lock_days = base_lock_days
+
+    now = datetime.now(timezone.utc)
+    lock_until = (now + timedelta(days=lock_days)).isoformat() if lock_days > 0 else now.isoformat()
+
+    # CWSv base from previous season ±10%
+    prev_cwsv = series.get("quality_score") or 5.0
+    if prev_cwsv > 10:
+        prev_cwsv = prev_cwsv / 10  # Normalize V2
+
+    new_season = series.get("season_number", 1) + 1
+    pid = str(uuid.uuid4())
+    now_str = _now()
+
+    project = {
+        "id": pid,
+        "user_id": user["id"],
+        "pipeline_version": 3,
+        "type": series.get("type", "tv_series"),
+        "title": series.get("title", "Serie"),
+        "genre": series.get("genre", "drama"),
+        "genre_name": series.get("genre_name", ""),
+        "subgenre": None,
+        "subgenres": series.get("subgenres", []),
+        "preplot": "",
+        "num_episodes": series.get("num_episodes", 10),
+        "season_number": new_season,
+        "parent_series_id": series_id,
+        "prev_season_cwsv": prev_cwsv,
+        "locations": [],
+        "poster_url": series.get("poster_url", ""),
+        "screenplay_text": None,
+        "cast": series.get("cast", {}),
+        "pipeline_state": "idea",
+        "pipeline_ui_step": 0,
+        "hype_progress": 0,
+        "hype_budget": 0,
+        "series_format": series.get("series_format", "stagionale"),
+        "episode_duration_min": series.get("episode_duration_min", 45),
+        "prep_extras": 0,
+        "prep_cgi": [],
+        "prep_vfx": [],
+        "ciak_started_at": None,
+        "finalcut_started_at": None,
+        "selected_sponsors": [],
+        "marketing_packages": [],
+        "prossimamente_tv": False,
+        "release_policy": "daily_1",
+        "episodes": [],
+        "quality_score": None,
+        "renewal_lock_until": lock_until,
+        "renewal_cp_spent": cp_cost,
+        "created_at": now_str,
+        "updated_at": now_str,
+    }
+    await db.series_projects_v3.insert_one(project)
+    del project["_id"]
+
+    return {
+        "success": True,
+        "project": project,
+        "season_number": new_season,
+        "lock_days": lock_days,
+        "cp_spent": cp_cost,
+        "prev_cwsv": prev_cwsv,
+    }
+
+
+@router.get("/series/{series_id}/renewal-status")
+async def get_renewal_status(series_id: str, user: dict = Depends(get_current_user)):
+    """Check if a season renewal exists and its lock status."""
+    renewal = await db.series_projects_v3.find_one(
+        {"parent_series_id": series_id, "user_id": user["id"], "pipeline_version": 3,
+         "pipeline_state": {"$nin": ["discarded", "deleted"]}},
+        {"_id": 0, "id": 1, "season_number": 1, "renewal_lock_until": 1, "pipeline_state": 1}
+    )
+    if not renewal:
+        return {"has_renewal": False}
+
+    lock_until = renewal.get("renewal_lock_until")
+    now = datetime.now(timezone.utc)
+    locked = False
+    days_remaining = 0
+    if lock_until:
+        try:
+            lock_dt = datetime.fromisoformat(lock_until.replace("Z", "+00:00"))
+            if lock_dt > now:
+                locked = True
+                days_remaining = max(0, (lock_dt - now).days)
+        except Exception:
+            pass
+
+    return {
+        "has_renewal": True,
+        "project_id": renewal["id"],
+        "season_number": renewal.get("season_number"),
+        "locked": locked,
+        "days_remaining": days_remaining,
+        "pipeline_state": renewal.get("pipeline_state"),
+    }
+
+
+# ═══════════════════════════════════════
+# TV MANAGEMENT — Ricezione e Programmazione
+# ═══════════════════════════════════════
+
+@router.get("/tv/my-schedule")
+async def get_tv_schedule(user: dict = Depends(get_current_user)):
+    """Get all series assigned to user's TV stations."""
+    # Find series in_tv owned by this user
+    cursor = db.tv_series.find(
+        {"user_id": user["id"], "status": "in_tv", "pipeline_version": 3},
+        {"_id": 0}
+    ).sort("released_at", -1)
+    series = await cursor.to_list(50)
+
+    for s in series:
+        eps = s.get("episodes", [])
+        s["total_episodes"] = len(eps)
+        s["aired_episodes"] = sum(1 for e in eps if e.get("revealed"))
+        s["next_episode"] = next((e for e in eps if not e.get("revealed")), None)
+
+    return {"series": series}
+
+
+@router.post("/tv/broadcast-episode/{series_id}")
+async def broadcast_episode(series_id: str, user: dict = Depends(get_current_user)):
+    """Broadcast next episode — reveals its CWSv."""
+    series = await db.tv_series.find_one(
+        {"id": series_id, "user_id": user["id"], "status": "in_tv"},
+        {"_id": 0}
+    )
+    if not series:
+        raise HTTPException(404, "Serie non trovata o non in TV")
+
+    episodes = series.get("episodes", [])
+    next_ep = None
+    next_idx = -1
+    for i, ep in enumerate(episodes):
+        if not ep.get("revealed"):
+            next_ep = ep
+            next_idx = i
+            break
+
+    if not next_ep:
+        raise HTTPException(400, "Tutti gli episodi sono stati trasmessi")
+
+    # Reveal the episode
+    episodes[next_idx]["revealed"] = True
+    episodes[next_idx]["aired_at"] = _now()
+
+    # Check if all aired
+    all_aired = all(ep.get("revealed") for ep in episodes)
+    new_status = "completed" if all_aired else "in_tv"
+
+    await db.tv_series.update_one(
+        {"id": series_id},
+        {"$set": {"episodes": episodes, "status": new_status, "updated_at": _now()}}
+    )
+
+    return {
+        "success": True,
+        "episode": episodes[next_idx],
+        "all_aired": all_aired,
+        "aired_count": sum(1 for e in episodes if e.get("revealed")),
+        "total_count": len(episodes),
+    }
+
+
+# ═══════════════════════════════════════
+# PROSSIMAMENTE — Dashboard feed
+# ═══════════════════════════════════════
+
+@router.get("/prossimamente")
+async def get_prossimamente(user: dict = Depends(get_current_user)):
+    """Get series/anime marked as 'prossimamente' for the dashboard."""
+    # From projects still in pipeline with prossimamente_tv=true
+    projects = await db.series_projects_v3.find(
+        {"prossimamente_tv": True, "pipeline_version": 3,
+         "pipeline_state": {"$nin": ["released", "discarded", "deleted"]}},
+        {"_id": 0, "id": 1, "title": 1, "genre": 1, "genre_name": 1, "type": 1,
+         "poster_url": 1, "num_episodes": 1, "season_number": 1, "user_id": 1,
+         "pipeline_state": 1, "created_at": 1}
+    ).sort("created_at", -1).to_list(20)
+
+    # Also get released series marked prossimamente that haven't started airing
+    released = await db.tv_series.find(
+        {"prossimamente_tv": True, "pipeline_version": 3, "status": "in_tv"},
+        {"_id": 0, "id": 1, "title": 1, "genre": 1, "genre_name": 1, "type": 1,
+         "poster_url": 1, "num_episodes": 1, "season_number": 1, "user_id": 1,
+         "cwsv_display": 1, "quality_score": 1, "released_at": 1, "episodes": 1}
+    ).sort("released_at", -1).to_list(20)
+
+    # Enrich with producer names
+    for item in projects + released:
+        uid = item.get("user_id")
+        if uid:
+            u = await db.users.find_one({"id": uid}, {"_id": 0, "nickname": 1, "production_house_name": 1})
+            item["producer"] = u or {}
+
+    # Mark aired status for released
+    for r in released:
+        eps = r.get("episodes", [])
+        r["aired_count"] = sum(1 for e in eps if e.get("revealed"))
+        r["total_episodes"] = len(eps)
+        if "episodes" in r:
+            del r["episodes"]  # Don't send full episodes list
+
+    return {"coming_soon": projects, "airing": released}

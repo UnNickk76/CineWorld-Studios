@@ -74,6 +74,51 @@ const RiCinemaShowcase = ({ api, navigate }) => {
 };
 
 
+
+/* ─── Prossimamente V3 Serie/Anime ─── */
+const ProssimamenteV3Section = () => {
+  const { api } = useContext(AuthContext);
+  const [data, setData] = useState({ coming_soon: [], airing: [] });
+  useEffect(() => {
+    api.get('/pipeline-series-v3/prossimamente').then(r => setData(r.data || {})).catch(() => {});
+  }, [api]);
+  const items = [...(data.coming_soon || []), ...(data.airing || [])];
+  if (items.length === 0) return null;
+  return (
+    <div className="mb-4 rounded-xl" data-testid="prossimamente-v3">
+      <Card className="bg-gradient-to-r from-indigo-500/10 to-purple-500/5 border border-indigo-500/20">
+        <CardContent className="p-3">
+          <h3 className="font-['Bebas_Neue'] text-base flex items-center gap-2 mb-2">
+            <Tv className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="text-indigo-400">IN ARRIVO SU TV</span>
+          </h3>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {items.map(item => (
+              <div key={item.id} className="flex-shrink-0 w-24 rounded-lg overflow-hidden border border-indigo-500/15 bg-black/30">
+                <div className="aspect-[2/3] bg-gray-800 relative">
+                  {item.poster_url ? <img src={posterSrc(item.poster_url)} alt="" className="w-full h-full object-cover" /> :
+                    <div className="w-full h-full flex items-center justify-center">{item.type === 'anime' ? <Sparkles className="w-4 h-4 text-gray-700" /> : <Tv className="w-4 h-4 text-gray-700" />}</div>}
+                  {item.aired_count != null && (
+                    <div className="absolute bottom-0.5 right-0.5 px-1 py-0.5 rounded bg-black/80 text-[6px] text-indigo-400 font-bold">{item.aired_count}/{item.total_episodes} EP</div>
+                  )}
+                  {item.pipeline_state && item.pipeline_state !== 'released' && (
+                    <div className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded-full bg-amber-500/80 text-[5px] text-black font-black uppercase">{item.pipeline_state}</div>
+                  )}
+                </div>
+                <div className="p-1">
+                  <p className="text-[7px] font-bold text-white truncate">{item.title}</p>
+                  <p className="text-[6px] text-gray-500">{item.producer?.nickname || ''}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+
 const Dashboard = () => {
   const { user, api, refreshUser } = useContext(AuthContext);
   const { language } = useTranslations();
@@ -503,6 +548,9 @@ const Dashboard = () => {
           <div className="mb-4 rounded-xl glow-blue" data-testid="dashboard-coming-soon-series">
             <ComingSoonSection compact filterType="tv_series" sectionTitle="PROSSIMAMENTE SERIE TV" />
           </div>
+
+          {/* 5b. Prossimamente V3 Serie/Anime */}
+          <ProssimamenteV3Section />
 
           {/* 6. Ultimi Aggiornamenti SERIE TV */}
           <div className="mb-4 rounded-xl glow-purple" data-testid="recent-releases-series">

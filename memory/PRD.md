@@ -1,44 +1,51 @@
 # CineWorld Studio's — PRD
 
 ## Pipeline V3 Film — Completa
-10 step sequenziali con CWSv. 14 file calcolo in `/app/backend/utils/calc_*.py`.
+10 step, CWSv 1-10, 14 file calcolo.
 
-## Pipeline V3 Serie TV & Anime — Completa (16/04/2026)
-9 step con CWSv serie, titoli episodi AI, CWSv per episodio, cliffhanger system.
-Scheduling TV complesso: 4 politiche produttore + opzioni TV (ep per batch, intervallo, split stagione).
+## Pipeline V3 Serie TV & Anime — Completa
+9 step, CWSv serie+episodi, titoli AI, cliffhanger, scheduling TV complesso.
 
-## CWSv System — 1.0-10
-5 file film + 1 file serie. Pre-voto visibile ad ogni step. CWSv 9+ rarissimo.
+## CWSv System
+Film: 5 file (idea/hype/cast/production + quality.py). Serie: 1 file (quality_series.py).
 
-## CWTrend System — Implementato
-Score dinamico 1-10 che cambia nel tempo. File: `calc_cwtrend.py`.
-Fattori: 40% CWSv + 15% marketing + 10% sponsor + 15% hype + 10% distribuzione + 10% tempo + casualità.
-Nota: CWTrend può essere scarso anche per film ottimi e viceversa (è il "momento", non la qualità).
+## CWTrend System
+Score dinamico 1-10. File: calc_cwtrend.py. Indipendente dalla qualità.
+
+## Rinnovo Stagione — Implementato (16/04/2026)
+- S2/S3/... creata da serie completata/in_tv/catalog
+- CWSv base parte da S1 ±10%
+- Lock 30 giorni reali prima del release
+- Speedup CP: 15CP=dimezza(15g), 30CP=immediato
+- Cast e poster ereditati dalla stagione precedente
+- Endpoint: POST /api/pipeline-series-v3/series/{id}/renew-season
+
+## Sezione TV — Implementata
+- GET /tv/my-schedule: lista serie in TV con episodi trasmessi/totali
+- POST /tv/broadcast-episode/{id}: trasmette prossimo episodio, rivela CWSv
+- Tracking aired_count, next_episode, aired_at per episodio
+
+## Prossimamente Dashboard — Implementato
+- GET /prossimamente: serie in pipeline + serie in_tv con conteggio ep trasmessi
+- Sezione "IN ARRIVO SU TV" nella Dashboard con poster, titolo, ep count
+- Mostra sia serie in pipeline (coming soon) che serie in onda (airing)
 
 ## ProducerProfileModal — Implementato
-Modal profilo produttore con stats, filmografia, CWSv medio, badge livello.
-Si apre cliccando "una produzione [Studio]" nel film detail.
-Endpoint: `GET /api/players/{id}/profile` (evoluto con CWSv, serie, anime, filmografia).
+Modal con stats produttore, filmografia, CWSv medio, badge.
 
-## Sistema Scheduling TV Serie/Anime
-### Dal produttore (release policy):
-- 1 al giorno → TV non ha scelta
-- 3 al giorno → TV sceglie 1/2/3 ep al giorno
-- Due mezze stagioni → TV può split + scegliere ep/intervallo
-- Tutta insieme → TV piena libertà (binge, split, programmazione custom)
-### Dalla TV (entro limiti policy):
-- EP per trasmissione: 1, 2, 3
-- Intervallo: ogni 1, 2, 3 giorni
-- Split stagione: sì/no + pausa 7/14/21/30 giorni
+## Scheduling TV Serie
+4 politiche: 1/giorno, 3/giorno, 2 mezze stagioni, tutta insieme.
+TV configura: ep per batch, intervallo giorni, split stagione con pausa.
 
 ## Backlog
 ### P0
-- Rinnovo Stagione (S2 da CWSv S1 ±10%)
-- Sezione TV gestione: ricezione serie, configurazione programmazione, trasmissione episodi
+- (nessuno — tutti P0 completati!)
 
 ### P1
-- Prossimamente in Dashboard per serie/anime
-- CWSv episodio revealed alla trasmissione
+- Bug "The Gratch" che ricompare dopo reset
+- Sezione "La Mia TV" frontend completa (gestione serie ricevute)
 
 ### P2
-- Sfide settimanali, Festival, Concorrenza, Fase Market
+- Sfide settimanali, Festival, Concorrenza
+- Fase Market (film + serie + anime)
+- Confronto produttori, Segui produttore, Medaglie

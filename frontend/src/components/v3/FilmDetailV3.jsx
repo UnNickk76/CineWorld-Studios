@@ -410,7 +410,18 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
               </div>
             </div>
 
-            <p style={{ fontSize: '10px', color: '#555', textAlign: 'center', marginBottom: '16px', fontStyle: 'italic' }}>Statistiche dettagliate in arrivo...</p>
+            {/* CWTrend */}
+            {film.cwtrend && (
+              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px', padding: '10px', margin: '0 0 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: '9px', color: '#6b7280', textTransform: 'uppercase' }}>CWTrend</div>
+                  <div style={{ fontSize: '8px', color: '#555' }}>Andamento attuale del film</div>
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: film.cwtrend >= 8 ? '#facc15' : film.cwtrend >= 6 ? '#4ade80' : film.cwtrend >= 4 ? '#fb923c' : '#f87171' }}>
+                  {film.cwtrend_display || film.cwtrend}
+                </div>
+              </div>
+            )}
 
             {/* ═══ ACTIONS INSIDE POPUP ═══ */}
             {isOwner && (

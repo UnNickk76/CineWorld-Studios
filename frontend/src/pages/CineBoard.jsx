@@ -85,7 +85,7 @@ const CineBoard = () => {
       weekly: language === 'it' ? 'Settimanale' : 'Weekly',
       attendance: language === 'it' ? 'Affluenze' : 'Attendance',
       rank: language === 'it' ? 'Pos' : 'Rank',
-      score: language === 'it' ? 'Punteggio' : 'Score',
+      score: language === 'it' ? 'CWTrend' : 'CWTrend',
       noFilms: language === 'it' ? 'Nessun film in classifica' : 'No films in rankings',
       quality: language === 'it' ? 'Qualità' : 'Quality',
       revenue: language === 'it' ? 'Incassi' : 'Revenue',
@@ -220,7 +220,7 @@ const CineBoard = () => {
                       </div>
                       <div className="flex items-center gap-1 bg-blue-500/20 px-2 py-1 rounded ml-2">
                         <Star className="w-3.5 h-3.5 text-blue-400 fill-blue-400" />
-                        <span className="font-bold text-blue-400 text-sm">{s.quality_score?.toFixed(1)}</span>
+                        <span className="font-bold text-blue-400 text-sm">CWSv {s.cwsv_display || (s.quality_score ? (s.quality_score % 1 === 0 ? Math.round(s.quality_score) : s.quality_score.toFixed(1)) : '?')}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -274,7 +274,7 @@ const CineBoard = () => {
                       </div>
                       <div className="flex items-center gap-1 bg-orange-500/20 px-2 py-1 rounded ml-2">
                         <Star className="w-3.5 h-3.5 text-orange-400 fill-orange-400" />
-                        <span className="font-bold text-orange-400 text-sm">{s.quality_score?.toFixed(1)}</span>
+                        <span className="font-bold text-orange-400 text-sm">CWSv {s.cwsv_display || (s.quality_score ? (s.quality_score % 1 === 0 ? Math.round(s.quality_score) : s.quality_score.toFixed(1)) : '?')}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -678,11 +678,11 @@ const CineBoard = () => {
                       <span className="text-[10px] text-green-400">${((film.total_revenue || 0) / 1000000).toFixed(1)}M</span>
                     )}
                     
-                    {/* CineBoard Score */}
+                    {/* CWTrend Score */}
                     <div className="ml-auto flex items-center gap-1">
                       <span className="text-[10px] text-gray-500">{t('score')}:</span>
-                      <span className={`font-bold text-sm ${film.cineboard_score >= 70 ? 'text-yellow-400' : film.cineboard_score >= 50 ? 'text-green-400' : 'text-gray-400'}`}>
-                        {film.cineboard_score?.toFixed(1)}
+                      <span className={`font-bold text-sm ${film.cineboard_score >= 8 ? 'text-yellow-400' : film.cineboard_score >= 6 ? 'text-green-400' : film.cineboard_score >= 4 ? 'text-orange-400' : 'text-red-400'}`}>
+                        {film.cineboard_score >= 10 ? '10' : film.cineboard_score?.toFixed(1)}
                       </span>
                     </div>
                   </div>
@@ -934,7 +934,7 @@ const CineBoard = () => {
                     {s.quality_score > 0 && (
                       <div className="flex items-center gap-0.5">
                         <Star className={`w-3 h-3 text-${accentColor}-400 fill-${accentColor}-400`} />
-                        <span className={`text-[10px] font-bold text-${accentColor}-400`}>{s.quality_score?.toFixed(1)}</span>
+                        <span className={`text-[10px] font-bold text-${accentColor}-400`}>CWSv {s.cwsv_display || (s.quality_score % 1 === 0 ? Math.round(s.quality_score) : s.quality_score?.toFixed(1))}</span>
                       </div>
                     )}
                   </div>

@@ -42,34 +42,30 @@ CREATOR_NICKNAME = "NeoMorpheus"
 
 def calculate_cineboard_score(film: dict) -> float:
     """
-    Calculate CineBoard score for a film based on multiple factors:
-    - Quality: 30%
-    - Revenue: 25%
-    - Popularity (likes): 20%
-    - Awards: 15%
-    - Longevity: 10%
+    Calculate CineBoard score using CWTrend system.
+    Uses CWSv + dynamic factors for a 1-10 score.
     """
-    quality = film.get('quality_score', 0)
-    revenue = film.get('total_revenue', 0)
-    likes = film.get('likes_count', 0)
-    awards_count = len(film.get('awards', []))
-    
-    quality_score = min(100, quality)
-    revenue_score = min(100, (revenue / 10000000) * 100)
-    likes_score = min(100, likes * 1)
-    awards_score = min(100, awards_count * 25)
-    weeks = film.get('actual_weeks_in_theater', film.get('weeks_in_theater', 1))
-    longevity_score = min(100, weeks * 10)
-    
-    total_score = (
-        quality_score * 0.30 +
-        revenue_score * 0.25 +
-        likes_score * 0.20 +
-        awards_score * 0.15 +
-        longevity_score * 0.10
-    )
-    
-    return round(total_score, 2)
+    try:
+        from utils.calc_cwtrend import calculate_cwtrend
+        # Calculate days in theater
+        days = 0
+        theater_start = film.get('theater_start') or film.get('released_at')
+        if theater_start:
+            from datetime import datetime, timezone
+            if isinstance(theater_start, str):
+                try:
+                    start = datetime.fromisoformat(theater_start.replace('Z', '+00:00'))
+                except Exception:
+                    start = datetime.now(timezone.utc)
+            else:
+                start = theater_start if theater_start.tzinfo else theater_start.replace(tzinfo=timezone.utc)
+            days = max(0, (datetime.now(timezone.utc) - start).days)
+        result = calculate_cwtrend(film, days)
+        return result["cwtrend"]
+    except Exception:
+        # Fallback
+        q = film.get('quality_score') or 5.0
+        return round(max(1.0, min(10.0, q * 0.8)), 1)
 
 
 class NewReleaseNote(BaseModel):

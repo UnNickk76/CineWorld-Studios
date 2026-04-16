@@ -394,6 +394,16 @@ async def get_released_film_detail(film_id: str, user: dict = Depends(get_curren
         except Exception:
             pass
 
+    # CWTrend: calculate dynamic score
+    try:
+        from utils.calc_cwtrend import calculate_cwtrend
+        cwtrend_result = calculate_cwtrend(film, film.get("days_in_theater", 0))
+        film["cwtrend"] = cwtrend_result["cwtrend"]
+        film["cwtrend_display"] = cwtrend_result["cwtrend_display"]
+        film["cwtrend_factors"] = cwtrend_result["factors"]
+    except Exception:
+        pass
+
     return film
 
 

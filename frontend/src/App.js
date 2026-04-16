@@ -101,9 +101,9 @@ const NicknameRecoveryPage = React.lazy(() => import('./pages/NicknameRecoveryPa
 const StatisticsPage = React.lazy(() => import('./pages/StatisticsPage'));
 const EmergingScreenplays = React.lazy(() => import('./pages/EmergingScreenplays'));
 const PlayerPublicProfile = React.lazy(() => import('./pages/PlayerPublicProfile'));
-const SeriesTVPipeline = React.lazy(() => import('./pages/SeriesTVPipeline'));
+const SeriesTVPipeline = React.lazy(() => import('./pages/SeriesTVPipelineV3'));
 const SeriesDetail = React.lazy(() => import('./pages/SeriesDetail'));
-const AnimePipeline = React.lazy(() => import('./pages/AnimePipeline'));
+const AnimePipeline = React.lazy(() => import('./pages/AnimePipelineV3'));
 const SequelPipeline = React.lazy(() => import('./pages/SequelPipeline'));
 const EmittenteTVPage = React.lazy(() => import('./pages/EmittenteTVPage'));
 const TVStationPage = React.lazy(() => import('./pages/TVStationPage'));

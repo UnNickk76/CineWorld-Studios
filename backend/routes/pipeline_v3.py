@@ -14,6 +14,29 @@ from auth_utils import get_current_user
 router = APIRouter(prefix="/api/pipeline-v3", tags=["pipeline-v3"])
 
 
+def _calc_opening_day(cwsv: float, project: dict) -> int:
+    """Calculate opening day revenue based on CWSv and distribution."""
+    import random
+    base = 100000  # $100K minimum
+    cwsv = cwsv or 5.0
+    # CWSv drives the scale: 1.0 = $100K, 5.0 = $500K, 8.0 = $2M, 10.0 = $5M
+    quality_mult = (cwsv / 10) ** 2 * 5  # Quadratic scaling
+    # Distribution zones boost
+    zones = len(project.get("distribution_continents", []))
+    zone_mult = 1 + zones * 0.3
+    # Marketing boost
+    pkgs = len(project.get("marketing_packages", []))
+    mkt_mult = 1 + pkgs * 0.15
+    # Hype
+    hype = project.get("hype_progress", 0) or 0
+    hype_mult = 1 + (hype / 100) * 0.5
+    # Small randomness ±20%
+    luck = 0.8 + random.random() * 0.4
+    opening = int(base * quality_mult * zone_mult * mkt_mult * hype_mult * luck)
+    return max(50000, opening)
+
+
+
 @router.get("/debug-agencies")
 async def debug_agencies(user: dict = Depends(get_current_user)):
     """Debug: show agency structure."""
@@ -1313,8 +1336,8 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "likes_count": 0,
         "liked_by": [],
         "total_revenue": 0,
-        "opening_day_revenue": 0,
-        "current_cinemas": 1,
+        "opening_day_revenue": _calc_opening_day(quality_score, project),
+        "current_cinemas": max(1, len(project.get("distribution_continents", []))),
         "created_at": _now(),
         "updated_at": _now(),
     }

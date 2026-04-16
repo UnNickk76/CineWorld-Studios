@@ -597,7 +597,7 @@ const GlobalSideMenu = () => {
   const goProduci = () => { setOpen(false); openProductionMenu(true); };
 
   const menuItems = [
-    { icon: Camera, label: "Produci", action: goProduci, badge: menuBadges.produci > 0 },
+    { icon: Clapperboard, label: "Produci", action: goProduci, badge: menuBadges.produci > 0 },
     { icon: Pen, label: "Sceneggiature", action: () => go('/emerging-screenplays') },
     { icon: Store, label: "Mercato", action: () => go('/marketplace') },
     { icon: Tv, label: "Le mie TV", action: () => go('/my-tv') },
@@ -1193,7 +1193,7 @@ const TopNavbar = () => {
           <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 text-yellow-500 hover:text-yellow-400 ${prodCounts.total > 0 ? 'animate-pulse' : ''}`}
             style={prodCounts.total > 0 ? { animationDuration: '2.5s' } : {}}
             onClick={() => setShowProductionMenu(!showProductionMenu)} data-testid="top-nav-produci" aria-label="Produci">
-            <Camera className="w-3.5 h-3.5" />
+            <Clapperboard className="w-3.5 h-3.5" />
             {prodCounts.total > 0 && (
               <span className="absolute -top-0.5 -right-0.5 min-w-[10px] h-2.5 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">
                 {prodCounts.total > 9 ? '9+' : prodCounts.total}
@@ -1343,7 +1343,7 @@ const TopNavbar = () => {
             </div>
             <div className="grid grid-cols-3 gap-2 p-3">
               {[
-                { icon: Camera, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400', count: prodCounts.film },
+                { icon: Clapperboard, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400', count: prodCounts.film },
                 { icon: Copy, label: 'Sequel', path: '/create-sequel', color: 'bg-orange-500/15 border-orange-500/30 text-orange-400', count: 0 },
                 { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', count: prodCounts.series },
                 { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400', count: prodCounts.anime },

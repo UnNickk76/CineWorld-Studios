@@ -659,17 +659,17 @@ const CineBoard = () => {
                       </p>
                     </div>
                     
-                    {/* IMDb-style Rating */}
+                    {/* CWSv Rating */}
                     <div className="flex items-center gap-1 bg-yellow-500/20 px-2 py-1 rounded ml-2">
                       <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
-                      <span className="font-bold text-yellow-500 text-sm">{film.imdb_rating?.toFixed(1) || '0.0'}</span>
+                      <span className="font-bold text-yellow-500 text-sm">{film.cwsv_display || (film.quality_score ? (film.quality_score % 1 === 0 ? Math.round(film.quality_score) : film.quality_score.toFixed(1)) : '?')}</span>
                     </div>
                   </div>
                   
                   {/* Stats Row */}
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <Badge className="bg-white/10 text-gray-300 text-[10px] h-5">{film.genre}</Badge>
-                    <span className="text-[10px] text-yellow-400"><Star className="w-3 h-3 inline" /> {film.quality_score?.toFixed(0)}%</span>
+                    <span className="text-[10px] text-yellow-400"><Star className="w-3 h-3 inline" /> CWSv {film.cwsv_display || (film.quality_score ? (film.quality_score % 1 === 0 ? Math.round(film.quality_score) : film.quality_score.toFixed(1)) : '?')}</span>
                     {activeTab === 'daily' && film.daily_revenue != null ? (
                       <span className="text-[10px] text-green-400 font-medium">${((film.daily_revenue || 0) / 1000000).toFixed(2)}M oggi</span>
                     ) : activeTab === 'weekly' && film.weekly_revenue != null ? (

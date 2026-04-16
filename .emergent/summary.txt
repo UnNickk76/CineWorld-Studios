@@ -1,53 +1,55 @@
 <analysis>**original_problem_statement**: 
 PRODUCT REQUIREMENTS:
-The project required fixing critical blocking issues and React #310 errors in Pipeline V2. After multiple iterations, the user requested a complete clean-slate rewrite called Pipeline V3. 
-Pipeline V3 must be completely stable, modular, free of any composite quality calculations (for now), without blocking conditions, and use a dedicated UI. 
-The current active requirement is to restructure the  in Pipeline V3 into a strictly sequential flow with OK confirmation checkpoints:
-1. Name, Genre, Subgenres (Tags), Setting -> OK button (frozen until filled).
-2. Poster Generation (AI uses pre-plot as context) -> OK button (frozen until poster generated).
-3. Screenplay Generation (AI uses pre-plot, max 1000-2000 chars, readable/scrollable) -> OK button (frozen until script > 100 chars).
-4. Advance to HYPE step.
-Additionally, the La Prima step needs to be visibly restored in the Pipeline V3 Stepper.
+The project required a complete stable rewrite called Pipeline V3. The user requested a strictly sequential flow, real-time mechanics for shooting (Ciak) and Final Cut (1 real hour = 1 in-game day/hour), modular calculation logic (every math operation must reside in a dedicated file), dynamic CP (credit) speedups, full sponsor system, global distribution zones, and a complete pre-release cost/savings summary (with Velion optimizations).
+Currently, the pipeline is fully functional up to release, but the post-release Film Detail modal for V3 films is missing the rich UI features present in the old V2 system (The Gratch modal layout). The user wants the rich UI replicated for V3, along with dedicated post-release action buttons (ADV, Withdraw, Delete).
 
 **User's preferred language**: Italian (You MUST respond in Italian only).
 
 **what currently exists?**: 
-CineWorld Studio's is a Full-Stack management game (React + FastAPI + MongoDB). 
-A new Pipeline V3 has just been built and set as the default for . It features a highly modular React frontend (split into , , , , etc.) ensuring file sizes stay under 1000 lines. The V3 backend () is fully functional, properly serializes ObjectIds, and uses the  collection for Cast NPCs (replacing the deprecated ). The V3 UI currently features a poster-style grid layout, clickable tags for subgenres (380 available), and a completely non-blocking flow.
+CineWorld Studio's is a Full-Stack management game. The new Pipeline V3 is fully functional from Idea to Release.
+- Real-time timers for Ciak and Final Cut are implemented with dynamic CP-based speedups.
+- Modular calculations are located in .
+- Sponsor generation and Distribution zones (continents/cities) are integrated.
+- Film release properly deducts costs, applies savings, and pushes the film to the Dashboard with a LIVE pulsing badge.
+- A basic  modal exists but lacks the rich V2 UI.
 
 **Last working item**: 
-    - Last item agent was working: Rewriting  to implement the sequential step-by-step unlock flow (Title/Genre -> OK -> Poster -> OK -> Script -> OK -> Advance) and restoring the La Prima step in the Stepper UI.
+    - Last item agent was working: Searching for the old V2 The Gratch modal codebase ( / ) to replicate its detailed UI layout into the new , and preparing to add post-release action buttons (ADV, Withdraw from theaters, Delete).
     - Status: IN PROGRESS
-    - Agent Testing Done: N (File was just overwritten, no testing done yet).
-    - Which testing method agent to use?: Frontend testing agent/screenshot tool
+    - Agent Testing Done: N
+    - Which testing method agent to use?: Frontend testing agent/ screenshot tool
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  - Issue 1: Idea Phase Sequential Flow & AI Integration
-     - Attempted fixes: Agent just created the  file to start the rewrite.
-     - Next debug checklist: 
-       - Verify  enforces the sequential unlocking via local state.
-       - Ensure the yellow OK buttons are frozen until conditions are met (e.g., subgenres selected, poster exists, script > 100 chars).
-       - Ensure the Poster AI prompt includes the preplot text as context.
-       - Ensure the Script AI generates 1000-2000 chars based on the preplot and is displayed in a scrollable container.
-       - Restore La Prima to the  and stepper configuration in  / .
-     - Why fix this issue and what will be achieved with the fix?: Fulfills the user's specific UX request for a guided, step-by-step creation process.
+  - Issue 1: V3 Film Detail Modal UI Parity (The Gratch style)
+     - Attempted fixes: Agent identified  and  as the source but hasn't ported the code.
+     - Next debug checklist: Copy the rich UI layout (reviews, box office, virtual audience, cast stats) from  and implement it in . Ensure it is perfectly responsive and matches the user's screenshot.
+     - Why fix this issue and what will be achieved with the fix?: Fulfills the user's requirement to have the same visual depth for V3 films as V2 films post-release.
      - Status: IN PROGRESS
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix?: Frontend
      - Blocked on other issue: None
 
+  - Issue 2: Post-Release Action Buttons & ADV Logic
+     - Attempted fixes: Agent added a  backend endpoint, but the UI and ADV logic are pending.
+     - Next debug checklist: Add an Orange Trash button (withdraw from theaters), Red Trash button (delete completely), and ADV button inside the new . Move the existing Advertising logic (currently in  / ) into a dedicated  or dedicated router file.
+     - Why fix this issue and what will be achieved with the fix?: Allows users to manage films after release.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix?: Both
+     - Blocked on other issue: None
+
 **In progress Task List**: 
-  - Task 1: IdeaPhase Sequential Flow implementation
-     - Where to resume: Review the recently created . Complete the step-by-step logic, connect the AI poster/script functions properly using the backend endpoints, and add the La Prima step back to the V3 stepper.
-     - What will be achieved with this?: A guided, bug-free start to the film creation pipeline.
+  - Task 1: Complete V3 Post-Release UX
+     - Where to resume: Open  and heavily update its render method to match .
+     - What will be achieved with this?: Complete visual parity and management capabilities for released films.
      - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix?: Frontend
+     - Should Test frontend/backend/both after fix?: Both
      - Blocked on something: None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P0) Architecture: Move all V3 quality calculations into a dedicated separate file (e.g.,  or a backend equivalent) ONCE the pure UI flow is 100% verified by the user. Do NOT add calculations back into the pipeline components.
+    - (P0) Architecture: Total Quality Score Engine. Create a dedicated file (e.g., ) to calculate the final composite quality score of the film based on all V3 choices, replacing the currently mocked  score.
     - (P1) Link real data to  and .
     - (P1) Phase 3 Market: TV/Anime sales and distribution rights.
     
@@ -56,61 +58,54 @@ A new Pipeline V3 has just been built and set as the default for . It features a
     - (P2) Festival Predictions and TV/Anime Rights Marketplace.
 
 **Completed work in this session**
-- Fixed major Pipeline V2 blockers (Quality Score 1-10 normalization, double-click bugs, missing  on release).
-- Created completely new Pipeline V3 architecture (Clean Slate).
-- Built V3 backend () and routed .
-- Built modular V3 frontend (, , , , ).
-- Rerouted  and  to V3.
-- Fixed NPC auto-cast to pull from the  collection (bypassing the missing ).
-- Replaced subgenre dropdowns with 380 clickable tags (max 3 selections).
-- Fixed Z-index padding issue () that blocked the New Project button.
+- Created modular calculation files (, , , , , , ).
+- Implemented real-time countdown timers for Ciak and Final Cut with dynamic CP speedups.
+- Implemented Hype configuration, Sponsors (max 6), and Distribution Zones (6 continents, 217 cities).
+- Built the Step Finale pre-release cost/savings summary, including Velion optimizations.
+- Fixed a severe infinite loop bug upon Cinematic Release (implemented 5-layer anti-loop protection via refs and strict state management).
+- Fixed Dashboard visibility for V3 films (migrated status from  to ). Added green pulsing LIVE badges.
+- Fixed Cast Phase to show gender symbols, all 8 skills, and correctly formatted default roles.
 
 **Earlier issues found/mentioned but not fixed**
-  - Issue 1: V3 Poster and Screenplay AI Generation
-    - Debug checklist: Check  and  endpoints to ensure they are properly utilizing the  integration with the user's provided  as context.
-    - Why to solve this issue and what will be achieved with this?: AI generation was noted as broken/defaulting in the user's latest message. Needs to work perfectly for the new IdeaPhase flow.
-    - Should Test frontend/backend/both after fix: Both
-    - Is recurring issue? Y
+  - None currently, aside from ensuring the The Gratch UI is correctly ported.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: React Error #310 (Objects as React child) and infinite state machine loops.
+  - Issue recurrence in previous fork: React Error infinite state machine loops (Specifically  causing re-renders).
   - Recurrence count: High
-  - Status: RESOLVED (Mitigated by rewriting V3 from scratch with strict primitive data handling and a non-blocking flow).
-  - Note: DO NOT reintroduce complex composite quality calculations directly into the V3 component files. They must be kept separate.
+  - Status: RESOLVED (Mitigated by using  flags, removing conditional rendering for the overlay, and separating the API call from the animation).
+  - Note: Be extremely careful when adding  hooks in React components that trigger API calls; ensure dependencies are strictly managed to avoid infinite request loops.
 
 **Code Architecture**
 - **Frontend V3**:
-  - : Main orchestrator (routing, state management, stepper).
-  - : Constants, StepperBar, shared UI components.
-  - : Title, Genre, AI Poster, AI Script.
-  - : NPC actor selection tabs.
-  - : Contains Hype, Prep, Ciak, FinalCut, Marketing, Distribution, StepFinale.
+  - : Main orchestrator.
+  - , , ,  (contains Hype, Prep, Ciak, FinalCut, Marketing, Distribution, StepFinale).
+  - : Modal for viewing released V3 films (Currently being updated).
 - **Backend V3**:
-  - : Simplified, non-blocking state machine endpoints.
+  - : State machine endpoints.
+  - : Isolated logic files for all math/durations/costs.
 
 **Key Technical Concepts**
 React, FastAPI, MongoDB (Motor), APScheduler (background tasks), Emergent Integrations (LLMs).
 
 **key DB schema**
   - : Active V3 pipeline projects.
-  - : Released films (Must always contain ).
-  - : NPC Cast database (used for directors, actors, writers, composers).
+  - : Released films ( or ).
+  - : NPC Cast database.
+  - : Sponsor companies.
 
 **changes in tech stack**
-  - Shifted from monolithic V2 pipeline (~4500 lines) to modular V3 pipeline (components < 300 lines each).
-  - Cast NPCs are now fetched from the  collection using the  field instead of .
+  - Strict enforcement of separating math/calculations from the router via dedicated  files.
 
 **All files of reference** 
-  - 
-  -  (Currently working here)
-  - 
-  - 
+  -  (Active file)
+  -  (Reference for UI parity)
   - 
   - 
+  -  (Contains ADV logic to be extracted)
   - 
 
 **Areas that need refactoring**: 
-  - Future calculations will require a dedicated scoring engine file, keeping  purely for UI and flow.
+  - Advertising (ADV) logic needs to be extracted into a dedicated calculation/router file specifically for post-release actions.
 
 **key api endpoints**
   - 
@@ -119,35 +114,35 @@ React, FastAPI, MongoDB (Motor), APScheduler (background tasks), Emergent Integr
 
 **Critical Info for New Agent** 
 - **LANGUAGE**: You MUST respond to the user exclusively in **Italian**.
-- **PIPELINE V3 RULES**: Do NOT reintroduce old V2 bugs. Do not add complex quality calculations to V3 yet. Do not add blocking logic that prevents release.
-- **ACTIVE TASK**: Focus immediately on . The user specifically requested a sequential flow: Name/Tags -> OK -> Poster -> OK -> Script -> OK. Ensure the OK buttons are styled as bold black text on solid yellow background, and remain frozen/disabled until the respective section is complete.
-- **LA PRIMA**: The user noticed La Prima is missing from the V3 Stepper. Make sure to re-add it to the visual stepper configuration in /.
+- **ACTIVE TASK**: The user wants the V3 released film modal () to look exactly like the rich V2 modal (reference  or The Gratch style screenshot). You must port over the reviews, stats, cast display, and visual layout.
+- **ACTION BUTTONS**: Add an ADV button (must extract existing ADV logic to a dedicated file), an Orange Trash button (withdraw from theaters), and a Red Trash button (delete film from DB).
+- **RULES**: Every time a new calculation is introduced, it MUST be placed in its own dedicated python file inside . Do not bloat the router files.
 
 **documents and test reports created in this job** 
   - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Uploaded custom  and  files to force a specific structure.
-2. *Agent*: Replaced files, backend restarted.
-3. *User*: Frontend doesn't update state after release, needs  before and after WOW overlay.
-4. *Agent*: Fixed frontend refresh logic.
-5. *User*: Critical Bug - Film not created in  collection.
-6. *Agent*: Fixed backend to ensure  properly inserts doc and links .
-7. *User*: Uploaded  and  to mandate a total reset (V3).
-8. *Agent*: Registered V3 routes, fixed ObjectId serialization, routed  to V3, made frontend modular.
-9. *User*: Subgenres must be up to 3 clickable tags. Make 20 subgenres per genre. Future calculations must be in a separate file.
-10. *User*: **(PENDING)**  needs a sequential unlock flow with OK buttons. AI Poster/Script must use  as context. Script must be scrollable (1000-2000 chars). Noticed La Prima step is missing from V3.
+1. *User*: Pre-release summary needs total costs, CP costs (max 30), sponsor deductions, savings toggles, and Velion optimizations.
+2. *Agent*: Created  and implemented StepFinale with all math.
+3. *User*: Infinite loop happening at release!
+4. *Agent*: Fixed frontend loop by abstracting API calls from animation overlay.
+5. *User*: Percentage inside the release circle isn't centered.
+6. *Agent*: Fixed CSS for percentage centering.
+7. *User*: Cast needs gender symbols, 8 skills, primary skills, and negative skills visible.
+8. *Agent*: Updated NpcCard and SkillsModal to show all requested cast data.
+9. *User*: Bugs: Duration stuck at 2:24, Cast costs 5M (too high), loop returned, film not showing on Dashboard.
+10. *User*: **(PENDING)** The released film popup is generic. It needs to look EXACTLY like the rich V2 The Gratch popup. Copy the code. Also, add buttons for ADV (extract to dedicated file), orange trash (withdraw), and red trash (delete).
 
 **Project Health Check:**
-  - Broken: IdeaPhase AI Generation integration needs mapping to the newly structured sequential flow.
-  - Mocked: Quality calculations in V3 are currently bypassed/mocked as  or n.d. by user design until the flow is 100% verified.
+  - Broken: V3 Film Detail modal lacks UI parity with V2.
+  - Mocked: Quality calculation (Quality Score) is currently mocked as  on release.
 
 **3rd Party Integrations** 
   - Stripe (Payments) — requires User API Key
   - Emergent LLM Key — Used for AI Poster Generation and AI Screenplay Generation.
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Tested manually via bash/curl/screenshot due to context size).
+  - Testing agent used after significant changes: NO (Tested extensively via curl and screenshot).
   - Test files created: None
   - Known regressions: None currently.
 
@@ -156,4 +151,4 @@ React, FastAPI, MongoDB (Motor), APScheduler (background tasks), Emergent Integr
 - Password: Fandrel2776
 
 **What agent forgot to execute**
-- The agent created the  file to implement the sequential flow, but the session ended before writing the sequential state logic, the yellow OK buttons, and restoring the La Prima step to the stepper.</analysis>
+- The agent was about to port the  rich layout into  and implement the post-release buttons (ADV, Withdraw, Delete) but the session ended before execution.</analysis>

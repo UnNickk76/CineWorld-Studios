@@ -282,10 +282,10 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         r['producer_badge_expiry'] = p.get('badge_expiry')
         r['producer_badges'] = p.get('badges', {})
 
-    total_box_office = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in films)
-    total_likes = sum(f.get('likes_count', 0) for f in films)
-    avg_quality = sum(f.get('quality_score', 0) for f in films) / len(films) if films else 0
-    total_film_costs = sum(f.get('total_budget', 0) or f.get('budget', 0) for f in films)
+    total_box_office = sum(max(f.get('realistic_box_office', 0) or 0, f.get('total_revenue', 0) or 0) for f in films)
+    total_likes = sum((f.get('likes_count', 0) or 0) for f in films)
+    avg_quality = sum((f.get('quality_score', 0) or 0) for f in films) / len(films) if films else 0
+    total_film_costs = sum((f.get('total_budget', 0) or f.get('budget', 0) or 0) for f in films)
     total_infra_costs = sum(i.get('purchase_cost', 0) for i in infrastructure)
     total_infra_revenue = sum(i.get('total_revenue', 0) for i in infrastructure)
     INITIAL_FUNDS = 5000000
@@ -296,7 +296,7 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     if total_earned < 0:
         total_earned = lifetime_collected if lifetime_collected > 0 else total_box_office
 
-    featured = sorted(films, key=lambda f: f.get('quality_score', 0), reverse=True)[:9]
+    featured = sorted(films, key=lambda f: (f.get('quality_score') or 0), reverse=True)[:9]
 
     films_in_theaters = [f for f in films if f.get('status') == 'in_theaters']
     film_pending = 0
@@ -312,9 +312,9 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
                 last_collected = last_collected.replace(tzinfo=timezone.utc)
             hours_since = (now - last_collected).total_seconds() / 3600
             if hours_since >= (1/60):
-                quality = f.get('quality_score', 50)
-                week = f.get('current_week', 1)
-                base_hourly = f.get('opening_day_revenue', 100000) / 24
+                quality = f.get('quality_score') or 50
+                week = f.get('current_week') or 1
+                base_hourly = (f.get('opening_day_revenue') or 100000) / 24
                 decay = 0.85 ** (week - 1)
                 hourly_rev = base_hourly * decay * (quality / 100)
                 film_pending += int(hourly_rev * min(6, hours_since))
@@ -387,7 +387,7 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     best_film = ''
     best_quality = 0
     for f in films:
-        q = f.get('quality_score', f.get('pre_imdb_score', 0))
+        q = f.get('quality_score') or f.get('pre_imdb_score') or 0
         if q > best_quality:
             best_quality = q
             best_film = f.get('title', '')

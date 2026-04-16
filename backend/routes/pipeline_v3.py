@@ -1330,3 +1330,26 @@ async def discard(pid: str, user: dict = Depends(get_current_user)):
         "status": "discarded",
     })
     return {"success": True, "project": project}
+
+
+@router.post("/films/{film_id}/delete-film")
+async def delete_film_permanently(film_id: str, user: dict = Depends(get_current_user)):
+    """Elimina un film completamente dal database."""
+    result = await db.films.delete_one({"id": film_id, "user_id": user["id"]})
+    if result.deleted_count == 0:
+        result = await db.films.delete_one({"film_id": film_id, "user_id": user["id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Film non trovato o non di tua proprietà")
+    # Also clean up the source project
+    await db.film_projects.update_many(
+        {"film_id": film_id, "user_id": user["id"]},
+        {"$set": {"pipeline_state": "deleted", "status": "deleted", "updated_at": _now()}}
+    )
+    return {"success": True, "message": "Film eliminato permanentemente"}
+
+
+@router.get("/ad-platforms")
+async def get_ad_platforms_v3():
+    """Get available advertising platforms for V3."""
+    from utils.calc_adv import AD_PLATFORMS
+    return {"platforms": AD_PLATFORMS}

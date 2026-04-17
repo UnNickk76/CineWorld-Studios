@@ -683,6 +683,10 @@ async def generate_screenplay(pid: str, req: PromptRequest, user: dict = Depends
                 f"Genere: {genre}. "
                 + (f"Sottogeneri: {subgenre_str}. " if subgenre_str else "")
                 + f"Trama di base: {prompt[:800]}\n\n"
+                "IMPORTANTE: Usa nomi di personaggi VARI e INTERNAZIONALI. "
+                "NON usare 'Luca' come nome. Alterna nomi italiani (Marco, Giulia, Enrico, Valentina, Lorenzo), "
+                "stranieri (Yuki, Amir, Elena, Sven, Nadia, Dario, Zara, Kenji, Sofia, Nikolaj, Leila, Hugo) "
+                "e poco comuni (Tiberio, Morgana, Isadora, Cassio, Mirko, Lidia). "
                 "La sceneggiatura deve essere tra 1000 e 2000 caratteri, "
                 "in formato cinematografico con scene numerate, dialoghi tra i personaggi, "
                 "e descrizioni delle ambientazioni. Non aggiungere commenti o spiegazioni extra."

@@ -61,7 +61,8 @@ export async function v3api(path, method = 'GET', body) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail || data.error || 'Errore API');
-  return data;
+  // Deep copy to ensure no non-cloneable references survive into React state
+  try { return JSON.parse(JSON.stringify(data)); } catch { return data; }
 }
 
 /* ═══════ STEPPER ═══════ */

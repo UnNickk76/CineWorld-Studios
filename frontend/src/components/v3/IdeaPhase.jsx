@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Sparkles, Film, RefreshCw } from 'lucide-react';
 import { PhaseWrapper, GENRES, GENRE_LABELS, SUBGENRE_MAP, LOCATION_TAGS, ProgressCircle, v3api } from './V3Shared';
 
@@ -32,8 +32,18 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
   const [loading, setLoading] = useState('');
   const [posterProgress, setPosterProgress] = useState(0);
   const [scriptProgress, setScriptProgress] = useState(0);
+  const [posterZoomed, setPosterZoomed] = useState(false);
+  const zoomTimerRef = useRef(null);
   const posterInt = useRef(null);
   const scriptInt = useRef(null);
+
+  // Auto-close zoom after 20s
+  useEffect(() => {
+    if (posterZoomed) {
+      zoomTimerRef.current = setTimeout(() => setPosterZoomed(false), 20000);
+      return () => clearTimeout(zoomTimerRef.current);
+    }
+  }, [posterZoomed]);
 
   const subgenreOptions = useMemo(() => SUBGENRE_MAP[genre] || [], [genre]);
   const mark = () => onDirty?.();
@@ -189,7 +199,10 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
               )}
             </div>
 
-            {film.poster_url && <img src={film.poster_url} alt="" className="w-24 h-36 rounded-lg border border-gray-700 object-cover mx-auto shadow-lg" />}
+            {film.poster_url && (
+              <img src={film.poster_url} alt="" className="w-24 h-36 rounded-lg border border-gray-700 object-cover mx-auto shadow-lg cursor-pointer hover:brightness-110 transition"
+                onClick={() => setPosterZoomed(true)} data-testid="poster-zoom-trigger" />
+            )}
 
             {subPhase === 1 && !film.poster_url && (
               <>
@@ -311,6 +324,19 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
           </div>
         )}
       </div>
+
+      {/* Poster Zoom Overlay */}
+      {posterZoomed && film.poster_url && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm"
+          onClick={() => { setPosterZoomed(false); clearTimeout(zoomTimerRef.current); }}
+          data-testid="poster-zoom-overlay">
+          <img src={film.poster_url} alt={film.title || ''} className="max-w-[85vw] max-h-[85vh] rounded-2xl shadow-2xl object-contain border-2 border-white/10"
+            style={{ animation: 'zoomIn 0.3s ease-out' }} />
+          <div className="absolute bottom-6 left-0 right-0 text-center">
+            <p className="text-[10px] text-gray-400">Tocca per chiudere</p>
+          </div>
+        </div>
+      )}
     </PhaseWrapper>
   );
 };

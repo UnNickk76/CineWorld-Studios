@@ -601,7 +601,19 @@ function FilmActionPanel({ film, arenaData, actionResult, loading, onAction, onD
           </Button>
         )}
 
-        {/* Action Tabs */}
+        {/* Own Film Warning */}
+        {film.is_mine && (
+          <div className="p-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center gap-2 mb-3" data-testid="own-film-warning">
+            <Star className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+            <div>
+              <p className="text-[10px] text-yellow-400 font-bold">Questo è il tuo film</p>
+              <p className="text-[8px] text-yellow-400/60">Non puoi supportare o boicottare i tuoi contenuti. Puoi solo visualizzare le statistiche.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Action Tabs (hidden for own films) */}
+        {!film.is_mine && (
         <div className="flex gap-1 mb-3">
           <button
             onClick={() => setActionTab('boycott')}
@@ -618,18 +630,21 @@ function FilmActionPanel({ film, arenaData, actionResult, loading, onAction, onD
             <Heart className="w-3 h-3 inline mr-1" />Supporto
           </button>
         </div>
+        )}
 
-        {/* Action List */}
+        {/* Action List (only for other players' films) */}
+        {!film.is_mine && (
         <div className="space-y-2">
           {actionTab === 'support' && Object.entries(supportTypes).map(([aid, cfg]) => {
             const onCooldown = film.cooldowns?.[aid];
             const ActionIcon = ICON_MAP[cfg.icon] || Heart;
+            const blocked = film.is_mine || onCooldown || loading;
             return (
               <button
                 key={aid}
-                onClick={() => !onCooldown && !loading && onAction('support', aid)}
-                disabled={onCooldown || loading}
-                className={`w-full p-2.5 rounded-xl text-left border transition-all ${onCooldown ? 'opacity-30 bg-white/[0.02] border-white/5' : 'bg-emerald-500/5 border-emerald-500/15 hover:bg-emerald-500/10 active:scale-[0.98]'}`}
+                onClick={() => !blocked && onAction('support', aid)}
+                disabled={blocked}
+                className={`w-full p-2.5 rounded-xl text-left border transition-all ${blocked ? 'opacity-30 bg-white/[0.02] border-white/5' : 'bg-emerald-500/5 border-emerald-500/15 hover:bg-emerald-500/10 active:scale-[0.98]'}`}
                 data-testid={`action-${aid}`}
               >
                 <div className="flex items-center gap-2">
@@ -687,6 +702,7 @@ function FilmActionPanel({ film, arenaData, actionResult, loading, onAction, onD
           })}
 
         </div>
+        )}
 
         {/* Recent Actions on this film */}
         {film.recent_actions?.length > 0 && (

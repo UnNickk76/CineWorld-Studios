@@ -160,6 +160,12 @@ async def follow_user(user_id: str, user: dict = Depends(get_current_user)):
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     await db.follows.insert_one(follow)
+    # Hook: medals + challenges
+    try:
+        from game_hooks import on_follow
+        await on_follow(user['id'])
+    except Exception:
+        pass
     notification = create_notification(user_id, 'new_follower', 'New Follower',
         f"{user.get('nickname')} started following you", {'user_id': current_user_id}, f"/profile/{current_user_id}")
     await db.notifications.insert_one(notification)

@@ -508,6 +508,13 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "cwsv_display": cwsv_display,
     })
 
+    # Hook: medals + challenges
+    try:
+        from game_hooks import on_series_released
+        await on_series_released(user["id"], series_type)
+    except Exception:
+        pass
+
     return {
         "success": True,
         "series_id": series_id,
@@ -809,6 +816,13 @@ async def broadcast_episode(series_id: str, user: dict = Depends(get_current_use
         {"id": series_id},
         {"$set": {"episodes": episodes, "status": new_status, "updated_at": _now()}}
     )
+
+    # Hook: challenges
+    try:
+        from game_hooks import on_episode_broadcast
+        await on_episode_broadcast(user["id"])
+    except Exception:
+        pass
 
     return {
         "success": True,

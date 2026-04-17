@@ -572,6 +572,13 @@ async def arena_support(req: ArenaActionRequest, user: dict = Depends(get_curren
         except Exception:
             pass
 
+    # Hook: challenges
+    try:
+        from game_hooks import on_pvp_support
+        await on_pvp_support(user['id'])
+    except Exception:
+        pass
+
     diminish_warning = ''
     if diminish_factor < 1.0:
         diminish_warning = f' (efficacia ridotta al {int(diminish_factor*100)}% — stesso bersaglio)'
@@ -743,6 +750,13 @@ async def arena_boycott(req: ArenaActionRequest, user: dict = Depends(get_curren
         if bonus_film_title:
             msg += f' +{own_bonus}% per "{bonus_film_title}".'
 
+        # Hook: medals + challenges
+        try:
+            from game_hooks import on_pvp_boycott_success
+            await on_pvp_boycott_success(user['id'])
+        except Exception:
+            pass
+
         return {
             'success': True, 'boycott_success': True,
             'action': config['name'], 'film_title': film.get('title', ''),
@@ -851,6 +865,13 @@ async def arena_defend(req: DefendRequest, user: dict = Depends(get_current_user
                 )
             except Exception:
                 pass
+
+    # Hook: medals + challenges
+    try:
+        from game_hooks import on_pvp_defend
+        await on_pvp_defend(user['id'])
+    except Exception:
+        pass
 
     return {
         'success': True, 'film_title': film.get('title', ''),

@@ -66,6 +66,41 @@ export default function MedalsChallengePage() {
     setClaiming(null);
   };
 
+  const [festival, setFestival] = useState(null);
+  const [festivalVotes, setFestivalVotes] = useState({});
+  const [leaderboard, setLeaderboard] = useState(null);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [votingLoading, setVotingLoading] = useState(false);
+
+  const loadFestival = useCallback(async () => {
+    try {
+      const res = await api.get('/festivals/current');
+      setFestival(res.data.festival);
+      setHasVoted(res.data.has_voted);
+    } catch { /* */ }
+  }, [api]);
+
+  const loadLeaderboard = useCallback(async () => {
+    try {
+      const res = await api.get('/challenges/leaderboard');
+      setLeaderboard(res.data);
+    } catch { /* */ }
+  }, [api]);
+
+  useEffect(() => { loadFestival(); loadLeaderboard(); }, [loadFestival, loadLeaderboard]);
+
+  const submitVotes = async () => {
+    if (!festival) return;
+    setVotingLoading(true);
+    try {
+      await api.post(`/festivals/${festival.id}/vote`, { votes: festivalVotes });
+      toast.success('Voto registrato!');
+      setHasVoted(true);
+      loadFestival();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore voto'); }
+    setVotingLoading(false);
+  };
+
   if (loading) return (
     <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center pt-16">
       <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
@@ -87,7 +122,7 @@ export default function MedalsChallengePage() {
         </div>
 
         <div className="flex gap-1">
-          {[['challenges', 'Sfide', Zap], ['medals', 'Medaglie', Medal]].map(([id, label, Icon]) => (
+          {[['challenges', 'Sfide', Zap], ['medals', 'Medaglie', Medal], ['festival', 'Festival', Trophy], ['classifica', 'Classifica', Crown]].map(([id, label, Icon]) => (
             <button key={id} onClick={() => setTab(id)}
               className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-semibold
                 ${tab === id ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' : 'bg-white/5 text-gray-500 border border-transparent'}`}
@@ -206,6 +241,92 @@ export default function MedalsChallengePage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* FESTIVAL TAB */}
+        {tab === 'festival' && (
+          <div className="space-y-3">
+            {!festival ? (
+              <div className="text-center py-12 text-gray-500">
+                <Trophy className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                <p className="text-sm">Nessun festival attivo</p>
+                <p className="text-[10px] text-gray-600 mt-1">I festival vengono creati automaticamente quando ci sono abbastanza film</p>
+              </div>
+            ) : (
+              <>
+                <div className="p-3 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-center">
+                  <h2 className="font-['Bebas_Neue'] text-lg text-amber-400 tracking-wide">{festival.name}</h2>
+                  <p className="text-[10px] text-gray-400 mt-1">{hasVoted ? 'Hai già votato!' : 'Vota per i tuoi preferiti'}</p>
+                </div>
+
+                {Object.entries(festival.categories || {}).map(([catId, cat]) => (
+                  <div key={catId} className="p-2.5 bg-white/[0.02] rounded-xl border border-white/5" data-testid={`festival-cat-${catId}`}>
+                    <h3 className="text-[11px] font-bold text-amber-400 mb-2">{cat.name}</h3>
+                    <div className="space-y-1">
+                      {cat.nominees?.map(n => (
+                        <button key={n.id}
+                          onClick={() => !hasVoted && setFestivalVotes({ ...festivalVotes, [catId]: n.id })}
+                          disabled={hasVoted}
+                          className={`w-full flex items-center gap-2 p-1.5 rounded-lg text-left transition ${
+                            festivalVotes[catId] === n.id ? 'bg-amber-500/15 border border-amber-500/25' :
+                            hasVoted ? 'bg-white/[0.02] opacity-50' : 'bg-white/[0.02] hover:bg-white/[0.05] border border-transparent'}`}
+                          data-testid={`vote-${catId}-${n.id}`}>
+                          {posterSrc(n.poster_url) ? (
+                            <img src={posterSrc(n.poster_url)} alt="" className="w-7 h-10 rounded object-cover" />
+                          ) : <div className="w-7 h-10 rounded bg-gray-800" />}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-bold truncate">{n.title}</p>
+                            {hasVoted && <span className="text-[8px] text-amber-400">{n.votes} voti</span>}
+                          </div>
+                          {festivalVotes[catId] === n.id && <CheckCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {!hasVoted && Object.keys(festivalVotes).length > 0 && (
+                  <Button className="w-full bg-amber-600 hover:bg-amber-700 text-sm" onClick={submitVotes}
+                    disabled={votingLoading} data-testid="submit-votes-btn">
+                    {votingLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Trophy className="w-4 h-4 mr-1" />}
+                    Invia Voti ({Object.keys(festivalVotes).length} categorie)
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* CLASSIFICA TAB */}
+        {tab === 'classifica' && leaderboard && (
+          <div className="space-y-3">
+            <div className="p-2.5 bg-amber-500/5 rounded-xl border border-amber-500/10 text-center">
+              <h3 className="text-xs font-bold text-amber-400">Classifica Sfide Settimanali</h3>
+              {leaderboard.my_rank > 0 && (
+                <p className="text-[10px] text-gray-400 mt-0.5">La tua posizione: <b className="text-white">#{leaderboard.my_rank}</b></p>
+              )}
+            </div>
+            {leaderboard.leaderboard?.length === 0 ? (
+              <p className="text-center text-gray-500 text-sm py-8">Nessun partecipante questa settimana</p>
+            ) : leaderboard.leaderboard?.map((entry, i) => (
+              <motion.div key={entry.user_id} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                className={`flex items-center gap-2 p-2 rounded-lg ${entry.is_me ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-white/[0.02]'}`}
+                data-testid={`leaderboard-${i}`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black
+                  ${i === 0 ? 'bg-yellow-500/20 text-yellow-400' : i === 1 ? 'bg-gray-400/20 text-gray-300' : i === 2 ? 'bg-orange-500/20 text-orange-400' : 'bg-white/5 text-gray-500'}`}>
+                  {i + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-bold truncate">{entry.nickname}</p>
+                  <p className="text-[8px] text-gray-500">{entry.studio}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-bold text-amber-400">{entry.completed}/{entry.total}</p>
+                  <p className="text-[8px] text-gray-500">completate</p>
+                </div>
+              </motion.div>
+            ))}
           </div>
         )}
       </div>

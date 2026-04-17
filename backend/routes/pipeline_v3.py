@@ -1446,6 +1446,13 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "final_quality": quality_score,
     })
 
+    # Hook: medals + challenges
+    try:
+        from game_hooks import on_film_released
+        await on_film_released(user["id"])
+    except Exception:
+        pass
+
     return {
         "success": True,
         "film_id": film_doc["id"],

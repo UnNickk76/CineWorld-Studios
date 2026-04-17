@@ -7452,6 +7452,90 @@ async def startup_event():
         id='auto_revenue_tick',
         replace_existing=True
     )
+
+    # Daily at 08:00: Market Deal of the Day + Close expired auctions
+    async def market_daily_tasks():
+        try:
+            _db = get_database()
+            now_iso = datetime.now(timezone.utc).isoformat()
+
+            # Close expired auctions
+            expired = await _db.market_listings.find(
+                {'status': 'active', 'sale_type': 'auction', 'auction_ends_at': {'$lt': now_iso}}
+            ).to_list(50)
+            for auction in expired:
+                if auction.get('highest_bidder'):
+                    # Winner! Transfer item and complete transaction
+                    price = auction.get('current_bid', 0)
+                    commission = int(price * 0.10)
+                    seller_amount = price - commission
+                    await _db.users.update_one({'id': auction['seller_id']}, {'$inc': {'funds': seller_amount}})
+                    # Transfer ownership
+                    item_type = auction.get('item_type')
+                    item_id = auction.get('item_id')
+                    buyer_id = auction['highest_bidder']
+                    if item_type == 'film':
+                        await _db.films.update_one({'id': item_id}, {'$set': {'user_id': buyer_id, 'producer_id': buyer_id}})
+                    elif item_type in ('series', 'anime'):
+                        await _db.tv_series.update_one({'id': item_id}, {'$set': {'user_id': buyer_id}})
+                    elif item_type == 'infrastructure':
+                        await _db.infrastructure.update_one({'id': item_id}, {'$set': {'owner_id': buyer_id}})
+                    # Record transaction
+                    import uuid as _uuid
+                    await _db.market_transactions.insert_one({
+                        'id': str(_uuid.uuid4()), 'listing_id': auction['id'],
+                        'seller_id': auction['seller_id'], 'buyer_id': buyer_id,
+                        'item_type': item_type, 'item_id': item_id,
+                        'title': auction.get('title', ''), 'price': price,
+                        'commission': commission, 'seller_received': seller_amount,
+                        'sale_type': 'auction', 'completed_at': now_iso,
+                    })
+                    await _db.market_listings.update_one({'id': auction['id']}, {'$set': {'status': 'sold'}})
+                    logging.info(f"[MARKET] Auction completed: {auction.get('title')} -> {buyer_id} for ${price}")
+                else:
+                    # No bids, cancel
+                    await _db.market_listings.update_one({'id': auction['id']}, {'$set': {'status': 'expired'}})
+
+            # Deal of the Day: pick random active listing with -30% discount
+            await _db.market_listings.update_many({'deal_of_day': True}, {'$set': {'deal_of_day': False}})
+            active_count = await _db.market_listings.count_documents({'status': 'active', 'sale_type': 'fixed'})
+            if active_count > 0:
+                import random
+                skip = random.randint(0, max(0, active_count - 1))
+                deal = await _db.market_listings.find({'status': 'active', 'sale_type': 'fixed'}).skip(skip).limit(1).to_list(1)
+                if deal:
+                    original_price = deal[0].get('price', 0)
+                    deal_price = int(original_price * 0.7)
+                    await _db.market_listings.update_one(
+                        {'id': deal[0]['id']},
+                        {'$set': {'deal_of_day': True, 'original_price': original_price, 'price': deal_price}}
+                    )
+                    logging.info(f"[MARKET] Deal of day: {deal[0].get('title')} at ${deal_price}")
+
+            # Close expired festivals
+            expired_festivals = await _db.festivals.find(
+                {'status': 'active', 'end_date': {'$lt': now_iso}}
+            ).to_list(10)
+            for f in expired_festivals:
+                await _db.festivals.update_one({'id': f['id']}, {'$set': {'status': 'completed'}})
+                # Award fame to winners
+                for cat_id, cat_data in f.get('categories', {}).items():
+                    nominees = sorted(cat_data.get('nominees', []), key=lambda x: -x.get('votes', 0))
+                    if nominees and nominees[0].get('votes', 0) > 0:
+                        winner_uid = nominees[0].get('user_id')
+                        if winner_uid:
+                            await _db.users.update_one({'id': winner_uid}, {'$inc': {'fame': 15, 'funds': 500000}})
+                logging.info(f"[FESTIVAL] Closed: {f.get('name')}")
+
+        except Exception as e:
+            logging.error(f"[MARKET] Daily tasks error: {e}")
+
+    scheduler.add_job(
+        market_daily_tasks,
+        CronTrigger(hour=8, minute=0),
+        id='market_daily_tasks',
+        replace_existing=True
+    )
     
     # Every 6 hours: Cleanup stale guest users (inactive > 24h)
     async def cleanup_stale_guests():

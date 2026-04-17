@@ -4,6 +4,7 @@
 
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel
 import uuid
 import logging
 
@@ -357,3 +358,271 @@ async def update_challenge_progress(user_id: str, challenge_type: str, amount: i
             {'_id': user_challenges['_id']},
             {'$set': {'challenges': user_challenges['challenges']}}
         )
+
+
+# ═══════════════════════════════════════
+# CLASSIFICA SETTIMANALE SFIDE
+# ═══════════════════════════════════════
+
+@router.get("/challenges/leaderboard")
+async def weekly_challenge_leaderboard(user: dict = Depends(get_current_user)):
+    """Leaderboard: chi ha completato più sfide questa settimana."""
+    now = datetime.now(timezone.utc)
+    days_since_monday = now.weekday()
+    week_start = (now - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    all_challenges = await db.weekly_challenges.find(
+        {'week_start': week_start.isoformat()}, {'_id': 0}
+    ).to_list(200)
+
+    leaderboard = []
+    for uc in all_challenges:
+        completed = sum(1 for c in uc.get('challenges', []) if c.get('completed'))
+        claimed = sum(1 for c in uc.get('challenges', []) if c.get('claimed'))
+        if completed > 0:
+            u = await db.users.find_one({'id': uc['user_id']}, {'_id': 0, 'nickname': 1, 'production_house_name': 1})
+            leaderboard.append({
+                'user_id': uc['user_id'],
+                'nickname': (u or {}).get('nickname', '?'),
+                'studio': (u or {}).get('production_house_name', ''),
+                'completed': completed,
+                'claimed': claimed,
+                'total': len(uc.get('challenges', [])),
+                'is_me': uc['user_id'] == user['id'],
+            })
+
+    leaderboard.sort(key=lambda x: -x['completed'])
+
+    # My rank
+    my_rank = next((i + 1 for i, l in enumerate(leaderboard) if l['is_me']), 0)
+
+    return {
+        'leaderboard': leaderboard[:20],
+        'my_rank': my_rank,
+        'total_participants': len(leaderboard),
+    }
+
+
+# ═══════════════════════════════════════
+# FESTIVAL CINEMATOGRAFICI
+# ═══════════════════════════════════════
+
+FESTIVAL_CATEGORIES = [
+    {'id': 'miglior_film', 'name': 'Miglior Film', 'icon': 'Trophy'},
+    {'id': 'miglior_regia', 'name': 'Miglior Regia', 'icon': 'Film'},
+    {'id': 'miglior_attore', 'name': 'Miglior Attore', 'icon': 'Star'},
+    {'id': 'miglior_sceneggiatura', 'name': 'Miglior Sceneggiatura', 'icon': 'BookOpen'},
+    {'id': 'miglior_colonna_sonora', 'name': 'Miglior Colonna Sonora', 'icon': 'Music'},
+    {'id': 'miglior_serie_tv', 'name': 'Miglior Serie TV', 'icon': 'Tv'},
+    {'id': 'miglior_anime', 'name': 'Miglior Anime', 'icon': 'Sparkles'},
+    {'id': 'rivelazione_anno', 'name': 'Rivelazione dell\'Anno', 'icon': 'Zap'},
+]
+
+
+@router.get("/festivals/current")
+async def get_current_festival(user: dict = Depends(get_current_user)):
+    """Get current active festival or create one if none exists."""
+    now = datetime.now(timezone.utc)
+
+    # Check for active festival
+    festival = await db.festivals.find_one(
+        {'status': 'active', 'end_date': {'$gte': now.isoformat()}},
+        {'_id': 0}
+    )
+
+    if not festival:
+        # Check if we should create a new one (every 2 weeks)
+        last = await db.festivals.find_one({}, {'_id': 0}, sort=[('created_at', -1)])
+        if last:
+            last_end = last.get('end_date', '')
+            if last_end > now.isoformat():
+                return {'festival': None, 'message': 'Nessun festival attivo'}
+
+        # Auto-create: get recent films for nominations
+        recent_films = await db.films.find(
+            {'released_at': {'$gte': (now - timedelta(days=30)).isoformat()}},
+            {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'quality_score': 1, 'genre': 1, 'poster_url': 1}
+        ).sort('quality_score', -1).to_list(20)
+
+        recent_series = await db.tv_series.find(
+            {'released_at': {'$gte': (now - timedelta(days=30)).isoformat()}},
+            {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'quality_score': 1, 'type': 1, 'poster_url': 1}
+        ).to_list(20)
+
+        if len(recent_films) < 3:
+            return {'festival': None, 'message': 'Non ci sono abbastanza film recenti per un festival'}
+
+        import random
+        categories = {}
+        for cat in FESTIVAL_CATEGORIES:
+            pool = recent_films if cat['id'] not in ('miglior_serie_tv', 'miglior_anime') else recent_series
+            if cat['id'] == 'miglior_anime':
+                pool = [s for s in recent_series if s.get('type') == 'anime']
+            elif cat['id'] == 'miglior_serie_tv':
+                pool = [s for s in recent_series if s.get('type') == 'tv_series']
+
+            if len(pool) < 2:
+                continue
+
+            nominees = random.sample(pool, min(4, len(pool)))
+            categories[cat['id']] = {
+                'name': cat['name'],
+                'icon': cat['icon'],
+                'nominees': [{'id': n['id'], 'title': n['title'], 'user_id': n['user_id'],
+                             'poster_url': n.get('poster_url', ''), 'votes': 0} for n in nominees],
+            }
+
+        if len(categories) < 3:
+            return {'festival': None, 'message': 'Non abbastanza contenuti per le categorie'}
+
+        festival_names = [
+            'CineWorld Film Festival', 'Golden Reel Awards', 'Crystal Globe Festival',
+            'Silver Screen Awards', 'Star Light Festival', 'Diamond Frame Awards',
+        ]
+
+        festival = {
+            'id': str(uuid.uuid4()),
+            'name': random.choice(festival_names),
+            'status': 'active',
+            'categories': categories,
+            'start_date': now.isoformat(),
+            'end_date': (now + timedelta(days=5)).isoformat(),
+            'voters': [],
+            'created_at': now.isoformat(),
+        }
+        await db.festivals.insert_one(festival)
+        festival.pop('_id', None)
+
+    # Check if user already voted
+    has_voted = user['id'] in festival.get('voters', [])
+
+    return {
+        'festival': festival,
+        'has_voted': has_voted,
+        'time_remaining': _festival_time_remaining(festival.get('end_date', '')),
+    }
+
+
+class FestivalVoteRequest(BaseModel):
+    votes: dict  # {category_id: nominee_id}
+
+
+@router.post("/festivals/{festival_id}/vote")
+async def vote_festival(festival_id: str, req: FestivalVoteRequest, user: dict = Depends(get_current_user)):
+    """Vote in a festival. One vote per category, one time only."""
+    festival = await db.festivals.find_one(
+        {'id': festival_id, 'status': 'active'}, {'_id': 0}
+    )
+    if not festival:
+        raise HTTPException(404, "Festival non trovato o terminato")
+    if user['id'] in festival.get('voters', []):
+        raise HTTPException(400, "Hai già votato in questo festival")
+
+    # Apply votes
+    categories = festival.get('categories', {})
+    for cat_id, nominee_id in req.votes.items():
+        if cat_id in categories:
+            for nominee in categories[cat_id]['nominees']:
+                if nominee['id'] == nominee_id:
+                    nominee['votes'] += 1
+                    break
+
+    await db.festivals.update_one(
+        {'id': festival_id},
+        {'$set': {'categories': categories}, '$push': {'voters': user['id']}}
+    )
+
+    return {'success': True, 'message': 'Voto registrato! Grazie per aver partecipato.'}
+
+
+@router.get("/festivals/results/{festival_id}")
+async def festival_results(festival_id: str, user: dict = Depends(get_current_user)):
+    """Get festival results (winners)."""
+    festival = await db.festivals.find_one({'id': festival_id}, {'_id': 0})
+    if not festival:
+        raise HTTPException(404, "Festival non trovato")
+
+    results = {}
+    for cat_id, cat_data in festival.get('categories', {}).items():
+        nominees = sorted(cat_data['nominees'], key=lambda x: -x['votes'])
+        winner = nominees[0] if nominees else None
+        # Enrich winner with user info
+        if winner:
+            wu = await db.users.find_one({'id': winner.get('user_id')}, {'_id': 0, 'nickname': 1})
+            winner['producer_name'] = (wu or {}).get('nickname', '?')
+        results[cat_id] = {
+            'name': cat_data['name'],
+            'icon': cat_data['icon'],
+            'winner': winner,
+            'nominees': nominees,
+            'total_votes': sum(n['votes'] for n in nominees),
+        }
+
+    return {
+        'festival': {'id': festival['id'], 'name': festival['name'], 'status': festival['status']},
+        'results': results,
+        'total_voters': len(festival.get('voters', [])),
+    }
+
+
+def _festival_time_remaining(end_iso):
+    try:
+        end = datetime.fromisoformat(end_iso.replace('Z', '+00:00'))
+        diff = end - datetime.now(timezone.utc)
+        if diff.total_seconds() <= 0:
+            return 'Terminato'
+        days = diff.days
+        hours = int((diff.total_seconds() % 86400) // 3600)
+        if days > 0:
+            return f'{days}g {hours}h'
+        return f'{hours}h'
+    except Exception:
+        return '?'
+
+
+# ═══════════════════════════════════════
+# VALUTAZIONE VENDITORE (Seller Reputation)
+# ═══════════════════════════════════════
+
+@router.get("/market/seller-rating/{user_id}")
+async def get_seller_rating(user_id: str, user: dict = Depends(get_current_user)):
+    """Get seller reputation based on completed transactions."""
+    sales = await db.market_transactions.find(
+        {'seller_id': user_id}, {'_id': 0, 'price': 1, 'completed_at': 1}
+    ).to_list(100)
+
+    purchases = await db.market_transactions.find(
+        {'buyer_id': user_id}, {'_id': 0, 'price': 1}
+    ).to_list(100)
+
+    total_sales = len(sales)
+    total_volume = sum(s.get('price', 0) for s in sales)
+
+    # Rating: based on volume and quantity
+    if total_sales == 0:
+        rating = 0
+        title = 'Nuovo'
+    elif total_sales < 3:
+        rating = 1
+        title = 'Principiante'
+    elif total_sales < 10:
+        rating = 2
+        title = 'Venditore'
+    elif total_sales < 25:
+        rating = 3
+        title = 'Commerciante'
+    elif total_sales < 50:
+        rating = 4
+        title = 'Mercante Esperto'
+    else:
+        rating = 5
+        title = 'Leggenda del Mercato'
+
+    return {
+        'user_id': user_id,
+        'rating': rating,
+        'title': title,
+        'total_sales': total_sales,
+        'total_purchases': len(purchases),
+        'total_volume': total_volume,
+    }

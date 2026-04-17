@@ -244,6 +244,14 @@ async def buy_fixed(req: BuyFixedRequest, user: dict = Depends(get_current_user)
     except Exception:
         pass
 
+    # Hook: medals + challenges
+    try:
+        from game_hooks import on_market_sell, on_market_buy
+        await on_market_sell(listing['seller_id'])
+        await on_market_buy(user['id'])
+    except Exception:
+        pass
+
     return {
         'success': True, 'title': listing['title'],
         'price': price, 'commission': commission,

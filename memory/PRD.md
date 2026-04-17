@@ -143,3 +143,29 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 ### Refactoring
 - Pulizia codice legacy (`film_pipeline_legacy.py`, vecchi endpoint)
 - Riorganizzazione `scheduler_tasks.py` (file troppo grande, >2200 righe)
+
+## Game Hooks — Implementato (17/04/2026)
+- `game_hooks.py` centralizza trigger per medaglie e sfide
+- Hook inseriti in: release film V3, release serie, PvP support/boycott/defend, market sell/buy, follow, broadcast episodi
+- Medaglie si sbloccano automaticamente dopo azioni chiave
+
+## Festival Cinematografici — Implementato (17/04/2026)
+- Creazione automatica quando ci sono 3+ film recenti (ultimi 30gg)
+- 8 categorie: Miglior Film, Regia, Attore, Sceneggiatura, Colonna Sonora, Serie TV, Anime, Rivelazione
+- Votazione: 1 voto per categoria, 1 volta sola
+- Durata: 5 giorni, poi chiusura automatica con premi (15 fama + $500K ai vincitori)
+- Backend: `GET /api/festivals/current`, `POST /api/festivals/{id}/vote`, `GET /api/festivals/results/{id}`
+
+## Classifica Settimanale Sfide — Implementato (17/04/2026)
+- Classifica chi ha completato più sfide nella settimana
+- Backend: `GET /api/challenges/leaderboard`
+
+## Valutazione Venditore — Implementato (17/04/2026)
+- Rating 0-5 basato su transazioni completate: Nuovo→Principiante→Venditore→Commerciante→Esperto→Leggenda
+- Backend: `GET /api/market/seller-rating/{user_id}`
+
+## Affare del Giorno + Aste — Scheduler Automatico (17/04/2026)
+- Job giornaliero alle 08:00 UTC
+- Seleziona listing random con -30% sconto come "Affare del Giorno"
+- Chiude aste scadute: trasferisce item al vincitore, rimborsa sconfitti
+- Chiude festival scaduti e assegna premi ai vincitori

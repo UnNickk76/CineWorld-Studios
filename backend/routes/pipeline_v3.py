@@ -450,9 +450,13 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
     defaults = fill_missing_defaults(project, req.next_state)
 
     # ═══ Timer validation: block advance if timer not complete ═══
+    # BUT: if the project already reached beyond this step, always allow (prevents getting stuck)
     ci = _step_index(current)
     ni = _step_index(req.next_state)
-    if ni > ci:
+    max_reached = project.get("max_step_reached", ci)
+    already_been_further = ni <= max_reached
+
+    if ni > ci and not already_been_further:
         # Hype must be 100%
         if current == "hype" and (project.get("hype_progress", 0) or 0) < 100:
             raise HTTPException(400, "L'hype non e ancora al 100%. Attendi o velocizza.")
@@ -490,6 +494,10 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
                 raise HTTPException(400, "La Prima non e ancora conclusa. Attendi o velocizza.")
 
     update = {**defaults, "pipeline_state": req.next_state}
+    # Track max step ever reached (prevents getting stuck when going back)
+    new_max = max(ni, max_reached)
+    if new_max > max_reached:
+        update["max_step_reached"] = new_max
 
     # Auto-start CIAK timer: 1 day = 1 hour real (only if not already started)
     if req.next_state == "ciak" and not project.get("ciak_started_at"):

@@ -47,6 +47,7 @@ import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
 import { GameStoreProvider, useGameStore } from './contexts/GameStore';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import { NotificationProvider, useNotifications } from './components/NotificationProvider';
+import { CompareProducersModal } from './components/CompareProducersModal';
 import { VelionOverlay } from './components/VelionOverlay';
 import { VelionPanel, shouldAutoShowTutorial } from './components/VelionPanel';
 import { GuestTutorial } from './components/GuestTutorial';
@@ -1425,7 +1426,7 @@ const ChallengeNotificationHandler = ({ api, user, navigate }) => {
 
 
 // ═══ PLAYER PROFILE POPUP — Stats + Messaggia + Sfida Minigiochi ═══
-const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
+const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) => {
   const confirm = useConfirm();
   const p = data.profile;
   const [showGames, setShowGames] = useState(false);
@@ -1525,6 +1526,7 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
         {/* Action buttons */}
         <div className="px-4 pb-3 space-y-1.5">
           {!showGames ? (
+            <>
             <div className="flex gap-2">
               <button onClick={handleMessage} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500/20 transition-colors text-[10px] font-bold" data-testid="popup-message-btn">
                 <MessageCircle className="w-3.5 h-3.5" /> Messaggia
@@ -1533,6 +1535,12 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
                 <Swords className="w-3.5 h-3.5" /> Sfida
               </button>
             </div>
+            {onCompare && data.userId !== user?.id && (
+              <button onClick={() => onCompare(data.userId)} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-500/10 border border-purple-500/25 text-purple-400 hover:bg-purple-500/20 transition-colors text-[10px] font-bold" data-testid="popup-compare-btn">
+                <BarChart3 className="w-3.5 h-3.5" /> Confronta con me
+              </button>
+            )}
+            </>
           ) : (
             <div className="space-y-1">
               <p className="text-[9px] text-gray-400 font-bold">Scegli minigioco:</p>
@@ -1571,6 +1579,7 @@ const ProtectedRoute = ({ children }) => {
   const [showAutonomy, setShowAutonomy] = useState(false);
   const [showGameTutorial, setShowGameTutorial] = useState(false);
   const [showDashboardTour, setShowDashboardTour] = useState(false);
+  const [compareProducerId, setCompareProducerId] = useState(null);
 
   // Listen for player popup events from ContentTemplate and other components
   useEffect(() => {
@@ -1818,8 +1827,12 @@ const ProtectedRoute = ({ children }) => {
 
       {/* ═══ PLAYER PROFILE POPUP ═══ */}
       {popupData && !popupData.loading && popupData.profile && (
-        <PlayerProfilePopup data={popupData} onClose={() => setPopupData(null)} navigate={navigate} api={api} user={user} />
+        <PlayerProfilePopup data={popupData} onClose={() => setPopupData(null)} navigate={navigate} api={api} user={user}
+          onCompare={(pid) => { setPopupData(null); setCompareProducerId(pid); }} />
       )}
+
+      {/* ═══ COMPARE PRODUCERS MODAL ═══ */}
+      <CompareProducersModal open={!!compareProducerId} onClose={() => setCompareProducerId(null)} compareWithId={compareProducerId} />
 
       {/* ═══ CHALLENGE NOTIFICATION POPUP ═══ */}
       <ChallengeNotificationHandler api={api} user={user} navigate={navigate} />

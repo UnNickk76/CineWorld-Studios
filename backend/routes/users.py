@@ -430,3 +430,76 @@ async def check_is_creator(user: dict = Depends(get_current_user)):
         'is_creator': user.get('nickname') == CREATOR_NICKNAME,
         'creator_nickname': CREATOR_NICKNAME
     }
+
+
+@router.get("/players/compare")
+async def compare_producers(p1: str, p2: str, user: dict = Depends(get_current_user)):
+    """Compare two producers side-by-side."""
+    async def get_producer_stats(pid):
+        player = await db.users.find_one({'id': pid}, {'_id': 0, 'password': 0, 'email': 0})
+        if not player:
+            return None
+        films = await db.films.find(
+            {'$or': [{'user_id': pid}, {'producer_id': pid}]},
+            {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'type': 1}
+        ).to_list(100)
+        series = await db.tv_series.find(
+            {'user_id': pid},
+            {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'type': 1}
+        ).to_list(100)
+
+        all_content = films + series
+        scores = []
+        for c in all_content:
+            q = c.get('quality_score')
+            if q is not None and q > 0:
+                scores.append(q / 10 if q > 10 else q)
+        avg_cwsv = round(sum(scores) / len(scores), 1) if scores else 0
+        total_rev = sum((c.get('total_revenue', 0) or 0) for c in all_content)
+
+        best = None
+        best_score = 0
+        for c in all_content:
+            q = c.get('quality_score') or 0
+            norm_q = q / 10 if q > 10 else q
+            if norm_q > best_score:
+                best_score = norm_q
+                best = {'title': c.get('title', '?'), 'cwsv': norm_q}
+
+        tv_series_list = [s for s in series if s.get('type') == 'tv_series']
+        anime_list = [s for s in series if s.get('type') == 'anime']
+
+        level_info = get_level_from_xp(player.get('total_xp', 0))
+
+        return {
+            'id': pid,
+            'nickname': player.get('nickname'),
+            'production_house_name': player.get('production_house_name'),
+            'avatar_url': player.get('avatar_url'),
+            'level': level_info['level'],
+            'fame': player.get('fame', 0),
+            'total_films': len(films),
+            'total_series': len(tv_series_list),
+            'total_anime': len(anime_list),
+            'total_content': len(all_content),
+            'total_revenue': total_rev,
+            'avg_cwsv': avg_cwsv,
+            'best_production': best,
+            'leaderboard_score': calculate_leaderboard_score(player),
+        }
+
+    stats1 = await get_producer_stats(p1)
+    stats2 = await get_producer_stats(p2)
+    if not stats1 or not stats2:
+        raise HTTPException(404, "Uno o entrambi i produttori non trovati")
+
+    return {'producer_1': stats1, 'producer_2': stats2}
+
+
+@router.get("/players/{player_id}/is-following")
+async def check_is_following(player_id: str, user: dict = Depends(get_current_user)):
+    """Check if current user follows a player."""
+    existing = await db.follows.find_one(
+        {'follower_id': user['id'], 'following_id': player_id}
+    )
+    return {'is_following': existing is not None}

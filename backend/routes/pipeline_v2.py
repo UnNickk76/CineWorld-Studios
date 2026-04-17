@@ -3292,12 +3292,30 @@ async def get_theater_stats(pid: str, user: dict = Depends(get_current_user)):
     stats = project.get('theater_stats', {})
     released_at = project.get('released_at') or project.get('release_schedule', {}).get('scheduled_at')
     end_date = project.get('theater_end_date')
+
+    # CWTrend sparkline — last 7 days
+    cwtrend_history = []
+    try:
+        from utils.calc_cwtrend import calculate_cwtrend
+        current_days = stats.get('days_in_theater', 0) or 0
+        for offset in range(6, -1, -1):
+            day = max(0, current_days - offset)
+            result = calculate_cwtrend(project, day)
+            cwtrend_history.append({
+                "day": current_days - offset,
+                "cwtrend": result["cwtrend"],
+                "display": result["cwtrend_display"],
+            })
+    except Exception:
+        cwtrend_history = []
+
     return {
         'theater_stats': stats,
         'theater_weeks': project.get('theater_weeks', 3),
         'released_at': released_at,
         'theater_end_date': end_date,
         'pipeline_state': project.get('pipeline_state'),
+        'cwtrend_history': cwtrend_history,
     }
 
 @router.post("/films/{pid}/withdraw-theater")

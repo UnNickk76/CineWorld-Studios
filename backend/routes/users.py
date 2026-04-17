@@ -503,3 +503,28 @@ async def check_is_following(player_id: str, user: dict = Depends(get_current_us
         {'follower_id': user['id'], 'following_id': player_id}
     )
     return {'is_following': existing is not None}
+
+
+@router.get("/players/{player_id}/films")
+async def get_player_films(player_id: str, user: dict = Depends(get_current_user)):
+    """Get all released films for a player (public view)."""
+    films = await db.films.find(
+        {'$or': [{'user_id': player_id}, {'producer_id': player_id}]},
+        {'_id': 0}
+    ).sort('released_at', -1).to_list(200)
+    # Sanitize ObjectIds
+    for f in films:
+        for key in list(f.keys()):
+            if hasattr(f[key], '__str__') and type(f[key]).__name__ == 'ObjectId':
+                f[key] = str(f[key])
+    return {'films': films}
+
+
+@router.get("/players/{player_id}/series")
+async def get_player_series(player_id: str, user: dict = Depends(get_current_user)):
+    """Get all released series/anime for a player (public view)."""
+    series = await db.tv_series.find(
+        {'user_id': player_id},
+        {'_id': 0, 'episodes': 0}
+    ).sort('released_at', -1).to_list(200)
+    return {'series': series}

@@ -97,6 +97,7 @@ const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage'));
 const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
 const SagasSeriesPage = React.lazy(() => import('./pages/SagasSeriesPage'));
+const PlayerContentPage = React.lazy(() => import('./pages/PlayerContentPage'));
 const PasswordRecoveryPage = React.lazy(() => import('./pages/PasswordRecoveryPage'));
 const NicknameRecoveryPage = React.lazy(() => import('./pages/NicknameRecoveryPage'));
 const StatisticsPage = React.lazy(() => import('./pages/StatisticsPage'));
@@ -448,9 +449,10 @@ const MobileBottomNav = () => {
               <div className="bg-[#111113] border border-white/10 rounded-xl overflow-hidden shadow-2xl">
                 <p className="text-[9px] text-yellow-500/60 uppercase tracking-widest font-semibold px-3 pt-2 pb-1">I Miei Contenuti</p>
                 {[
-                  { icon: Film, label: 'Film', path: '/films' },
-                  { icon: Tv, label: 'Serie TV', path: '/sagas?type=tv_series' },
-                  { icon: Sparkles, label: 'Anime', path: '/sagas?type=anime' },
+                  { icon: Film, label: 'Film', path: '/films?tab=film' },
+                  { icon: BookOpen, label: 'Saghe e Sequel', path: '/films?tab=saghe' },
+                  { icon: Tv, label: 'Serie TV', path: '/films?tab=serie' },
+                  { icon: Sparkles, label: 'Anime', path: '/films?tab=anime' },
                 ].map(c => (
                   <button key={c.path}
                     className={`w-full flex items-center gap-2.5 py-2.5 px-3 text-[11px] transition-all ${location.pathname === c.path ? 'bg-yellow-500/15 text-yellow-400' : 'text-gray-300 hover:bg-white/5'}`}
@@ -1540,6 +1542,11 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
                 <BarChart3 className="w-3.5 h-3.5" /> Confronta con me
               </button>
             )}
+            {data.userId !== user?.id && (
+              <button onClick={() => { onClose(); navigate(`/player/${data.userId}/content`); }} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20 transition-colors text-[10px] font-bold" data-testid="popup-view-content-btn">
+                <Film className="w-3.5 h-3.5" /> I Suoi Contenuti
+              </button>
+            )}
             </>
           ) : (
             <div className="space-y-1">
@@ -1927,7 +1934,7 @@ const LogoutConfirmHandler = () => {
 
 // ═══ STICKY PAGE HEADER — back arrow + title, fixed below TopNavbar ═══
 const PAGE_TITLES = {
-  '/films': 'I Miei Film',
+  '/films': 'I Miei Contenuti',
   '/create-film': 'Produci Film',
   '/create': 'Produci Film',
   '/pipeline-v2': 'Pipeline Film',
@@ -2017,6 +2024,7 @@ function App() {
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
                 <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
+                <Route path="/player/:playerId/content" element={<ProtectedRoute><PlayerContentPage /></ProtectedRoute>} />
                 <Route path="/series/:id" element={<ProtectedRoute><SeriesDetail /></ProtectedRoute>} />
                 <Route path="/create" element={<ProtectedRoute><PipelineV3 /></ProtectedRoute>} />
                 <Route path="/create-film" element={<ProtectedRoute><PipelineV3 /></ProtectedRoute>} />

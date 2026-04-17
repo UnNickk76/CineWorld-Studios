@@ -66,6 +66,15 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 ### P1
 - (Tutti P1 completati!)
 
+## Pagina "I Miei Contenuti" — Implementata (17/04/2026)
+- 4 tab: Film, Saghe e Sequel, Serie TV, Anime
+- Griglia locandine piccole (4 colonne mobile, 8+ desktop)
+- Popup 6 opzioni su click (proprietario): Visualizza, ADV, Rigenera locandina, Ritira, Vendi, Elimina
+- Conferma eliminazione non-standard, conferma vendita con bottone nero
+- "I Suoi Contenuti" — vista pubblica per altri player (no azioni, solo griglia + dettaglio)
+- Route: `/films?tab=film|saghe|serie|anime` e `/player/:id/content`
+- Backend: `GET /api/players/{id}/films` e `GET /api/players/{id}/series`
+
 ### P2
 - Sfide settimanali, Festival, Concorrenza
 - Fase Market (film + serie + anime)

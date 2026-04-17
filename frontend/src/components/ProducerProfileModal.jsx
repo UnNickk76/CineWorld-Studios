@@ -168,6 +168,10 @@ export default function ProducerProfileModal({ producerId, producerData, isOpen,
             {/* Action Buttons (only for OTHER players) */}
             {!isSelf && (
               <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '12px', flexWrap: 'wrap' }}>
+                <button onClick={() => { onClose(); window.location.href = `/player/${producerId}/content`; }} data-testid="view-productions-btn"
+                  style={{ flex: '1 1 100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '10px', borderRadius: '10px', border: '1px solid rgba(52,211,153,0.2)', background: 'linear-gradient(135deg, rgba(52,211,153,0.08), rgba(52,211,153,0.03))', color: '#34d399', fontWeight: 'bold', fontSize: '10px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px', marginBottom: '2px' }}>
+                  <Film size={13} /> I Suoi Contenuti
+                </button>
                 <button onClick={openChat} data-testid="chat-producer-btn"
                   style={{ flex: '1 1 45%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '10px', borderRadius: '10px', border: '1px solid rgba(96,165,250,0.2)', background: 'linear-gradient(135deg, rgba(96,165,250,0.08), rgba(96,165,250,0.03))', color: '#60a5fa', fontWeight: 'bold', fontSize: '10px', cursor: 'pointer', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
                   <MessageCircle size={13} /> Chat

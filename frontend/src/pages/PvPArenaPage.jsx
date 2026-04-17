@@ -115,6 +115,8 @@ export default function PvPArenaPage() {
         type: otype,
         title: filmDetail.title,
         message: r.data.message || '',
+        diminishInfo: r.data.diminish_factor,
+        rivalryInfo: r.data.rivalry,
       });
       refreshUser();
       loadArena();
@@ -431,6 +433,8 @@ export default function PvPArenaPage() {
           outcomeType={outcomePopup.type}
           title={outcomePopup.title}
           message={outcomePopup.message}
+          diminishInfo={outcomePopup.diminishInfo}
+          rivalryInfo={outcomePopup.rivalryInfo}
         />
       )}
     </div>

@@ -59,6 +59,45 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 ## Bug Fix — Timer Bypass max_step_reached (16/04/2026)
 - Step precedenti completati non bloccano più l'avanzamento
 
+## Arena PvP v2 — Rework Completo (17/04/2026)
+### Limiti Dinamici
+- Base: 10 azioni/ora (tutti)
+- +3/ora per livello Divisione Operativa
+- +2/ora per livello Divisione Investigativa
+- +1/ora per livello Divisione Legale
+- Max ~35 azioni/ora per chi investe
+
+### Diminishing Returns
+- Max 7 azioni su stesso player in 24h
+- Dopo 2: 75%, dopo 3: 50%, dopo 4: 25%, dopo 5: 10%, dopo 6: 5%, dopo 7+: 2%
+
+### 3 Divisioni PvP (fix bonus):
+- **Operativa**: +3% successo/livello, riduzione costi (corretto: attacco, non difesa)
+- **Investigativa**: Rivela attaccante (50-95%), contrattacco auto (Lv2+), riduzione costi 5%/lv
+- **Legale**: Blocca attacchi (15-45%), difesa gratuita (Lv3+), protegge fama
+
+### Azioni Espanse
+- 8 supporti: +Premiere Esclusiva, Partnership Brand, Virale TikTok, Red Carpet
+- 6 boicottaggi: +Accusa Plagio, Campagna Stampa Negativa
+
+### Sistema Rivalità
+- 4+ boicottaggi reciproci in 7gg = Rivali
+- Rivalità: +20% danni reciproci
+
+### V3 Pipeline nell'Arena
+- Film V3 da step "hype" in poi
+- Serie/Anime V3 da step "hype" in poi
+
+### Animazioni Impatto
+- ParticleBurst: esplosione di particelle per boicottaggi riusciti/ritorti
+- ImpactFlash: flash radiale colorato
+- Spring animations con scale/rotate
+- Badge rivalità animato
+- Warning diminishing returns
+
+### Notifiche
+- Supporto ricevuto, Boicottaggio subito (con/senza identità attaccante), Attacco bloccato, Contrattacco
+
 ## Backlog
 ### P0
 - (nessuno — tutti P0 completati!)

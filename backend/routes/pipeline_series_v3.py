@@ -679,7 +679,6 @@ async def get_renewal_status(series_id: str, user: dict = Depends(get_current_us
 @router.get("/tv/my-schedule")
 async def get_tv_schedule(user: dict = Depends(get_current_user)):
     """Get all series assigned to user's TV stations."""
-    # Find series in_tv owned by this user
     cursor = db.tv_series.find(
         {"user_id": user["id"], "status": "in_tv", "pipeline_version": 3},
         {"_id": 0}
@@ -693,6 +692,87 @@ async def get_tv_schedule(user: dict = Depends(get_current_user)):
         s["next_episode"] = next((e for e in eps if not e.get("revealed")), None)
 
     return {"series": series}
+
+
+@router.get("/tv/my-dashboard")
+async def get_tv_dashboard(user: dict = Depends(get_current_user)):
+    """Full dashboard for 'La Mia TV': airing, completed, catalog series + pipeline projects."""
+    uid = user["id"]
+
+    # Series in TV (airing now)
+    airing_cursor = db.tv_series.find(
+        {"user_id": uid, "status": "in_tv", "pipeline_version": 3}, {"_id": 0}
+    ).sort("released_at", -1)
+    airing = await airing_cursor.to_list(50)
+
+    for s in airing:
+        eps = s.get("episodes", [])
+        s["total_episodes"] = len(eps)
+        s["aired_episodes"] = sum(1 for e in eps if e.get("revealed"))
+        s["next_episode"] = next((e for e in eps if not e.get("revealed")), None)
+
+    # Completed series (all episodes aired)
+    completed_cursor = db.tv_series.find(
+        {"user_id": uid, "status": "completed", "pipeline_version": 3}, {"_id": 0}
+    ).sort("released_at", -1)
+    completed = await completed_cursor.to_list(50)
+
+    for s in completed:
+        eps = s.get("episodes", [])
+        s["total_episodes"] = len(eps)
+        s["aired_episodes"] = len(eps)
+        # Check renewal status
+        renewal = await db.series_projects_v3.find_one(
+            {"parent_series_id": s["id"], "user_id": uid, "pipeline_version": 3,
+             "pipeline_state": {"$nin": ["discarded", "deleted"]}},
+            {"_id": 0, "id": 1, "season_number": 1, "renewal_lock_until": 1, "pipeline_state": 1}
+        )
+        s["has_renewal"] = renewal is not None
+        if renewal:
+            s["renewal_project_id"] = renewal["id"]
+            s["renewal_season"] = renewal.get("season_number")
+
+    # Catalog (released but not assigned to TV)
+    catalog_cursor = db.tv_series.find(
+        {"user_id": uid, "status": "catalog", "pipeline_version": 3}, {"_id": 0}
+    ).sort("released_at", -1)
+    catalog = await catalog_cursor.to_list(50)
+
+    for s in catalog:
+        eps = s.get("episodes", [])
+        s["total_episodes"] = len(eps)
+        s["aired_episodes"] = 0
+
+    # Pipeline projects (still in production)
+    pipeline_cursor = db.series_projects_v3.find(
+        {"user_id": uid, "pipeline_version": 3,
+         "pipeline_state": {"$nin": ["released", "discarded", "deleted"]}},
+        {"_id": 0, "id": 1, "title": 1, "type": 1, "genre_name": 1,
+         "pipeline_state": 1, "season_number": 1, "poster_url": 1,
+         "prossimamente_tv": 1, "num_episodes": 1, "created_at": 1}
+    ).sort("created_at", -1)
+    pipeline = await pipeline_cursor.to_list(50)
+
+    # Stats
+    total_aired = sum(s.get("aired_episodes", 0) for s in airing)
+    total_revenue = sum(s.get("total_revenue", 0) for s in airing + completed)
+    total_audience = sum(s.get("total_audience", 0) for s in airing + completed)
+
+    return {
+        "airing": airing,
+        "completed": completed,
+        "catalog": catalog,
+        "pipeline": pipeline,
+        "stats": {
+            "airing_count": len(airing),
+            "completed_count": len(completed),
+            "catalog_count": len(catalog),
+            "pipeline_count": len(pipeline),
+            "total_episodes_aired": total_aired,
+            "total_revenue": total_revenue,
+            "total_audience": total_audience,
+        }
+    }
 
 
 @router.post("/tv/broadcast-episode/{series_id}")
@@ -737,6 +817,24 @@ async def broadcast_episode(series_id: str, user: dict = Depends(get_current_use
         "aired_count": sum(1 for e in episodes if e.get("revealed")),
         "total_count": len(episodes),
     }
+
+
+
+@router.post("/tv/send-to-tv/{series_id}")
+async def send_to_tv(series_id: str, user: dict = Depends(get_current_user)):
+    """Move a catalog series to in_tv status so episodes can be broadcast."""
+    series = await db.tv_series.find_one(
+        {"id": series_id, "user_id": user["id"], "status": "catalog"},
+        {"_id": 0}
+    )
+    if not series:
+        raise HTTPException(404, "Serie non trovata o non in catalogo")
+
+    await db.tv_series.update_one(
+        {"id": series_id},
+        {"$set": {"status": "in_tv", "prossimamente_tv": True, "updated_at": _now()}}
+    )
+    return {"success": True, "message": f"'{series['title']}' inviata in TV!"}
 
 
 # ═══════════════════════════════════════

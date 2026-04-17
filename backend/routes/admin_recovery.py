@@ -224,6 +224,7 @@ async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_use
         'casting_school_students',
         'reset_tokens', 'major_members',
         'series_projects_v3',
+        'sequels',
     ]
     
     for col_name in content_collections:

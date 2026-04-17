@@ -968,8 +968,17 @@ const ResetGamePanel = ({ api }) => {
         </div>
 
         {result && (
-          <div className="p-2 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] text-green-400">
-            Reset completato: {JSON.stringify(result)}
+          <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+            <p className="text-[11px] font-bold text-green-400 mb-1.5">Reset completato ({result.type === 'full' ? 'totale' : 'parziale'})</p>
+            {result.note && <p className="text-[9px] text-green-300/70 mb-2">{result.note}</p>}
+            <div className="space-y-0.5">
+              {Object.entries(result.results || {}).map(([k, v]) => (
+                <div key={k} className="flex justify-between text-[9px]">
+                  <span className="text-gray-400 truncate mr-2">{k.replace(/_/g, ' ')}</span>
+                  <span className="text-green-400 font-mono flex-shrink-0">{typeof v === 'number' ? `${v} rimossi` : String(v).substring(0, 30)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </CardContent>

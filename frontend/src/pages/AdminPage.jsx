@@ -362,6 +362,7 @@ function UsersTab({ api }) {
   const [actionLoading, setActionLoading] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const searchUsers = useCallback(async (q) => {
     setLoading(true);
@@ -581,22 +582,30 @@ function UsersTab({ api }) {
               <p className="text-[10px] text-red-400 font-semibold flex items-center gap-1"><Shield className="w-3 h-3" /> Badge Permanenti</p>
               <div className="flex gap-1.5">
                 {[
-                  { key: 'cineadmin', label: 'CineADMIN', icon: Shield, cls: 'bg-red-800 hover:bg-red-700', activeCls: 'ring-1 ring-red-400', color: 'text-red-400' },
-                  { key: 'cinemod', label: 'CineMOD', icon: ShieldCheck, cls: 'bg-blue-800 hover:bg-blue-700', activeCls: 'ring-1 ring-blue-400', color: 'text-blue-400' },
+                  { key: 'cineadmin', label: 'CineADMIN', icon: Shield, cls: 'bg-red-800 hover:bg-red-700', activeCls: 'ring-1 ring-red-400', color: 'text-red-400', role: 'CO_ADMIN' },
+                  { key: 'cinemod', label: 'CineMOD', icon: ShieldCheck, cls: 'bg-blue-800 hover:bg-blue-700', activeCls: 'ring-1 ring-blue-400', color: 'text-blue-400', role: 'MODERATOR' },
                 ].map(b => {
                   const isActive = selectedUser.badges?.[b.key];
                   return (
                     <Button key={b.key} size="sm" className={`text-[10px] h-7 px-2 flex-1 ${b.cls} ${isActive ? b.activeCls : 'opacity-60'}`}
                       disabled={actionLoading}
-                      onClick={async () => {
-                        setActionLoading('perm-badge');
-                        try {
-                          await api.post('/admin/set-perm-badge', { nickname: selectedUser.nickname, badge_type: b.key, active: !isActive });
-                          toast.success(`${b.label} ${!isActive ? 'assegnato' : 'rimosso'} a ${selectedUser.nickname}`);
-                          setSelectedUser(prev => ({ ...prev, badges: { ...prev.badges, [b.key]: !isActive } }));
-                          searchUsers(searchQuery);
-                        } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
-                        setActionLoading(null);
+                      onClick={() => {
+                        setConfirmAction({
+                          title: isActive ? `Rimuovi ${b.label}` : `Assegna ${b.label}`,
+                          message: isActive
+                            ? `Rimuovere ${b.label} e il ruolo ${b.role} da ${selectedUser.nickname}?`
+                            : `Assegnare ${b.label} con ruolo ${b.role} a ${selectedUser.nickname}? Questo utente avrà permessi ${b.key === 'cineadmin' ? 'di co-amministratore' : 'di moderazione'}.`,
+                          onConfirm: async () => {
+                            setActionLoading('perm-badge');
+                            try {
+                              const res = await api.post('/admin/set-perm-badge', { nickname: selectedUser.nickname, badge_type: b.key, active: !isActive });
+                              toast.success(res.data.message || `${b.label} ${!isActive ? 'assegnato' : 'rimosso'}`);
+                              setSelectedUser(prev => ({ ...prev, badges: { ...prev.badges, [b.key]: !isActive }, role: res.data.role || prev.role }));
+                              searchUsers(searchQuery);
+                            } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+                            setActionLoading(null);
+                          },
+                        });
                       }}
                       data-testid={`admin-perm-${b.key}`}>
                       <b.icon className={`w-3 h-3 mr-0.5 ${b.color}`} />
@@ -605,16 +614,31 @@ function UsersTab({ api }) {
                   );
                 })}
               </div>
-              <p className="text-[8px] text-gray-600">Permanenti — rimovibili solo manualmente</p>
+              <p className="text-[8px] text-gray-600">Permanenti — rimovibili solo manualmente. Assegnano anche il ruolo effettivo.</p>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Confirm Dialog (our custom one) */}
+      {confirmAction && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setConfirmAction(null)}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)' }} />
+          <div style={{ position: 'relative', width: '100%', maxWidth: 340, background: '#111113', borderRadius: 16, border: '1px solid rgba(255,255,255,0.1)', padding: 20, textAlign: 'center' }} onClick={e => e.stopPropagation()} data-testid="admin-confirm-dialog">
+            <p style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 8 }}>{confirmAction.title}</p>
+            <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 16, lineHeight: '1.4' }}>{confirmAction.message}</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setConfirmAction(null)} style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: '#1f2937', color: '#9ca3af', fontSize: 12, fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>Annulla</button>
+              <button onClick={() => { const fn = confirmAction.onConfirm; setConfirmAction(null); fn(); }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff', fontSize: 12, fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                data-testid="admin-confirm-btn">Conferma</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-/* ─── Films Tab ─── */
 function FilmsTab({ api }) {
   const [films, setFilms] = useState([]);
   const [loading, setLoading] = useState(false);

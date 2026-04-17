@@ -5218,7 +5218,8 @@ async def admin_set_badge(data: dict, user: dict = Depends(get_current_user)):
 
 @api_router.post("/admin/set-perm-badge")
 async def admin_set_perm_badge(data: dict, user: dict = Depends(get_current_user)):
-    """Toggle permanent badges (cineadmin/cinemod) for a user. Admin only."""
+    """Toggle permanent badges (cineadmin/cinemod) for a user. Admin only.
+    Also sets the actual role: cineadmin -> co_admin, cinemod -> moderator."""
     if user.get('nickname') != ADMIN_NICKNAME:
         raise HTTPException(status_code=403, detail="Solo l'admin")
     nickname = data.get('nickname')
@@ -5228,15 +5229,37 @@ async def admin_set_perm_badge(data: dict, user: dict = Depends(get_current_user
         raise HTTPException(status_code=400, detail="badge_type deve essere cineadmin o cinemod")
     target = await db.users.find_one(
         {'nickname': {'$regex': f'^{nickname}$', '$options': 'i'}},
-        {'_id': 0, 'id': 1, 'nickname': 1, 'badges': 1}
+        {'_id': 0, 'id': 1, 'nickname': 1, 'badges': 1, 'role': 1}
     )
     if not target:
         raise HTTPException(status_code=404, detail=f"Utente '{nickname}' non trovato")
-    await db.users.update_one(
-        {'id': target['id']},
-        {'$set': {f'badges.{badge_type}': active}}
-    )
-    return {'success': True, 'nickname': target['nickname'], 'badge_type': badge_type, 'active': active}
+
+    update = {f'badges.{badge_type}': active}
+
+    # Set/remove actual role
+    if active:
+        if badge_type == 'cineadmin':
+            update['role'] = 'co_admin'
+        elif badge_type == 'cinemod':
+            update['role'] = 'moderator'
+    else:
+        # When removing badge, downgrade role if it matches
+        current_role = target.get('role', 'user')
+        if badge_type == 'cineadmin' and current_role == 'co_admin':
+            # Check if they still have cinemod
+            if target.get('badges', {}).get('cinemod'):
+                update['role'] = 'moderator'
+            else:
+                update['role'] = 'user'
+        elif badge_type == 'cinemod' and current_role == 'moderator':
+            update['role'] = 'user'
+
+    await db.users.update_one({'id': target['id']}, {'$set': update})
+
+    role_label = {'co_admin': 'CO_ADMIN', 'moderator': 'MODERATOR', 'user': 'USER'}.get(update.get('role', ''), '')
+    role_msg = f' (ruolo: {role_label})' if role_label else ''
+
+    return {'success': True, 'nickname': target['nickname'], 'badge_type': badge_type, 'active': active, 'role': update.get('role'), 'message': f'{badge_type} {"assegnato" if active else "rimosso"}{role_msg}'}
 
 
 @api_router.get("/admin/search-users")

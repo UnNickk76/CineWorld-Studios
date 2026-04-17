@@ -13,7 +13,7 @@ import { Slider } from '../components/ui/slider';
 import {
   Radio, Tv, Sparkles, Film, Loader2, Play, RefreshCw, Send,
   Star, Eye, ChevronRight, Clock, Trophy, BarChart3, Zap,
-  CheckCircle, Lock, Unlock, ArrowRight, Archive
+  CheckCircle, Lock, Unlock, ArrowRight, Archive, Building2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,15 +43,23 @@ export default function EmittenteTVPage() {
   const [renewCp, setRenewCp] = useState(0);
   const [renewLoading, setRenewLoading] = useState(false);
   const [sendingToTv, setSendingToTv] = useState(null);
+  const [hasEmittente, setHasEmittente] = useState(true); // infrastruttura TV
 
   const loadData = useCallback(async () => {
     try {
-      const res = await api.get('/pipeline-series-v3/tv/my-dashboard');
-      setData(res.data);
+      const [tvRes, infraRes] = await Promise.all([
+        api.get('/pipeline-series-v3/tv/my-dashboard'),
+        api.get('/infrastructure/my').catch(() => ({ data: [] })),
+      ]);
+      setData(tvRes.data);
+      // Check if player has emittente TV infrastructure
+      const infras = Array.isArray(infraRes.data) ? infraRes.data : infraRes.data?.infrastructure || [];
+      const hasTV = infras.some(i => i.type === 'emittente_tv' || i.type === 'tv_station');
+      setHasEmittente(hasTV);
       // Auto-select first non-empty tab
-      if (!res.data.airing?.length && res.data.completed?.length) setActiveTab('completed');
-      else if (!res.data.airing?.length && !res.data.completed?.length && res.data.catalog?.length) setActiveTab('catalog');
-      else if (!res.data.airing?.length && !res.data.completed?.length && !res.data.catalog?.length && res.data.pipeline?.length) setActiveTab('pipeline');
+      if (!tvRes.data.airing?.length && tvRes.data.completed?.length) setActiveTab('completed');
+      else if (!tvRes.data.airing?.length && !tvRes.data.completed?.length && tvRes.data.catalog?.length) setActiveTab('catalog');
+      else if (!tvRes.data.airing?.length && !tvRes.data.completed?.length && !tvRes.data.catalog?.length && tvRes.data.pipeline?.length) setActiveTab('pipeline');
     } catch {
       toast.error('Errore caricamento dati TV');
     } finally {
@@ -127,22 +135,46 @@ export default function EmittenteTVPage() {
 
   if (isEmpty) return (
     <div className="min-h-screen bg-[#0A0A0B] text-white pt-16 pb-20 px-4" data-testid="my-tv-empty">
-      <div className="max-w-md mx-auto text-center mt-16">
-        <div className="w-20 h-20 rounded-full bg-teal-500/10 flex items-center justify-center mx-auto mb-4">
-          <Tv className="w-10 h-10 text-teal-400" />
+      <div className="max-w-md mx-auto text-center mt-12">
+        <div className="w-16 h-16 rounded-full bg-teal-500/10 flex items-center justify-center mx-auto mb-4">
+          <Tv className="w-8 h-8 text-teal-400" />
         </div>
-        <h1 className="text-xl font-bold mb-2">La Mia TV</h1>
-        <p className="text-gray-400 text-sm mb-6">
-          Non hai ancora serie o anime. Crea una Serie TV o un Anime nella pipeline per iniziare!
-        </p>
-        <div className="flex gap-3 justify-center">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-sm" onClick={() => navigate('/create-series')} data-testid="my-tv-create-series">
-            <Tv className="w-4 h-4 mr-1.5" /> Crea Serie TV
-          </Button>
-          <Button className="bg-orange-600 hover:bg-orange-700 text-sm" onClick={() => navigate('/create-anime')} data-testid="my-tv-create-anime">
-            <Sparkles className="w-4 h-4 mr-1.5" /> Crea Anime
-          </Button>
-        </div>
+        <h1 className="text-lg font-bold mb-3">La Mia TV</h1>
+
+        {!hasEmittente ? (
+          <>
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 mb-4 text-left">
+              <div className="flex items-center gap-2 mb-2">
+                <Lock className="w-4 h-4 text-amber-400" />
+                <p className="text-xs font-bold text-amber-400">Infrastruttura richiesta</p>
+              </div>
+              <p className="text-[10px] text-gray-400 leading-relaxed">
+                Per gestire la tua TV hai bisogno dell'infrastruttura <b className="text-white">Emittente TV</b>.
+                Acquistala nella sezione Infrastrutture per sbloccare la trasmissione di serie TV e anime.
+              </p>
+            </div>
+            <Button className="bg-teal-600 hover:bg-teal-700 text-xs" onClick={() => navigate('/infrastructure')} data-testid="buy-emittente-btn">
+              <Building2 className="w-3.5 h-3.5 mr-1.5" /> Vai alle Infrastrutture
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="text-gray-400 text-sm mb-4">
+              La tua emittente TV è pronta ma non hai ancora contenuti. Crea una Serie TV o un Anime per iniziare!
+            </p>
+            <p className="text-[10px] text-gray-500 mb-4 leading-relaxed">
+              Ricorda: per creare Serie TV serve l'infrastruttura <b className="text-gray-300">Studio Serie TV</b> e per Anime serve <b className="text-gray-300">Studio Anime</b>.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button className="bg-blue-600 hover:bg-blue-700 text-xs" onClick={() => navigate('/create-series')} data-testid="my-tv-create-series">
+                <Tv className="w-3.5 h-3.5 mr-1" /> Serie TV
+              </Button>
+              <Button className="bg-orange-600 hover:bg-orange-700 text-xs" onClick={() => navigate('/create-anime')} data-testid="my-tv-create-anime">
+                <Sparkles className="w-3.5 h-3.5 mr-1" /> Anime
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

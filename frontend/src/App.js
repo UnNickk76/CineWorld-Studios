@@ -14,7 +14,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff, Play,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, Disc
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, Disc, Video
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -603,7 +603,7 @@ const GlobalSideMenu = () => {
   const goProduci = () => { setOpen(false); openProductionMenu(true); };
 
   const menuItems = [
-    { icon: Clapperboard, label: "Produci", action: goProduci, badge: menuBadges.produci > 0 },
+    { icon: Video, label: "Produci", action: goProduci, badge: menuBadges.produci > 0 },
     { icon: Pen, label: "Sceneggiature", action: () => go('/emerging-screenplays') },
     { icon: Store, label: "Mercato", action: () => go('/marketplace') },
     { icon: Trophy, label: "Sfide & Medaglie", action: () => go('/challenges') },
@@ -761,7 +761,7 @@ const TitoliDiCoda = ({ open, setOpen, navItems, user, navigate, logout, languag
         {/* Header - FIXED */}
         <div className="flex-shrink-0 bg-[#0F0F10]/95 backdrop-blur-md z-10 flex items-center justify-between px-4 py-3 border-b border-white/5">
           <div className="flex items-center gap-2">
-            <Clapperboard className="w-5 h-5 text-yellow-500" />
+            <Video className="w-5 h-5 text-yellow-500" />
             <span className="font-['Bebas_Neue'] text-base tracking-widest text-gray-300">Titoli di Coda</span>
           </div>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400" onClick={() => setOpen(false)}>
@@ -1142,7 +1142,7 @@ const TopNavbar = () => {
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'dashboard' },
     { path: '/films', icon: Film, label: 'my_films' },
-    { path: '/create-film', icon: Clapperboard, label: language === 'it' ? 'Produci Film' : 'Produce Film' },
+    { path: '/create-film', icon: Video, label: language === 'it' ? 'Produci Film' : 'Produce Film' },
     { path: '/create-sequel', icon: Copy, label: language === 'it' ? 'Sequel' : 'Sequel' },
     { path: '/create-series', icon: Tv, label: 'Serie TV', locked: !productionUnlocks?.has_studio_serie_tv },
     { path: '/create-anime', icon: Sparkles, label: 'Anime', locked: !productionUnlocks?.has_studio_anime },

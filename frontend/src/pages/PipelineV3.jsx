@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Film, ChevronLeft, Save, X } from 'lucide-react';
 import CinematicReleaseOverlay from '../components/CinematicReleaseOverlay';
+import { FilmRollAnimation, CrowdRushAnimation, MontageRollAnimation, LaPrimaAnimation } from '../components/v3/PipelineAnimations';
 import { V3_STEPS, StepperBar, GENRE_LABELS, v3api } from '../components/v3/V3Shared';
 import { IdeaPhase } from '../components/v3/IdeaPhase';
 import { CastPhase } from '../components/v3/CastPhase';
@@ -23,6 +24,8 @@ export default function PipelineV3() {
   const releaseCompletedRef = useRef(false); // ANTI-LOOP: once true, never show overlay again
   const [clockTick, setClockTick] = useState(0);
   const [prevoto, setPrevoto] = useState(null);
+  const [wowAnimation, setWowAnimation] = useState(null); // 'film_roll' | 'crowd_rush' | 'montage_roll' | 'la_prima' | null
+  const pendingAdvanceRef = useRef(null);
 
   // Tick every 5s for real-time checks (CIAK timer)
   useEffect(() => {
@@ -81,6 +84,25 @@ export default function PipelineV3() {
 
   const advance = async (nextState) => {
     if (!selected?.id) return;
+
+    // Trigger WOW animations for specific transitions
+    const WOW_TRANSITIONS = {
+      'hype': 'film_roll',      // idea → hype: film rolling
+      'cast': 'crowd_rush',     // hype → cast: folla agli studi
+      'finalcut': 'montage_roll', // ciak → finalcut: montaggio
+    };
+
+    const animationType = WOW_TRANSITIONS[nextState];
+    if (animationType) {
+      pendingAdvanceRef.current = nextState;
+      setWowAnimation(animationType);
+      return; // Animation will call completeAdvance when done
+    }
+
+    await completeAdvance(nextState);
+  };
+
+  const completeAdvance = async (nextState) => {
     setLoading(true);
     try {
       await v3api(`/films/${selected.id}/advance`, 'POST', { next_state: nextState });
@@ -88,6 +110,13 @@ export default function PipelineV3() {
     } catch (e) { showToast(e.message, 'error'); }
     setLoading(false);
   };
+
+  const onWowAnimationComplete = useCallback(() => {
+    const nextState = pendingAdvanceRef.current;
+    setWowAnimation(null);
+    pendingAdvanceRef.current = null;
+    if (nextState) completeAdvance(nextState);
+  }, []);
 
   const confirmRelease = async () => {
     if (releasePhase !== 'idle' || !selected?.id || releaseCompletedRef.current) return;
@@ -110,8 +139,8 @@ export default function PipelineV3() {
       return;
     }
 
-    // API succeeded — NOW show the cinema animation
-    setReleasePhase('wow');
+    // API succeeded — NOW show La Prima animation then cinema animation
+    setWowAnimation('la_prima');
   };
 
   const onWowDone = useCallback(() => {
@@ -171,6 +200,20 @@ export default function PipelineV3() {
         return true;
     }
   })();
+
+  // ═══ WOW ANIMATIONS ═══
+  if (wowAnimation === 'film_roll') {
+    return <FilmRollAnimation onComplete={onWowAnimationComplete} />;
+  }
+  if (wowAnimation === 'crowd_rush') {
+    return <CrowdRushAnimation onComplete={onWowAnimationComplete} studioName={selected?.production_house_name || "STUDIO'S"} />;
+  }
+  if (wowAnimation === 'montage_roll') {
+    return <MontageRollAnimation onComplete={onWowAnimationComplete} />;
+  }
+  if (wowAnimation === 'la_prima') {
+    return <LaPrimaAnimation film={selected} onComplete={() => { setWowAnimation(null); setReleasePhase('wow'); }} />;
+  }
 
   // ═══ OVERLAY STATES ═══
   if (releasePhase === 'calling') {

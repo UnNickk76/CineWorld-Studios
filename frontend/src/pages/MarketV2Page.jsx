@@ -47,23 +47,32 @@ export default function MarketV2Page() {
   const [stats, setStats] = useState(null);
   const [bidAmount, setBidAmount] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('newest');
+  const [showFilters, setShowFilters] = useState(false);
 
   // Sell modal
   const [showSellModal, setShowSellModal] = useState(false);
   const [sellForm, setSellForm] = useState({ item_type: 'film', item_id: '', sale_type: 'fixed', price: '', auction_hours: 48, description: '' });
   const [myItems, setMyItems] = useState({ films: [], series: [], infrastructure: [] });
 
+  const filteredListings = searchQuery
+    ? listings.filter(l => l.title?.toLowerCase().includes(searchQuery.toLowerCase()))
+    : listings;
   const loadMarket = useCallback(async () => {
     setLoading(true);
     try {
-      const params = section !== 'all' ? `?section=${section}` : '';
-      const res = await api.get(`/market/browse${params}`);
+      const params = new URLSearchParams();
+      if (section !== 'all') params.set('section', section);
+      if (sortBy !== 'newest') params.set('sort_by', sortBy);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const res = await api.get(`/market/browse${qs}`);
       setListings(res.data.listings || []);
       setCounts(res.data.counts || {});
       setDeal(res.data.deal_of_day);
     } catch { toast.error('Errore caricamento mercato'); }
     setLoading(false);
-  }, [api, section]);
+  }, [api, section, sortBy]);
 
   const loadMyData = useCallback(async () => {
     try {
@@ -218,6 +227,7 @@ export default function MarketV2Page() {
 
         {/* Section filter (browse only) */}
         {tab === 'browse' && (
+          <>
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
             {SECTIONS.map(s => (
               <button key={s.id} onClick={() => setSection(s.id)}
@@ -230,6 +240,21 @@ export default function MarketV2Page() {
               </button>
             ))}
           </div>
+          <div className="flex gap-1.5 mt-1.5">
+            <div className="flex-1 relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500" />
+              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Cerca titolo..."
+                className="w-full h-7 pl-6 pr-2 bg-white/5 border border-white/10 rounded-md text-[10px] text-white" data-testid="market-search" />
+            </div>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+              className="h-7 bg-white/5 border border-white/10 rounded-md text-[9px] text-gray-400 px-1.5" data-testid="market-sort">
+              <option value="newest">Recenti</option>
+              <option value="price_asc">Prezzo basso</option>
+              <option value="price_desc">Prezzo alto</option>
+              <option value="ending_soon">Scadenza</option>
+            </select>
+          </div>
+          </>
         )}
       </div>
 
@@ -238,15 +263,13 @@ export default function MarketV2Page() {
         {tab === 'browse' && (
           loading ? (
             <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-emerald-400 animate-spin" /></div>
-          ) : listings.length === 0 ? (
+          ) : filteredListings.length === 0 ? (
             <div className="text-center py-16">
               <Store className="w-10 h-10 text-gray-700 mx-auto mb-3" />
-              <p className="text-gray-400 text-sm">Nessun listing attivo</p>
-              <p className="text-gray-600 text-[10px] mt-1">Metti in vendita i tuoi contenuti!</p>
+              <p className="text-gray-400 text-sm">Nessun listing trovato</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {/* Deal of day */}
               {deal && (
                 <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
                   className="p-2.5 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 cursor-pointer"
@@ -259,7 +282,7 @@ export default function MarketV2Page() {
                   <p className="text-[10px] text-amber-400 font-bold">{fmtPrice(deal.price)}</p>
                 </motion.div>
               )}
-              {listings.map(l => (
+              {filteredListings.map(l => (
                 <ListingCard key={l.id} listing={l} onClick={() => { setSelectedListing(l); setBidAmount(''); }} />
               ))}
             </div>

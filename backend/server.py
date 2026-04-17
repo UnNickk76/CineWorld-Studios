@@ -96,6 +96,7 @@ from routes.pvp import router as pvp_router
 from routes.pvp_cinema import router as pvp_cinema_router
 from routes.market_v2 import router as market_v2_router
 from routes.medals_challenges import router as medals_challenges_router
+from routes.tv_competition import router as tv_competition_router
 from routes.velion import router as velion_router, init as velion_init
 from routes.cast import router as cast_router, initialize_cast_pool_if_needed as _cast_init_pool
 from routes.admin_migration import router as admin_migration_router
@@ -10044,6 +10045,7 @@ app.include_router(pvp_router, prefix="/api")
 app.include_router(pvp_cinema_router, prefix="/api")
 app.include_router(market_v2_router, prefix="/api")
 app.include_router(medals_challenges_router, prefix="/api")
+app.include_router(tv_competition_router, prefix="/api")
 
 # Initialize Velion routes with db and JWT secret
 velion_init(db, JWT_SECRET)

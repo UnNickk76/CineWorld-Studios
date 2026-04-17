@@ -66,8 +66,64 @@ async def seed_agencies(user: dict = Depends(get_current_user)):
         return {"message": f"Seed failed: {e}", "count": count}
 
 
+@router.post("/backfill-hype-timers")
+async def backfill_hype_timers(user: dict = Depends(get_current_user)):
+    """Backfill hype timers for existing projects stuck without timers."""
+    now = datetime.now(timezone.utc)
+    cursor = db.film_projects.find(
+        {'pipeline_version': 3, 'hype_started_at': {'$exists': False},
+         '$or': [{'pipeline_state': 'hype'}, {'hype_budget': {'$gt': 0}}]},
+        {'_id': 0, 'id': 1, 'title': 1, 'pipeline_state': 1, 'hype_budget': 1}
+    )
+    projects = await cursor.to_list(100)
+    fixed = 0
+    for p in projects:
+        state = p.get('pipeline_state', '')
+        if state == 'hype':
+            # Still in hype: set timer to complete in 1 minute (they've waited enough)
+            await db.film_projects.update_one(
+                {'id': p['id']},
+                {'$set': {
+                    'hype_started_at': (now - timedelta(hours=1)).isoformat(),
+                    'hype_complete_at': now.isoformat(),
+                    'hype_progress': 100,
+                }}
+            )
+            fixed += 1
+        else:
+            # Past hype: mark as completed
+            await db.film_projects.update_one(
+                {'id': p['id']},
+                {'$set': {
+                    'hype_started_at': (now - timedelta(hours=2)).isoformat(),
+                    'hype_complete_at': (now - timedelta(hours=1)).isoformat(),
+                    'hype_progress': 100,
+                }}
+            )
+            fixed += 1
+    return {"fixed": fixed, "projects": [p['title'] for p in projects]}
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _calc_timed_progress(project: dict, start_field: str, end_field: str) -> float:
+    """Calculate progress (0-100) based on time elapsed between start and end fields."""
+    started = project.get(start_field)
+    complete = project.get(end_field)
+    if not started or not complete:
+        # Legacy: check old hype_progress field
+        return project.get("hype_progress", 0) or 0
+    try:
+        now = datetime.now(timezone.utc)
+        start_dt = datetime.fromisoformat(str(started).replace("Z", "+00:00")) if isinstance(started, str) else started
+        end_dt = datetime.fromisoformat(str(complete).replace("Z", "+00:00")) if isinstance(complete, str) else complete
+        total = (end_dt - start_dt).total_seconds()
+        elapsed = (now - start_dt).total_seconds()
+        return min(100, max(0, (elapsed / total) * 100)) if total > 0 else 100
+    except Exception:
+        return project.get("hype_progress", 0) or 0
 
 
 def _step_index(state: str) -> int:
@@ -110,6 +166,9 @@ async def _get_project(pid: str, user_id: str) -> dict:
     )
     if not project:
         raise HTTPException(404, "Progetto V3 non trovato")
+    # Enrich with calculated hype progress
+    if project.get("hype_started_at") and project.get("hype_complete_at"):
+        project["hype_progress"] = round(_calc_timed_progress(project, "hype_started_at", "hype_complete_at"), 1)
     return project
 
 
@@ -474,9 +533,11 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
     already_been_further = ni <= max_reached
 
     if ni > ci and not already_been_further:
-        # Hype must be 100%
-        if current == "hype" and (project.get("hype_progress", 0) or 0) < 100:
-            raise HTTPException(400, "L'hype non e ancora al 100%. Attendi o velocizza.")
+        # Hype must be 100% (calculate from timer)
+        if current == "hype":
+            hype_progress = _calc_timed_progress(project, "hype_started_at", "hype_complete_at")
+            if hype_progress < 100:
+                raise HTTPException(400, f"L'hype e al {int(hype_progress)}%. Attendi o velocizza.")
         # Ciak timer must be complete
         if current == "ciak":
             ciak_end = project.get("ciak_complete_at")
@@ -655,9 +716,15 @@ async def generate_screenplay(pid: str, req: PromptRequest, user: dict = Depends
 @router.post("/films/{pid}/save-hype")
 async def save_hype(pid: str, req: HypeRequest, user: dict = Depends(get_current_user)):
     balances = await _spend(user["id"], funds=max(0, req.budget), cinepass=0)
+    now = datetime.now(timezone.utc)
+    duration_hours = max(1, req.budget) if req.budget else 12
+    complete_at = now + timedelta(hours=duration_hours)
     project = await _update_project(pid, user["id"], {
         "hype_notes": req.hype_notes,
         "hype_budget": req.budget,
+        "hype_started_at": now.isoformat(),
+        "hype_complete_at": complete_at.isoformat(),
+        "hype_progress": 0,
     })
     return {"success": True, "project": project, "balances": balances}
 
@@ -1055,11 +1122,14 @@ async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_curren
     from utils.calc_speedup import get_speedup_cost
     project = await _get_project(pid, user["id"])
 
-    # For CIAK: calculate progress from real time
+    # For timed stages: calculate progress from real time
     current_progress = 0
     time_field_start = None
     time_field_end = None
-    if req.stage == "ciak":
+    if req.stage == "hype":
+        time_field_start = "hype_started_at"
+        time_field_end = "hype_complete_at"
+    elif req.stage == "ciak":
         time_field_start = "ciak_started_at"
         time_field_end = "ciak_complete_at"
     elif req.stage == "finalcut":
@@ -1076,6 +1146,10 @@ async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_curren
             total = (end_dt - start_dt).total_seconds()
             elapsed = (now - start_dt).total_seconds()
             current_progress = min(100, max(0, (elapsed / total) * 100)) if total > 0 else 100
+
+    # Block speedup if already at 100%
+    if current_progress >= 99.9:
+        raise HTTPException(400, "Già al 100%! Non serve velocizzare.")
 
     cost = get_speedup_cost(req.percentage, current_progress)
     balances = await _spend(user["id"], funds=0, cinepass=cost)

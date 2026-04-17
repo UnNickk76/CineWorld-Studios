@@ -15,23 +15,27 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
   const [strategy, setStrategy] = useState(film.hype_strategy || film.hype_notes || 'balanced');
   const [duration, setDuration] = useState(film.hype_duration || film.hype_budget || 12);
   const [loading, setLoading] = useState(false);
-  const [configured, setConfigured] = useState(!!(film.hype_notes || film.hype_budget > 0));
+  const [configured, setConfigured] = useState(!!(film.hype_started_at || film.hype_notes || film.hype_budget > 0));
   const [hypeProgress, setHypeProgress] = useState(film.hype_progress || 0);
   const progressRef = useRef(null);
 
-  // Simulate hype progress after configuration
+  // Update from backend on film change
+  useEffect(() => {
+    setHypeProgress(film.hype_progress || 0);
+    setConfigured(!!(film.hype_started_at || film.hype_notes || film.hype_budget > 0));
+  }, [film.hype_progress, film.hype_started_at, film.hype_notes, film.hype_budget]);
+
+  // Poll backend for live progress (every 10s when configured and not done)
   useEffect(() => {
     if (configured && hypeProgress < 100) {
-      progressRef.current = setInterval(() => {
-        setHypeProgress(prev => {
-          const next = prev + Math.random() * 0.5 + 0.1;
-          if (next >= 100) { clearInterval(progressRef.current); return 100; }
-          return next;
-        });
-      }, 3000);
+      progressRef.current = setInterval(async () => {
+        try {
+          await onRefresh();
+        } catch { /* */ }
+      }, 10000);
       return () => { if (progressRef.current) clearInterval(progressRef.current); };
     }
-  }, [configured, hypeProgress]);
+  }, [configured, hypeProgress < 100, onRefresh]);
 
   const save = async () => {
     setLoading(true);
@@ -39,23 +43,18 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
       await v3api(`/films/${film.id}/save-hype`, 'POST', { hype_notes: strategy, budget: duration });
       await onRefresh();
       setConfigured(true);
-      setHypeProgress(prev => Math.max(prev, 5));
       toast?.('Hype configurato!');
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
 
   const speedup = async (pct) => {
-    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], hypeProgress);
+    if (hypeProgress >= 100) { toast?.('Già al 100%!', 'error'); return; }
     setLoading(true);
     try {
-      await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'hype', percentage: pct });
-      // Add percentage of REMAINING progress (so 100% always reaches 100%)
-      const remaining = 100 - hypeProgress;
-      const gain = remaining * (pct / 100);
-      setHypeProgress(prev => Math.min(100, prev + gain));
+      const res = await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'hype', percentage: pct });
       await onRefresh();
-      toast?.(`Velocizzato +${Math.ceil(gain)}% (-${cost} CP)`);
+      toast?.(`Velocizzato! (-${res.cost} CP)`);
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };

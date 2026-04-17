@@ -108,6 +108,9 @@ export default function PvPArenaPage() {
       const endpoint = category === 'support' ? '/pvp-cinema/support' : '/pvp-cinema/boycott';
       const r = await api.post(endpoint, { film_id: filmDetail.id, action_id: actionId });
       setActionResult(r.data);
+      // Close film detail FIRST, then show outcome popup on top
+      setSelectedFilm(null);
+      setFilmDetail(null);
       // Show outcome popup
       const outcome = parseOutcome(category, r.data);
       const otype = getOutcomeType(category, outcome);

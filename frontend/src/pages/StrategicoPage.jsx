@@ -147,7 +147,7 @@ export default function StrategicoPage() {
                         onClick={() => handleUpgrade(owned.id)}
                       >
                         <ArrowUpCircle className="w-3 h-3 mr-1" />
-                        {upgrading === owned.id ? '...' : `Lv.${upInfo.next_level} ($${upInfo.upgrade_cost?.toLocaleString()})`}
+                        {upgrading === owned.id ? '...' : `Lv.${upInfo.next_level} ($${upInfo.upgrade_cost?.toLocaleString()}${upInfo.cinepass_cost ? ` + ${upInfo.cinepass_cost} CP` : ''})`}
                       </Button>
                     )}
                     {upInfo && upInfo.current_level >= upInfo.max_level && (

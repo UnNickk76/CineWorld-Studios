@@ -200,31 +200,44 @@ class ResetGameRequest(_BM):
 
 @router.post("/reset-game")
 async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_user)):
-    """Admin-only: reset game data. NEVER deletes users or system_config."""
+    """Admin-only: reset game data.
+    Partial: clears all content but keeps infrastructure, funds, cinepass.
+    Full: clears everything including infrastructure and resets user stats.
+    NEVER deletes users or system_config."""
     if user.get('nickname') != 'NeoMorpheus':
         raise HTTPException(403, "Solo admin")
     
     results = {}
     
     # ─── Content collections (always deleted in both modes) ───
+    # COMPREHENSIVE list: every collection that holds game content
     content_collections = [
+        # Film content
         'films', 'film_projects', 'film_drafts', 'film_comments', 'film_ratings',
+        'sequels',  # Legacy sequels — MUST be cleared to prevent ghost films
+        # Series/Anime content
         'series_projects', 'anime_projects', 'tv_series',
-        'notifications', 'marketplace_listings',
+        'series_projects_v3',  # V3 pipeline projects
+        # Social
+        'notifications', 'likes', 'follows', 'friendships',
+        'chat_messages', 'chat_rooms',
+        # Events & challenges
         'ri_cinema_events', 'auto_tick_events', 'event_history',
         'challenges', 'game_challenges',
-        'city_tastes', 'coming_soon_items',
-        'likes', 'follows', 'friendships',
         'premiere_invites', 'premieres',
         'festival_awards', 'festival_votes',
+        # Market & economy
+        'marketplace_listings', 'sponsors', 'sponsor_contracts',
+        # Content creation
         'virtual_reviews', 'emerging_screenplays',
-        'chat_messages', 'chat_rooms',
         'poster_files', 'studio_drafts',
-        'sponsors', 'sponsor_contracts',
-        'casting_school_students',
+        'casting_school_students', 'casting_hires', 'cast_pool',
+        'hired_stars',
+        # System content
+        'city_tastes', 'coming_soon_items', 'cinema_news',
         'reset_tokens', 'major_members',
-        'series_projects_v3',
-        'sequels',
+        'tv_broadcasts',  # TV broadcast data
+        'suggestions', 'bug_reports',
     ]
     
     for col_name in content_collections:
@@ -234,6 +247,17 @@ async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_use
                 results[col_name] = r.deleted_count
         except Exception as e:
             results[col_name] = f"error: {str(e)}"
+    
+    # ─── Reset sequel migration flag so it doesn't re-run ───
+    try:
+        await db.migrations.update_one(
+            {'id': 'startup_migrations'},
+            {'$set': {'sequel_migration_done': True}},
+            upsert=True
+        )
+        results['sequel_migration_flag'] = 'set to done (prevents ghost films)'
+    except Exception as e:
+        results['sequel_migration_flag'] = f"error: {str(e)}"
     
     # ─── Full reset: also infrastructure + user stats ───
     if req.type == 'full':
@@ -250,10 +274,11 @@ async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_use
         try:
             await db.users.update_many({}, {'$set': {
                 'funds': 10000000, 'cinepass': 50, 'level': 1, 'fame': 0, 'xp': 0,
-                'total_films_released': 0, 'total_revenue': 0,
+                'total_films_released': 0, 'total_revenue': 0, 'total_lifetime_revenue': 0,
                 'daily_bonus_last': None, 'daily_bonus_streak': 0,
+                'total_xp': 0, 'leaderboard_score': 0,
             }})
-            results['users_reset'] = 'funds/stats reset'
+            results['users_reset'] = 'funds/stats/xp reset to starting values'
         except Exception as e:
             results['users_reset'] = f"error: {str(e)}"
     
@@ -271,7 +296,7 @@ async def reset_game(req: ResetGameRequest, user: dict = Depends(get_current_use
         results['people_warning'] = 'NPC vuoti — rieseguire seed'
     
     logging.warning(f"[ADMIN RESET] Type: {req.type}, By: {user.get('nickname')}, Results: {results}")
-    return {'type': req.type, 'results': results}
+    return {'type': req.type, 'results': results, 'note': 'Partial: infrastrutture, fondi e crediti mantenuti'}
 
 
 

@@ -7136,44 +7136,52 @@ async def startup_event():
             except Exception as e:
                 logging.warning(f"Cast pool init: {e}")
 
+            # Legacy sequel migration — ONE-TIME ONLY (skip if already migrated or after reset)
             try:
-                legacy = await db.sequels.find({'status': 'completed'}).to_list(500)
-                mig_count = 0
-                for seq in legacy:
-                    if await db.films.find_one({'id': seq.get('id')}, {'_id': 0, 'id': 1}):
-                        continue
-                    now_iso = datetime.now(timezone.utc).isoformat()
-                    film_doc = {
-                        'id': seq['id'], 'user_id': seq['user_id'],
-                        'title': seq.get('title', 'Sequel'), 'genre': seq.get('genre', 'drama'),
-                        'subgenres': seq.get('subgenres', []), 'status': 'in_theaters',
-                        'quality_score': seq.get('quality_score', 50),
-                        'quality': int(seq.get('quality_score', 50)),
-                        'imdb_rating': round(seq.get('quality_score', 50) / 10, 1),
-                        'poster_url': seq.get('poster_url', ''),
-                        'total_revenue': seq.get('total_revenue', 0),
-                        'opening_revenue': seq.get('opening_revenue', 0),
-                        'weekly_revenue': 0, 'attendance': seq.get('attendance', 0),
-                        'release_type': 'immediate', 'is_sequel': True,
-                        'sequel_parent_id': seq.get('parent_film_id', ''),
-                        'sequel_number': seq.get('sequel_number', 2),
-                        'sequel_parent_title': seq.get('parent_title', ''),
-                        'hired_actors': seq.get('cast', []),
-                        'pre_screenplay': seq.get('screenplay', {}).get('text', '') if isinstance(seq.get('screenplay'), dict) else '',
-                        'production_cost': seq.get('production_cost', 0),
-                        'quality_breakdown': seq.get('quality_breakdown', {}),
-                        'created_at': seq.get('created_at', now_iso),
-                        'released_at': seq.get('completed_at', now_iso),
-                        'updated_at': now_iso,
-                    }
-                    await db.films.insert_one(film_doc)
-                    await db.films.update_one(
-                        {'id': seq.get('parent_film_id')},
-                        {'$max': {'sequel_count': seq.get('sequel_number', 2) - 1}}
+                mig_doc = await db.migrations.find_one({'id': 'startup_migrations'}, {'_id': 0})
+                sequel_migrated = (mig_doc or {}).get('sequel_migration_done', False)
+                if not sequel_migrated:
+                    legacy = await db.sequels.find({'status': 'completed'}).to_list(500)
+                    mig_count = 0
+                    for seq in legacy:
+                        if await db.films.find_one({'id': seq.get('id')}, {'_id': 0, 'id': 1}):
+                            continue
+                        now_iso = datetime.now(timezone.utc).isoformat()
+                        film_doc = {
+                            'id': seq['id'], 'user_id': seq['user_id'],
+                            'title': seq.get('title', 'Sequel'), 'genre': seq.get('genre', 'drama'),
+                            'subgenres': seq.get('subgenres', []), 'status': 'in_theaters',
+                            'quality_score': seq.get('quality_score', 50),
+                            'quality': int(seq.get('quality_score', 50)),
+                            'imdb_rating': round(seq.get('quality_score', 50) / 10, 1),
+                            'poster_url': seq.get('poster_url', ''),
+                            'total_revenue': seq.get('total_revenue', 0),
+                            'opening_revenue': seq.get('opening_revenue', 0),
+                            'weekly_revenue': 0, 'attendance': seq.get('attendance', 0),
+                            'release_type': 'immediate', 'is_sequel': True,
+                            'sequel_parent_id': seq.get('parent_film_id', ''),
+                            'sequel_number': seq.get('sequel_number', 2),
+                            'sequel_parent_title': seq.get('parent_title', ''),
+                            'hired_actors': seq.get('cast', []),
+                            'pre_screenplay': seq.get('screenplay', {}).get('text', '') if isinstance(seq.get('screenplay'), dict) else '',
+                            'production_cost': seq.get('production_cost', 0),
+                            'quality_breakdown': seq.get('quality_breakdown', {}),
+                            'created_at': seq.get('created_at', now_iso),
+                            'released_at': seq.get('completed_at', now_iso),
+                            'updated_at': now_iso,
+                        }
+                        await db.films.insert_one(film_doc)
+                        mig_count += 1
+                    if mig_count:
+                        logging.info(f"Migrated {mig_count} legacy sequels to films collection")
+                    # Mark as done so it never runs again
+                    await db.migrations.update_one(
+                        {'id': 'startup_migrations'},
+                        {'$set': {'sequel_migration_done': True}},
+                        upsert=True
                     )
-                    mig_count += 1
-                if mig_count:
-                    logging.info(f"Migrated {mig_count} legacy sequels to films collection")
+                else:
+                    logging.info("Legacy sequel migration already completed, skipping")
             except Exception as e:
                 logging.warning(f"Legacy sequel migration: {e}")
 

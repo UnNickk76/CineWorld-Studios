@@ -422,6 +422,23 @@ async def get_released_film_detail(film_id: str, user: dict = Depends(get_curren
     except Exception:
         pass
 
+    # Backfill preplot/screenplay from source project if missing in released film
+    if not film.get("preplot") or not film.get("screenplay_text"):
+        source_pid = film.get("source_project_id")
+        if source_pid:
+            try:
+                source = await db.film_projects.find_one(
+                    {"id": source_pid},
+                    {"_id": 0, "preplot": 1, "screenplay_text": 1}
+                )
+                if source:
+                    if not film.get("preplot") and source.get("preplot"):
+                        film["preplot"] = source["preplot"]
+                    if not film.get("screenplay_text") and source.get("screenplay_text"):
+                        film["screenplay_text"] = source["screenplay_text"]
+            except Exception:
+                pass
+
     return film
 
 

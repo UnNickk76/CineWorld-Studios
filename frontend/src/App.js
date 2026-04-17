@@ -1488,9 +1488,9 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
           <div className="grid grid-cols-4 gap-1.5">
             {[
               { label: 'Film', value: p.total_films || 0, color: 'text-yellow-400' },
-              { label: 'Incassi', value: p.total_revenue ? `$${p.total_revenue >= 1e6 ? `${(p.total_revenue/1e6).toFixed(1)}M` : `${Math.floor(p.total_revenue/1000)}K`}` : '$0', color: 'text-green-400' },
-              { label: 'Spettatori', value: p.total_spectators ? (p.total_spectators >= 1e6 ? `${(p.total_spectators/1e6).toFixed(1)}M` : `${Math.floor(p.total_spectators/1000)}K`) : '0', color: 'text-cyan-400' },
-              { label: 'Qualità', value: `${Math.round(p.average_quality || 0)}%`, color: 'text-blue-400' },
+              { label: 'Serie TV', value: p.total_series || 0, color: 'text-blue-400' },
+              { label: 'Anime', value: p.total_anime || 0, color: 'text-pink-400' },
+              { label: 'CWSv', value: p.avg_cwsv > 0 ? (p.avg_cwsv % 1 === 0 ? p.avg_cwsv : p.avg_cwsv.toFixed(1)) : '—', color: 'text-amber-400' },
             ].map(s => (
               <div key={s.label} className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
                 <p className={`text-[11px] font-bold ${s.color}`}>{s.value}</p>
@@ -1498,10 +1498,20 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
               </div>
             ))}
           </div>
+          <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[11px] font-bold text-green-400">{p.total_revenue ? `$${p.total_revenue >= 1e6 ? `${(p.total_revenue/1e6).toFixed(1)}M` : `${Math.floor(p.total_revenue/1000)}K`}` : '$0'}</p>
+              <p className="text-[7px] text-gray-600">Revenue</p>
+            </div>
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[11px] font-bold text-cyan-400">{(p.total_films || 0) + (p.total_series || 0) + (p.total_anime || 0)}</p>
+              <p className="text-[7px] text-gray-600">Produzioni</p>
+            </div>
+          </div>
           {p.best_film && (
             <div className="mt-1.5 flex items-center gap-2 px-2 py-1 bg-white/[0.02] rounded border border-white/5">
               <Film className="w-3 h-3 text-yellow-500/50" />
-              <p className="text-[8px] text-gray-400">Miglior Film: <span className="text-white font-bold">{p.best_film}</span></p>
+              <p className="text-[8px] text-gray-400">Miglior: <span className="text-white font-bold">{p.best_film}</span> {p.best_cwsv_display && <span className="text-yellow-400">CWSv {p.best_cwsv_display}</span>}</p>
             </div>
           )}
           {p.challenge_stats && (

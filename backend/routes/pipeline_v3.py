@@ -449,6 +449,46 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
     from utils.calc_defaults import fill_missing_defaults
     defaults = fill_missing_defaults(project, req.next_state)
 
+    # ═══ Timer validation: block advance if timer not complete ═══
+    ci = _step_index(current)
+    ni = _step_index(req.next_state)
+    if ni > ci:
+        # Hype must be 100%
+        if current == "hype" and (project.get("hype_progress", 0) or 0) < 100:
+            raise HTTPException(400, "L'hype non e ancora al 100%. Attendi o velocizza.")
+        # Ciak timer must be complete
+        if current == "ciak":
+            ciak_end = project.get("ciak_complete_at")
+            if ciak_end:
+                try:
+                    end_dt = datetime.fromisoformat(str(ciak_end).replace("Z", "+00:00"))
+                    if end_dt > datetime.now(timezone.utc):
+                        raise HTTPException(400, "Le riprese non sono ancora terminate. Attendi o velocizza.")
+                except HTTPException:
+                    raise
+                except Exception:
+                    pass
+            elif project.get("ciak_started_at"):
+                raise HTTPException(400, "Le riprese sono in corso. Attendi il completamento.")
+        # FinalCut timer must be complete
+        if current == "finalcut":
+            fc_end = project.get("finalcut_complete_at")
+            if fc_end:
+                try:
+                    end_dt = datetime.fromisoformat(str(fc_end).replace("Z", "+00:00"))
+                    if end_dt > datetime.now(timezone.utc):
+                        raise HTTPException(400, "Il montaggio non e terminato. Attendi o velocizza.")
+                except HTTPException:
+                    raise
+                except Exception:
+                    pass
+            elif project.get("finalcut_started_at"):
+                raise HTTPException(400, "Il montaggio e in corso. Attendi il completamento.")
+        # La Prima timer must be 100% if premiere chosen
+        if current == "la_prima" and project.get("release_type") == "premiere":
+            if (project.get("prima_progress", 0) or 0) < 100:
+                raise HTTPException(400, "La Prima non e ancora conclusa. Attendi o velocizza.")
+
     update = {**defaults, "pipeline_state": req.next_state}
 
     # Auto-start CIAK timer: 1 day = 1 hour real (only if not already started)

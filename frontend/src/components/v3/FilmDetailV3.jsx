@@ -387,7 +387,7 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
       {/* ═══ CINEMA STATS POPUP — Premium Design ═══ */}
       {showCinemaPopup && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px' }} onClick={() => setShowCinemaPopup(false)} data-testid="cinema-popup">
-          <div style={{ background: 'linear-gradient(180deg, #0d1117 0%, #0a0c10 100%)', borderRadius: '16px', width: '100%', maxWidth: '400px', color: '#fff', border: '1px solid rgba(0,255,255,0.15)', maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 0 40px rgba(0,255,255,0.08)' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ background: 'linear-gradient(180deg, #0d1117 0%, #0a0c10 100%)', borderRadius: '16px', width: '100%', maxWidth: '400px', color: '#fff', border: '1px solid rgba(0,255,255,0.15)', maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 0 40px rgba(0,255,255,0.08)', WebkitOverflowScrolling: 'touch' }} onClick={(e) => e.stopPropagation()}>
 
             {/* Header con gradient */}
             <div style={{ padding: '16px 16px 12px', background: 'linear-gradient(135deg, rgba(0,255,255,0.08), rgba(56,189,248,0.05))', borderBottom: '1px solid rgba(0,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '16px 16px 0 0' }}>

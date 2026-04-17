@@ -925,31 +925,47 @@ async def get_player_profile(nickname: str, user: dict = Depends(get_current_use
     
     uid = target['id']
     
-    # Fetch stats
-    films = await db.film_projects.find({'user_id': uid}, {'_id': 0, 'title': 1, 'quality_score': 1, 'pre_imdb_score': 1, 'theater_stats': 1, 'box_office': 1}).to_list(200)
+    # Fetch films from both collections (V2 film_projects + V3 films)
+    films_v3 = await db.films.find(
+        {'$or': [{'user_id': uid}, {'producer_id': uid}]},
+        {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'type': 1}
+    ).to_list(200)
     
-    total_films = len(films)
-    total_revenue = sum(f.get('box_office', {}).get('total', 0) if isinstance(f.get('box_office'), dict) else 0 for f in films)
-    total_spectators = 0
-    for f in films:
-        ts = f.get('theater_stats', {}).get('total_spectators', 0)
-        if ts > 0:
-            total_spectators += ts
-        else:
-            bo = f.get('box_office', {})
-            rev = bo.get('total', 0) if isinstance(bo, dict) else 0
-            if rev > 0:
-                total_spectators += int(rev / 11)
+    # Fetch series/anime
+    series = await db.tv_series.find(
+        {'user_id': uid},
+        {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'type': 1}
+    ).to_list(100)
     
+    tv_series_list = [s for s in series if s.get('type') == 'tv_series']
+    anime_list = [s for s in series if s.get('type') == 'anime']
+    
+    total_films = len(films_v3)
+    total_series = len(tv_series_list)
+    total_anime = len(anime_list)
+    
+    all_content = films_v3 + series
+    total_revenue = sum((c.get('total_revenue', 0) or 0) for c in all_content)
+    
+    # CWSv average (normalized from V2 0-100 scale)
+    scores = []
+    for c in all_content:
+        q = c.get('quality_score')
+        if q is not None and q > 0:
+            scores.append(q / 10 if q > 10 else q)
+    avg_cwsv = round(sum(scores) / len(scores), 1) if scores else 0
+    
+    # Best production
     best_film = ''
-    best_quality = 0
-    for f in films:
-        q = f.get('quality_score', f.get('pre_imdb_score', 0))
-        if q > best_quality:
-            best_quality = q
-            best_film = f.get('title', '')
-    
-    avg_quality = sum(f.get('quality_score', f.get('pre_imdb_score', 50)) for f in films) / max(1, total_films)
+    best_cwsv = 0
+    best_display = ''
+    for c in all_content:
+        q = c.get('quality_score') or 0
+        norm = q / 10 if q > 10 else q
+        if norm > best_cwsv:
+            best_cwsv = norm
+            best_film = c.get('title', '')
+            best_display = c.get('cwsv_display') or (str(int(norm)) if norm == int(norm) else f"{norm:.1f}")
     
     # Challenge stats
     wins = await db.game_challenges.count_documents({'$or': [{'challenger_id': uid}, {'challenged_id': uid}], 'winner_id': uid})
@@ -958,7 +974,17 @@ async def get_player_profile(nickname: str, user: dict = Depends(get_current_use
     # Online status (active in last 10 minutes)
     import datetime as dt
     ten_min_ago = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=10)
-    is_online = (target.get('last_active') or dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)) > ten_min_ago
+    last_active = target.get('last_active')
+    is_online = False
+    if last_active:
+        try:
+            if isinstance(last_active, str):
+                la = dt.datetime.fromisoformat(last_active.replace('Z', '+00:00'))
+            else:
+                la = last_active if last_active.tzinfo else last_active.replace(tzinfo=dt.timezone.utc)
+            is_online = la > ten_min_ago
+        except Exception:
+            pass
     
     return {
         'user_id': uid,
@@ -969,9 +995,11 @@ async def get_player_profile(nickname: str, user: dict = Depends(get_current_use
         'fame': target.get('fame', 0),
         'is_online': is_online,
         'total_films': total_films,
+        'total_series': total_series,
+        'total_anime': total_anime,
         'total_revenue': total_revenue,
-        'total_spectators': total_spectators,
-        'average_quality': round(avg_quality, 1),
+        'avg_cwsv': avg_cwsv,
         'best_film': best_film,
+        'best_cwsv_display': best_display,
         'challenge_stats': {'wins': wins, 'losses': losses},
     }

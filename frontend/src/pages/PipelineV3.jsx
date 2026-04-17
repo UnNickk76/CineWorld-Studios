@@ -140,8 +140,10 @@ export default function PipelineV3() {
     switch (currentStep) {
       case 'idea':
         return !!(selected.screenplay_text && selected.screenplay_text.length > 50 && selected.poster_url);
-      case 'hype':
-        return !!(selected.hype_notes || selected.hype_budget > 0);
+      case 'hype': {
+        const hp = selected.hype_progress || 0;
+        return hp >= 100;
+      }
       case 'cast':
         return !!(selected.cast?.director || selected.cast?.actors?.length > 0);
       case 'prep':
@@ -151,13 +153,18 @@ export default function PipelineV3() {
         return new Date(selected.ciak_complete_at) <= new Date();
       }
       case 'finalcut': {
-        if (!selected.finalcut_complete_at) return !!(selected.finalcut_notes);
+        if (!selected.finalcut_complete_at) return false;
         return new Date(selected.finalcut_complete_at) <= new Date();
       }
       case 'marketing':
         return !!(selected.marketing_completed);
-      case 'la_prima':
-        return selected.release_type !== 'premiere' || true;
+      case 'la_prima': {
+        if (selected.release_type === 'premiere') {
+          const pp = selected.prima_progress || 0;
+          return pp >= 100;
+        }
+        return true;
+      }
       case 'distribution':
         return true;
       default:

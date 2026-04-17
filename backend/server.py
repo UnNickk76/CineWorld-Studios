@@ -5237,27 +5237,27 @@ async def admin_set_perm_badge(data: dict, user: dict = Depends(get_current_user
 
     update = {f'badges.{badge_type}': active}
 
-    # Set/remove actual role
+    # Set/remove actual role (MUST be uppercase to match ROLES in auth_utils.py)
     if active:
         if badge_type == 'cineadmin':
-            update['role'] = 'co_admin'
+            update['role'] = 'CO_ADMIN'
         elif badge_type == 'cinemod':
-            update['role'] = 'moderator'
+            update['role'] = 'MOD'
     else:
         # When removing badge, downgrade role if it matches
-        current_role = target.get('role', 'user')
-        if badge_type == 'cineadmin' and current_role == 'co_admin':
+        current_role = target.get('role', 'USER')
+        if badge_type == 'cineadmin' and current_role == 'CO_ADMIN':
             # Check if they still have cinemod
             if target.get('badges', {}).get('cinemod'):
-                update['role'] = 'moderator'
+                update['role'] = 'MOD'
             else:
-                update['role'] = 'user'
-        elif badge_type == 'cinemod' and current_role == 'moderator':
-            update['role'] = 'user'
+                update['role'] = 'USER'
+        elif badge_type == 'cinemod' and current_role == 'MOD':
+            update['role'] = 'USER'
 
     await db.users.update_one({'id': target['id']}, {'$set': update})
 
-    role_label = {'co_admin': 'CO_ADMIN', 'moderator': 'MODERATOR', 'user': 'USER'}.get(update.get('role', ''), '')
+    role_label = {'CO_ADMIN': 'CO_ADMIN', 'MOD': 'MOD', 'USER': 'USER'}.get(update.get('role', ''), '')
     role_msg = f' (ruolo: {role_label})' if role_label else ''
 
     return {'success': True, 'nickname': target['nickname'], 'badge_type': badge_type, 'active': active, 'role': update.get('role'), 'message': f'{badge_type} {"assegnato" if active else "rimosso"}{role_msg}'}

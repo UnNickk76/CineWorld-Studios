@@ -169,3 +169,18 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 - Seleziona listing random con -30% sconto come "Affare del Giorno"
 - Chiude aste scadute: trasferisce item al vincitore, rimborsa sconfitti
 - Chiude festival scaduti e assegna premi ai vincitori
+
+
+## Bug Fix: Ruoli Permanenti CO_ADMIN/MOD — Risolto (17/04/2026)
+- Causa: `set-perm-badge` in `server.py` salvava ruoli in minuscolo (`co_admin`, `moderator`) ma `auth_utils.py` li aspetta maiuscolo (`CO_ADMIN`, `MOD`)
+- Fix: Corretta capitalizzazione in endpoint + aggiornata label mapping
+- Aggiunta migrazione DB per correggere utenti esistenti con ruoli minuscoli
+- Testato: Assegnazione/rimozione badge con tutti i percorsi di fallback
+
+## Backlog Prioritizzato
+- (P1) Refactoring `scheduler_tasks.py` — dividere in moduli specializzati
+- (P2) Definire permessi operativi specifici per ruolo MOD
+- (P2) Notifiche push per follower
+- (P2) Personalizzazione avatar produttore
+- (P2) Tornei PvP mensili con bracket eliminazione diretta
+- (P3) Pulizia legacy: `film_pipeline_legacy.py`, `pipeline_v2.py`

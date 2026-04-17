@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://quality-score-engine.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://market-v2-launch.preview.emergentagent.com')
 
 # Test credentials
 TEST_USER_EMAIL = "flow_test@test.com"

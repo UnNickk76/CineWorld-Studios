@@ -1187,7 +1187,7 @@ const TopNavbar = () => {
           <Button variant="ghost" size="sm" className="relative flex flex-col h-7 w-7 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
             onClick={() => { window.dispatchEvent(new Event('global-sidemenu-toggle')); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
             data-testid="ciack-btn" aria-label="Menu">
-            <Clapperboard className="w-4 h-4" />
+            <Video className="w-4 h-4" />
             <ChevronDown className="w-2 h-2 opacity-50 -mt-0.5 animate-bounce" style={{ animationDuration: '2s' }} />
             {(prodCounts.total > 0) && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
           </Button>
@@ -1200,7 +1200,7 @@ const TopNavbar = () => {
           <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 text-yellow-500 hover:text-yellow-400 ${prodCounts.total > 0 ? 'animate-pulse' : ''}`}
             style={prodCounts.total > 0 ? { animationDuration: '2.5s' } : {}}
             onClick={() => setShowProductionMenu(!showProductionMenu)} data-testid="top-nav-produci" aria-label="Produci">
-            <Clapperboard className="w-3.5 h-3.5" />
+            <Video className="w-3.5 h-3.5" />
             {prodCounts.total > 0 && (
               <span className="absolute -top-0.5 -right-0.5 min-w-[10px] h-2.5 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">
                 {prodCounts.total > 9 ? '9+' : prodCounts.total}
@@ -1350,7 +1350,7 @@ const TopNavbar = () => {
             </div>
             <div className="grid grid-cols-3 gap-2 p-3">
               {[
-                { icon: Clapperboard, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400', count: prodCounts.film },
+                { icon: Video, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400', count: prodCounts.film },
                 { icon: Copy, label: 'Sequel', path: '/create-sequel', color: 'bg-orange-500/15 border-orange-500/30 text-orange-400', count: 0 },
                 { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', count: prodCounts.series },
                 { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400', count: prodCounts.anime },
@@ -1706,7 +1706,7 @@ const ProtectedRoute = ({ children }) => {
     }
   };
   
-  if (loading) return <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center"><Clapperboard className="w-10 h-10 text-yellow-500 animate-pulse" /></div>;
+  if (loading) return <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center"><Video className="w-10 h-10 text-yellow-500 animate-pulse" /></div>;
   if (!user) return <Navigate to="/auth" replace />;
 
   return (

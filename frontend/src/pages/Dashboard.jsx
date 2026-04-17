@@ -8,7 +8,7 @@ import { useSWR } from '../contexts/GameStore';
 import { LaPrimaSection } from '../components/LaPrimaSection';
 import { ComingSoonSection } from '../components/ComingSoonSection';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
-import { MasterpieceBadge } from '../components/PlayerBadge';
+import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
 import { Card, CardContent } from '../components/ui/card';
 
 const FilmDetailV3 = lazy(() => import('../components/v3/FilmDetailV3'));
@@ -362,7 +362,12 @@ const Dashboard = () => {
           <div className="mb-4" data-testid="dashboard-welcome">
             <p className="text-gray-400 text-xs">Benvenuto in CineWorld Studio's,</p>
             <button className="text-left w-full" onClick={() => setShowWelcomeStats(p => !p)} data-testid="welcome-nickname-btn">
-              <h1 className="font-['Bebas_Neue'] text-2xl text-yellow-400 tracking-wide">{user?.nickname || 'Player'}</h1>
+              <h1 className="font-['Bebas_Neue'] text-2xl text-yellow-400 tracking-wide inline-flex items-center gap-1.5">
+                <PlayerBadge badge={user?.badge} badgeExpiry={user?.badge_expiry} badges={user?.badges} size="md" />
+                {user?.nickname || 'Player'}
+                {user?.role === 'co_admin' && <span className="text-[8px] font-mono text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded ml-1">CO-ADMIN</span>}
+                {user?.role === 'moderator' && <span className="text-[8px] font-mono text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded ml-1">MOD</span>}
+              </h1>
             </button>
             {user?.production_house_name && <p className="text-[11px] text-gray-500 -mt-0.5">{user.production_house_name}</p>}
             {showWelcomeStats && (

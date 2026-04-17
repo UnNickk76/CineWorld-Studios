@@ -48,6 +48,7 @@ import { GameStoreProvider, useGameStore } from './contexts/GameStore';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import { NotificationProvider, useNotifications } from './components/NotificationProvider';
 import { CompareProducersModal } from './components/CompareProducersModal';
+import { PullToRefresh } from './components/PullToRefresh';
 import { VelionOverlay } from './components/VelionOverlay';
 import { VelionPanel, shouldAutoShowTutorial } from './components/VelionPanel';
 import { GuestTutorial } from './components/GuestTutorial';
@@ -1905,7 +1906,9 @@ const UrlManager = ({ children }) => {
           </button>
         </div>
       )}
+      <PullToRefresh>
       {children}
+      </PullToRefresh>
     </>
   );
 };

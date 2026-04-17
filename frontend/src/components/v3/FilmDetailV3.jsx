@@ -36,6 +36,154 @@ function generateReviews(quality, hype) {
   });
 }
 
+/* ═══ PRODUCTION BUZZ — messaggi per film in produzione ═══ */
+const PRODUCTION_BUZZ = {
+  idea: [
+    "Si vocifera di un nuovo progetto in fase embrionale...",
+    "Qualcuno ha iniziato a scrivere qualcosa di interessante!",
+    "Un'idea fresca sta prendendo forma negli studi",
+    "I primi concept sono sul tavolo del produttore",
+    "Sembra che qualcosa di nuovo stia bollendo in pentola...",
+    "Le prime note creative circolano tra gli addetti ai lavori",
+    "Un progetto misterioso è stato registrato nei database degli studi",
+    "Fonti anonime parlano di un concept rivoluzionario",
+    "Il brainstorming è appena iniziato, l'entusiasmo è palpabile",
+    "Nessun dettaglio ancora, ma l'hype comincia a salire piano piano",
+  ],
+  hype: [
+    "Il buzz online sta crescendo: tutti ne parlano!",
+    "I social impazziscono per le prime indiscrezioni",
+    "L'hype è alle stelle! I fan stanno già speculando sulla trama",
+    "Le prime immagini leak hanno mandato in visibilio il web",
+    "Gli influencer del cinema stanno già scommettendo sul successo",
+    "Il countdown è iniziato: la community è in fermento",
+    "Trending su tutti i principali forum di cinema",
+    "I fan hanno già creato teorie e aspettative altissime",
+    "Le prime indiscrezioni promettono un progetto ambizioso",
+    "L'attesa cresce di giorno in giorno tra gli appassionati",
+  ],
+  cast: [
+    "Il casting è in corso: chi saranno i protagonisti?",
+    "Si parla di nomi importanti per il ruolo principale!",
+    "Le audizioni procedono: i talenti si stanno facendo avanti",
+    "Rumors su un cast stellare stanno circolando ovunque",
+    "Il direttore del casting sta valutando candidati eccezionali",
+    "I provini sono infuocati: la competizione tra attori è serrata",
+    "Fonti vicine alla produzione parlano di scelte coraggiose nel cast",
+    "L'annuncio del cast potrebbe arrivare a breve!",
+    "Si dice che un nome a sorpresa potrebbe unirsi al progetto",
+    "La chimica tra i candidati è stata testata: risultati promettenti",
+  ],
+  prep: [
+    "La pre-produzione procede a ritmo serrato",
+    "Set e costumi sono in fase di allestimento",
+    "Le location sono state scelte: promettono atmosfere uniche",
+    "Lo storyboard è quasi completo, le scene prendono vita",
+    "I reparti tecnici lavorano giorno e notte ai preparativi",
+    "Il budget è stato definito: la produzione non bada a spese",
+    "Gli effetti speciali preliminari lasciano a bocca aperta",
+    "La colonna sonora è in fase di composizione",
+    "I costumisti stanno creando look iconici per i personaggi",
+    "Le prove generali stanno dando risultati entusiasmanti",
+  ],
+  ciak: [
+    "CIAK! Le riprese sono ufficialmente iniziate!",
+    "Dal set arrivano le prime foto: atmosfera elettrica!",
+    "Le riprese procedono senza intoppi, il regista è soddisfatto",
+    "Giornate lunghe sul set, ma l'energia è incredibile",
+    "Gli attori stanno dando il massimo in ogni scena",
+    "Le scene d'azione sono spettacolari secondo chi le ha viste",
+    "Il regista ha definito queste riprese le migliori della sua carriera",
+    "Dal set trapelano risate e grande complicità tra il cast",
+    "Le riprese notturne hanno creato un'atmosfera magica",
+    "Ogni giorno di riprese aggiunge un pezzo al puzzle",
+  ],
+  finalcut: [
+    "Il montaggio è in corso: il film sta prendendo la sua forma finale",
+    "In sala di montaggio si lavora senza sosta per la versione definitiva",
+    "Le prime visioni interne hanno ricevuto reazioni molto positive",
+    "Il color grading sta dando al film un look cinematografico unico",
+    "Gli effetti speciali in post-produzione sono quasi completati",
+    "La colonna sonora è stata registrata: emozionante!",
+    "Il mix audio è in fase di perfezionamento",
+    "Le scene tagliate fanno male al cuore ma il ritmo ne beneficia",
+    "Il montatore sta definendo il ritmo perfetto per ogni sequenza",
+    "La versione finale si avvicina: manca davvero poco!",
+  ],
+  marketing: [
+    "La campagna marketing sta per partire in grande stile!",
+    "I primi trailer sono in fase di montaggio: saranno esplosivi",
+    "La strategia promozionale è stata definita nei minimi dettagli",
+    "Poster teaser e banner stanno invadendo i social media",
+    "Le anteprime per la stampa sono in programma",
+    "Il materiale promozionale sta generando curiosità ovunque",
+    "Gli spot TV sono pronti per il lancio su tutti i canali",
+    "La premiere è in fase di organizzazione: sarà un evento memorabile",
+    "I partner commerciali sono entusiasti del potenziale",
+    "Il countdown al lancio è iniziato ufficialmente",
+  ],
+  distribution: [
+    "La distribuzione è stata pianificata: presto nelle sale!",
+    "I cinema stanno prenotando le copie: la domanda è alta",
+    "Il film sarà distribuito in più continenti contemporaneamente",
+    "Le sale si preparano: i proiettori saranno pronti a breve",
+    "Le trattative per la distribuzione internazionale sono concluse",
+    "Il giorno del debutto si avvicina: l'emozione sale",
+    "Tutto è pronto per il grande lancio nelle sale cinematografiche",
+    "I biglietti in prevendita stanno andando a ruba",
+    "Le sale IMAX hanno confermato la proiezione: sarà grandioso",
+    "La distribuzione copre oltre 20 paesi: un lancio globale",
+  ],
+  release_pending: [
+    "L'uscita è imminente! Gli ultimi preparativi sono in corso",
+    "Il red carpet è quasi pronto: l'attesa sta per finire!",
+    "Ore contate prima del debutto ufficiale nelle sale",
+    "La tensione è palpabile: il mondo aspetta questo film",
+    "Tutto è pronto: manca solo il via definitivo!",
+    "Il produttore ha confermato: non ci saranno rinvii!",
+    "I critici sono in fila per la prima proiezione stampa",
+    "Il conto alla rovescia è iniziato: il momento è quasi arrivato",
+    "L'ultimo check tecnico prima della grande premiere",
+    "Ci siamo quasi: il sogno sta per diventare realtà!",
+  ],
+  default: [
+    "Il progetto è in fase di sviluppo: restate sintonizzati!",
+    "Lavori in corso: qualcosa di grande sta arrivando",
+    "La produzione avanza: nuovi dettagli presto!",
+    "Il team è al lavoro: aspettative altissime per questo progetto",
+    "Silenzio stampa dalla produzione: un segno che c'è fermento",
+    "Gli addetti ai lavori sono ottimisti sul risultato finale",
+    "Le aspettative della community crescono di settimana in settimana",
+    "Ancora nessuna data certa, ma i progressi sono evidenti",
+    "Il progetto procede secondo i piani: nessun ritardo in vista",
+    "La curiosità intorno a questo progetto è ai massimi storici",
+  ],
+};
+
+const PRODUCTION_SOURCES = ['INDISCREZIONE', 'DAL SET', 'INSIDER', 'RUMOR', 'ANTICIPAZIONE'];
+
+function getProductionBuzz(film) {
+  const state = film.pipeline_state || film.status || 'default';
+  const pool = PRODUCTION_BUZZ[state] || PRODUCTION_BUZZ.default;
+  // Deterministic pick based on film id
+  const seed = (film.id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const msgs = [];
+  for (let i = 0; i < 3; i++) {
+    const idx = (seed + i * 7) % pool.length;
+    const srcIdx = (seed + i * 3) % PRODUCTION_SOURCES.length;
+    msgs.push({ source: PRODUCTION_SOURCES[srcIdx], text: pool[idx] });
+  }
+  return msgs;
+}
+
+function isFilmReleased(film) {
+  if (!film) return false;
+  const hasQuality = film.quality_score && film.quality_score > 0;
+  const isInTheaters = film.status === 'in_theaters';
+  const hasBeenReleased = film.released === true || film.released_at;
+  return hasQuality && (isInTheaters || hasBeenReleased);
+}
+
 /* ═══ PUBLIC PERCEPTION ═══ */
 function getPublicPerception(film) {
   const q = film?.quality_score || 50;
@@ -253,7 +401,9 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
   const isOwner = film?.user_id === user?.id;
   const isLive = film?.status === 'in_theaters';
 
-  const reviews = generateReviews(film.quality_score, film.popularity_score || film.hype_score);
+  const reviews = isFilmReleased(film) ? generateReviews(film.quality_score, film.popularity_score || film.hype_score) : [];
+  const productionBuzz = !isFilmReleased(film) ? getProductionBuzz(film) : [];
+  const showReviews = isFilmReleased(film);
   const castInfo = extractCastInfo(film.cast);
   const cwsv = film.cwsv_display || (film.quality_score ? (film.quality_score % 1 === 0 ? String(Math.round(film.quality_score)) : film.quality_score.toFixed(1)) : null);
   const cwsvNum = film.quality_score || 0;
@@ -346,28 +496,73 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
           : 'FUORI SALA'}
       </div>
 
-      {/* 6. JOURNALIST REVIEWS */}
-      <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>
-      <div className="ct2-reviews-row" data-testid="ct-reviews">
-        {reviews.map((r, i) => (
-          <div key={i} className="ct2-review-box" data-testid={`ct-review-${i}`}>
-            <div className="ct2-review-outlet">{r.outlet}</div>
-            <div className="ct2-review-quote">"{r.quote}"</div>
+      {/* 6. JOURNALIST REVIEWS or PRODUCTION BUZZ */}
+      {showReviews ? (
+        <>
+          <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>
+          <div className="ct2-reviews-row" data-testid="ct-reviews">
+            {reviews.map((r, i) => (
+              <div key={i} className="ct2-review-box" data-testid={`ct-review-${i}`}>
+                <div className="ct2-review-outlet">{r.outlet}</div>
+                <div className="ct2-review-quote">"{r.quote}"</div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      ) : (
+        <>
+          <div className="ct2-section-label" data-testid="ct-buzz-label" style={{ color: '#a78bfa' }}>Voci dalla produzione</div>
+          <div className="ct2-reviews-row" data-testid="ct-buzz">
+            {productionBuzz.map((b, i) => (
+              <div key={i} className="ct2-review-box" data-testid={`ct-buzz-${i}`} style={{ borderColor: 'rgba(167,139,250,0.15)', background: 'rgba(167,139,250,0.04)' }}>
+                <div className="ct2-review-outlet" style={{ color: '#a78bfa' }}>{b.source}</div>
+                <div className="ct2-review-quote" style={{ color: '#c4b5fd' }}>"{b.text}"</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
-      {/* 7. PUBLIC + EVENTS */}
-      <div className="ct2-public-box" data-testid="ct-public-box">
-        <div className="ct2-public-header">
-          <Eye size={14} />
-          <span>Pubblico & Eventi</span>
+      {/* 7. PUBLIC + EVENTS or ANTICIPATION */}
+      {showReviews ? (
+        <div className="ct2-public-box" data-testid="ct-public-box">
+          <div className="ct2-public-header">
+            <Eye size={14} />
+            <span>Pubblico & Eventi</span>
+          </div>
+          <div className="ct2-public-lines">
+            {perception.map((line, i) => <div key={i} className="ct2-public-line">{line}</div>)}
+            {perception.length === 0 && <div className="ct2-public-line">Nessun dato disponibile</div>}
+          </div>
         </div>
-        <div className="ct2-public-lines">
-          {perception.map((line, i) => <div key={i} className="ct2-public-line">{line}</div>)}
-          {perception.length === 0 && <div className="ct2-public-line">Nessun dato disponibile</div>}
+      ) : (
+        <div className="ct2-public-box" data-testid="ct-anticipation-box" style={{ borderColor: 'rgba(167,139,250,0.1)', background: 'rgba(167,139,250,0.03)' }}>
+          <div className="ct2-public-header" style={{ color: '#a78bfa' }}>
+            <Flame size={14} />
+            <span>Aspettative del pubblico</span>
+          </div>
+          <div className="ct2-public-lines">
+            <div className="ct2-public-line" style={{ color: '#c4b5fd' }}>
+              {film.hype_score > 70 ? 'Le aspettative sono altissime: tutti aspettano questo titolo!'
+                : film.hype_score > 40 ? 'Buona attenzione dal pubblico, curiosità in crescita'
+                : film.hype_score > 0 ? "C'è interesse, ma serve ancora tempo per costruire l'hype"
+                : 'Il progetto è ancora avvolto nel mistero — pochi ne sono a conoscenza'}
+            </div>
+            <div className="ct2-public-line" style={{ color: '#9ca3af', fontSize: '10px' }}>
+              Film in fase di {film.pipeline_state === 'idea' ? 'concept'
+                : film.pipeline_state === 'hype' ? 'promozione iniziale'
+                : film.pipeline_state === 'cast' ? 'casting'
+                : film.pipeline_state === 'prep' ? 'pre-produzione'
+                : film.pipeline_state === 'ciak' ? 'riprese'
+                : film.pipeline_state === 'finalcut' ? 'post-produzione'
+                : film.pipeline_state === 'marketing' ? 'campagna marketing'
+                : film.pipeline_state === 'distribution' ? 'distribuzione'
+                : film.pipeline_state === 'release_pending' ? 'uscita imminente'
+                : 'sviluppo'}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 8. SCREENPLAY */}
       {screenplay && (

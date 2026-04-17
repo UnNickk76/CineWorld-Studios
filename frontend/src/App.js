@@ -74,6 +74,8 @@ const FeedbackBoard = React.lazy(() => import('./pages/FeedbackBoard'));
 const FestivalsPage = React.lazy(() => import('./pages/FestivalsPage'));
 const FilmDetail = React.lazy(() => import('./pages/FilmDetail'));
 const FilmMarketplace = React.lazy(() => import('./pages/FilmMarketplace'));
+const MarketV2Page = React.lazy(() => import('./pages/MarketV2Page'));
+const MedalsChallengePage = React.lazy(() => import('./pages/MedalsChallengePage'));
 const FilmWizard = React.lazy(() => import('./pages/FilmWizard'));
 const FilmPipeline = React.lazy(() => import('./pages/FilmPipeline'));
 const PipelineV2 = React.lazy(() => import('./pages/PipelineV2'));
@@ -603,6 +605,7 @@ const GlobalSideMenu = () => {
     { icon: Clapperboard, label: "Produci", action: goProduci, badge: menuBadges.produci > 0 },
     { icon: Pen, label: "Sceneggiature", action: () => go('/emerging-screenplays') },
     { icon: Store, label: "Mercato", action: () => go('/marketplace') },
+    { icon: Trophy, label: "Sfide & Medaglie", action: () => go('/challenges') },
     { icon: Tv, label: "Le mie TV", action: () => go('/my-tv') },
     { icon: Building, label: "Infrastrutture", action: () => go('/infrastructure') },
     ...(categories.has_strutture ? [{ icon: Building2, label: "Strutture", action: () => go('/strutture') }] : []),
@@ -2038,7 +2041,10 @@ function App() {
                 <Route path="/tv-station/:stationId" element={<ProtectedRoute><TVStationPage /></ProtectedRoute>} />
                 <Route path="/tv-station-setup" element={<ProtectedRoute><TVStationPage /></ProtectedRoute>} />
                 <Route path="/tv-stations" element={<ProtectedRoute><AllTVStationsPage /></ProtectedRoute>} />
-                <Route path="/marketplace" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
+                <Route path="/marketplace" element={<ProtectedRoute><MarketV2Page /></ProtectedRoute>} />
+                <Route path="/market" element={<ProtectedRoute><MarketV2Page /></ProtectedRoute>} />
+                <Route path="/challenges" element={<ProtectedRoute><MedalsChallengePage /></ProtectedRoute>} />
+                <Route path="/medals" element={<ProtectedRoute><MedalsChallengePage /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />
                 <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />

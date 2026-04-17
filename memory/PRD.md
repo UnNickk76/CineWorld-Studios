@@ -115,10 +115,30 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 - Backend: `GET /api/players/{id}/films` e `GET /api/players/{id}/series`
 
 ### P2
-- Sfide settimanali, Festival, Concorrenza
-- Fase Market (film + serie + anime)
-- Medaglie produttore (es. "Maestro dell'horror", "Re degli Incassi")
-- Storico CWTrend sparkline con dati storici reali (attualmente calcolato deterministicamente)
+- (Tutti P2 implementati!)
+
+## Mercato Unificato v2 — Implementato (17/04/2026)
+- 5 sezioni: Film, Serie TV, Anime, Infrastrutture, Diritti TV
+- 3 tipi vendita: Prezzo Fisso, Asta (24-72h), Offerta Libera
+- Commissione 10% al sistema
+- Storico transazioni con stats
+- "Affare del Giorno" system
+- Diritti TV: vendita diritti di trasmissione con royalties 5-15%
+- Routes: `/market`, `/marketplace`
+- Backend: `GET /api/market/browse`, `POST /api/market/list`, `POST /api/market/buy`, `POST /api/market/bid`, `POST /api/market/offer`, `POST /api/market/tv-rights/list`, `POST /api/market/tv-rights/buy/{id}`
+
+## Medaglie Produttore — Implementato (17/04/2026)
+- 27 medaglie in 7 categorie: Produzione, Qualità, Business, PvP, Genere, Social, Infrastrutture
+- 4 tier: Bronzo, Argento, Oro, Leggendaria
+- Check automatico dopo azioni chiave
+- Routes: `/medals`, `/challenges`
+- Backend: `GET /api/medals/my`, `GET /api/medals/player/{id}`
+
+## Sfide Settimanali — Implementato (17/04/2026)
+- 12 sfide nel pool, 3 selezionate random per settimana
+- Ricompense: Fondi, CinePass, XP, Fama
+- Progress tracking automatico
+- Backend: `GET /api/challenges/weekly`, `POST /api/challenges/weekly/{id}/claim`
 
 ### Refactoring
 - Pulizia codice legacy (`film_pipeline_legacy.py`, vecchi endpoint)

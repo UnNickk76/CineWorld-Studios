@@ -94,28 +94,43 @@ export default function PipelineV3() {
 
     const animationType = WOW_TRANSITIONS[nextState];
     if (animationType) {
-      pendingAdvanceRef.current = nextState;
+      // Store both nextState AND pid to avoid stale closure issues
+      pendingAdvanceRef.current = { nextState, pid: selected.id };
       setWowAnimation(animationType);
-      return; // Animation will call completeAdvance when done
+      return; // Animation will call onWowAnimationComplete when done
     }
 
-    await completeAdvance(nextState);
+    await completeAdvance(nextState, selected.id);
   };
 
-  const completeAdvance = async (nextState) => {
+  const completeAdvance = async (nextState, pid) => {
+    if (!pid) pid = selected?.id;
+    if (!pid) return;
     setLoading(true);
     try {
-      await v3api(`/films/${selected.id}/advance`, 'POST', { next_state: nextState });
-      await refreshSelected(); setDirty(false);
-    } catch (e) { showToast(e.message, 'error'); }
+      await v3api(`/films/${pid}/advance`, 'POST', { next_state: nextState });
+      // Refresh using pid directly (avoids stale closure)
+      const d = await v3api(`/films/${pid}`);
+      setSelected(d); setDirty(false);
+    } catch (e) { showToast(String(e?.message || 'Errore avanzamento'), 'error'); }
     setLoading(false);
   };
 
-  const onWowAnimationComplete = useCallback(() => {
-    const nextState = pendingAdvanceRef.current;
+  const onWowAnimationComplete = useCallback(async () => {
+    const pending = pendingAdvanceRef.current;
     setWowAnimation(null);
     pendingAdvanceRef.current = null;
-    if (nextState) completeAdvance(nextState);
+    if (!pending) return;
+    const { nextState, pid } = pending;
+    if (!nextState || !pid) return;
+    // Inline advance call — no stale closure dependency
+    setLoading(true);
+    try {
+      await v3api(`/films/${pid}/advance`, 'POST', { next_state: nextState });
+      const d = await v3api(`/films/${pid}`);
+      setSelected(d); setDirty(false);
+    } catch (e) { setToast({ msg: String(e?.message || 'Errore'), type: 'error' }); }
+    setLoading(false);
   }, []);
 
   const confirmRelease = async () => {

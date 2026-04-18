@@ -4857,6 +4857,47 @@ async def run_startup_migrations():
         changed = True
         logging.info(f"Migration recalculate_quality_v3_balanced: Recalculated {updated} films")
 
+    # Migration: Backfill hype timers for V3 projects stuck without timestamps
+    if 'backfill_hype_timers_v1' not in completed:
+        now = datetime.now(timezone.utc)
+        cursor = db.film_projects.find(
+            {'pipeline_version': 3, 'hype_started_at': {'$exists': False},
+             '$or': [{'pipeline_state': 'hype'}, {'hype_budget': {'$gt': 0}}, {'hype_progress': {'$gte': 100}}]},
+            {'_id': 0, 'id': 1, 'title': 1, 'pipeline_state': 1, 'hype_progress': 1}
+        )
+        projects = await cursor.to_list(200)
+        fixed = 0
+        for p in projects:
+            state = p.get('pipeline_state', '')
+            hp = p.get('hype_progress', 0) or 0
+            if state == 'hype' and hp >= 100:
+                # Hype complete but no timers — set as already completed
+                await db.film_projects.update_one({'id': p['id']}, {'$set': {
+                    'hype_started_at': (now - timedelta(hours=2)).isoformat(),
+                    'hype_complete_at': (now - timedelta(hours=1)).isoformat(),
+                    'hype_progress': 100,
+                }})
+                fixed += 1
+            elif state == 'hype':
+                # Still in hype with no timers — set timer to complete now
+                await db.film_projects.update_one({'id': p['id']}, {'$set': {
+                    'hype_started_at': (now - timedelta(hours=1)).isoformat(),
+                    'hype_complete_at': now.isoformat(),
+                    'hype_progress': 100,
+                }})
+                fixed += 1
+            elif state not in ('idea',):
+                # Past hype step — mark timers as completed in the past
+                await db.film_projects.update_one({'id': p['id']}, {'$set': {
+                    'hype_started_at': (now - timedelta(hours=3)).isoformat(),
+                    'hype_complete_at': (now - timedelta(hours=2)).isoformat(),
+                    'hype_progress': 100,
+                }})
+                fixed += 1
+        completed.append('backfill_hype_timers_v1')
+        changed = True
+        logging.info(f"Migration backfill_hype_timers_v1: Fixed {fixed}/{len(projects)} projects")
+
     if changed:
         await db.migrations.update_one(
             {'id': 'startup_migrations'},

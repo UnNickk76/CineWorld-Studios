@@ -41,10 +41,27 @@ SERIES_NEXT = {SERIES_PIPELINE[i]: SERIES_PIPELINE[i+1] for i in range(len(SERIE
 SERIES_PREV = {SERIES_PIPELINE[i]: SERIES_PIPELINE[i-1] for i in range(1, len(SERIES_PIPELINE))}
 SERIES_TERMINAL = {'completed', 'released', 'discarded', 'abandoned'}
 
+# === V3 PIPELINE (film_projects with pipeline_version=3) ===
+V3_PIPELINE = ['idea', 'hype', 'cast', 'prep', 'ciak', 'finalcut', 'marketing', 'la_prima', 'distribution', 'release_pending']
+V3_NEXT = {V3_PIPELINE[i]: V3_PIPELINE[i+1] for i in range(len(V3_PIPELINE)-1)}
+V3_PREV = {V3_PIPELINE[i]: V3_PIPELINE[i-1] for i in range(1, len(V3_PIPELINE))}
+V3_TERMINAL = {'released', 'discarded', 'completed'}
+
 
 def _get_pipeline_info(project_type: str, status: str):
     """Get next/prev step and pipeline index for a project."""
-    if project_type == 'film':
+    if project_type == 'film_v3':
+        idx = V3_PIPELINE.index(status) if status in V3_PIPELINE else -1
+        return {
+            'pipeline': V3_PIPELINE,
+            'next': V3_NEXT.get(status),
+            'prev': V3_PREV.get(status),
+            'index': idx,
+            'total': len(V3_PIPELINE),
+            'effective_status': status,
+            'is_legacy': False,
+        }
+    elif project_type == 'film':
         # Handle legacy statuses
         effective = FILM_LEGACY_MAP.get(status, status)
         idx = FILM_PIPELINE.index(effective) if effective in FILM_PIPELINE else -1
@@ -72,7 +89,10 @@ def _get_pipeline_info(project_type: str, status: str):
 
 def _diagnose_project(project: dict, project_type: str) -> dict:
     """Analyze a project and determine its health status."""
-    status = project.get('status', 'unknown')
+    is_v3 = project.get('pipeline_version') == 3
+    # V3 uses pipeline_state, V2 uses status
+    status = project.get('pipeline_state', project.get('status', 'unknown')) if is_v3 else project.get('status', 'unknown')
+    effective_type = 'film_v3' if is_v3 else project_type
     now = datetime.now(timezone.utc)
 
     # Parse updated_at
@@ -91,7 +111,11 @@ def _diagnose_project(project: dict, project_type: str) -> dict:
     flag = 'OK'
     issues = []
 
-    if project_type == 'film':
+    if is_v3:
+        terminal = V3_TERMINAL
+        pipeline = V3_PIPELINE
+        legacy_map = {}
+    elif project_type == 'film':
         terminal = FILM_TERMINAL
         pipeline = FILM_PIPELINE
         legacy_map = FILM_LEGACY_MAP
@@ -112,19 +136,53 @@ def _diagnose_project(project: dict, project_type: str) -> dict:
             flag = 'LOOP'
             issues.append(f'Loop rilevato: step attuale "{status}" uguale al precedente')
 
-        # --- TIMER STUCK DETECTION: scheduled_release_at scaduto ma progetto non avanzato ---
-        sra = project.get('scheduled_release_at')
-        if sra and status in ('coming_soon', 'concept'):
-            try:
-                release_dt = datetime.fromisoformat(str(sra).replace('Z', '+00:00'))
-                if release_dt.tzinfo is None:
-                    release_dt = release_dt.replace(tzinfo=timezone.utc)
-                if now >= release_dt:
-                    if flag == 'OK':
-                        flag = 'STUCK'
-                    issues.append(f'Timer scaduto ({sra[:16]}) ma progetto ancora in "{status}"')
-            except Exception:
-                pass
+        # --- TIMER STUCK DETECTION ---
+        if is_v3:
+            # V3: Check hype timer stuck
+            if status == 'hype' and project.get('hype_started_at') and project.get('hype_complete_at'):
+                try:
+                    end_dt = datetime.fromisoformat(str(project['hype_complete_at']).replace('Z', '+00:00'))
+                    if now >= end_dt and idle_hours > 2:
+                        if flag == 'OK': flag = 'STUCK'
+                        issues.append(f'Hype completato ma non avanzato (timer scaduto)')
+                except Exception:
+                    pass
+            # V3: Missing hype timers
+            if status == 'hype' and not project.get('hype_started_at'):
+                if flag == 'OK': flag = 'STUCK'
+                issues.append('Hype senza timer di avvio (manca hype_started_at)')
+            # V3: Ciak timer stuck
+            if status == 'ciak' and project.get('ciak_complete_at'):
+                try:
+                    end_dt = datetime.fromisoformat(str(project['ciak_complete_at']).replace('Z', '+00:00'))
+                    if now >= end_dt and idle_hours > 2:
+                        if flag == 'OK': flag = 'STUCK'
+                        issues.append('Riprese completate ma non avanzato')
+                except Exception:
+                    pass
+            # V3: FinalCut timer stuck
+            if status == 'finalcut' and project.get('finalcut_complete_at'):
+                try:
+                    end_dt = datetime.fromisoformat(str(project['finalcut_complete_at']).replace('Z', '+00:00'))
+                    if now >= end_dt and idle_hours > 2:
+                        if flag == 'OK': flag = 'STUCK'
+                        issues.append('Montaggio completato ma non avanzato')
+                except Exception:
+                    pass
+        else:
+            # V2: scheduled_release_at stuck
+            sra = project.get('scheduled_release_at')
+            if sra and status in ('coming_soon', 'concept'):
+                try:
+                    release_dt = datetime.fromisoformat(str(sra).replace('Z', '+00:00'))
+                    if release_dt.tzinfo is None:
+                        release_dt = release_dt.replace(tzinfo=timezone.utc)
+                    if now >= release_dt:
+                        if flag == 'OK':
+                            flag = 'STUCK'
+                        issues.append(f'Timer scaduto ({sra[:16]}) ma progetto ancora in "{status}"')
+                except Exception:
+                    pass
 
         # Check for missing data at current step
         missing = _check_missing_data(project, project_type, status)
@@ -152,16 +210,17 @@ def _diagnose_project(project: dict, project_type: str) -> dict:
     else:
         idle_text = f'{int(idle_hours/24)}g {int(idle_hours%24)}h fa'
 
-    info = _get_pipeline_info(project_type, status)
+    info = _get_pipeline_info(effective_type, status)
 
-    return {
+    result = {
         'id': project.get('id'),
         'title': project.get('title', 'Senza titolo'),
         'type': project_type,
-        'sub_type': project.get('type', ''),  # anime, serie_tv, etc.
+        'sub_type': project.get('type', ''),
         'status': status,
         'effective_status': info['effective_status'],
         'is_legacy': info['is_legacy'],
+        'is_v3': is_v3,
         'flag': flag,
         'issues': issues,
         'idle_hours': round(idle_hours, 1),
@@ -173,10 +232,14 @@ def _diagnose_project(project: dict, project_type: str) -> dict:
         'pipeline_total': info['total'],
         'has_cast': bool(project.get('cast') or project.get('cast_proposals')),
         'has_genre': bool(project.get('genre')),
-        'has_screenplay': bool(project.get('screenplay') or project.get('script')),
+        'has_screenplay': bool(project.get('screenplay') or project.get('script') or project.get('screenplay_text')),
         'has_poster': bool(project.get('poster_url')),
         'quality_score': project.get('quality_score'),
     }
+    if is_v3:
+        result['hype_progress'] = project.get('hype_progress', 0) or 0
+        result['pipeline_state'] = status
+    return result
 
 
 def _check_missing_data(project: dict, ptype: str, status: str) -> list:
@@ -225,12 +288,23 @@ async def get_maintenance_projects(username: str = Query(''), user: dict = Depen
     user_id = target['id']
     results = []
 
-    # Films (film_projects collection)
-    film_cursor = db.film_projects.find(
-        {'user_id': user_id, 'status': {'$nin': ['completed', 'released', 'discarded', 'abandoned']}},
+    # V3 Films (film_projects with pipeline_version=3)
+    v3_cursor = db.film_projects.find(
+        {'user_id': user_id, 'pipeline_version': 3,
+         'pipeline_state': {'$nin': ['released', 'discarded', 'completed']}},
         {'_id': 0}
     )
-    async for f in film_cursor:
+    async for f in v3_cursor:
+        results.append(_diagnose_project(f, 'film'))
+
+    # V2 Films (film_projects without pipeline_version=3, using status field)
+    v2_cursor = db.film_projects.find(
+        {'user_id': user_id,
+         '$or': [{'pipeline_version': {'$exists': False}}, {'pipeline_version': {'$ne': 3}}],
+         'status': {'$nin': ['completed', 'released', 'discarded', 'abandoned']}},
+        {'_id': 0}
+    )
+    async for f in v2_cursor:
         results.append(_diagnose_project(f, 'film'))
 
     # Series (tv_series collection)
@@ -308,122 +382,191 @@ async def fix_project(data: dict, user: dict = Depends(get_current_user)):
 async def _auto_fix(coll, project: dict, ptype: str, now_str: str) -> dict:
     """Auto-fix: complete missing data coherently based on existing info."""
     pid = project['id']
-    status = project.get('status', '')
+    is_v3 = project.get('pipeline_version') == 3
+    status = project.get('pipeline_state', project.get('status', '')) if is_v3 else project.get('status', '')
     fixes = []
     update = {'updated_at': now_str}
 
-    # Fix legacy status
-    if ptype == 'film' and status in FILM_LEGACY_MAP:
-        new_status = FILM_LEGACY_MAP[status]
-        update['status'] = new_status
-        update['previous_step'] = status
-        fixes.append(f'Stato legacy "{status}" → "{new_status}"')
+    if is_v3:
+        now = datetime.now(timezone.utc)
+        # V3: Fix missing hype timers
+        if status == 'hype' and not project.get('hype_started_at'):
+            update['hype_started_at'] = (now - timedelta(hours=1)).isoformat()
+            update['hype_complete_at'] = now.isoformat()
+            update['hype_progress'] = 100
+            fixes.append('Timer hype mancanti — impostati come completati')
+        # V3: Fix missing ciak timers
+        if status == 'ciak' and not project.get('ciak_started_at'):
+            shooting_days = project.get('shooting_days', 14)
+            update['ciak_started_at'] = (now - timedelta(hours=shooting_days + 1)).isoformat()
+            update['ciak_complete_at'] = (now - timedelta(hours=1)).isoformat()
+            fixes.append('Timer ciak mancanti — impostati come completati')
+        # V3: Fix missing finalcut timers
+        if status == 'finalcut' and not project.get('finalcut_started_at'):
+            update['finalcut_started_at'] = (now - timedelta(hours=3)).isoformat()
+            update['finalcut_complete_at'] = (now - timedelta(hours=1)).isoformat()
+            fixes.append('Timer montaggio mancanti — impostati come completati')
+        # V3: Fill missing cast
+        if status in ('cast', 'prep', 'ciak', 'finalcut', 'marketing', 'la_prima', 'distribution', 'release_pending'):
+            if not project.get('cast') or not project['cast'].get('director'):
+                update['cast'] = {'director': {'name': 'Auto-Regista', 'auto': True}, 'actors': [{'name': 'Auto-Attore', 'role': 'Protagonista', 'auto': True}]}
+                fixes.append('Cast V3 auto-generato (placeholder)')
+    else:
+        # V2 legacy fix
+        if ptype == 'film' and status in FILM_LEGACY_MAP:
+            new_status = FILM_LEGACY_MAP[status]
+            update['status'] = new_status
+            update['previous_step'] = status
+            fixes.append(f'Stato legacy "{status}" → "{new_status}"')
 
-    # Fill missing genre
-    if not project.get('genre'):
-        default_genre = project.get('genres', ['Drammatico'])[0] if project.get('genres') else 'Drammatico'
-        update['genre'] = default_genre
-        fixes.append(f'Genere impostato: {default_genre}')
+        # Fill missing genre
+        if not project.get('genre'):
+            default_genre = project.get('genres', ['Drammatico'])[0] if project.get('genres') else 'Drammatico'
+            update['genre'] = default_genre
+            fixes.append(f'Genere impostato: {default_genre}')
 
-    # Fill missing cast with placeholder (from cast_proposals or empty)
-    has_cast = bool(project.get('cast') or project.get('cast_proposals'))
-    if not has_cast and status in ('sponsor', 'ciak', 'produzione', 'prima', 'uscita', 'screenplay', 'production', 'ready_to_release'):
-        # Try to create minimal cast from available data
-        update['cast'] = [{'name': 'Auto-Cast', 'role': 'Protagonista', 'auto_generated': True}]
-        update['cast_proposals'] = update['cast']
-        fixes.append('Cast auto-generato (placeholder)')
+        has_cast = bool(project.get('cast') or project.get('cast_proposals'))
+        if not has_cast and status in ('sponsor', 'ciak', 'produzione', 'prima', 'uscita', 'screenplay', 'production', 'ready_to_release'):
+            update['cast'] = [{'name': 'Auto-Cast', 'role': 'Protagonista', 'auto_generated': True}]
+            update['cast_proposals'] = update['cast']
+            fixes.append('Cast auto-generato (placeholder)')
 
-    # Fill missing screenplay
-    has_screenplay = bool(project.get('screenplay') or project.get('script'))
-    if not has_screenplay and status in ('ciak', 'produzione', 'prima', 'uscita', 'production', 'ready_to_release'):
-        title = project.get('title', 'Film')
-        genre = update.get('genre') or project.get('genre', 'Drammatico')
-        update['screenplay'] = f'Sceneggiatura auto-generata per "{title}" ({genre})'
-        fixes.append('Sceneggiatura auto-generata')
+        has_screenplay = bool(project.get('screenplay') or project.get('script'))
+        if not has_screenplay and status in ('ciak', 'produzione', 'prima', 'uscita', 'production', 'ready_to_release'):
+            title = project.get('title', 'Film')
+            genre = update.get('genre') or project.get('genre', 'Drammatico')
+            update['screenplay'] = f'Sceneggiatura auto-generata per "{title}" ({genre})'
+            fixes.append('Sceneggiatura auto-generata')
 
     if not fixes:
         fixes.append('Nessun problema da correggere')
     else:
         await coll.update_one({'id': pid}, {'$set': update})
 
-    return {'fixes': fixes, 'new_status': update.get('status', status)}
+    return {'fixes': fixes, 'new_status': update.get('pipeline_state', update.get('status', status))}
 
 
 async def _force_step(coll, project: dict, ptype: str, now_str: str) -> dict:
     """Force advance to the next step in the pipeline."""
     pid = project['id']
-    status = project.get('status', '')
+    is_v3 = project.get('pipeline_version') == 3
 
-    if ptype == 'film':
-        effective = FILM_LEGACY_MAP.get(status, status)
-        next_step = FILM_NEXT.get(effective)
+    if is_v3:
+        status = project.get('pipeline_state', 'idea')
+        next_step = V3_NEXT.get(status)
+        if not next_step:
+            raise HTTPException(status_code=400, detail=f"Nessuno step successivo per '{status}' (V3)")
+        update = {'pipeline_state': next_step, 'updated_at': now_str}
+        # Auto-fill timers/data for forced advancement
+        now = datetime.now(timezone.utc)
+        if status == 'hype':
+            update['hype_started_at'] = (now - timedelta(hours=2)).isoformat()
+            update['hype_complete_at'] = (now - timedelta(hours=1)).isoformat()
+            update['hype_progress'] = 100
+        if status == 'ciak' and not project.get('ciak_complete_at'):
+            update['ciak_started_at'] = (now - timedelta(hours=2)).isoformat()
+            update['ciak_complete_at'] = (now - timedelta(hours=1)).isoformat()
+        if status == 'finalcut' and not project.get('finalcut_complete_at'):
+            update['finalcut_started_at'] = (now - timedelta(hours=2)).isoformat()
+            update['finalcut_complete_at'] = (now - timedelta(hours=1)).isoformat()
+        if status == 'marketing':
+            update['marketing_completed'] = True
+        if status == 'la_prima':
+            update['prima_progress'] = 100
+        # Track max step
+        step_idx = V3_PIPELINE.index(next_step) if next_step in V3_PIPELINE else 0
+        update['max_step_reached'] = max(project.get('max_step_reached', 0), step_idx)
+        await coll.update_one({'id': pid}, {'$set': update})
+        return {'old_status': status, 'new_status': next_step, 'message': f'V3 Avanzato: {status} → {next_step}'}
     else:
-        next_step = SERIES_NEXT.get(status)
-
-    if not next_step:
-        raise HTTPException(status_code=400, detail=f"Nessuno step successivo per lo stato '{status}'")
-
-    await coll.update_one({'id': pid}, {'$set': {'status': next_step, 'previous_step': status, 'updated_at': now_str}})
-    return {'old_status': status, 'new_status': next_step, 'message': f'Avanzato: {status} → {next_step}'}
+        status = project.get('status', '')
+        effective = FILM_LEGACY_MAP.get(status, status) if ptype == 'film' else status
+        if ptype == 'film':
+            next_step = FILM_NEXT.get(effective)
+        else:
+            next_step = SERIES_NEXT.get(status)
+        if not next_step:
+            raise HTTPException(status_code=400, detail=f"Nessuno step successivo per lo stato '{status}'")
+        await coll.update_one({'id': pid}, {'$set': {'status': next_step, 'previous_step': status, 'updated_at': now_str}})
+        return {'old_status': status, 'new_status': next_step, 'message': f'Avanzato: {status} → {next_step}'}
 
 
 async def _complete_project(coll, project: dict, ptype: str, now_str: str) -> dict:
     """Force-complete a project with a coherent quality score."""
     pid = project['id']
-    status = project.get('status', '')
+    is_v3 = project.get('pipeline_version') == 3
+    status = project.get('pipeline_state', project.get('status', '')) if is_v3 else project.get('status', '')
 
     # Calculate a reasonable quality based on existing data
-    quality = 50.0  # Base
+    quality = 50.0
     if project.get('cast') or project.get('cast_proposals'):
         quality += 10
     if project.get('genre'):
         quality += 5
-    if project.get('screenplay') or project.get('script'):
+    if project.get('screenplay') or project.get('script') or project.get('screenplay_text'):
         quality += 10
     if project.get('poster_url'):
         quality += 5
-    if project.get('hype', 0) > 50:
+    hp = project.get('hype_progress', 0) or project.get('hype', 0) or 0
+    if hp > 50:
         quality += 10
     if project.get('sponsor_deal'):
         quality += 5
-    quality = min(quality, 85)  # Cap at 85 for forced completion
+    quality = min(quality, 85)
 
-    update = {
-        'status': 'completed',
-        'previous_step': status,
-        'quality_score': quality,
-        'completed_at': now_str,
-        'updated_at': now_str,
-        'auto_completed': True,
-        'auto_completed_reason': f'Manutenzione admin: completato da stato "{status}"',
-    }
+    if is_v3:
+        update = {
+            'pipeline_state': 'released',
+            'quality_score': quality,
+            'completed_at': now_str,
+            'updated_at': now_str,
+            'auto_completed': True,
+            'auto_completed_reason': f'Manutenzione admin: completato da stato V3 "{status}"',
+        }
+    else:
+        update = {
+            'status': 'completed',
+            'previous_step': status,
+            'quality_score': quality,
+            'completed_at': now_str,
+            'updated_at': now_str,
+            'auto_completed': True,
+            'auto_completed_reason': f'Manutenzione admin: completato da stato "{status}"',
+        }
 
-    # Ensure essential data exists
     if not project.get('genre'):
         update['genre'] = project.get('genres', ['Drammatico'])[0] if project.get('genres') else 'Drammatico'
-    if not project.get('screenplay') and not project.get('script'):
+    if not project.get('screenplay') and not project.get('script') and not project.get('screenplay_text'):
         update['screenplay'] = f'Sceneggiatura generata automaticamente per "{project.get("title", "Progetto")}"'
 
     await coll.update_one({'id': pid}, {'$set': update})
-    return {'old_status': status, 'new_status': 'completed', 'quality_score': quality, 'message': f'Completato con qualita {quality}%'}
+    new_status = 'released' if is_v3 else 'completed'
+    return {'old_status': status, 'new_status': new_status, 'quality_score': quality, 'message': f'Completato con qualita {quality}%'}
 
 
 async def _reset_step(coll, project: dict, ptype: str, now_str: str) -> dict:
     """Reset to previous step without losing data."""
     pid = project['id']
-    status = project.get('status', '')
+    is_v3 = project.get('pipeline_version') == 3
 
-    if ptype == 'film':
-        effective = FILM_LEGACY_MAP.get(status, status)
-        prev_step = FILM_PREV.get(effective)
+    if is_v3:
+        status = project.get('pipeline_state', 'idea')
+        prev_step = V3_PREV.get(status)
+        if not prev_step:
+            raise HTTPException(status_code=400, detail=f"Nessuno step precedente per '{status}' (V3)")
+        await coll.update_one({'id': pid}, {'$set': {'pipeline_state': prev_step, 'updated_at': now_str}})
+        return {'old_status': status, 'new_status': prev_step, 'message': f'V3 Riportato: {status} → {prev_step}'}
     else:
-        prev_step = SERIES_PREV.get(status)
-
-    if not prev_step:
-        raise HTTPException(status_code=400, detail=f"Nessuno step precedente per lo stato '{status}'")
-
-    await coll.update_one({'id': pid}, {'$set': {'status': prev_step, 'previous_step': status, 'updated_at': now_str}})
-    return {'old_status': status, 'new_status': prev_step, 'message': f'Riportato: {status} → {prev_step}'}
+        status = project.get('status', '')
+        if ptype == 'film':
+            effective = FILM_LEGACY_MAP.get(status, status)
+            prev_step = FILM_PREV.get(effective)
+        else:
+            prev_step = SERIES_PREV.get(status)
+        if not prev_step:
+            raise HTTPException(status_code=400, detail=f"Nessuno step precedente per lo stato '{status}'")
+        await coll.update_one({'id': pid}, {'$set': {'status': prev_step, 'previous_step': status, 'updated_at': now_str}})
+        return {'old_status': status, 'new_status': prev_step, 'message': f'Riportato: {status} → {prev_step}'}
 
 
 # ==================== DB EXPORT / IMPORT ====================

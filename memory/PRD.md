@@ -184,3 +184,23 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 - (P2) Personalizzazione avatar produttore
 - (P2) Tornei PvP mensili con bracket eliminazione diretta
 - (P3) Pulizia legacy: `film_pipeline_legacy.py`, `pipeline_v2.py`
+
+## Bug Fix: Hype 100% Animation Loop — Risolto (18/04/2026)
+- **Causa root**: `onWowAnimationComplete` in `PipelineV3.jsx` usava `useCallback([], [])` con stale closure. Quando l'animazione WOW finiva, `completeAdvance` catturava `selected.id = null` dal mount iniziale, quindi la chiamata API falliva silenziosamente e il film restava in hype.
+- **Fix**: Salvato `{ nextState, pid }` in `pendingAdvanceRef`. `onWowAnimationComplete` ora fa la chiamata API inline usando il pid dal ref, eliminando ogni dipendenza da closure stale.
+- **Testato**: Advance hype→cast via API confermato funzionante.
+
+## Bug Fix: Film Legacy senza Hype Timers — Risolto (18/04/2026)
+- Migrazione automatica `backfill_hype_timers_v1` aggiunta al server startup
+- Film V3 in stato `hype` senza `hype_started_at` ricevono timer retroattivi già completati
+- Film oltre lo step hype ricevono timer nel passato
+
+## Admin Maintenance V3 — Implementato (18/04/2026)
+- Sistema manutenzione aggiornato per supportare Pipeline V3 (`pipeline_state` vs `status`)
+- Diagnosi V3: rileva hype timer mancanti, ciak/finalcut bloccati, flag STUCK/BROKEN
+- `force_step` V3: avanza allo step successivo con auto-fill timer e dati mancanti
+- `complete_project` V3: forza rilascio con qualità calcolata (max 85%)
+- `reset_step` V3: torna allo step precedente
+- `auto_fix` V3: ripara timer mancanti e cast placeholder
+- Testato: diagnosi, force_step, complete_project tutti verificati via API
+

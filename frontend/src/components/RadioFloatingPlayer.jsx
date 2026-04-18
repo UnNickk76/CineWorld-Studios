@@ -1,16 +1,17 @@
 // CineWorld Studio's — Floating mini radio player.
 //
-// Appears on LEFT side by default (can be dragged anywhere, position persisted).
-// A circular red widget that shows:
-//   • A 7-bar equalizer at the TOP of the circle (animated when playing)
-//   • ⏯ play/pause button below the equalizer (does NOT overlap it)
-//   • ✕ close at top-left: stops radio + hides widget
-//   • Station name (small chip below the circle)
+// • Cerchio rosso ancorato in basso a SINISTRA, poco sopra la bottom-navbar.
+// • Trascinabile (useDraggable) — posizione salvata in localStorage.
+// • Mini equalizer in alto + play/pause al centro (senza sovrapporsi).
+// • ⬆ in un pallino BLU in alto a destra → apre il popup di selezione
+//   stazioni in qualsiasi pagina (RadioStationsPopup).
+// • ✕ in alto a sinistra → ferma la radio e nasconde il widget.
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRadio } from '../contexts/RadioContext';
-import { Play, Pause, X, Loader2 } from 'lucide-react';
+import { Play, Pause, X, Loader2, ListMusic } from 'lucide-react';
 import { useDraggable } from '../hooks/useDraggable';
+import { RadioStationsPopup } from './RadioStationsPopup';
 
 function MiniEqualizer({ active }) {
   return (
@@ -39,27 +40,29 @@ function MiniEqualizer({ active }) {
 
 export function RadioFloatingPlayer() {
   const { currentStation, isPlaying, loading, toggle, stop } = useRadio();
+  const [popupOpen, setPopupOpen] = useState(false);
   const { dragProps, isDragging } = useDraggable({
-    storageKey: 'cw_radio_player_pos',
+    storageKey: 'cw_radio_player_pos_v2',  // nuovo key: reset della vecchia posizione
     size: 64,
     anchor: 'left',
   });
 
-  // Only render once the user has selected (or is playing) a station
   if (!currentStation) return null;
 
   const handleToggle = (e) => { e.stopPropagation(); toggle(); };
   const handleStop = (e) => { e.stopPropagation(); stop(); };
+  const handleOpenStations = (e) => { e.stopPropagation(); setPopupOpen(true); };
 
   return (
+    <>
     <div
       data-testid="radio-floating-player"
       {...dragProps}
       className="fixed z-[58] left-3 select-none
-                 bottom-[calc(env(safe-area-inset-bottom)+132px)]"
+                 bottom-[calc(env(safe-area-inset-bottom)+76px)]"
     >
       <div className="relative" style={{ animation: isDragging ? 'none' : 'radioFloatIn 0.4s ease-out' }}>
-        {/* Glow ring (stronger when playing) */}
+        {/* Glow ring (più intenso in play) */}
         <div
           className={`absolute inset-0 rounded-full pointer-events-none ${isPlaying ? 'animate-[radioGlow_1.8s_ease-in-out_infinite]' : ''}`}
           style={{
@@ -70,7 +73,7 @@ export function RadioFloatingPlayer() {
           aria-hidden
         />
 
-        {/* Red circle */}
+        {/* Cerchio rosso */}
         <div
           className={`relative w-16 h-16 rounded-full
                      bg-gradient-to-br from-red-500 via-red-600 to-red-800
@@ -78,12 +81,12 @@ export function RadioFloatingPlayer() {
                      shadow-xl shadow-red-900/60
                      flex flex-col items-center overflow-visible pt-1.5`}
         >
-          {/* Equalizer — top area, NEVER covered */}
+          {/* Equalizer in alto, mai coperto */}
           <div className="pointer-events-none">
             <MiniEqualizer active={isPlaying} />
           </div>
 
-          {/* Play/pause — placed below equalizer, fully inside the circle */}
+          {/* Play/pause subito sotto */}
           <button
             onClick={handleToggle}
             data-no-drag="true"
@@ -94,7 +97,7 @@ export function RadioFloatingPlayer() {
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
           </button>
 
-          {/* Close (top-left) — stops radio + hides widget */}
+          {/* ✕ in alto a sinistra — ferma radio e chiude widget */}
           <button
             onClick={handleStop}
             data-no-drag="true"
@@ -104,9 +107,25 @@ export function RadioFloatingPlayer() {
           >
             <X className="w-3 h-3" />
           </button>
+
+          {/* ⬆ pallino BLU in alto a destra — apre popup selezione stazioni */}
+          <button
+            onClick={handleOpenStations}
+            data-no-drag="true"
+            data-testid="radio-floating-stations"
+            className="absolute -top-1 -right-1 w-6 h-6 rounded-full
+                       bg-gradient-to-br from-sky-400 to-blue-600
+                       flex items-center justify-center
+                       border-2 border-white/80
+                       active:scale-90 transition shadow-lg shadow-blue-900/50
+                       animate-[stationPulse_2.2s_ease-in-out_infinite]"
+            aria-label="Apri selezione stazioni radio"
+          >
+            <ListMusic className="w-3 h-3 text-white" strokeWidth={3} />
+          </button>
         </div>
 
-        {/* Station name chip below */}
+        {/* Chip nome stazione sotto */}
         <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap max-w-[128px] overflow-hidden pointer-events-none">
           <p className="text-[9px] text-white/90 font-semibold bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded truncate text-center">
             {currentStation.emoji} {currentStation.name}
@@ -123,7 +142,15 @@ export function RadioFloatingPlayer() {
           0%, 100% { box-shadow: 0 0 18px 6px rgba(239,68,68,0.55), 0 0 36px 10px rgba(239,68,68,0.30); }
           50% { box-shadow: 0 0 28px 9px rgba(239,68,68,0.75), 0 0 54px 18px rgba(239,68,68,0.45); }
         }
+        @keyframes stationPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.7); transform: scale(1); }
+          50% { box-shadow: 0 0 0 6px rgba(59,130,246,0); transform: scale(1.06); }
+        }
       `}</style>
     </div>
+
+    {/* Popup selezione stazioni (portale a document.body) */}
+    <RadioStationsPopup open={popupOpen} onClose={() => setPopupOpen(false)} />
+    </>
   );
 }

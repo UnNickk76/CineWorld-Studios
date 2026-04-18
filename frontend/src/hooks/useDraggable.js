@@ -26,6 +26,9 @@ export function useDraggable({ storageKey, defaultOffset = { x: 0, y: 0 }, size 
     const w = window.innerWidth || 375;
     const h = window.innerHeight || 812;
     const margin = 8;
+    // Margine inferiore maggiorato: riserviamo ~80px sopra il bordo inferiore
+    // in modo da non coprire mai la bottom-navbar.
+    const bottomNavReserve = 80;
     // Horizontal bounds depend on anchor side
     let minX, maxX;
     if (anchor === 'left') {
@@ -35,7 +38,9 @@ export function useDraggable({ storageKey, defaultOffset = { x: 0, y: 0 }, size 
       minX = -(w - size - margin * 2);
       maxX = 0;
     }
-    const minY = -(h - size - margin * 2);
+    // Vertical: l'elemento è ancorato in basso; y negativo lo sposta verso l'alto.
+    // Non si può andare più in basso di 0 (default position).
+    const minY = -(h - size - margin * 2 - bottomNavReserve);
     const maxY = 0;
     return {
       x: Math.min(maxX, Math.max(minX, x)),

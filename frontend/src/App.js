@@ -1187,7 +1187,7 @@ const TopNavbar = () => {
           <Button variant="ghost" size="sm" className="relative flex flex-col h-7 w-7 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
             onClick={() => { window.dispatchEvent(new Event('global-sidemenu-toggle')); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
             data-testid="ciack-btn" aria-label="Menu">
-            <Video className="w-4 h-4" />
+            <Clapperboard className="w-4 h-4" />
             <ChevronDown className="w-2 h-2 opacity-50 -mt-0.5 animate-bounce" style={{ animationDuration: '2s' }} />
             {(prodCounts.total > 0) && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
           </Button>

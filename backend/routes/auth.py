@@ -646,6 +646,7 @@ async def confirm_reset(request: ResetConfirmRequest, user: dict = Depends(get_c
     user_id = user['id']
     
     deleted_films = await db.films.delete_many({'user_id': user_id})
+    deleted_projects = await db.film_projects.delete_many({'user_id': user_id})
     deleted_infra = await db.infrastructure.delete_many({'owner_id': user_id})
     deleted_awards = await db.festival_awards.delete_many({'owner_id': user_id})
     await db.festival_votes.delete_many({'user_id': user_id})
@@ -655,6 +656,11 @@ async def confirm_reset(request: ResetConfirmRequest, user: dict = Depends(get_c
     await db.notifications.delete_many({'user_id': user_id})
     await db.chat_messages.delete_many({'sender_id': user_id})
     await db.premiere_invites.delete_many({'$or': [{'inviter_id': user_id}, {'invitee_id': user_id}]})
+    await db.agency_actors.delete_many({'user_id': user_id})
+    await db.exclusive_contracts.delete_many({'user_id': user_id})
+    await db.preferred_agencies.delete_many({'user_id': user_id})
+    await db.pvp_arena_actions.delete_many({'$or': [{'attacker_id': user_id}, {'target_owner': user_id}]})
+    await db.market_listings.delete_many({'seller_id': user_id})
     
     new_avatar = f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.get('nickname', 'Player')}{random.randint(1000,9999)}"
     
@@ -676,7 +682,7 @@ async def confirm_reset(request: ResetConfirmRequest, user: dict = Depends(get_c
     return {
         'success': True,
         'message': 'Reset completato!',
-        'deleted': {'films': deleted_films.deleted_count, 'infrastructure': deleted_infra.deleted_count, 'awards': deleted_awards.deleted_count},
+        'deleted': {'films': deleted_films.deleted_count, 'projects': deleted_projects.deleted_count, 'infrastructure': deleted_infra.deleted_count, 'awards': deleted_awards.deleted_count},
         'new_stats': {'funds': 10000000.0, 'level': 1, 'xp': 0, 'fame': 50}
     }
 

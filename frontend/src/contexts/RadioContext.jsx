@@ -21,6 +21,7 @@ export function RadioProvider({ children }) {
   const [volume, setVolume] = useState(0.7);
   const [loading, setLoading] = useState(false);
   const [banner, setBanner] = useState({ should_show: false, discount_percent: 80, user_has_tv: false });
+  const [nowPlaying, setNowPlaying] = useState({ artist: null, title: null, dismissed: false });
   // Track localStorage token changes so we can re-fetch after login
   const [tokenTick, setTokenTick] = useState(0);
   const audioRef = useRef(null);
@@ -119,6 +120,7 @@ export function RadioProvider({ children }) {
     if (!audioRef.current || !station?.url) return;
     setLoading(true);
     setCurrentStation(station);
+    setNowPlaying({ artist: null, title: null, dismissed: false });
     audioRef.current.src = station.url;
     audioRef.current.play().catch((err) => {
       setLoading(false);
@@ -146,6 +148,7 @@ export function RadioProvider({ children }) {
     }
     setIsPlaying(false);
     setCurrentStation(null);
+    setNowPlaying({ artist: null, title: null, dismissed: false });
   }, []);
 
   const toggle = useCallback(() => {
@@ -183,11 +186,41 @@ export function RadioProvider({ children }) {
 
   const refreshBanner = useCallback(() => loadBanner(), [loadBanner]);
 
+  // Poll ICY metadata every 20s while a station is playing.
+  useEffect(() => {
+    if (!currentStation || !isPlaying) return;
+    let cancelled = false;
+    const fetchNow = async () => {
+      try {
+        const res = await axios.get(
+          `${API}/radio/now-playing?station_id=${encodeURIComponent(currentStation.id)}`,
+          { headers: authHeaders(), timeout: 8000 }
+        );
+        if (cancelled) return;
+        setNowPlaying(prev => ({
+          artist: res.data.artist,
+          title: res.data.title,
+          dismissed: prev.dismissed,  // preserve close state across polls
+        }));
+      } catch (e) {
+        // Silent fail
+      }
+    };
+    fetchNow();
+    const interval = setInterval(fetchNow, 20000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [currentStation, isPlaying]);
+
+  const dismissNowPlaying = useCallback(() => {
+    setNowPlaying(prev => ({ ...prev, dismissed: true }));
+  }, []);
+
   return (
     <RadioContext.Provider value={{
       stations, currentStation, isPlaying, loading, volume,
       setVolume, play, pause, resume, stop, toggle, next, prev,
       banner, dismissBanner, refreshBanner,
+      nowPlaying, dismissNowPlaying,
     }}>
       {children}
     </RadioContext.Provider>

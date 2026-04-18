@@ -7,7 +7,7 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 
 const PX_TO_CONSIDER_DRAG = 6;  // pointer movement before we call it a drag
 
-export function useDraggable({ storageKey, defaultOffset = { x: 0, y: 0 }, size = 64 }) {
+export function useDraggable({ storageKey, defaultOffset = { x: 0, y: 0 }, size = 64, anchor = 'right' }) {
   const [offset, setOffset] = useState(() => {
     if (!storageKey) return defaultOffset;
     try {
@@ -23,21 +23,25 @@ export function useDraggable({ storageKey, defaultOffset = { x: 0, y: 0 }, size 
   const startRef = useRef(null); // { pointerX, pointerY, offsetX, offsetY, suppressClick }
 
   const clamp = useCallback((x, y) => {
-    // Keep the widget fully inside the viewport with a tiny safety margin.
     const w = window.innerWidth || 375;
     const h = window.innerHeight || 812;
     const margin = 8;
-    // Bounds are expressed as deltas from the element's default anchor (bottom-right).
-    // So negative x moves left, negative y moves up.
-    const minX = -(w - size - margin * 2);
-    const maxX = 0;
+    // Horizontal bounds depend on anchor side
+    let minX, maxX;
+    if (anchor === 'left') {
+      minX = 0;
+      maxX = w - size - margin * 2;
+    } else {
+      minX = -(w - size - margin * 2);
+      maxX = 0;
+    }
     const minY = -(h - size - margin * 2);
     const maxY = 0;
     return {
       x: Math.min(maxX, Math.max(minX, x)),
       y: Math.min(maxY, Math.max(minY, y)),
     };
-  }, [size]);
+  }, [size, anchor]);
 
   const onPointerDown = useCallback((e) => {
     // Don't start a drag if the user pressed on a button/input inside the widget

@@ -1,5 +1,39 @@
 # CineWorld Studio's — PRD
 
+## Radio v4 — ICY Metadata + UI refinements (18/04/2026)
+
+### Nuove radio italiane aggiunte (7)
+- ✅ **Radio Subasio** (`icy.unitedradio.it/Subasio.mp3`)
+- ✅ **Radio Kiss Kiss** (`ice07.fluidstream.net:8080/KissKiss.mp3`)
+- ✅ **Radio Deejay** (`22533.live.streamtheworld.com/RADIO_DEEJAY.mp3`)
+- ✅ **R101** (`icecast.unitedradio.it/r101`)
+- ✅ **RTL Italian Style** (`shoutcast.rtl.it:3030/`)
+- ✅ **Radio Freccia** (`streamingv2.shoutcast.com/radiofreccia`)
+- ✅ **Radio Rock** (`rrock.fluidstream.eu/radiorock.mp3`)
+
+NON aggiunte per mancanza stream pubblici funzionanti: Radio Italia, Radio Globo, Radio RAM (bloccate al server o solo accessibili via player proprietario).
+
+Totale: **27 stazioni**.
+
+### ICY Metadata Proxy (P1 implementato)
+Nuovo endpoint `GET /api/radio/now-playing?station_id=xxx` in `/app/backend/routes/radio.py`:
+- Apre connessione raw TCP (con TLS per HTTPS) allo stream
+- Invia header `Icy-MetaData: 1`
+- Legge `icy-metaint: N` dagli header
+- Drena N byte di audio, legge il byte lunghezza, poi il blocco metadata
+- Parsa `StreamTitle='Artista - Titolo'` con regex
+- Cache in-memory 15s per ridurre il carico
+- Segue 1 redirect (301/302), rispetta timeout 4s
+- Limita le station_id solo a quelle curate (anti-SSRF)
+
+Frontend: `RadioContext` polla ogni 20s quando `isPlaying=true`, stato `nowPlaying: {artist, title, dismissed}`.
+
+### UI Fix
+- **Posizione default cerchio radio: LEFT** (era RIGHT). Hook `useDraggable` ora accetta `anchor: 'left'|'right'` con clamp bounds adeguati.
+- **Play/pause non copre più l'equalizer**: layout verticale stacked (equalizer in alto, pulsante sotto con `mt-[3px]`, pulsante ridotto a w-8 h-8).
+- Nuovo componente `NowPlayingBanner`: banner semi-trasparente (backdrop-blur-lg + gradient black/red) che appare sopra il cerchio radio quando la radio è attiva E i metadata sono disponibili. Testo a scorrimento marquee (CSS keyframes `nowPlayScroll`) solo se il testo è più largo del container. Chiudibile con X (radio continua).
+
+
 ## Floating widgets draggable (18/04/2026 — iter3)
 - Nuovo hook riusabile `useDraggable` in `/app/frontend/src/hooks/useDraggable.js`:
   - Supporta pointer + mouse + touch events

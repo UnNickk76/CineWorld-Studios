@@ -1,5 +1,25 @@
 # CineWorld Studio's — PRD
 
+## Bug fix popup utenti online (18/04/2026 — iter8)
+
+### 🐛 Bug 1: "schermata nera" cliccando su alcuni utenti (Emilians)
+**Causa reale**: `GET /api/users/{id}/full-profile` restituisce `{ user: {nickname, avatar_url, production_house_name, ...}, stats: {level, fame, xp, funds}, best_film, recent_films, ... }`. Ma il component `PlayerProfilePopup` accede direttamente a `p.nickname`, `p.level`, `p.avatar_url`, ecc. → **tutti undefined**. Il popup si apriva VUOTO (nessun nickname, nessun avatar, tutti i campi a 0/—) — su mobile Safari/Chrome appariva come "schermata nera" all'utente.
+
+**Fix** in `openPlayerPopup` (App.js): appiattisco la response prima di setState:
+```js
+const flat = { ...(raw.user||{}), ...(raw.stats||{}), ...raw };
+```
+Ora `p.nickname` è definito, `p.level` viene da stats, `p.avatar_url` viene da user. Testato: popup di Emilians mostra "EMILIANS / Axepeople / LV 49 / Fama 2,017.5".
+
+### 🐛 Bug 2: click su utente con id mancante (UnNickk) chiude la lista in silenzio
+**Causa**: `onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}` chiudeva la lista INDIPENDENTEMENTE. Se `u.id` mancava (es. utente obsoleto o bot malformato), la return era silente ma la lista era già chiusa.
+
+**Fix**: controllo `uid` prima di chiudere, toast "Profilo non disponibile" in caso negativo. La lista rimane aperta.
+
+### 👤 Click su sé stesso
+Prima: return silente. Ora: `navigate('/profile')` → porta l'utente al suo proprio profilo.
+
+
 ## Titoli di Coda hamburger + SideMenu espanso (18/04/2026 — iter7)
 
 ### 🍔 Hamburger blu al centro dei Comandi Rapidi

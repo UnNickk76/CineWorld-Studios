@@ -1387,7 +1387,12 @@ const TopNavbar = () => {
                         <p className="text-[8px] text-green-500 font-bold uppercase tracking-widest px-1 mb-1">Online ({onlineReal.length})</p>
                         {onlineReal.map(u => (
                           <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
-                            onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
+                            onClick={() => {
+                              const uid = u.id || u.user_id;
+                              if (!uid) { toast.error('Profilo non disponibile'); return; }
+                              setShowOnlineUsersPanel(false);
+                              openPlayerPopup(uid);
+                            }}>
                             <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 shadow-[0_0_4px_rgba(74,222,128,0.5)]" />
                             <span className="text-xs text-gray-200 truncate flex-1">{u.nickname}</span>
                             {u.level > 0 && <span className="text-[8px] text-gray-500">Lv.{u.level}</span>}
@@ -1400,7 +1405,12 @@ const TopNavbar = () => {
                       <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest px-1 mb-1">Offline ({offlinePlayers.length})</p>
                       {offlinePlayers.slice(0, 30).map(u => (
                         <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
-                          onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
+                          onClick={() => {
+                            const uid = u.id || u.user_id;
+                            if (!uid) { toast.error('Profilo non disponibile'); return; }
+                            setShowOnlineUsersPanel(false);
+                            openPlayerPopup(uid);
+                          }}>
                           <div className="w-2 h-2 rounded-full bg-gray-600 flex-shrink-0" />
                           <span className="text-xs text-gray-400 truncate flex-1">{u.nickname}</span>
                           {u.level > 0 && <span className="text-[8px] text-gray-600">Lv.{u.level}</span>}
@@ -1774,15 +1784,36 @@ const ProtectedRoute = ({ children }) => {
   }, [user, api]);
   
   const openPlayerPopup = async (userId) => {
-    if (!userId || userId === user?.id) return;
+    // Bug guard: se non c'è userId, avvertiamo invece di chiudere silenziosamente
+    if (!userId) {
+      toast.error('Profilo non disponibile');
+      return;
+    }
+    // Se è il proprio profilo, porta l'utente direttamente alla propria pagina profilo
+    if (userId === user?.id) {
+      navigate('/profile');
+      return;
+    }
     setPopupData({ userId, loading: true });
     try {
       const [profileRes, friendRes] = await Promise.all([
         api.get(`/users/${userId}/full-profile`),
         api.get(`/friends/status/${userId}`)
       ]);
-      setPopupData({ userId, profile: profileRes.data, friendStatus: friendRes.data, loading: false });
+      // L'endpoint ritorna { user: {nickname, avatar_url, ...}, stats: {level, fame, ...}, best_film, recent_films, ... }
+      // ma il popup accede direttamente a p.nickname/p.level/ecc → appiattiamo user + stats a root.
+      const raw = profileRes.data || {};
+      const flat = {
+        ...(raw.user || {}),
+        ...(raw.stats || {}),
+        // Preserviamo tutti gli altri campi (best_film, recent_films, awards, infrastructure, is_online, ecc.)
+        ...raw,
+        // `user` e `stats` restano disponibili come sub-oggetti per eventuali accessi espliciti.
+      };
+      setPopupData({ userId, profile: flat, friendStatus: friendRes.data, loading: false });
     } catch(e) {
+      console.warn('openPlayerPopup failed', e);
+      toast.error('Impossibile caricare il profilo');
       setPopupData(null);
     }
   };

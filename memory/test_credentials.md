@@ -5,3 +5,4 @@
 - Password: Fandrel2776
 - Nickname: NeoMorpheus
 - Studio: Anacapito Studio's
+- Role: ADMIN

@@ -1,5 +1,26 @@
 # CineWorld Studio's — PRD
 
+## In-Game Web Radio + TV Promo (18/04/2026) — Implementato
+**Feature principale**: Radio web integrata in "La Mia TV" con 20 stazioni streaming verificate.
+- `GET /api/radio/stations` — Lista 20 stazioni MP3 (SomaFM, RAI 2/3/4/5, RTL 102.5, Radio 105, Virgin, RMC).
+- `GET /api/radio/banner` — Stato banner promo (active/dismissed/used + discount 80%).
+- `POST /api/radio/dismiss-banner` — Chiusura permanente del banner.
+- `RadioProvider` context (`/app/frontend/src/contexts/RadioContext.jsx`) — Audio HTML5 globale con play/pause/next/prev/volume.
+- `RadioPlayer` component (`/app/frontend/src/components/RadioPlayer.jsx`) — Player full con equalizer animato CSS, lista stazioni espandibile.
+- `RadioPromoBanner` — Banner sticky globale (bottom), visibile **solo quando la radio è in riproduzione**, chiudibile via X e si chiude automaticamente dopo l'acquisto TV.
+- **Sconto 80% su Emittente TV**: attivo per tutti i player (status 'active' default) fino al primo acquisto TV o dismiss. Consumato post-acquisto → status 'used'.
+- `InfrastructurePage` mostra badge `-80%` animato sulla card Emittente TV quando `?promo=radio`, con scroll-to-card e toast.
+
+## Avatar Persistence Fix (18/04/2026)
+- **Root cause**: `persist_base64_avatar` in `/app/backend/routes/auth.py` convertiva base64 → file in `/app/backend/uploads/avatars/`, ma questa cartella è effimera nei container k8s. File scomparivano al restart, e la conversione sovrascriveva il base64 originale nel DB.
+- **Fix**: `persist_base64_avatar` ora è un no-op. Il base64 data URI rimane sempre in MongoDB `users.avatar_url`.
+- `UserResponse` ora include `logo_url` e `radio_promo_status`.
+- Migrazione: utenti con vecchi URL `/api/avatar/image/...` e file mancante resettati a dicebear default (fatto).
+
+## UI Improvements (18/04/2026)
+- `AvatarWithLogo` in `StudioName.jsx` — Dimensioni aumentate (xs→w-7 h-7, sm→w-12 h-12, md→w-16 h-16, lg→w-24 h-24), logo più grande (~55% dell'avatar) con ring, shadow e gradient sfondo, effetto overlap più marcato.
+
+
 ## Pipeline V3 Film — Completa
 10 step, CWSv 1-10, 14 file calcolo.
 

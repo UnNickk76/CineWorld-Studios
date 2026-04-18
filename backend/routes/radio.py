@@ -16,7 +16,7 @@ router = APIRouter()
 # Paradise/RAI/Musopen are reliable free streams).
 RADIO_STATIONS = [
     # --- Lofi / Chill / Study ---
-    {"id": "lofi-hiphop", "name": "Lofi Hip Hop", "genre": "Lofi / Chill", "emoji": "🎧",
+    {"id": "lofi-hiphop", "name": "Groove Salad", "genre": "Lofi / Chill Downtempo", "emoji": "🎧",
      "url": "https://ice1.somafm.com/groovesalad-128-mp3", "description": "Chill grooves perfetti per produrre"},
     {"id": "soma-dronezone", "name": "Drone Zone", "genre": "Ambient", "emoji": "🌌",
      "url": "https://ice1.somafm.com/dronezone-128-mp3", "description": "Ambient profondo per concentrazione"},
@@ -30,8 +30,8 @@ RADIO_STATIONS = [
      "url": "https://ice1.somafm.com/lush-128-mp3", "description": "Voci femminili sensuali e jazz moderno"},
 
     # --- Classical / Soundtracks ---
-    {"id": "musopen-classical", "name": "Musopen Classical", "genre": "Classica", "emoji": "🎻",
-     "url": "https://audio-edge-kef8b.mia.s.radiomast.io/ref-128k-mp3-stereo", "description": "Colonne sonore e classica"},
+    {"id": "soma-missioncontrol", "name": "Mission Control", "genre": "Classica / Space Soundtrack", "emoji": "🎻",
+     "url": "https://ice1.somafm.com/missioncontrol-128-mp3", "description": "NASA-inspired soundtrack cinematico"},
     {"id": "soma-deepspace", "name": "Deep Space One", "genre": "Space / Soundtrack", "emoji": "🚀",
      "url": "https://ice1.somafm.com/deepspaceone-128-mp3", "description": "Viaggio spaziale sonoro"},
 
@@ -39,23 +39,23 @@ RADIO_STATIONS = [
     {"id": "soma-synphaera", "name": "Synphaera", "genre": "Synthwave / Retro", "emoji": "🌆",
      "url": "https://ice1.somafm.com/synphaera-128-mp3", "description": "Vibes anni 80 da cinema"},
 
-    # --- Italian Radio ---
-    {"id": "rai-radio1", "name": "RAI Radio 1", "genre": "Italia / Talk & Hits", "emoji": "🇮🇹",
-     "url": "https://icestreaming.rai.it/1.mp3", "description": "La radio nazionale italiana"},
-    {"id": "rai-radio2", "name": "RAI Radio 2", "genre": "Italia / Pop", "emoji": "🎤",
-     "url": "https://icestreaming.rai.it/2.mp3", "description": "Pop, musica e intrattenimento"},
+    # --- Italian Radio (verified MP3 streams) ---
+    {"id": "rai-radio2", "name": "RAI Radio 2", "genre": "Italia / Pop & Rock", "emoji": "🎤",
+     "url": "https://icestreaming.rai.it/2.mp3", "description": "Pop, rock e intrattenimento italiani"},
     {"id": "rai-radio3", "name": "RAI Radio 3", "genre": "Italia / Cultura", "emoji": "📚",
      "url": "https://icestreaming.rai.it/3.mp3", "description": "Cultura e musica colta"},
+    {"id": "rai-radio4", "name": "RAI Isoradio", "genre": "Italia / Traffico & News", "emoji": "🛣️",
+     "url": "https://icestreaming.rai.it/4.mp3", "description": "Isoradio: la radio del traffico"},
+    {"id": "rai-radio5", "name": "RAI Radio Classica", "genre": "Italia / Classica", "emoji": "🎼",
+     "url": "https://icestreaming.rai.it/5.mp3", "description": "Il meglio della musica classica"},
     {"id": "rtl-1025", "name": "RTL 102.5", "genre": "Italia / Hits", "emoji": "📻",
      "url": "https://streamingv2.shoutcast.com/rtl-1025", "description": "Very Normal People"},
-    {"id": "radio-italia", "name": "Radio Italia", "genre": "Italia / Solo Musica Italiana", "emoji": "🎶",
-     "url": "https://radioitalia-lh.akamaihd.net/i/RadioItalia_Live_1@189857/master.m3u8", "description": "Solo musica italiana"},
-    {"id": "radio-deejay", "name": "Radio Deejay", "genre": "Italia / Pop Hits", "emoji": "🎵",
-     "url": "https://radiodeejay-lh.akamaihd.net/i/RadioDeejay_Live_1@189857/master.m3u8", "description": "Il ritmo delle tue giornate"},
+    {"id": "radio-105", "name": "Radio 105", "genre": "Italia / Hit Music", "emoji": "🎵",
+     "url": "https://icy.unitedradio.it/Radio105.mp3", "description": "Hit music Italia non-stop"},
     {"id": "virgin-radio", "name": "Virgin Radio Italia", "genre": "Italia / Rock", "emoji": "🤘",
      "url": "https://icy.unitedradio.it/Virgin.mp3", "description": "Rock 'n' roll never dies"},
-    {"id": "radio-capital", "name": "Radio Capital", "genre": "Italia / Classic Hits", "emoji": "🌟",
-     "url": "https://radiocapital-lh.akamaihd.net/i/RadioCapital_Live_1@196312/master.m3u8", "description": "Classic hits senza tempo"},
+    {"id": "radio-rmc", "name": "Radio Monte Carlo", "genre": "Italia / Adult Contemporary", "emoji": "🌟",
+     "url": "https://icy.unitedradio.it/RMC.mp3", "description": "Il suono più cool"},
 
     # --- Electronic / Dance ---
     {"id": "soma-beatblender", "name": "Beat Blender", "genre": "Deep House / Electronic", "emoji": "🎛️",
@@ -63,11 +63,9 @@ RADIO_STATIONS = [
     {"id": "soma-defcon", "name": "DEF CON Radio", "genre": "Electronic / Hacker", "emoji": "💻",
      "url": "https://ice1.somafm.com/defcon-128-mp3", "description": "Elettronica per ribelli digitali"},
 
-    # --- Rock / Blues ---
-    {"id": "soma-bluesonly", "name": "Left Coast 70s", "genre": "Classic Rock 70s", "emoji": "🎸",
+    # --- Rock / Indie ---
+    {"id": "soma-seventies", "name": "Left Coast 70s", "genre": "Classic Rock 70s", "emoji": "🎸",
      "url": "https://ice1.somafm.com/seventies-128-mp3", "description": "Il meglio del rock anni 70"},
-
-    # --- Indie / Pop ---
     {"id": "soma-indiepop", "name": "Indie Pop Rocks!", "genre": "Indie Pop", "emoji": "🎙️",
      "url": "https://ice1.somafm.com/indiepop-128-mp3", "description": "Indie pop moderno"},
 ]

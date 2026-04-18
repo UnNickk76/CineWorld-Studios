@@ -16,18 +16,47 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
   const [duration, setDuration] = useState(film.hype_duration || film.hype_budget || 12);
   const [loading, setLoading] = useState(false);
   const [configured, setConfigured] = useState(!!(film.hype_started_at || film.hype_notes || film.hype_budget > 0));
-  const [hypeProgress, setHypeProgress] = useState(film.hype_progress || 0);
+  const [now, setNow] = useState(Date.now());
   const progressRef = useRef(null);
 
-  // Update from backend on film change
+  // Update configured from backend on film change
   useEffect(() => {
-    setHypeProgress(film.hype_progress || 0);
     setConfigured(!!(film.hype_started_at || film.hype_notes || film.hype_budget > 0));
-  }, [film.hype_progress, film.hype_started_at, film.hype_notes, film.hype_budget]);
+  }, [film.hype_started_at, film.hype_notes, film.hype_budget]);
 
-  // Poll backend for live progress (every 10s when configured and not done)
+  // Real-time tick every second for live countdown and smooth progress
   useEffect(() => {
-    if (configured && hypeProgress < 100) {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Calculate progress & ETA from backend timestamps (fallback to film.hype_progress)
+  const hasTimestamps = !!(film.hype_started_at && film.hype_complete_at);
+  const startedAt = hasTimestamps ? new Date(film.hype_started_at).getTime() : now;
+  const completeAt = hasTimestamps ? new Date(film.hype_complete_at).getTime() : startedAt;
+  const totalMs = Math.max(1, completeAt - startedAt);
+  const elapsedMs = now - startedAt;
+  const remainingMs = hasTimestamps ? Math.max(0, completeAt - now) : 0;
+  const hypeProgress = hasTimestamps
+    ? Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100))
+    : (film.hype_progress || 0);
+  const isComplete = hasTimestamps ? remainingMs <= 0 : hypeProgress >= 100;
+
+  // Format ETA: "Mancano: 1h 23m 45s"
+  const remH = Math.floor(remainingMs / 3600000);
+  const remM = Math.floor((remainingMs % 3600000) / 60000);
+  const remS = Math.floor((remainingMs % 60000) / 1000);
+  const etaLabel = isComplete
+    ? 'Completato!'
+    : remH > 0
+      ? `Mancano: ${remH}h ${remM}m ${remS}s`
+      : remM > 0
+        ? `Mancano: ${remM}m ${remS}s`
+        : `Mancano: ${remS}s`;
+
+  // Poll backend for live progress (every 10s when configured and not done) to stay in sync
+  useEffect(() => {
+    if (configured && !isComplete) {
       progressRef.current = setInterval(async () => {
         try {
           await onRefresh();
@@ -35,7 +64,7 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
       }, 10000);
       return () => { if (progressRef.current) clearInterval(progressRef.current); };
     }
-  }, [configured, hypeProgress < 100, onRefresh]);
+  }, [configured, isComplete, onRefresh]);
 
   const save = async () => {
     setLoading(true);
@@ -76,6 +105,14 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
                 style={{ width: `${Math.min(100, hypeProgress)}%` }}
               />
             </div>
+            {hasTimestamps && (
+              <div className="flex items-center justify-center gap-2" data-testid="hype-eta-countdown">
+                <Clock className="w-3 h-3 text-orange-400" />
+                <span className={`text-[10px] font-bold ${isComplete ? 'text-emerald-400' : 'text-orange-300'}`}>
+                  {etaLabel}
+                </span>
+              </div>
+            )}
             <p className="text-[7px] text-gray-600 text-center">
               {hypeProgress >= 100 ? 'Hype al massimo! Avanza al prossimo step.' :
                hypeProgress >= 50 ? 'L\'hype cresce... velocizza per completare!' :

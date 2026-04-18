@@ -19,7 +19,7 @@ import os
 import uuid
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://web-radio-equalizer.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://eta-tracker-ui.preview.emergentagent.com')
 
 # Test content ID from the context
 COMING_SOON_CONTENT_ID = "a30221a2-442d-4349-8c01-aa4a37cafc54"

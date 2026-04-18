@@ -1,111 +1,87 @@
 <analysis>**original_problem_statement**: 
-PRODUCT REQUIREMENTS:
-The project required a complete stable rewrite called Pipeline V3. The user requested a strictly sequential flow, real-time mechanics for shooting (Ciak) and Final Cut (1 real hour = 1 in-game day/hour), modular calculation logic (every math operation must reside in a dedicated file), dynamic CP (credit) speedups, full sponsor system, global distribution zones, and a complete pre-release cost/savings summary (with Velion optimizations).
-Currently, the pipeline is fully functional up to release, but the post-release Film Detail modal for V3 films is missing the rich UI features present in the old V2 system (The Gratch modal layout). The user wants the rich UI replicated for V3, along with dedicated post-release action buttons (ADV, Withdraw, Delete).
+The user requested massive UI/UX enhancements and bug fixes. Core requirements included: fixing Avatar base64 persistence upon login, fixing Avatar/Logo UI overlapping, and building a fully functional In-Game Web Radio (with 27 MP3 stations, ICY metadata proxy for Now Playing tracking, a floating draggable player UI, and a global promo banner giving an 80% discount on TV Emittente). Further requests involved updating the Top/Bottom Navbar UI (labels, adding a radio icon, online users count), fixing an online profile display bug (500 error on specific players like Emilians), adding a hamburger menu inside quick commands, and adding an ETA/countdown timer to the V3 Pipeline progress UI.
 
-**User's preferred language**: Italian (You MUST respond in Italian only).
+**User's preferred language**: Italian (INSTRUCT NEXT AGENT: You MUST respond in Italian only)
 
-**what currently exists?**: 
-CineWorld Studio's is a Full-Stack management game. The new Pipeline V3 is fully functional from Idea to Release.
-- Real-time timers for Ciak and Final Cut are implemented with dynamic CP-based speedups.
-- Modular calculations are located in .
-- Sponsor generation and Distribution zones (continents/cities) are integrated.
-- Film release properly deducts costs, applies savings, and pushes the film to the Dashboard with a LIVE pulsing badge.
-- A basic  modal exists but lacks the rich V2 UI.
+**what currently exists?** 
+A highly complex, fully functional full-stack cinema management game. It features a complete V3 pipeline, Cast System V3, AI event/avatar generation, a La Mia TV dashboard, and a newly integrated complete Web Radio system (with ICY streaming metadata, 27 stations, draggable floating UI, and iOS audio workarounds) fully built and styled to the user's exact preferences.
 
-**Last working item**: 
-    - Last item agent was working: Searching for the old V2 The Gratch modal codebase ( / ) to replicate its detailed UI layout into the new , and preparing to add post-release action buttons (ADV, Withdraw from theaters, Delete).
+**Last working item**:
+    - Last item agent was working: The user reported a bug in the Pipeline V3 progress indicator: Avanzamento funziona ma non dice quanto manca.. (Progress works but it doesn't show how much time is left/ETA). The agent located  to begin implementing the ETA countdown but ran out of context.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use?: Frontend testing agent/ screenshot tool
+    - Which testing method agent to use? Screenshot tool (to verify the ETA timer visually).
     - User Testing Done: N
 
-**All Pending/In progress Issue list**: 
-  - Issue 1: V3 Film Detail Modal UI Parity (The Gratch style)
-     - Attempted fixes: Agent identified  and  as the source but hasn't ported the code.
-     - Next debug checklist: Copy the rich UI layout (reviews, box office, virtual audience, cast stats) from  and implement it in . Ensure it is perfectly responsive and matches the user's screenshot.
-     - Why fix this issue and what will be achieved with the fix?: Fulfills the user's requirement to have the same visual depth for V3 films as V2 films post-release.
+**All Pending/In progress Issue list**:
+  Issue 1: Pipeline V3 Progress ETA missing (P0)
+     - Attempted fixes: Agent identified  as the target file but made no edits yet.
+     - Next debug checklist: Check  to see how progress is rendered. Calculate the remaining time using the current phase's end time or duration and display it as a live countdown (e.g., Tempo rimanente: HH:MM:SS) next to or below the progress bar.
+     - Why fix this issue and what will be achieved with the fix? The user feels the progress bar looks broken or stuck because it lacks a visible time estimate. 
      - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix?: Frontend
+     - Should Test frontend/backend/both after fix? Frontend
      - Blocked on other issue: None
 
-  - Issue 2: Post-Release Action Buttons & ADV Logic
-     - Attempted fixes: Agent added a  backend endpoint, but the UI and ADV logic are pending.
-     - Next debug checklist: Add an Orange Trash button (withdraw from theaters), Red Trash button (delete completely), and ADV button inside the new . Move the existing Advertising logic (currently in  / ) into a dedicated  or dedicated router file.
-     - Why fix this issue and what will be achieved with the fix?: Allows users to manage films after release.
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix?: Both
-     - Blocked on other issue: None
-
-**In progress Task List**: 
-  - Task 1: Complete V3 Post-Release UX
-     - Where to resume: Open  and heavily update its render method to match .
-     - What will be achieved with this?: Complete visual parity and management capabilities for released films.
-     - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix?: Both
-     - Blocked on something: None
+**In progress Task List**:
+  - None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P0) Architecture: Total Quality Score Engine. Create a dedicated file (e.g., ) to calculate the final composite quality score of the film based on all V3 choices, replacing the currently mocked  score.
-    - (P1) Link real data to  and .
-    - (P1) Phase 3 Market: TV/Anime sales and distribution rights.
+    - (P1) Refactoring  (File has become bloated, needs splitting into specialized background workers).
+    - (P1) Definire permessi specifici operativi per il ruolo MOD (Moderator).
     
     Future Tasks:
-    - (P2) Weekly Challenges (rotating minigame with extra prizes).
-    - (P2) Festival Predictions and TV/Anime Rights Marketplace.
+    - (P2) Notifiche push per i follower.
+    - (P2) Personalizzazione avatar produttore (UI builder for avatars).
+    - (P2) Tornei PvP mensili con bracket a eliminazione diretta.
 
 **Completed work in this session**
-- Created modular calculation files (, , , , , , ).
-- Implemented real-time countdown timers for Ciak and Final Cut with dynamic CP speedups.
-- Implemented Hype configuration, Sponsors (max 6), and Distribution Zones (6 continents, 217 cities).
-- Built the Step Finale pre-release cost/savings summary, including Velion optimizations.
-- Fixed a severe infinite loop bug upon Cinematic Release (implemented 5-layer anti-loop protection via refs and strict state management).
-- Fixed Dashboard visibility for V3 films (migrated status from  to ). Added green pulsing LIVE badges.
-- Fixed Cast Phase to show gender symbols, all 8 skills, and correctly formatted default roles.
+- Avatar base64 persistence bug on fresh login (DONE - saved directly in DB now, no ephemeral files).
+- Avatar & Logo overlapping UI styling (DONE).
+- Web Radio Backend () with 27 verified public MP3 streams, including Italian stations (DONE).
+- Web Radio Promo Banner (-80% infrastructure discount for TV) logic and UI (DONE).
+- ICY Metadata proxy endpoint () for real-time Now Playing track info (DONE).
+- Draggable hook () implemented for both the Web Radio floating player and Velion (DONE).
+- iOS Volume Bug Fix: Audio volume slider hidden on iOS due to Safari restrictions; hint added (DONE).
+- Radio UI Overhaul: Left-anchored popup, NowPlaying banner below player, popup list modal (DONE).
+- Top and Bottom Navbar UI: Added text labels under icons, added Radio Icon to bottom nav, added Online Users count under the Top Nav online icon (DONE).
+- Profile Popup Bugs: Fixed 500 error on Emilians profile caused by  being  in , and fixed frontend data mapping causing a black screen (DONE).
+- Blue Hamburger menu center button added in Quick Commands (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-  - None currently, aside from ensuring the The Gratch UI is correctly ported.
+   - None
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: React Error infinite state machine loops (Specifically  causing re-renders).
-  - Recurrence count: High
-  - Status: RESOLVED (Mitigated by using  flags, removing conditional rendering for the overlay, and separating the API call from the animation).
-  - Note: Be extremely careful when adding  hooks in React components that trigger API calls; ensure dependencies are strictly managed to avoid infinite request loops.
+  - Issue recurrence in previous fork: None
+  - Recurrence count: 0
+  - Status: RESOLVED
 
 **Code Architecture**
-- **Frontend V3**:
-  - : Main orchestrator.
-  - , , ,  (contains Hype, Prep, Ciak, FinalCut, Marketing, Distribution, StepFinale).
-  - : Modal for viewing released V3 films (Currently being updated).
-- **Backend V3**:
-  - : State machine endpoints.
-  - : Isolated logic files for all math/durations/costs.
+- Frontend:  (React, Tailwind, Lucide React).
+- Backend:  (FastAPI, Motor/MongoDB, APScheduler).
+- Web Radio logic: , , , backend .
 
 **Key Technical Concepts**
-React, FastAPI, MongoDB (Motor), APScheduler (background tasks), Emergent Integrations (LLMs).
+React Contexts, Base64 image encoding, Framer Motion animations, HTTP proxying for ICY metadata extraction, HTML5 Audio API, custom React draggable hooks.
 
 **key DB schema**
-  - : Active V3 pipeline projects.
-  - : Released films ( or ).
-  - : NPC Cast database.
-  - : Sponsor companies.
+  - :  (now stores base64 string reliably).
+  - : handles  purchases (promo logic applies 80% discount here).
 
 **changes in tech stack**
-  - Strict enforcement of separating math/calculations from the router via dedicated  files.
+  - Added simple proxy capabilities in FastAPI for ICY streaming metadata (extracting real-time song info without breaking CORS).
 
 **All files of reference** 
-  -  (Active file)
-  -  (Reference for UI parity)
+  -  (CURRENT TARGET FOR ETA BUG)
   - 
   - 
-  -  (Contains ADV logic to be extracted)
+  - 
+  - 
   - 
 
 **Areas that need refactoring**: 
-  - Advertising (ADV) logic needs to be extracted into a dedicated calculation/router file specifically for post-release actions.
+  -  is critically large and handles too many autonomous game operations.
 
 **key api endpoints**
   - 
@@ -113,42 +89,42 @@ React, FastAPI, MongoDB (Motor), APScheduler (background tasks), Emergent Integr
   - 
 
 **Critical Info for New Agent** 
-- **LANGUAGE**: You MUST respond to the user exclusively in **Italian**.
-- **ACTIVE TASK**: The user wants the V3 released film modal () to look exactly like the rich V2 modal (reference  or The Gratch style screenshot). You must port over the reviews, stats, cast display, and visual layout.
-- **ACTION BUTTONS**: Add an ADV button (must extract existing ADV logic to a dedicated file), an Orange Trash button (withdraw from theaters), and a Red Trash button (delete film from DB).
-- **RULES**: Every time a new calculation is introduced, it MUST be placed in its own dedicated python file inside . Do not bloat the router files.
+- **Italian Language Requirement!** You MUST communicate with the user entirely in Italian.
+- **Radio Feature is Highly Custom:** The Radio UI (draggable circle, specific spacing, transparent NowPlaying banner, ICY metadata) was finely tuned across multiple screenshots. Do NOT alter its layout or CSS logic unless strictly required.
+- **iOS Audio Restriction:** Volume control via JS is disabled on iOS Safari. Do not attempt to fix the hidden volume slider on iOS; it is intentional.
 
 **documents and test reports created in this job** 
   - 
+  - 
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Pre-release summary needs total costs, CP costs (max 30), sponsor deductions, savings toggles, and Velion optimizations.
-2. *Agent*: Created  and implemented StepFinale with all math.
-3. *User*: Infinite loop happening at release!
-4. *Agent*: Fixed frontend loop by abstracting API calls from animation overlay.
-5. *User*: Percentage inside the release circle isn't centered.
-6. *Agent*: Fixed CSS for percentage centering.
-7. *User*: Cast needs gender symbols, 8 skills, primary skills, and negative skills visible.
-8. *Agent*: Updated NpcCard and SkillsModal to show all requested cast data.
-9. *User*: Bugs: Duration stuck at 2:24, Cast costs 5M (too high), loop returned, film not showing on Dashboard.
-10. *User*: **(PENDING)** The released film popup is generic. It needs to look EXACTLY like the rich V2 The Gratch popup. Copy the code. Also, add buttons for ADV (extract to dedicated file), orange trash (withdraw), and red trash (delete).
+1. *User*: Uploaded screenshot. Volume is not adjustable in game.
+2. *Agent*: Fixed iOS volume slider hiding.
+3. *User*: Move banner below radio circle. Add a blue arrow on the red circle to open the station list anywhere. Default circle position just above bottom navbar.
+4. *Agent*: Implemented RadioStationsPopup, adjusted draggable clamps, and updated UI layout.
+5. *User*: Add radio icon to bottom navbar. Add labels below all icons in top/bottom navbars.
+6. *Agent*: Implemented Top/Bottom Navbar updates.
+7. *User*: Clicking on player Emilians gives a black screen. Add online number count under the top nav online icon.
+8. *Agent*: Fixed  in backend for Emilians' profile. Fixed UI flattening bug. Added online counter.
+9. *User*: Add a blue hamburger menu exactly in the center of quick commands. Add missing sections to SideMenu.
+10. *User*: Uploaded screenshot. Pipeline V3 progress bar moves but doesn't say how much time is left. (PENDING)
 
 **Project Health Check:**
-  - Broken: V3 Film Detail modal lacks UI parity with V2.
-  - Mocked: Quality calculation (Quality Score) is currently mocked as  on release.
+- Broken: Pipeline V3 ETA display in .
+- Mocked: None
 
 **3rd Party Integrations** 
-  - Stripe (Payments) — requires User API Key
-  - Emergent LLM Key — Used for AI Poster Generation and AI Screenplay Generation.
+  - Emergent LlmChat (GPT-4o-mini) — uses Emergent LLM Key 
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Tested extensively via curl and screenshot).
+  - Testing agent used after significant changes: YES ()
+  - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None currently.
+  - Known regressions: None
 
 **Credentials to test flow:**
-- Email: fandrex1@gmail.com
-- Password: Fandrel2776
+Check 
 
 **What agent forgot to execute**
-- The agent was about to port the  rich layout into  and implement the post-release buttons (ADV, Withdraw, Delete) but the session ended before execution.</analysis>
+The agent located the  file to add the missing ETA countdown, but the context window filled up before the code changes could be written and tested.</analysis>

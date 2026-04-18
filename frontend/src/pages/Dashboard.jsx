@@ -362,23 +362,34 @@ const Dashboard = () => {
           <div className="mb-4" data-testid="dashboard-welcome">
             <p className="text-gray-400 text-xs">Benvenuto in CineWorld Studio's,</p>
             <button className="text-left w-full" onClick={() => setShowWelcomeStats(p => !p)} data-testid="welcome-nickname-btn">
-              <h1 className="font-['Bebas_Neue'] text-2xl text-yellow-400 tracking-wide inline-flex items-center gap-1.5">
-                <PlayerBadge badge={user?.badge} badgeExpiry={user?.badge_expiry} badges={user?.badges} size="md" />
-                {user?.nickname || 'Player'}
-                {user?.role === 'co_admin' && <span className="text-[8px] font-mono text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded ml-1">CO-ADMIN</span>}
-                {user?.role === 'moderator' && <span className="text-[8px] font-mono text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded ml-1">MOD</span>}
-              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                {/* Avatar */}
+                <Avatar className="w-10 h-10 border-2 border-yellow-500/40 shrink-0">
+                  <AvatarImage src={user?.avatar_url?.startsWith('/') ? `${BACKEND_URL}${user.avatar_url}` : user?.avatar_url} />
+                  <AvatarFallback className="bg-gray-800 text-yellow-400 font-bold text-sm">{(user?.nickname || '?')[0]}</AvatarFallback>
+                </Avatar>
+                {/* Nickname + Logo + Production House */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <PlayerBadge badge={user?.badge} badgeExpiry={user?.badge_expiry} badges={user?.badges} size="md" />
+                    <span className="text-base font-bold text-yellow-400 truncate">{user?.nickname || 'Player'}</span>
+                    {user?.role === 'CO_ADMIN' && <span className="text-[7px] font-mono text-red-400 bg-red-500/10 px-1 py-0.5 rounded">CO-ADMIN</span>}
+                    {user?.role === 'MOD' && <span className="text-[7px] font-mono text-blue-400 bg-blue-500/10 px-1 py-0.5 rounded">MOD</span>}
+                  </div>
+                  {user?.production_house_name && (
+                    <div className="flex items-center gap-1 -mt-0.5">
+                      {user?.logo_url && <img src={user.logo_url} alt="" className="w-3.5 h-3.5 rounded-sm object-contain shrink-0" />}
+                      <span className="text-[10px] text-gray-500 truncate">{user.production_house_name}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </button>
-            {user?.production_house_name && <p className="text-[11px] text-gray-500 -mt-0.5">{user.production_house_name}</p>}
             {showWelcomeStats && (
               <div className="mt-2 space-y-2">
-                {/* Avatar + Level/Fame row */}
-                <div className="flex items-center gap-3">
-                  <Avatar className="w-12 h-12 border-2 border-yellow-500/40">
-                    <AvatarImage src={user?.avatar_url?.startsWith('/') ? `${BACKEND_URL}${user.avatar_url}` : user?.avatar_url} />
-                    <AvatarFallback className="bg-gray-800 text-yellow-400 font-bold text-sm">{(user?.nickname || '?')[0]}</AvatarFallback>
-                  </Avatar>
-                  {levelInfo && (
+                {/* Level/Fame row (avatar already in header) */}
+                {levelInfo && (
+                  <div className="flex items-center gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-[9px] font-bold text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded px-1.5 py-0.5">LV {levelInfo.level}</span>
@@ -389,8 +400,8 @@ const Dashboard = () => {
                       </div>
                       <p className="text-[8px] text-gray-600 mt-0.5">{levelInfo.current_xp?.toLocaleString()} / {levelInfo.xp_needed?.toLocaleString()} XP</p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
                 {/* Stats grid */}
                 {batchData?.stats && (
                   <div className="grid grid-cols-2 gap-2">

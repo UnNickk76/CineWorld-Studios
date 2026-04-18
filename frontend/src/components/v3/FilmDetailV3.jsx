@@ -441,7 +441,7 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
             <div className="ct2-info-director">Regia di: {castInfo.director}</div>
           )}
           {film.producer?.nickname && (
-            <div className="ct2-info-director">{film.producer.production_house_name || film.producer.nickname}</div>
+            <div className="ct2-info-director">{film.producer?.logo_url && <img src={film.producer.logo_url} alt="" className="inline w-3 h-3 rounded-sm object-contain mr-0.5" style={{verticalAlign:'middle'}} />}{film.producer.production_house_name || film.producer.nickname}</div>
           )}
           {castInfo.actors.length > 0 && (
             <div className="ct2-info-cast">
@@ -462,7 +462,7 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
       {(film.producer?.production_house_name || film.producer?.nickname) && (
         <div className="px-4 -mt-1 mb-1 cursor-pointer" onClick={() => setShowProducerModal(true)} data-testid="producer-link">
           <span className="text-[10px] text-amber-400/70 italic hover:text-amber-400 transition-colors">
-            una produzione <span className="font-bold not-italic underline decoration-dotted">{film.producer.production_house_name || film.producer.nickname}</span>
+            una produzione {film.producer?.logo_url && <img src={film.producer.logo_url} alt="" className="inline w-3 h-3 rounded-sm object-contain mx-0.5" style={{verticalAlign:'middle'}} />}<span className="font-bold not-italic underline decoration-dotted">{film.producer.production_house_name || film.producer.nickname}</span>
           </span>
         </div>
       )}

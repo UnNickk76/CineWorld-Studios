@@ -450,12 +450,13 @@ async def get_recent_releases(user: dict = Depends(get_current_user)):
     uids = list(set(i.get("user_id") for i in items if i.get("user_id")))
     producers = {}
     if uids:
-        pdocs = await db.users.find({"id": {"$in": uids}}, {"_id": 0, "id": 1, "nickname": 1, "production_house_name": 1}).to_list(50)
+        pdocs = await db.users.find({"id": {"$in": uids}}, {"_id": 0, "id": 1, "nickname": 1, "production_house_name": 1, "logo_url": 1}).to_list(50)
         producers = {p["id"]: p for p in pdocs}
     for item in items:
         p = producers.get(item.get("user_id"), {})
         item["producer_nickname"] = p.get("nickname", "?")
         item["producer_house"] = p.get("production_house_name", "")
+        item["logo_url"] = p.get("logo_url", "")
         # Sanitize datetime/ObjectId
         for key in list(item.keys()):
             val = item[key]
@@ -487,7 +488,7 @@ async def get_released_film_detail(film_id: str, user: dict = Depends(get_curren
     # Get producer info
     producer = await db.users.find_one(
         {"id": film.get("user_id")},
-        {"_id": 0, "nickname": 1, "production_house_name": 1, "avatar_url": 1}
+        {"_id": 0, "nickname": 1, "production_house_name": 1, "avatar_url": 1, "logo_url": 1}
     )
     film["producer"] = producer or {}
 

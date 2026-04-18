@@ -549,7 +549,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
             <div className="ct2-info-director" style={{ cursor: 'pointer', opacity: 0.7 }}
               onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
               data-testid="ct-production-house">
-              {film.production_house_name || film.producer_nickname}
+              {film.logo_url && <img src={film.logo_url} alt="" className="inline w-3 h-3 rounded-sm object-contain mr-0.5" style={{verticalAlign:'middle'}} />}{film.production_house_name || film.producer_nickname}
             </div>
           )}
           {castInfo.actors.length > 0 && (
@@ -587,7 +587,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           <button className="text-[10px] text-amber-400/70 italic hover:text-amber-300 transition-colors"
             onClick={(e) => { e.stopPropagation(); if (film.producer_nickname) window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
             data-testid="ct-production-house-title">
-            una produzione <span className="font-bold not-italic">{film.production_house_name || film.producer_nickname || 'Indipendente'}</span>
+            una produzione {film.logo_url && <img src={film.logo_url} alt="" className="inline w-3 h-3 rounded-sm object-contain mx-0.5" />}<span className="font-bold not-italic">{film.production_house_name || film.producer_nickname || 'Indipendente'}</span>
           </button>
         </div>
       )}

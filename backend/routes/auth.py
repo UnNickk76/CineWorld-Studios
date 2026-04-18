@@ -742,16 +742,57 @@ async def generate_ai_avatar(request: AvatarGenerationRequest, user: dict = Depe
 @router.put("/auth/avatar")
 async def update_user_avatar(avatar_data: AvatarUpdate, user: dict = Depends(get_current_user)):
     new_url = avatar_data.avatar_url
-    # If the avatar is base64, persist to file first to avoid DB bloat
-    if new_url and str(new_url).startswith('data:image'):
-        temp_user = {**user, 'avatar_url': new_url}
-        new_url = await persist_base64_avatar(temp_user)
+    # Keep base64 data URIs in DB (persistent) — don't convert to files (ephemeral)
     await db.users.update_one(
         {'id': user['id']},
         {'$set': {'avatar_url': new_url, 'avatar_source': getattr(avatar_data, 'avatar_source', 'preset')}}
     )
     updated_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'password': 0})
     return updated_user
+
+
+
+@router.post("/logo/generate")
+async def generate_studio_logo(request: dict, user: dict = Depends(get_current_user)):
+    """Generate AI logo for the production house."""
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=400, detail="AI generation not available")
+
+    studio_name = user.get('production_house_name', 'Studio')
+    custom_prompt = request.get('prompt', '')
+
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        from PIL import Image
+        import io, base64
+
+        image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+        prompt = (
+            f"Professional minimalist film studio logo for '{studio_name}'. "
+            f"{custom_prompt + '. ' if custom_prompt else ''}"
+            f"Clean vector-style logo, cinematic theme, suitable for a movie production company. "
+            f"No text unless it's the studio name. Transparent or dark background. Iconic, memorable design."
+        )
+
+        images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+
+        if images and len(images) > 0:
+            img = Image.open(io.BytesIO(images[0]))
+            img = img.convert('RGBA')
+            img.thumbnail((128, 128), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format='PNG', optimize=True)
+            b64 = base64.b64encode(buf.getvalue()).decode('ascii')
+            data_uri = f"data:image/png;base64,{b64}"
+            await db.users.update_one({'id': user['id']}, {'$set': {'logo_url': data_uri}})
+            logging.info(f"Studio logo saved for {user.get('nickname')}, size: {len(buf.getvalue())} bytes")
+            return {'logo_url': data_uri, 'prompt': prompt}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to generate logo")
+    except Exception as e:
+        logging.error(f"Logo generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
 
 
 # ==================== GUEST LOGIN ====================

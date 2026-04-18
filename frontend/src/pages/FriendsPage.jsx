@@ -44,6 +44,7 @@ import {
 import { SKILL_TRANSLATIONS } from '../constants';
 import { ClickableNickname } from '../components/shared';
 import { LoadingSpinner } from '../components/ErrorBoundary';
+import { StudioName } from '../components/StudioName';
 
 // useTranslations imported from contexts
 
@@ -196,7 +197,7 @@ const FriendsPage = () => {
                       </Avatar>
                       <div className="flex-1">
                         <p className="font-semibold text-sm"><ClickableNickname userId={friend.user_id || friend.id} nickname={friend.nickname} /></p>
-                        <p className="text-xs text-gray-400">{friend.production_house_name}</p>
+                        <p className="text-xs text-gray-400"><StudioName name={friend.production_house_name} logoUrl={friend.logo_url} /></p>
                       </div>
                       {friend.is_online && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
                       <Button size="sm" variant="ghost" className="h-8 text-red-400" onClick={(e) => { e.stopPropagation(); removeFriend(friend.id); }}>
@@ -225,7 +226,7 @@ const FriendsPage = () => {
                       </Avatar>
                       <div className="flex-1">
                         <p className="font-semibold text-sm">{follower.nickname}</p>
-                        <p className="text-xs text-gray-400">{follower.production_house_name}</p>
+                        <p className="text-xs text-gray-400"><StudioName name={follower.production_house_name} logoUrl={follower.logo_url} /></p>
                       </div>
                       {!following.some(f => f.id === follower.id) && (
                         <Button size="sm" variant="outline" className="h-8 border-blue-500/30 text-blue-400" onClick={(e) => { e.stopPropagation(); followUser(follower.id); }}>
@@ -255,7 +256,7 @@ const FriendsPage = () => {
                       </Avatar>
                       <div className="flex-1">
                         <p className="font-semibold text-sm">{user.nickname}</p>
-                        <p className="text-xs text-gray-400">{user.production_house_name}</p>
+                        <p className="text-xs text-gray-400"><StudioName name={user.production_house_name} logoUrl={user.logo_url} /></p>
                       </div>
                       <Button size="sm" variant="ghost" className="h-8 text-gray-400" onClick={(e) => { e.stopPropagation(); unfollowUser(user.id); }}>
                         {t('unfollow')}

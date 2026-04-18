@@ -208,6 +208,34 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 - Nuovo tab "Contratti Agenzie" in `CastingAgencyPage.jsx`
 - Card contratti attivi con countdown giorni, attore esclusivo, stats vantaggi
 - Lista agenzie con bottone "Firma" e costo CP
+
+## Fix Avatar Persistenza + Logo Studio + Layout Dashboard — Implementato (18/04/2026)
+
+### Fix Avatar che Sparisce
+- Causa: `PUT /auth/avatar` convertiva base64 data URI in file locale (`/app/backend/uploads/avatars/`). Al restart del container, i file vengono persi → avatar 404.
+- Fix: `PUT /auth/avatar` ora mantiene base64 in MongoDB (persistente). `POST /avatar/generate` gia salvava in DB — rimosso il doppio-save nel frontend.
+
+### Logo Casa di Produzione (AI)
+- Nuovo endpoint `POST /api/logo/generate` — genera logo AI (GPT Image 1) per la casa di produzione
+- Salva come base64 PNG 128x128 in `logo_url` nel DB utente
+- Frontend ProfilePage: sezione "Logo Casa di Produzione" con generatore AI e preset stili
+- Preset: Minimalista dorato, Stile Hollywood classico, Moderno neon cinema, Elegante bianco nero
+
+### Fix Nickname Maiuscolo
+- Causa: font `Bebas_Neue` nel Dashboard forzava tutto in uppercase
+- Fix: rimosso `font-['Bebas_Neue']`, usa font bold standard che preserva il case originale (NeoMorpheus)
+
+### Layout Dashboard — Avatar + Nickname + Logo + Casa Produzione
+- Avatar grande (w-10 h-10) + Nickname + Badge ruolo sulla stessa riga
+- Sotto: Logo mini (w-3.5) + Nome casa di produzione
+- Tutto cliccabile per espandere le stats
+
+### Logo Ovunque (componente `StudioName`)
+- Creato componente riusabile `/components/StudioName.jsx`
+- Integrato in: Dashboard, FriendsPage (3 tab), ContentTemplate (scheda film), FilmDetailV3
+- Backend: `logo_url` incluso in producer fetch per film rilasciati e liste film
+- Fix ruoli CO_ADMIN/MOD nel badge display (ora controlla uppercase)
+
 - In CastPhase: badge dorato "ESCLUSIVO" su proposte da agenzie con contratto
 - Attore esclusivo in cima con badge "ESCLUSIVO" e costo GRATIS
 

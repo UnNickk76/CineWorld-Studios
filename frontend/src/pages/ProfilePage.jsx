@@ -168,6 +168,9 @@ const ProfilePage = () => {
   const [customAvatarUrl, setCustomAvatarUrl] = useState('');
   const [levelInfo, setLevelInfo] = useState(null);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showLogoGenerator, setShowLogoGenerator] = useState(false);
+  const [logoPrompt, setLogoPrompt] = useState('');
+  const [generatingLogo, setGeneratingLogo] = useState(false);
   const [resetToken, setResetToken] = useState(null);
   const [resetting, setResetting] = useState(false);
   const [studioCountry, setStudioCountry] = useState(user?.studio_country || 'IT');
@@ -197,8 +200,6 @@ const ProfilePage = () => {
       const res = await api.post('/avatar/generate', { prompt: aiPrompt, style: 'portrait' }, { timeout: 120000 });
       const newUrl = res.data.avatar_url;
       setCustomAvatarUrl(newUrl);
-      // Auto-save the generated avatar
-      await api.put('/auth/avatar', { avatar_url: newUrl, avatar_source: 'ai' });
       await refreshUser();
       setShowAiGenerator(false);
       toast.success('Avatar generato e salvato!');
@@ -206,6 +207,20 @@ const ProfilePage = () => {
       toast.error(e.response?.data?.detail || 'Generazione fallita');
     } finally {
       setGeneratingAi(false);
+    }
+  };
+
+  const generateLogo = async () => {
+    setGeneratingLogo(true);
+    try {
+      const res = await api.post('/logo/generate', { prompt: logoPrompt }, { timeout: 120000 });
+      await refreshUser();
+      setShowLogoGenerator(false);
+      toast.success('Logo generato e salvato!');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Generazione fallita');
+    } finally {
+      setGeneratingLogo(false);
     }
   };
 
@@ -340,6 +355,21 @@ const ProfilePage = () => {
             </div>
           </div>
           
+          {/* Logo Casa di Produzione */}
+          <div className="space-y-3 mb-4">
+            <Label className="text-xs font-semibold">Logo Casa di Produzione</Label>
+            {user?.logo_url && (
+              <div className="p-2 bg-amber-500/10 rounded border border-amber-500/30 flex items-center gap-2">
+                <img src={user.logo_url} alt="Logo" className="w-10 h-10 rounded object-contain" />
+                <span className="text-xs text-amber-400 flex-1">{user?.production_house_name || 'Il tuo Logo'}</span>
+              </div>
+            )}
+            <Button variant="outline" className="w-full h-12 flex-col border-amber-500/30 hover:bg-amber-500/10" onClick={() => setShowLogoGenerator(true)}>
+              <Sparkles className="w-5 h-5 text-amber-400 mb-0.5" />
+              <span className="text-xs">{user?.logo_url ? 'Rigenera Logo con AI' : 'Genera Logo con AI'}</span>
+            </Button>
+          </div>
+          
           <div className="space-y-2 mb-4">
             <Label className="text-xs">Language</Label>
             <Select value={language} onValueChange={setLanguage}><SelectTrigger className="bg-black/20 border-white/10 h-8 sm:h-9 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="en">English</SelectItem><SelectItem value="it">Italiano</SelectItem><SelectItem value="es">Español</SelectItem><SelectItem value="fr">Français</SelectItem><SelectItem value="de">Deutsch</SelectItem></SelectContent></Select>
@@ -437,6 +467,45 @@ const ProfilePage = () => {
               className="w-full bg-yellow-500 text-black h-9"
             >
               {generatingAi ? 'Generando... (30-60s)' : 'Genera Avatar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Logo Generator Dialog */}
+      <Dialog open={showLogoGenerator} onOpenChange={setShowLogoGenerator}>
+        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500" /> Genera Logo Studio
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-400">
+              Crea un logo per "{user?.production_house_name || 'Il tuo Studio'}"
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs mb-2 block">Stile o dettagli (opzionale)</Label>
+              <Input 
+                value={logoPrompt} 
+                onChange={e => setLogoPrompt(e.target.value)} 
+                placeholder="es. stile minimalista, colori dorati, pellicola..."
+                className="h-9 bg-black/20 border-white/10 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {['Minimalista dorato', 'Stile Hollywood classico', 'Moderno neon cinema', 'Elegante bianco nero'].map(preset => (
+                <Button key={preset} variant="outline" size="sm" className="h-7 text-[10px] justify-start" onClick={() => setLogoPrompt(preset)}>
+                  {preset}
+                </Button>
+              ))}
+            </div>
+            <Button 
+              onClick={generateLogo} 
+              disabled={generatingLogo} 
+              className="w-full bg-amber-500 text-black h-9"
+            >
+              {generatingLogo ? 'Generando Logo... (30-60s)' : 'Genera Logo'}
             </Button>
           </div>
         </DialogContent>

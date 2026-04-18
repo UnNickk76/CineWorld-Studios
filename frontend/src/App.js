@@ -1307,10 +1307,18 @@ const TopNavbar = () => {
             <span className="text-[6px] text-cyan-400/70 leading-none">CinePass</span>
           </div>
           {/* Online Users — opens panel */}
-          <Button variant="ghost" size="sm" className="flex flex-col h-10 w-8 p-0 text-green-400/70 hover:text-green-400 flex-shrink-0"
+          <Button variant="ghost" size="sm" className="relative flex flex-col h-10 w-8 p-0 text-green-400/70 hover:text-green-400 flex-shrink-0"
             onClick={() => setShowOnlineUsersPanel(!showOnlineUsersPanel)} data-testid="top-nav-online" aria-label="Utenti Online">
-            <Users className="w-3.5 h-3.5" />
-            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Online</span>
+            <div className="relative flex items-center justify-center">
+              <Users className="w-3.5 h-3.5" />
+              {onlineUsersCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.8)] animate-pulse" />
+              )}
+            </div>
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">
+              <span className="text-green-400 font-bold" data-testid="online-count-badge">{onlineUsersCount}</span>
+              <span className="text-gray-400"> online</span>
+            </span>
           </Button>
         </div>
       </div>

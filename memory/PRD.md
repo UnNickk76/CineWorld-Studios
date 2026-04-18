@@ -1,5 +1,21 @@
 # CineWorld Studio's — PRD
 
+## Bug fix + Online count (18/04/2026 — iter6)
+
+### 🐛 Bug: schermata nera su profilo Emilians (P0)
+**Root cause** in `/app/backend/server.py` linea 2766 (`get_my_featured_films`):
+`film.get('quality_score', 50)` restituisce `None` — non `50` — quando la chiave è presente con valore `null` nel DB. L'operazione `revenue_score + None` crashava con `TypeError: unsupported operand type(s) for +: 'float' and 'NoneType'`. L'endpoint è chiamato dal polling globale → il 500 non è relativo a Emilians ma scattava casualmente al cambio di route.
+
+**Fix**: usato `or` invece di default value: `film.get('quality_score') or 50`. Stesso pattern applicato a `total_revenue`, `audience_satisfaction`, `likes_count`, `virtual_likes`.
+
+### 👥 Online count visibile in top navbar
+- Nuovo endpoint leggero `GET /api/users/online-count` in `/app/backend/routes/users.py` (restituisce solo `{count: N}`).
+- La top navbar già pollava `/users/online` ogni 60s → riutilizzato quel polling. Sotto l'icona Users ora appare:
+  - Numero verde in grassetto + parola "online" grigia
+  - Dot verde pulsante sopra l'icona se count > 0
+- `data-testid="online-count-badge"` per testing.
+
+
 ## Radio icon in bottom navbar + Labels top nav (18/04/2026 — iter5)
 
 ### Icona Radio nella bottom navbar

@@ -62,6 +62,24 @@ async def get_online_users(user: dict = Depends(get_current_user)):
     return active_users
 
 
+@router.get("/users/online-count")
+async def get_online_count(user: dict = Depends(get_current_user)):
+    """Endpoint leggero: restituisce solo il numero di utenti online (escluso sé
+    stesso). Pensato per essere pollato dalla top navbar."""
+    now = datetime.now(timezone.utc)
+    count = 0
+    for user_id, data in online_users.items():
+        try:
+            last_seen = datetime.fromisoformat(data['last_seen'].replace('Z', '+00:00'))
+            if (now - last_seen).total_seconds() < 300 and user_id != user['id']:
+                count += 1
+        except Exception:
+            continue
+    # Includi i bot sempre online
+    count += len(CHAT_BOTS)
+    return {"count": count}
+
+
 @router.get("/users/presence")
 async def get_users_with_presence(user: dict = Depends(get_current_user)):
     """Get all users with 3-state presence: online (green), recent (yellow), offline (red)."""

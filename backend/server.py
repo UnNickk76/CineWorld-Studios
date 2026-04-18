@@ -2734,11 +2734,11 @@ async def get_my_featured_films(user: dict = Depends(get_current_user), limit: i
     
     # Calculate a "featuring score" for each film
     for film in films:
-        # Base score from revenue and quality
-        revenue_score = min(100, (film.get('total_revenue', 0) / 1000000) * 10)  # Max 100 for 10M+
-        quality_score = film.get('quality_score', 50)
-        satisfaction_score = film.get('audience_satisfaction', 50)
-        likes_score = min(50, film.get('likes_count', 0) * 5)  # Max 50 for 10+ likes
+        # Base score from revenue and quality — tolleranti ai valori None nel DB
+        revenue_score = min(100, ((film.get('total_revenue') or 0) / 1000000) * 10)  # Max 100 for 10M+
+        quality_score = film.get('quality_score') or 50
+        satisfaction_score = film.get('audience_satisfaction') or 50
+        likes_score = min(50, (film.get('likes_count') or 0) * 5)  # Max 50 for 10+ likes
         
         # Recency bonus: films in theaters get priority
         recency_bonus = 0
@@ -2757,7 +2757,7 @@ async def get_my_featured_films(user: dict = Depends(get_current_user), limit: i
                 pass
         
         # Virtual likes score (new system)
-        virtual_likes_score = min(50, film.get('virtual_likes', 0) / 100)  # Max 50 for 5000+ virtual likes
+        virtual_likes_score = min(50, (film.get('virtual_likes') or 0) / 100)  # Max 50 for 5000+ virtual likes
         
         # Add some randomness for rotation (0-15 points)
         import random

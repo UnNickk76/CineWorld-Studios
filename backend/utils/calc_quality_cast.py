@@ -164,6 +164,13 @@ def calculate_cast_modifier(project: dict, current_prevoto: float) -> dict:
             breakdown["sceneggiatori"] = f"{w_pct:+.1f}%"
 
     # ═══ CHIMICA ═══
+    # Chemistry from past collaborations (actors who worked together before)
+    chemistry_pairs = project.get("chemistry_pairs", [])
+    if chemistry_pairs:
+        chem_bonus = min(3.0, len(chemistry_pairs) * 0.5)
+        modifier_pct += chem_bonus
+        breakdown["chimica_collaborazioni"] = f"+{chem_bonus:.1f}% ({len(chemistry_pairs)} coppie)"
+
     if chemistry == "manual":
         seed = _seed(pid, "chemistry")
         if seed > 0.4:

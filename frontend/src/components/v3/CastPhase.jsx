@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Star, Zap, X, BarChart3 } from 'lucide-react';
+import { Users, Star, Zap, X, Lock, Unlock } from 'lucide-react';
 import { PhaseWrapper, v3api } from './V3Shared';
 
 const CAST_TABS = [
@@ -158,6 +158,66 @@ const NpcCard = ({ npc, selected, onSelect, castRole, onRoleChange, onNameClick 
   );
 };
 
+function UnlockAgenciesPanel({ filmId, toast, onBack }) {
+  const [agencies, setAgencies] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [unlockCost, setUnlockCost] = useState(5);
+
+  useEffect(() => {
+    v3api('/preferred-agencies').then(d => {
+      setAgencies(d.agencies || []);
+      setUnlockCost(d.unlock_cost_cp || 5);
+    }).catch(() => {});
+  }, []);
+
+  const unlock = async (agencyId) => {
+    setLoading(true);
+    try {
+      const res = await v3api('/unlock-agency', 'POST', { agency_id: agencyId });
+      toast?.(res.message || 'Sbloccata!');
+      // Refresh
+      const d = await v3api('/preferred-agencies');
+      setAgencies(d.agencies || []);
+    } catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[9px] font-bold text-amber-400">Agenzie Partner</p>
+        <button onClick={onBack} className="text-[7px] text-gray-500 hover:text-gray-300 underline">Torna alle proposte</button>
+      </div>
+      <p className="text-[7px] text-gray-500">Sblocca agenzie come partner per ricevere cast migliori (3+ stelle), pi&ugrave; proposte e -10% sui costi. Costa {unlockCost} CinePass.</p>
+      <div className="space-y-1 max-h-64 overflow-y-auto">
+        {agencies.map(ag => (
+          <div key={ag.id} className={`flex items-center gap-2 p-2 rounded-lg border ${
+            ag.is_preferred ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-gray-800/30 border-gray-700 hover:border-amber-500/30'
+          }`}>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] font-bold text-white">{ag.name}</span>
+                {ag.is_preferred && <Unlock className="w-2.5 h-2.5 text-emerald-400" />}
+              </div>
+              <p className="text-[7px] text-gray-500">{ag.region} | Rep {ag.reputation} | {(ag.specialization || []).join(', ')}</p>
+            </div>
+            {ag.is_preferred ? (
+              <span className="text-[7px] px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 font-bold">Partner</span>
+            ) : (
+              <button onClick={() => unlock(ag.id)} disabled={loading}
+                className="text-[7px] px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold hover:bg-amber-500/20 disabled:opacity-30">
+                <Lock className="w-2.5 h-2.5 inline mr-0.5" /> {unlockCost} CP
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+
 export const CastPhase = ({ film, onRefresh, toast }) => {
   const [tab, setTab] = useState('directors');
   const [proposals, setProposals] = useState({});
@@ -277,6 +337,22 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
           </div>
         )}
 
+        {/* Chemistry Pairs */}
+        {film.chemistry_pairs && film.chemistry_pairs.length > 0 && (
+          <div className="px-2 py-1.5 rounded-lg bg-emerald-500/5 border border-emerald-500/15 space-y-1">
+            <p className="text-[7px] text-emerald-400 uppercase font-bold">Chimica Cast (+CWSv)</p>
+            {film.chemistry_pairs.map((pair, i) => (
+              <div key={i} className="flex items-center gap-1 text-[7px]">
+                <span className="text-emerald-300 font-bold">{pair.a}</span>
+                <span className="text-gray-600">&</span>
+                <span className="text-emerald-300 font-bold">{pair.b}</span>
+                <span className="text-gray-600">({pair.count} film insieme)</span>
+              </div>
+            ))}
+            <p className="text-[6px] text-emerald-500/60">+{Math.min(3, film.chemistry_pairs.length * 0.5).toFixed(1)}% bonus CWSv</p>
+          </div>
+        )}
+
         {/* Source Selector: Pool / La Mia Agenzia / Agenzie NPC */}
         <div className="flex gap-1">
           <button onClick={() => setCastSource('pool')}
@@ -376,16 +452,26 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
         {/* === SOURCE: NPC AGENCIES === */}
         {castSource === 'npc_agencies' && (
           <div className="space-y-2">
-            {/* Agency badges */}
+            {/* Agency badges with lock/unlock */}
             {npcAgencies?.agencies && (
               <div className="flex flex-wrap gap-1">
                 {npcAgencies.agencies.map((ag, i) => (
-                  <span key={i} className="text-[7px] px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold">
-                    {ag.name} \u2022 Rep {ag.reputation}
+                  <span key={i} className={`text-[7px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${
+                    ag.is_preferred
+                      ? 'bg-emerald-500/15 border border-emerald-500/25 text-emerald-400'
+                      : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                  }`}>
+                    {ag.is_preferred ? <Unlock className="w-2 h-2" /> : <Lock className="w-2 h-2 opacity-50" />}
+                    {ag.name} {ag.is_preferred ? '\u2605' : ''} Rep {ag.reputation}
                   </span>
                 ))}
               </div>
             )}
+            {/* Unlock button */}
+            <button onClick={() => setCastSource('unlock_agencies')}
+              className="w-full text-[8px] py-1.5 rounded-lg border border-dashed border-amber-500/30 text-amber-400/70 hover:text-amber-400 hover:border-amber-500/50 font-bold">
+              <Lock className="w-3 h-3 inline mr-1" /> Gestisci Agenzie Partner (CinePass)
+            </button>
             {npcProposals.length === 0 ? (
               <p className="text-center text-[8px] text-gray-600 py-4">Nessuna proposta dalle agenzie.</p>
             ) : (
@@ -424,6 +510,14 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
               </div>
             )}
           </div>
+        )}
+
+        {/* === SOURCE: UNLOCK AGENCIES === */}
+        {castSource === 'unlock_agencies' && (
+          <UnlockAgenciesPanel filmId={film.id} toast={toast} onBack={() => {
+            setCastSource('npc_agencies');
+            v3api(`/films/${film.id}/npc-agency-proposals`).then(setNpcAgencies).catch(() => {});
+          }} />
         )}
       </div>
     </PhaseWrapper>

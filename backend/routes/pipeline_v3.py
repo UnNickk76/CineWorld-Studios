@@ -156,6 +156,70 @@ def _calc_crc_from_npc(npc: dict) -> int:
     return max(0, min(100, round(crc)))
 
 
+async def _calc_chemistry_pairs(cast: dict, user_id: str) -> list:
+    """Find actor pairs who have worked together in previous films. Returns list of pair dicts."""
+    all_cast_ids = set()
+    if cast.get("director"): all_cast_ids.add(cast["director"].get("id", ""))
+    if cast.get("composer"): all_cast_ids.add(cast["composer"].get("id", ""))
+    for a in cast.get("actors", []): all_cast_ids.add(a.get("id", ""))
+    for s in cast.get("screenwriters", []): all_cast_ids.add(s.get("id", ""))
+    all_cast_ids.discard("")
+
+    if len(all_cast_ids) < 2:
+        return []
+
+    # Get past films with cast data
+    past_films = await db.films.find(
+        {'producer_id': user_id}, {'_id': 0, 'cast': 1, 'title': 1, 'id': 1}
+    ).limit(50).to_list(50)
+
+    # Build map: which actors appeared in which films together
+    film_casts = []
+    for pf in past_films:
+        c = pf.get('cast', {})
+        ids_in_film = set()
+        if c.get('director', {}).get('id'): ids_in_film.add(c['director']['id'])
+        if c.get('composer', {}).get('id'): ids_in_film.add(c['composer']['id'])
+        for a in c.get('actors', []): 
+            if a.get('id'): ids_in_film.add(a['id'])
+        for s in c.get('screenwriters', []):
+            if s.get('id'): ids_in_film.add(s['id'])
+        if ids_in_film:
+            film_casts.append((pf.get('title', '?'), ids_in_film))
+
+    # Find pairs in current cast that appeared together before
+    pairs = []
+    id_list = list(all_cast_ids)
+    id_to_name = {}
+    if cast.get("director"): id_to_name[cast["director"].get("id", "")] = cast["director"].get("name", "?")
+    if cast.get("composer"): id_to_name[cast["composer"].get("id", "")] = cast["composer"].get("name", "?")
+    for a in cast.get("actors", []): id_to_name[a.get("id", "")] = a.get("name", "?")
+    for s in cast.get("screenwriters", []): id_to_name[s.get("id", "")] = s.get("name", "?")
+
+    seen_pairs = set()
+    for i in range(len(id_list)):
+        for j in range(i + 1, len(id_list)):
+            a_id, b_id = id_list[i], id_list[j]
+            pair_key = tuple(sorted([a_id, b_id]))
+            if pair_key in seen_pairs:
+                continue
+            films_together = []
+            for title, fids in film_casts:
+                if a_id in fids and b_id in fids:
+                    films_together.append(title)
+            if films_together:
+                seen_pairs.add(pair_key)
+                pairs.append({
+                    "a": id_to_name.get(a_id, "?"),
+                    "b": id_to_name.get(b_id, "?"),
+                    "films": films_together[:3],
+                    "count": len(films_together),
+                })
+
+    return pairs
+
+
+
 
 def _clean(doc: Optional[dict]) -> Optional[dict]:
     if not doc:
@@ -975,39 +1039,68 @@ async def get_npc_agency_proposals(pid: str, user: dict = Depends(get_current_us
     from routes.pipeline_v2 import ensure_agencies_seeded
     await ensure_agencies_seeded()
 
-    # Get matching agencies (specialization includes film genre)
+    # Get player's preferred (unlocked) agencies
+    preferred_docs = await db.preferred_agencies.find(
+        {'user_id': user['id']}, {'_id': 0, 'agency_id': 1}
+    ).to_list(50)
+    preferred_ids = {d['agency_id'] for d in preferred_docs}
+
+    # Get matching agencies
     all_agencies = await db.npc_agencies.find({'active': True}, {'_id': 0}).to_list(100)
 
-    # Score agencies by genre match
+    # Score agencies by genre match + preferred bonus
     scored = []
     for ag in all_agencies:
         specs = ag.get('specialization', [])
         rep = ag.get('reputation', 50)
         match_score = rep
         if genre in specs:
-            match_score += 30  # Genre bonus
-        scored.append((ag, match_score))
+            match_score += 30
+        is_preferred = ag.get('id', '') in preferred_ids
+        if is_preferred:
+            match_score += 20  # Preferred agencies always rank higher
+        scored.append((ag, match_score, is_preferred))
     scored.sort(key=lambda x: x[1], reverse=True)
 
-    # Pick top agencies based on player level (3 at lv1, up to 8 at high level)
-    num_agencies = min(len(scored), 3 + player_level // 10)
-    selected_agencies = [s[0] for s in scored[:num_agencies]]
+    # Pick agencies: preferred always included + top scoring up to limit
+    num_base = min(len(scored), 3 + player_level // 10)
+    selected_set = set()
+    selected_agencies = []
+    # First add all preferred
+    for ag, score, is_pref in scored:
+        if is_pref:
+            selected_set.add(ag.get('id', ''))
+            selected_agencies.append((ag, True))
+    # Then fill with top scoring
+    for ag, score, is_pref in scored:
+        if ag.get('id', '') not in selected_set:
+            selected_agencies.append((ag, False))
+            selected_set.add(ag.get('id', ''))
+        if len(selected_agencies) >= num_base:
+            break
 
-    # For each agency, pull genre-compatible cast from the pool
+    # For each agency, pull genre-compatible cast
     proposals = []
-    for ag in selected_agencies:
-        ag_specs = ag.get('specialization', [])
-        # Fetch a few NPCs per role for this agency
+    for ag, is_pref in selected_agencies:
+        # Preferred agencies give more and better cast
+        multiplier = 2 if is_pref else 1
         for role_type in ['actor', 'director', 'screenwriter', 'composer']:
-            count = 3 if role_type == 'actor' else 1
+            count = (3 if role_type == 'actor' else 1) * multiplier
+            sample_size = count * 3
+            # Preferred agencies get higher-star cast
+            match_filter = {'type': role_type}
+            if is_pref:
+                match_filter['stars'] = {'$gte': 3}  # Only 3+ stars for preferred
             cursor = db.people.aggregate([
-                {'$match': {'type': role_type}},
-                {'$sample': {'size': count * 3}},
+                {'$match': match_filter},
+                {'$sample': {'size': sample_size}},
                 {'$project': {'_id': 0}},
             ])
-            candidates = await cursor.to_list(count * 3)
-            # Score by genre affinity
+            candidates = await cursor.to_list(sample_size)
             for npc in candidates[:count]:
+                base_cost = npc.get("cost_per_film", npc.get("cost", 50000))
+                # Preferred agency discount: -10%
+                cost = int(base_cost * 0.9) if is_pref else base_cost
                 crc = _calc_crc_from_npc(npc)
                 proposals.append({
                     "id": npc.get("id", ""),
@@ -1021,19 +1114,103 @@ async def get_npc_agency_proposals(pid: str, user: dict = Depends(get_current_us
                     "role_type": role_type,
                     "skills": npc.get("skills", {}),
                     "primary_skills": npc.get("primary_skills", []),
-                    "cost": npc.get("cost_per_film", npc.get("cost", 50000)),
+                    "cost": cost,
                     "crc": crc,
                     "agency_name": ag.get("name", "Agenzia"),
+                    "agency_id": ag.get("id", ""),
                     "agency_region": ag.get("region", ""),
                     "agency_reputation": ag.get("reputation", 50),
                     "is_agency_proposal": True,
+                    "is_preferred": is_pref,
                 })
 
     proposals.sort(key=lambda x: x.get("crc", 0), reverse=True)
     return {
-        "agencies": [{"name": a.get("name"), "region": a.get("region"), "reputation": a.get("reputation"), "specialization": a.get("specialization", [])} for a in selected_agencies],
+        "agencies": [{
+            "id": a.get("id"), "name": a.get("name"), "region": a.get("region"),
+            "reputation": a.get("reputation"), "specialization": a.get("specialization", []),
+            "is_preferred": is_pref,
+        } for a, is_pref in selected_agencies],
         "proposals": proposals,
         "num_agencies": len(selected_agencies),
+        "preferred_count": len(preferred_ids),
+    }
+
+
+@router.get("/preferred-agencies")
+async def get_preferred_agencies(user: dict = Depends(get_current_user)):
+    """Get all NPC agencies with player's preferred status."""
+    from routes.pipeline_v2 import ensure_agencies_seeded
+    await ensure_agencies_seeded()
+
+    all_agencies = await db.npc_agencies.find({'active': True}, {'_id': 0}).to_list(100)
+    preferred_docs = await db.preferred_agencies.find(
+        {'user_id': user['id']}, {'_id': 0}
+    ).to_list(50)
+    preferred_map = {d['agency_id']: d for d in preferred_docs}
+
+    UNLOCK_COST_CP = 5  # CinePass cost to unlock
+
+    result = []
+    for ag in all_agencies:
+        aid = ag.get('id', '')
+        is_preferred = aid in preferred_map
+        result.append({
+            "id": aid,
+            "name": ag.get("name", ""),
+            "region": ag.get("region", ""),
+            "reputation": ag.get("reputation", 50),
+            "specialization": ag.get("specialization", []),
+            "is_preferred": is_preferred,
+            "unlock_cost_cp": 0 if is_preferred else UNLOCK_COST_CP,
+            "unlocked_at": preferred_map.get(aid, {}).get("unlocked_at"),
+        })
+    result.sort(key=lambda x: (-x["is_preferred"], -x["reputation"]))
+    return {"agencies": result, "unlock_cost_cp": UNLOCK_COST_CP}
+
+
+@router.post("/unlock-agency")
+async def unlock_preferred_agency(data: dict, user: dict = Depends(get_current_user)):
+    """Unlock an NPC agency as preferred partner (costs CinePass)."""
+    agency_id = data.get("agency_id")
+    if not agency_id:
+        raise HTTPException(400, "agency_id richiesto")
+
+    UNLOCK_COST_CP = 5
+
+    # Check not already unlocked
+    existing = await db.preferred_agencies.find_one(
+        {'user_id': user['id'], 'agency_id': agency_id}, {'_id': 0}
+    )
+    if existing:
+        raise HTTPException(400, "Agenzia gia sbloccata")
+
+    # Check agency exists
+    agency = await db.npc_agencies.find_one({'id': agency_id}, {'_id': 0})
+    if not agency:
+        raise HTTPException(404, "Agenzia non trovata")
+
+    # Check CinePass
+    cp = user.get('cinepass', 0) or 0
+    if cp < UNLOCK_COST_CP:
+        raise HTTPException(400, f"CinePass insufficienti. Servono {UNLOCK_COST_CP} CP (hai {cp})")
+
+    # Deduct CinePass
+    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -UNLOCK_COST_CP}})
+
+    # Save preferred
+    await db.preferred_agencies.insert_one({
+        'user_id': user['id'],
+        'agency_id': agency_id,
+        'agency_name': agency.get('name', ''),
+        'unlocked_at': _now(),
+    })
+
+    return {
+        "success": True,
+        "agency": agency.get('name'),
+        "cost_cp": UNLOCK_COST_CP,
+        "message": f"Agenzia \"{agency.get('name')}\" sbloccata come partner! (-{UNLOCK_COST_CP} CP)"
     }
 
 
@@ -1135,15 +1312,19 @@ async def cast_agency_actor_v3(pid: str, data: dict, user: dict = Depends(get_cu
     # Deduct cost
     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -final_cost}})
 
-    project = await _update_project(pid, user["id"], {"cast": cast})
+    # Calculate chemistry pairs
+    chemistry_pairs = await _calc_chemistry_pairs(cast, user["id"])
+    project = await _update_project(pid, user["id"], {"cast": cast, "chemistry_pairs": chemistry_pairs})
     discount_label = f"-{int(discount*100)}% {'ritorno' if is_returning else 'agenzia'}"
+    chem_msg = f" | Chimica: {len(chemistry_pairs)} coppie!" if chemistry_pairs else ""
     return {
         "success": True,
         "project": project,
         "added": entry,
         "cost": final_cost,
         "discount": discount_label,
-        "message": f"{actor.get('name')} aggiunto al cast! ({discount_label}, ${final_cost:,})"
+        "chemistry_pairs": chemistry_pairs,
+        "message": f"{actor.get('name')} aggiunto al cast! ({discount_label}, ${final_cost:,}){chem_msg}"
     }
 
 
@@ -1213,8 +1394,10 @@ async def select_cast_member(pid: str, req: SelectCastBody, user: dict = Depends
     except:
         pass  # V3 non blocca per fondi
 
-    project = await _update_project(pid, user["id"], {"cast": cast})
-    return {"success": True, "project": project, "cast": cast}
+    # Calculate chemistry pairs
+    chemistry_pairs = await _calc_chemistry_pairs(cast, user["id"])
+    project = await _update_project(pid, user["id"], {"cast": cast, "chemistry_pairs": chemistry_pairs})
+    return {"success": True, "project": project, "cast": cast, "chemistry_pairs": chemistry_pairs}
 
 
 @router.post("/films/{pid}/auto-cast")
@@ -1271,8 +1454,9 @@ async def auto_cast(pid: str, user: dict = Depends(get_current_user)):
         a["cast_role"] = roles_order[idx] if idx < len(roles_order) else "generico"
         cast["actors"].append(a); idx += 1
 
-    project = await _update_project(pid, user["id"], {"cast": cast})
-    return {"success": True, "project": project, "cast": cast}
+    chemistry_pairs = await _calc_chemistry_pairs(cast, user["id"])
+    project = await _update_project(pid, user["id"], {"cast": cast, "chemistry_pairs": chemistry_pairs})
+    return {"success": True, "project": project, "cast": cast, "chemistry_pairs": chemistry_pairs}
 
 
 @router.post("/films/{pid}/save-prep")

@@ -251,3 +251,19 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 - Tab **Agenzie NPC**: proposte da agenzie con nome, regione, reputazione
 - Cast selezionato mostra badge viola "Agenzia" e verde "Ritorno"
 
+## Bonus Chimica Cast — Implementato (18/04/2026)
+- Coppie di attori che hanno lavorato insieme in film precedenti danno bonus CWSv
+- Calcolo: `_calc_chemistry_pairs()` analizza cast corrente vs film passati del produttore
+- Bonus: +0.5% per coppia, max +3.0% (6 coppie)
+- Integrato in `calc_quality_cast.py` sezione CHIMICA
+- Frontend: sezione verde "Chimica Cast (+CWSv)" mostra coppie e bonus %
+- Ricalcolato automaticamente ogni volta che il cast cambia
+
+## Agenzie Preferite (Partner) — Implementato (18/04/2026)
+- Player sblocca agenzie NPC come partner per 5 CinePass
+- Endpoint: `POST /api/pipeline-v3/unlock-agency` + `GET /api/pipeline-v3/preferred-agencies`
+- Vantaggi partner: cast 3+ stelle, doppio numero proposte, -10% costi
+- Agenzie preferite sempre incluse nelle proposte (priority)
+- Frontend: pannello gestione con lock/unlock, badge Partner/stella
+- Collezione DB: `preferred_agencies` con `{user_id, agency_id, unlocked_at}`
+

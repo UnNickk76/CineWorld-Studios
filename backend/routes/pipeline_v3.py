@@ -1045,10 +1045,24 @@ async def get_npc_agency_proposals(pid: str, user: dict = Depends(get_current_us
     ).to_list(50)
     preferred_ids = {d['agency_id'] for d in preferred_docs}
 
+    # Get exclusive contracts
+    now = datetime.now(timezone.utc)
+    exc_contracts = await db.exclusive_contracts.find(
+        {'user_id': user['id']}, {'_id': 0}
+    ).to_list(10)
+    exclusive_ids = {}
+    for c in exc_contracts:
+        try:
+            exp_dt = datetime.fromisoformat(str(c.get('expires_at', '')).replace('Z', '+00:00'))
+            if exp_dt > now:
+                exclusive_ids[c['agency_id']] = c
+        except Exception:
+            pass
+
     # Get matching agencies
     all_agencies = await db.npc_agencies.find({'active': True}, {'_id': 0}).to_list(100)
 
-    # Score agencies by genre match + preferred bonus
+    # Score agencies by genre match + preferred/exclusive bonus
     scored = []
     for ag in all_agencies:
         specs = ag.get('specialization', [])
@@ -1056,41 +1070,53 @@ async def get_npc_agency_proposals(pid: str, user: dict = Depends(get_current_us
         match_score = rep
         if genre in specs:
             match_score += 30
-        is_preferred = ag.get('id', '') in preferred_ids
-        if is_preferred:
-            match_score += 20  # Preferred agencies always rank higher
-        scored.append((ag, match_score, is_preferred))
+        aid = ag.get('id', '')
+        is_exclusive = aid in exclusive_ids
+        is_preferred = aid in preferred_ids or is_exclusive
+        if is_exclusive:
+            match_score += 40
+        elif is_preferred:
+            match_score += 20
+        scored.append((ag, match_score, is_preferred, is_exclusive))
     scored.sort(key=lambda x: x[1], reverse=True)
 
-    # Pick agencies: preferred always included + top scoring up to limit
+    # Pick agencies: exclusive+preferred always included + top scoring
     num_base = min(len(scored), 3 + player_level // 10)
     selected_set = set()
     selected_agencies = []
-    # First add all preferred
-    for ag, score, is_pref in scored:
-        if is_pref:
+    for ag, score, is_pref, is_exc in scored:
+        if is_exc or is_pref:
             selected_set.add(ag.get('id', ''))
-            selected_agencies.append((ag, True))
-    # Then fill with top scoring
-    for ag, score, is_pref in scored:
+            selected_agencies.append((ag, is_pref, is_exc))
+    for ag, score, is_pref, is_exc in scored:
         if ag.get('id', '') not in selected_set:
-            selected_agencies.append((ag, False))
+            selected_agencies.append((ag, False, False))
             selected_set.add(ag.get('id', ''))
         if len(selected_agencies) >= num_base:
             break
 
-    # For each agency, pull genre-compatible cast
+    # For each agency, pull cast based on tier
     proposals = []
-    for ag, is_pref in selected_agencies:
-        # Preferred agencies give more and better cast
-        multiplier = 2 if is_pref else 1
+    for ag, is_pref, is_exc in selected_agencies:
+        if is_exc:
+            multiplier = 3  # Triple proposals
+            min_stars = 4
+            discount_pct = 0.20
+        elif is_pref:
+            multiplier = 2
+            min_stars = 3
+            discount_pct = 0.10
+        else:
+            multiplier = 1
+            min_stars = 0
+            discount_pct = 0.0
+
         for role_type in ['actor', 'director', 'screenwriter', 'composer']:
             count = (3 if role_type == 'actor' else 1) * multiplier
             sample_size = count * 3
-            # Preferred agencies get higher-star cast
             match_filter = {'type': role_type}
-            if is_pref:
-                match_filter['stars'] = {'$gte': 3}  # Only 3+ stars for preferred
+            if min_stars > 0:
+                match_filter['stars'] = {'$gte': min_stars}
             cursor = db.people.aggregate([
                 {'$match': match_filter},
                 {'$sample': {'size': sample_size}},
@@ -1099,8 +1125,7 @@ async def get_npc_agency_proposals(pid: str, user: dict = Depends(get_current_us
             candidates = await cursor.to_list(sample_size)
             for npc in candidates[:count]:
                 base_cost = npc.get("cost_per_film", npc.get("cost", 50000))
-                # Preferred agency discount: -10%
-                cost = int(base_cost * 0.9) if is_pref else base_cost
+                cost = int(base_cost * (1 - discount_pct))
                 crc = _calc_crc_from_npc(npc)
                 proposals.append({
                     "id": npc.get("id", ""),
@@ -1122,18 +1147,37 @@ async def get_npc_agency_proposals(pid: str, user: dict = Depends(get_current_us
                     "agency_reputation": ag.get("reputation", 50),
                     "is_agency_proposal": True,
                     "is_preferred": is_pref,
+                    "is_exclusive": is_exc,
                 })
 
-    proposals.sort(key=lambda x: x.get("crc", 0), reverse=True)
+        # Add exclusive actor of the month
+        if is_exc:
+            contract = exclusive_ids.get(ag.get('id', ''), {})
+            exc_actor = contract.get('exclusive_actor')
+            if exc_actor:
+                proposals.insert(0, {
+                    **exc_actor,
+                    "role_type": "actor",
+                    "cost": 0,
+                    "agency_name": ag.get("name", "Agenzia"),
+                    "agency_id": ag.get("id", ""),
+                    "is_agency_proposal": True,
+                    "is_preferred": True,
+                    "is_exclusive": True,
+                    "is_exclusive_actor": True,
+                })
+
+    proposals.sort(key=lambda x: (-x.get("is_exclusive_actor", False), -x.get("crc", 0)))
     return {
         "agencies": [{
             "id": a.get("id"), "name": a.get("name"), "region": a.get("region"),
             "reputation": a.get("reputation"), "specialization": a.get("specialization", []),
-            "is_preferred": is_pref,
-        } for a, is_pref in selected_agencies],
+            "is_preferred": is_pref, "is_exclusive": is_exc,
+        } for a, is_pref, is_exc in selected_agencies],
         "proposals": proposals,
         "num_agencies": len(selected_agencies),
         "preferred_count": len(preferred_ids),
+        "exclusive_count": len(exclusive_ids),
     }
 
 
@@ -1212,6 +1256,209 @@ async def unlock_preferred_agency(data: dict, user: dict = Depends(get_current_u
         "cost_cp": UNLOCK_COST_CP,
         "message": f"Agenzia \"{agency.get('name')}\" sbloccata come partner! (-{UNLOCK_COST_CP} CP)"
     }
+
+
+# ═══ EXCLUSIVE CONTRACTS ═══
+
+# Cost by reputation tier
+def _exclusive_cost(reputation: int) -> int:
+    if reputation >= 90: return 25
+    if reputation >= 80: return 20
+    if reputation >= 70: return 15
+    return 10
+
+EXCLUSIVE_DURATION_DAYS = 30
+MAX_EXCLUSIVE_CONTRACTS = 2
+
+
+@router.get("/exclusive-contracts")
+async def get_exclusive_contracts(user: dict = Depends(get_current_user)):
+    """Get all NPC agencies with exclusive contract status."""
+    from routes.pipeline_v2 import ensure_agencies_seeded
+    await ensure_agencies_seeded()
+
+    all_agencies = await db.npc_agencies.find({'active': True}, {'_id': 0}).to_list(100)
+
+    # Active contracts
+    now = datetime.now(timezone.utc)
+    contracts = await db.exclusive_contracts.find(
+        {'user_id': user['id']}, {'_id': 0}
+    ).to_list(50)
+    contract_map = {}
+    active_count = 0
+    for c in contracts:
+        exp = c.get('expires_at', '')
+        try:
+            exp_dt = datetime.fromisoformat(str(exp).replace('Z', '+00:00'))
+            is_active = exp_dt > now
+        except Exception:
+            is_active = False
+        if is_active:
+            active_count += 1
+        contract_map[c['agency_id']] = {**c, 'is_active': is_active}
+
+    # Preferred agencies
+    preferred_docs = await db.preferred_agencies.find(
+        {'user_id': user['id']}, {'_id': 0, 'agency_id': 1}
+    ).to_list(50)
+    preferred_ids = {d['agency_id'] for d in preferred_docs}
+
+    result = []
+    for ag in all_agencies:
+        aid = ag.get('id', '')
+        rep = ag.get('reputation', 50)
+        contract = contract_map.get(aid)
+        is_preferred = aid in preferred_ids
+        cost_cp = _exclusive_cost(rep)
+
+        entry = {
+            "id": aid,
+            "name": ag.get("name", ""),
+            "region": ag.get("region", ""),
+            "reputation": rep,
+            "specialization": ag.get("specialization", []),
+            "is_preferred": is_preferred,
+            "cost_cp": cost_cp,
+            "contract": None,
+        }
+        if contract:
+            entry["contract"] = {
+                "is_active": contract['is_active'],
+                "signed_at": contract.get('signed_at'),
+                "expires_at": contract.get('expires_at'),
+                "exclusive_actor": contract.get('exclusive_actor'),
+            }
+        result.append(entry)
+
+    result.sort(key=lambda x: (
+        -(1 if x.get('contract', {}) and x['contract'] and x['contract'].get('is_active') else 0),
+        -x['reputation']
+    ))
+
+    return {
+        "agencies": result,
+        "active_contracts": active_count,
+        "max_contracts": MAX_EXCLUSIVE_CONTRACTS,
+        "slots_available": MAX_EXCLUSIVE_CONTRACTS - active_count,
+    }
+
+
+@router.post("/sign-exclusive-contract")
+async def sign_exclusive_contract(data: dict, user: dict = Depends(get_current_user)):
+    """Sign an exclusive contract with an NPC agency (costs CinePass, lasts 30 days)."""
+    agency_id = data.get("agency_id")
+    if not agency_id:
+        raise HTTPException(400, "agency_id richiesto")
+
+    # Check agency exists
+    agency = await db.npc_agencies.find_one({'id': agency_id}, {'_id': 0})
+    if not agency:
+        raise HTTPException(404, "Agenzia non trovata")
+
+    now = datetime.now(timezone.utc)
+
+    # Check not already active
+    existing = await db.exclusive_contracts.find_one(
+        {'user_id': user['id'], 'agency_id': agency_id}, {'_id': 0}
+    )
+    if existing:
+        try:
+            exp_dt = datetime.fromisoformat(str(existing.get('expires_at', '')).replace('Z', '+00:00'))
+            if exp_dt > now:
+                raise HTTPException(400, "Contratto gia attivo con questa agenzia")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    # Check max contracts
+    active_contracts = await db.exclusive_contracts.find(
+        {'user_id': user['id']}, {'_id': 0, 'expires_at': 1}
+    ).to_list(50)
+    active_count = 0
+    for c in active_contracts:
+        try:
+            exp_dt = datetime.fromisoformat(str(c.get('expires_at', '')).replace('Z', '+00:00'))
+            if exp_dt > now:
+                active_count += 1
+        except Exception:
+            pass
+    if active_count >= MAX_EXCLUSIVE_CONTRACTS:
+        raise HTTPException(400, f"Max {MAX_EXCLUSIVE_CONTRACTS} contratti esclusivi attivi. Attendi la scadenza di uno.")
+
+    # Cost
+    rep = agency.get('reputation', 50)
+    cost_cp = _exclusive_cost(rep)
+    cp = user.get('cinepass', 0) or 0
+    if cp < cost_cp:
+        raise HTTPException(400, f"CinePass insufficienti. Servono {cost_cp} CP (hai {cp})")
+
+    # Generate exclusive actor of the month
+    import random
+    exclusive_npc = None
+    # Get a high-star NPC not commonly available
+    cursor = db.people.aggregate([
+        {'$match': {'type': 'actor', 'stars': {'$gte': 4}}},
+        {'$sample': {'size': 5}},
+        {'$project': {'_id': 0}},
+    ])
+    candidates = await cursor.to_list(5)
+    if candidates:
+        chosen = candidates[0]
+        exclusive_npc = {
+            "id": chosen.get("id"),
+            "name": chosen.get("name"),
+            "stars": chosen.get("stars", 4),
+            "fame_category": chosen.get("fame_category", "famous"),
+            "nationality": chosen.get("nationality", ""),
+            "gender": chosen.get("gender", ""),
+            "crc": _calc_crc_from_npc(chosen),
+            "skills": chosen.get("skills", {}),
+            "primary_skills": chosen.get("primary_skills", []),
+        }
+
+    # Deduct CinePass
+    await db.users.update_one({'id': user['id']}, {'$inc': {'cinepass': -cost_cp}})
+
+    expires_at = (now + timedelta(days=EXCLUSIVE_DURATION_DAYS)).isoformat()
+
+    # Upsert contract
+    await db.exclusive_contracts.update_one(
+        {'user_id': user['id'], 'agency_id': agency_id},
+        {'$set': {
+            'user_id': user['id'],
+            'agency_id': agency_id,
+            'agency_name': agency.get('name', ''),
+            'signed_at': now.isoformat(),
+            'expires_at': expires_at,
+            'cost_cp': cost_cp,
+            'exclusive_actor': exclusive_npc,
+        }},
+        upsert=True
+    )
+
+    # Also auto-unlock as preferred if not already
+    existing_pref = await db.preferred_agencies.find_one(
+        {'user_id': user['id'], 'agency_id': agency_id}, {'_id': 0}
+    )
+    if not existing_pref:
+        await db.preferred_agencies.insert_one({
+            'user_id': user['id'],
+            'agency_id': agency_id,
+            'agency_name': agency.get('name', ''),
+            'unlocked_at': now.isoformat(),
+        })
+
+    actor_msg = f" Attore esclusivo: {exclusive_npc['name']}!" if exclusive_npc else ""
+    return {
+        "success": True,
+        "agency": agency.get('name'),
+        "cost_cp": cost_cp,
+        "expires_at": expires_at,
+        "exclusive_actor": exclusive_npc,
+        "message": f"Contratto esclusivo firmato con \"{agency.get('name')}\"! (-{cost_cp} CP, 30 giorni){actor_msg}"
+    }
+
 
 
 @router.post("/films/{pid}/cast-agency-actor")

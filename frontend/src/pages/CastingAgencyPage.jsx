@@ -3,7 +3,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Users, Star, Briefcase, Trash2, RefreshCw, ChevronRight, BookOpen, Award, Shield, Swords, Heart, Sparkles, Search, Pen, Diamond, ChevronDown, ChevronUp, UserPlus } from 'lucide-react';
+import { Users, Star, Briefcase, Trash2, RefreshCw, ChevronRight, BookOpen, Award, Shield, Swords, Heart, Sparkles, Search, Pen, Diamond, ChevronDown, ChevronUp, UserPlus, Lock, Unlock, FileSignature } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 
@@ -443,6 +443,140 @@ function ScoutScreenplaysTab({ api }) {
 }
 
 
+function ExclusiveContractsTab({ api }) {
+  const [agencies, setAgencies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionId, setActionId] = useState(null);
+  const [contractInfo, setContractInfo] = useState({ active_contracts: 0, max_contracts: 2, slots_available: 2 });
+  const gameConfirm = useConfirm();
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api.get('/pipeline-v3/exclusive-contracts');
+      setAgencies(res.data.agencies || []);
+      setContractInfo(res.data);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, [api]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const sign = async (agencyId, agencyName, costCp) => {
+    if (!await gameConfirm({
+      title: `Contratto Esclusivo: ${agencyName}`,
+      subtitle: `Costa ${costCp} CinePass. Durata 30 giorni. Cast 4+ stelle, triplo proposte, -20% costi, 1 attore esclusivo.`,
+      confirmLabel: `Firma (${costCp} CP)`
+    })) return;
+    setActionId(agencyId);
+    try {
+      const res = await api.post('/pipeline-v3/sign-exclusive-contract', { agency_id: agencyId });
+      toast.success(res.data.message);
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionId(null);
+  };
+
+  if (loading) return <div className="text-center py-8 text-gray-500"><RefreshCw className="w-5 h-5 animate-spin mx-auto mb-1" /><p className="text-xs">Caricamento agenzie...</p></div>;
+
+  const activeContracts = agencies.filter(a => a.contract?.is_active);
+  const available = agencies.filter(a => !a.contract?.is_active);
+
+  return (
+    <div className="space-y-3" data-testid="contracts-tab">
+      {/* Status */}
+      <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-amber-500/5 border border-amber-500/15">
+        <p className="text-[10px] text-amber-400 font-bold">Contratti Attivi: {contractInfo.active_contracts}/{contractInfo.max_contracts}</p>
+        <p className="text-[9px] text-gray-500">{contractInfo.slots_available} slot disponibili</p>
+      </div>
+
+      {/* Active Contracts */}
+      {activeContracts.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[8px] text-amber-400 uppercase font-bold">Contratti Attivi</p>
+          {activeContracts.map(ag => {
+            const exp = ag.contract?.expires_at ? new Date(ag.contract.expires_at) : null;
+            const daysLeft = exp ? Math.max(0, Math.ceil((exp - new Date()) / 86400000)) : 0;
+            return (
+              <Card key={ag.id} className="bg-amber-500/5 border-amber-500/20">
+                <CardContent className="p-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-amber-300 flex items-center gap-1">
+                        <FileSignature className="w-3 h-3" /> {ag.name}
+                      </p>
+                      <p className="text-[9px] text-gray-400">{ag.region} | Rep {ag.reputation} | {(ag.specialization || []).join(', ')}</p>
+                    </div>
+                    <Badge className="bg-amber-500/20 text-amber-400 text-[8px]">{daysLeft}g rimasti</Badge>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 mt-2 text-[8px]">
+                    <div className="p-1 rounded bg-black/30 border border-amber-800/30 text-center">
+                      <p className="text-gray-500">Stelle</p>
+                      <p className="text-amber-400 font-bold">4+</p>
+                    </div>
+                    <div className="p-1 rounded bg-black/30 border border-amber-800/30 text-center">
+                      <p className="text-gray-500">Proposte</p>
+                      <p className="text-amber-400 font-bold">x3</p>
+                    </div>
+                    <div className="p-1 rounded bg-black/30 border border-amber-800/30 text-center">
+                      <p className="text-gray-500">Sconto</p>
+                      <p className="text-emerald-400 font-bold">-20%</p>
+                    </div>
+                    <div className="p-1 rounded bg-black/30 border border-amber-800/30 text-center">
+                      <p className="text-gray-500">Esclusivo</p>
+                      <p className="text-yellow-400 font-bold">{ag.contract?.exclusive_actor?.name?.split(' ')[0] || 'Si'}</p>
+                    </div>
+                  </div>
+                  {ag.contract?.exclusive_actor && (
+                    <div className="mt-1.5 flex items-center gap-2 px-2 py-1 rounded bg-yellow-500/5 border border-yellow-500/15">
+                      <Diamond className="w-3 h-3 text-yellow-400 shrink-0" />
+                      <div>
+                        <p className="text-[9px] font-bold text-yellow-300">Attore Esclusivo: {ag.contract.exclusive_actor.name}</p>
+                        <p className="text-[7px] text-gray-500">{ag.contract.exclusive_actor.nationality} | CRc {ag.contract.exclusive_actor.crc} | {ag.contract.exclusive_actor.fame_category}</p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Available Agencies */}
+      <p className="text-[8px] text-gray-500 uppercase font-bold">Agenzie Disponibili ({available.length})</p>
+      <div className="space-y-1 max-h-64 overflow-y-auto">
+        {available.map(ag => (
+          <div key={ag.id} className={`flex items-center gap-2 p-2 rounded-lg border ${
+            ag.is_preferred ? 'bg-emerald-500/5 border-emerald-500/15' : 'bg-[#1A1A1B] border-gray-800 hover:border-amber-800/40'
+          }`}>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-bold text-white">{ag.name}</span>
+                {ag.is_preferred && <Unlock className="w-2.5 h-2.5 text-emerald-400" />}
+              </div>
+              <p className="text-[8px] text-gray-500">{ag.region} | Rep {ag.reputation} | {(ag.specialization || []).join(', ')}</p>
+            </div>
+            <Button size="sm" variant="outline" disabled={contractInfo.slots_available <= 0 || actionId === ag.id}
+              className="text-[8px] h-7 border-amber-700/50 text-amber-400 hover:bg-amber-500/10"
+              onClick={() => sign(ag.id, ag.name, ag.cost_cp)}
+              data-testid={`sign-contract-${ag.id}`}>
+              {actionId === ag.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><FileSignature className="w-3 h-3 mr-0.5" /> {ag.cost_cp} CP</>}
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      {/* Info */}
+      <div className="text-[8px] text-gray-600 space-y-0.5 px-1">
+        <p>Contratto Esclusivo: cast 4+ stelle, x3 proposte, -20% costi, 1 attore esclusivo/mese.</p>
+        <p>Costo: 10-25 CinePass in base alla reputazione. Durata: 30 giorni. Max 2 contratti attivi.</p>
+      </div>
+    </div>
+  );
+}
+
+
+
 export default function CastingAgencyPage() {
   const { api } = useContext(AuthContext);
   const gameConfirm = useConfirm();
@@ -595,6 +729,11 @@ export default function CastingAgencyPage() {
             <Pen className="w-3.5 h-3.5 mr-1" /> Scout Sceneggiature (Lv{info.talent_scout_screenwriters})
           </Button>
         )}
+        <Button size="sm" variant={tab === 'contracts' ? 'default' : 'outline'}
+          className={tab === 'contracts' ? 'bg-amber-700 hover:bg-amber-800' : 'border-gray-700'}
+          onClick={() => setTab('contracts')} data-testid="tab-contracts">
+          <FileSignature className="w-3.5 h-3.5 mr-1" /> Contratti Agenzie
+        </Button>
       </div>
 
       {/* Actors Tab */}
@@ -650,6 +789,11 @@ export default function CastingAgencyPage() {
       {/* Scout Screenplays Tab */}
       {tab === 'scout-screenplays' && (
         <ScoutScreenplaysTab api={api} />
+      )}
+
+      {/* Exclusive Contracts Tab */}
+      {tab === 'contracts' && (
+        <ExclusiveContractsTab api={api} />
       )}
 
       {/* Bonus info */}

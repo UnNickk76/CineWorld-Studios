@@ -179,11 +179,37 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 
 ## Backlog Prioritizzato
 - (P1) Refactoring `scheduler_tasks.py` — dividere in moduli specializzati
-- (P2) Definire permessi operativi specifici per ruolo MOD
+- (P2) Definire permessi operativi per ruolo MOD
 - (P2) Notifiche push per follower
 - (P2) Personalizzazione avatar produttore
 - (P2) Tornei PvP mensili con bracket eliminazione diretta
 - (P3) Pulizia legacy: `film_pipeline_legacy.py`, `pipeline_v2.py`
+
+
+## Contratti Esclusivi Agenzie — Implementato (18/04/2026)
+### Backend
+- `GET /api/pipeline-v3/exclusive-contracts` — Lista 30 agenzie con stato contratto
+- `POST /api/pipeline-v3/sign-exclusive-contract` — Firma contratto (10-25 CP, 30gg)
+- Collezione DB: `exclusive_contracts` con `{user_id, agency_id, signed_at, expires_at, exclusive_actor}`
+- Max 2 contratti attivi contemporaneamente
+- Costo scala con reputazione: Rep 90+ = 25CP, 80+ = 20CP, 70+ = 15CP, <70 = 10CP
+- Genera automaticamente 1 attore esclusivo 4+ stelle (gratis durante il contratto)
+- Auto-sblocca come Partner (preferred) alla firma
+
+### Vantaggi Esclusivo vs Partner vs Free
+| Feature | Free | Partner (5CP) | Esclusivo (10-25CP/mese) |
+|---------|------|--------------|--------------------------|
+| Stelle minime | 0 | 3+ | 4+ |
+| Proposte cast | x1 (6) | x2 (12) | x3 (18) |
+| Sconto costi | 0% | -10% | -20% |
+| Attore esclusivo | No | No | Si (gratis) |
+
+### Frontend
+- Nuovo tab "Contratti Agenzie" in `CastingAgencyPage.jsx`
+- Card contratti attivi con countdown giorni, attore esclusivo, stats vantaggi
+- Lista agenzie con bottone "Firma" e costo CP
+- In CastPhase: badge dorato "ESCLUSIVO" su proposte da agenzie con contratto
+- Attore esclusivo in cima con badge "ESCLUSIVO" e costo GRATIS
 
 ## Bug Fix: Hype 100% Animation Loop — Risolto (18/04/2026)
 - **Causa root**: `onWowAnimationComplete` in `PipelineV3.jsx` usava `useCallback([], [])` con stale closure. Quando l'animazione WOW finiva, `completeAdvance` catturava `selected.id = null` dal mount iniziale, quindi la chiamata API falliva silenziosamente e il film restava in hype.

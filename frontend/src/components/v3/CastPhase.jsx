@@ -457,12 +457,14 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
               <div className="flex flex-wrap gap-1">
                 {npcAgencies.agencies.map((ag, i) => (
                   <span key={i} className={`text-[7px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${
-                    ag.is_preferred
+                    ag.is_exclusive
+                      ? 'bg-yellow-500/15 border border-yellow-500/25 text-yellow-400'
+                      : ag.is_preferred
                       ? 'bg-emerald-500/15 border border-emerald-500/25 text-emerald-400'
                       : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
                   }`}>
-                    {ag.is_preferred ? <Unlock className="w-2 h-2" /> : <Lock className="w-2 h-2 opacity-50" />}
-                    {ag.name} {ag.is_preferred ? '\u2605' : ''} Rep {ag.reputation}
+                    {ag.is_exclusive ? <Unlock className="w-2 h-2" /> : ag.is_preferred ? <Unlock className="w-2 h-2" /> : <Lock className="w-2 h-2 opacity-50" />}
+                    {ag.name} {ag.is_exclusive ? '\u2B50' : ag.is_preferred ? '\u2605' : ''} Rep {ag.reputation}
                   </span>
                 ))}
               </div>
@@ -478,9 +480,16 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
               <div className="space-y-1.5 max-h-64 overflow-y-auto">
                 {npcProposals.map(npc => {
                   const sel = selectedIds.has(npc.id);
+                  const isExcActor = npc.is_exclusive_actor;
                   return (
-                    <div key={npc.id} className="w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all bg-amber-500/5 border-amber-500/15 hover:border-amber-500/30">
-                      <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center text-xs font-bold text-amber-300 shrink-0">
+                    <div key={npc.id} className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${
+                      isExcActor ? 'bg-yellow-500/10 border-yellow-500/30 ring-1 ring-yellow-500/20' :
+                      npc.is_exclusive ? 'bg-amber-500/8 border-amber-500/25' :
+                      'bg-amber-500/5 border-amber-500/15 hover:border-amber-500/30'
+                    }`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                        isExcActor ? 'bg-yellow-500/25 text-yellow-300' : 'bg-amber-500/15 text-amber-300'
+                      }`}>
                         {(npc.name || '?')[0]}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -493,8 +502,12 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                             'bg-amber-500/15 text-amber-400 border-amber-500/25'
                           }`}>CRc {npc.crc}</span>
                           <span className="text-[6px] px-1 py-0.5 rounded bg-gray-800 text-gray-400 font-bold">{npc.role_type}</span>
+                          {isExcActor && <span className="text-[6px] px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 font-black">ESCLUSIVO</span>}
+                          {npc.is_exclusive && !isExcActor && <span className="text-[5px] px-1 py-0.5 rounded bg-yellow-500/10 text-yellow-500/70 font-bold">Contratto</span>}
                         </div>
-                        <p className="text-[7px] text-gray-500">{npc.nationality} | ${(npc.cost || 0).toLocaleString()} | {npc.agency_name}</p>
+                        <p className="text-[7px] text-gray-500">
+                          {npc.nationality} | {npc.cost === 0 ? <span className="text-yellow-400 font-bold">GRATIS</span> : `$${(npc.cost || 0).toLocaleString()}`} | {npc.agency_name}
+                        </p>
                         <div className="flex items-center gap-0.5 mt-0.5">
                           {Array.from({ length: npc.stars || 1 }).map((_, i) => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}
                         </div>

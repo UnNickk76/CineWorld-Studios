@@ -25,6 +25,7 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
   const [subgenres, setSubgenres] = useState(film.subgenres || (film.subgenre ? [film.subgenre] : []));
   const [preplot, setPreplot] = useState(film.preplot || '');
   const [locations, setLocations] = useState(film.locations || []);
+  const [budgetTier, setBudgetTier] = useState(film.budget_tier || 'mid');
   const [posterPrompt, setPosterPrompt] = useState('');
   const [showPromptInput, setShowPromptInput] = useState(false);
   const [manualScreenplay, setManualScreenplay] = useState('');
@@ -55,7 +56,7 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
   const confirmPhase0 = async () => {
     setLoading('phase0');
     try {
-      await v3api(`/films/${film.id}/save-idea`, 'POST', { title, genre, subgenre: subgenres.join(', '), preplot, subgenres, locations });
+      await v3api(`/films/${film.id}/save-idea`, 'POST', { title, genre, subgenre: subgenres.join(', '), preplot, subgenres, locations, budget_tier: budgetTier });
       await onRefresh();
       setSubPhase(1);
       toast?.('Idea salvata!');
@@ -177,6 +178,31 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
                 } disabled:opacity-50`}>{l}</button>
             ))}
           </div>
+        </div>
+
+        {/* ═══ BUDGET TIER ═══ */}
+        <div className="space-y-1.5">
+          <span className="text-[8px] text-gray-500 uppercase font-bold">Budget Produzione</span>
+          <div className="grid grid-cols-3 gap-1">
+            {[
+              { id: 'micro', label: 'Micro', range: '$200K-800K', color: 'text-gray-400 border-gray-700', risk: 'Rischio basso' },
+              { id: 'low', label: 'Low', range: '$800K-3M', color: 'text-blue-400 border-blue-500/30', risk: 'Rischio basso' },
+              { id: 'mid', label: 'Mid', range: '$3M-12M', color: 'text-cyan-400 border-cyan-500/30', risk: 'Bilanciato' },
+              { id: 'big', label: 'Big', range: '$12M-40M', color: 'text-amber-400 border-amber-500/30', risk: 'Rischio medio' },
+              { id: 'blockbuster', label: 'Blockbuster', range: '$40M-100M', color: 'text-orange-400 border-orange-500/30', risk: 'Rischio alto' },
+              { id: 'mega', label: 'Mega', range: '$100M-250M', color: 'text-red-400 border-red-500/30', risk: 'Rischio estremo' },
+            ].map(b => (
+              <button key={b.id} onClick={() => { if (subPhase === 0) { setBudgetTier(b.id); mark(); } }} disabled={subPhase > 0}
+                className={`p-1.5 rounded-lg border text-center transition-all disabled:opacity-50 ${
+                  budgetTier === b.id ? `${b.color} bg-white/5` : 'border-gray-800 text-gray-600 hover:border-gray-700'
+                }`}>
+                <p className="text-[9px] font-bold">{b.label}</p>
+                <p className="text-[7px] opacity-70">{b.range}</p>
+                {budgetTier === b.id && <p className="text-[6px] opacity-50 mt-0.5">{b.risk}</p>}
+              </button>
+            ))}
+          </div>
+          <p className="text-[7px] text-gray-600">Budget alto = hype maggiore ma rischio flop se qualita bassa</p>
         </div>
 
         {/* OK Fase 0 */}

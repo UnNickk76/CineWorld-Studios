@@ -346,6 +346,14 @@ export default function PipelineV3() {
               {selected.film_duration_label && (
                 <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">{selected.film_duration_label}</span>
               )}
+              {selected.budget_tier && (
+                <span className={`text-[6px] px-1 py-0.5 rounded font-bold border ${
+                  selected.budget_tier === 'mega' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                  selected.budget_tier === 'blockbuster' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
+                  selected.budget_tier === 'big' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                  'bg-gray-800 text-gray-400 border-gray-700'
+                }`}>{selected.budget_tier.toUpperCase()}</span>
+              )}
             </div>
           </div>
           <button onClick={saveDraft} disabled={loading || !dirty}
@@ -374,6 +382,26 @@ export default function PipelineV3() {
 
         <StepperBar current={currentStep} />
         {renderPhase()}
+
+        {/* Pipeline Events Log */}
+        {selected.pipeline_events && selected.pipeline_events.length > 0 && (
+          <div className="px-3 py-2 space-y-1">
+            <p className="text-[7px] text-gray-500 uppercase font-bold">Eventi di Produzione ({selected.pipeline_events.length})</p>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {[...selected.pipeline_events].reverse().map((ev, i) => (
+                <div key={i} className={`flex items-start gap-1.5 px-2 py-1 rounded text-[8px] border ${
+                  ev.type === 'positive' ? 'bg-emerald-500/5 border-emerald-500/15 text-emerald-400' :
+                  ev.type === 'negative' ? 'bg-red-500/5 border-red-500/15 text-red-400' :
+                  'bg-amber-500/5 border-amber-500/15 text-amber-400'
+                }`}>
+                  <span>{ev.type === 'positive' ? '+' : ev.type === 'negative' ? '-' : '~'}</span>
+                  <span className="flex-1">{ev.text}</span>
+                  <span className="text-[6px] text-gray-600 shrink-0">{ev.phase}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Scarta Film — in every step except idea */}
         {currentStep !== 'idea' && currentStep !== 'release_pending' && (

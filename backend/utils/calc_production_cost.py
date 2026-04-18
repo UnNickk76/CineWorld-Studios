@@ -1,13 +1,27 @@
 """
 calc_production_cost.py — Calcolo costo totale produzione film
 
-Range: $1M - $200M denaro, 5-30 CP crediti
-Rientro sponsor sottratto dal costo denaro.
-Velocizzazioni GIA scalate al momento -> NON nel totale.
+Sistema Budget Dinamico V2:
+- 6 livelli di budget scelti dal produttore nello step Idea
+- Costo base variabile con range ± 20%
+- Budget events durante le fasi possono modificare i costi
+- Retrocompatibilita: film senza budget_tier usano il vecchio sistema per formato
 """
 
+import random
+import hashlib
 
-# Base cost by format
+# ═══ BUDGET TIERS ═══
+BUDGET_TIERS = {
+    "micro":       {"label": "Micro Budget",     "range": (200_000, 800_000),     "cp_range": (3, 5),   "hype_mod": -0.20, "flop_base": 0.05, "event_chance": 0.40},
+    "low":         {"label": "Low Budget",        "range": (800_000, 3_000_000),   "cp_range": (5, 8),   "hype_mod": -0.10, "flop_base": 0.08, "event_chance": 0.30},
+    "mid":         {"label": "Mid Budget",        "range": (3_000_000, 12_000_000),"cp_range": (8, 15),  "hype_mod": 0.00,  "flop_base": 0.12, "event_chance": 0.20},
+    "big":         {"label": "Big Budget",        "range": (12_000_000, 40_000_000),"cp_range": (12, 20),"hype_mod": 0.15,  "flop_base": 0.18, "event_chance": 0.12},
+    "blockbuster": {"label": "Blockbuster",       "range": (40_000_000, 100_000_000),"cp_range":(18, 25),"hype_mod": 0.30,  "flop_base": 0.25, "event_chance": 0.05},
+    "mega":        {"label": "Mega Production",   "range": (100_000_000, 250_000_000),"cp_range":(22, 30),"hype_mod": 0.50, "flop_base": 0.35, "event_chance": 0.02},
+}
+
+# Legacy fallback for films without budget_tier
 FORMAT_BASE_COST = {
     "cortometraggio": 1_000_000,
     "medio": 5_000_000,
@@ -74,16 +88,36 @@ EXTRAS_COST_PER_100 = 80_000
 def calculate_production_cost(project: dict) -> dict:
     """Calcola il costo totale di produzione.
     
+    Uses budget_tier if available (V2 budget system), falls back to format-based for legacy.
     Returns breakdown + totals.
     """
     film_format = project.get("film_format", "standard")
+    budget_tier = project.get("budget_tier")
     
     # === DENARO ===
     breakdown = []
     
-    # 1. Base production cost
-    base = FORMAT_BASE_COST.get(film_format, 15_000_000)
-    breakdown.append({"id": "base", "label": "Produzione base", "category": "base", "funds": base, "editable": False})
+    # 1. Base production cost — dynamic by budget tier or legacy format
+    if budget_tier and budget_tier in BUDGET_TIERS:
+        tier = BUDGET_TIERS[budget_tier]
+        # Use stored base_cost if already calculated, else compute from range
+        stored_base = project.get("budget_base_cost")
+        if stored_base and isinstance(stored_base, (int, float)):
+            base = int(stored_base)
+        else:
+            lo, hi = tier["range"]
+            # Deterministic random based on project ID
+            seed = int(hashlib.md5(project.get("id", "x").encode()).hexdigest()[:8], 16)
+            rng = random.Random(seed)
+            base = int(lo + (hi - lo) * rng.random())
+        # Apply event modifiers (stored as budget_cost_modifier, e.g. +0.10 = +10%)
+        modifier = project.get("budget_cost_modifier", 0) or 0
+        base = int(base * (1 + modifier))
+        breakdown.append({"id": "base", "label": f"Produzione ({tier['label']})", "category": "base", "funds": base, "editable": False})
+    else:
+        # Legacy: format-based fixed cost
+        base = FORMAT_BASE_COST.get(film_format, 15_000_000)
+        breakdown.append({"id": "base", "label": "Produzione base", "category": "base", "funds": base, "editable": False})
     
     # 2. Cast
     cast = project.get("cast") or {}
@@ -151,10 +185,17 @@ def calculate_production_cost(project: dict) -> dict:
         breakdown.append({"id": "sponsors", "label": "Rientro Sponsor", "category": "sponsors", "funds": -sponsor_offset, "editable": False})
         total_funds -= sponsor_offset
     
-    total_funds = max(1_000_000, total_funds)
+    total_funds = max(100_000, total_funds)
     
-    # === CREDITI (max 30) ===
-    base_cp = FORMAT_BASE_CP.get(film_format, 12)
+    # === CREDITI ===
+    if budget_tier and budget_tier in BUDGET_TIERS:
+        tier = BUDGET_TIERS[budget_tier]
+        cp_lo, cp_hi = tier["cp_range"]
+        seed = int(hashlib.md5(project.get("id", "x").encode()).hexdigest()[:8], 16)
+        rng = random.Random(seed)
+        base_cp = cp_lo + int((cp_hi - cp_lo) * rng.random())
+    else:
+        base_cp = FORMAT_BASE_CP.get(film_format, 12)
     # Add CP for complexity
     complexity_cp = 0
     if len(project.get("prep_cgi") or []) > 1:

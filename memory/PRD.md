@@ -232,6 +232,37 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 
 ### Logo Ovunque (componente `StudioName`)
 - Creato componente riusabile `/components/StudioName.jsx`
+
+## Sistema Budget Dinamico 6 Livelli — Implementato (18/04/2026)
+### Backend
+- 6 livelli: Micro ($200K-800K), Low ($800K-3M), Mid ($3M-12M), Big ($12M-40M), Blockbuster ($40M-100M), Mega ($100M-250M)
+- Costo base variabile deterministico per progetto (seed da project ID)
+- `save-idea` accetta `budget_tier`, pre-computa `budget_base_cost`
+- `calc_production_cost.py` usa budget_tier per range dinamico, CP range per tier
+- Retrocompatibilita: film senza budget_tier usano vecchio sistema per formato
+
+### Motore Eventi Pipeline (`utils/pipeline_events.py`)
+- Eventi generati ad ogni advance di step, probabilita per budget tier (40% micro → 2% mega)
+- 6 pool eventi per fase: hype, cast, prep, ciak, finalcut, marketing, distribution
+- Effetti: hype_delta, cost_mod, timer_mod, quality_delta
+- Timer: eventi modificano `ciak_complete_at` / `finalcut_complete_at` direttamente
+- Max eventi: 10 micro → 1 mega
+- `apply_events_to_project()` calcola update fields per il DB
+- `calculate_flop_risk()` per rilascio: budget alto + qualita bassa = flop, budget basso + qualita alta = sleeper hit
+
+### Frontend
+- IdeaPhase: griglia 3x2 selettore budget con range, colore, descrizione rischio
+- PipelineV3: badge budget nell'header, log eventi di produzione in fondo alla pagina
+- Log eventi: timeline colorata (verde positivo, rosso negativo, ambra misto)
+
+## Fix Errore API confirm-release — Risolto (18/04/2026)
+- Messaggi errore leggibili ("Fondi insufficienti: servono $X ma hai $Y")
+- Bloccato cambio release_type a "premiere" dopo step la_prima
+
+## Fix Layout Mobile Contratti Agenzie — Risolto (18/04/2026)
+- Testo "slot disponibili" abbreviato, bottoni responsive
+- Card agenzie con flex-col e truncate per nomi lunghi
+
 - Integrato in: Dashboard, FriendsPage (3 tab), ContentTemplate (scheda film), FilmDetailV3
 - Backend: `logo_url` incluso in producer fetch per film rilasciati e liste film
 - Fix ruoli CO_ADMIN/MOD nel badge display (ora controlla uppercase)

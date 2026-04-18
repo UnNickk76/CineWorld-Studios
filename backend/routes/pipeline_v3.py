@@ -291,6 +291,7 @@ class IdeaSaveRequest(BaseModel):
     preplot: str = Field(default="", max_length=4000)
     subgenres: Optional[List[str]] = None
     locations: Optional[List[str]] = None
+    budget_tier: Optional[str] = None  # micro, low, mid, big, blockbuster, mega
 
 
 class PromptRequest(BaseModel):
@@ -418,7 +419,7 @@ async def get_cwsv_full(pid: str, user: dict = Depends(get_current_user)):
 
 @router.post("/films/{pid}/save-idea")
 async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_current_user)):
-    project = await _update_project(pid, user["id"], {
+    update_data = {
         "title": req.title.strip(),
         "genre": req.genre.strip(),
         "subgenre": (req.subgenre or "").strip() or None,
@@ -426,7 +427,25 @@ async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_cur
         "subgenres": req.subgenres or [],
         "locations": req.locations or [],
         "status": "pipeline_active",
-    })
+    }
+    # Budget tier (only for new films, validated)
+    if req.budget_tier:
+        from utils.calc_production_cost import BUDGET_TIERS
+        if req.budget_tier in BUDGET_TIERS:
+            tier = BUDGET_TIERS[req.budget_tier]
+            update_data["budget_tier"] = req.budget_tier
+            # Pre-compute base cost from range (deterministic per project)
+            import hashlib
+            seed = int(hashlib.md5(pid.encode()).hexdigest()[:8], 16)
+            rng = __import__('random').Random(seed)
+            lo, hi = tier["range"]
+            base_cost = int(lo + (hi - lo) * rng.random())
+            update_data["budget_base_cost"] = base_cost
+            update_data["budget_cost_modifier"] = 0
+            update_data["event_hype_bonus"] = 0
+            update_data["event_quality_bonus"] = 0
+            update_data["pipeline_events"] = []
+    project = await _update_project(pid, user["id"], update_data)
     return {"success": True, "project": project}
 
 
@@ -672,8 +691,23 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
         update["finalcut_started_at"] = now.isoformat()
         update["finalcut_complete_at"] = (now + timedelta(hours=fc_hours)).isoformat()
 
+    # ═══ PIPELINE EVENTS — generate random events on step advance ═══
+    try:
+        from utils.pipeline_events import generate_pipeline_events, apply_events_to_project
+        new_events = generate_pipeline_events(project, current, req.next_state)
+        if new_events:
+            event_updates = apply_events_to_project(project, new_events)
+            # Append events to log
+            existing_events = project.get("pipeline_events", [])
+            update["pipeline_events"] = existing_events + new_events
+            # Merge event effects into update
+            for k, v in event_updates.items():
+                update[k] = v
+    except Exception:
+        pass  # Events are non-critical
+
     project = await _update_project(pid, user["id"], update)
-    return {"success": True, "project": project}
+    return {"success": True, "project": project, "new_events": new_events if 'new_events' in dir() and new_events else []}
 
 
 
@@ -1912,6 +1946,14 @@ async def save_marketing(pid: str, req: MarketingRequest, user: dict = Depends(g
 
 @router.post("/films/{pid}/set-release-type")
 async def set_release_type(pid: str, req: ReleaseTypeRequest, user: dict = Depends(get_current_user)):
+    project = await _get_project(pid, user["id"])
+    # Block release_type change after la_prima step
+    state = project.get("pipeline_state", "")
+    STEPS = ["idea","hype","cast","prep","ciak","finalcut","marketing","la_prima","distribution","release_pending"]
+    state_idx = STEPS.index(state) if state in STEPS else 0
+    la_prima_idx = STEPS.index("la_prima")
+    if state_idx > la_prima_idx and req.release_type == "premiere":
+        raise HTTPException(400, "Non puoi cambiare in La Prima dopo lo step distribuzione. Prosegui con Rilascio Diretto.")
     project = await _update_project(pid, user["id"], {"release_type": req.release_type})
     return {"success": True, "project": project}
 
@@ -2270,9 +2312,16 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         total_funds = 0
         total_cp = 0
 
-    # Deduct funds (if any cost)
+    # Deduct funds (if any cost) — with clear error message
     if total_funds > 0 or total_cp > 0:
-        balances = await _spend(user["id"], funds=total_funds, cinepass=total_cp)
+        user_doc = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1, 'cinepass': 1})
+        user_funds = (user_doc or {}).get('funds', 0) or 0
+        user_cp = (user_doc or {}).get('cinepass', 0) or 0
+        if user_funds < total_funds:
+            raise HTTPException(400, f"Fondi insufficienti: servono ${total_funds:,.0f} ma hai ${user_funds:,.0f}")
+        if user_cp < total_cp:
+            raise HTTPException(400, f"CinePass insufficienti: servono {total_cp} CP ma hai {user_cp}")
+        await _spend(user["id"], funds=total_funds, cinepass=total_cp)
 
     film_doc = {
         "id": str(uuid.uuid4()),

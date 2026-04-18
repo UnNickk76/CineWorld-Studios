@@ -485,8 +485,8 @@ function ExclusiveContractsTab({ api }) {
     <div className="space-y-3" data-testid="contracts-tab">
       {/* Status */}
       <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-amber-500/5 border border-amber-500/15">
-        <p className="text-[10px] text-amber-400 font-bold">Contratti Attivi: {contractInfo.active_contracts}/{contractInfo.max_contracts}</p>
-        <p className="text-[9px] text-gray-500">{contractInfo.slots_available} slot disponibili</p>
+        <p className="text-[9px] text-amber-400 font-bold">Attivi: {contractInfo.active_contracts}/{contractInfo.max_contracts}</p>
+        <p className="text-[8px] text-gray-500">{contractInfo.slots_available} slot liberi</p>
       </div>
 
       {/* Active Contracts */}
@@ -546,22 +546,24 @@ function ExclusiveContractsTab({ api }) {
       <p className="text-[8px] text-gray-500 uppercase font-bold">Agenzie Disponibili ({available.length})</p>
       <div className="space-y-1 max-h-64 overflow-y-auto">
         {available.map(ag => (
-          <div key={ag.id} className={`flex items-center gap-2 p-2 rounded-lg border ${
+          <div key={ag.id} className={`flex flex-col gap-1.5 p-2 rounded-lg border ${
             ag.is_preferred ? 'bg-emerald-500/5 border-emerald-500/15' : 'bg-[#1A1A1B] border-gray-800 hover:border-amber-800/40'
           }`}>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] font-bold text-white">{ag.name}</span>
-                {ag.is_preferred && <Unlock className="w-2.5 h-2.5 text-emerald-400" />}
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[9px] font-bold text-white truncate">{ag.name}</span>
+                  {ag.is_preferred && <Unlock className="w-2.5 h-2.5 text-emerald-400 shrink-0" />}
+                </div>
+                <p className="text-[7px] text-gray-500 truncate">{ag.region} | Rep {ag.reputation} | {(ag.specialization || []).slice(0, 2).join(', ')}</p>
               </div>
-              <p className="text-[8px] text-gray-500">{ag.region} | Rep {ag.reputation} | {(ag.specialization || []).join(', ')}</p>
+              <Button size="sm" variant="outline" disabled={contractInfo.slots_available <= 0 || actionId === ag.id}
+                className="text-[7px] h-6 px-2 border-amber-700/50 text-amber-400 hover:bg-amber-500/10 shrink-0 whitespace-nowrap"
+                onClick={() => sign(ag.id, ag.name, ag.cost_cp)}
+                data-testid={`sign-contract-${ag.id}`}>
+                {actionId === ag.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <>{ag.cost_cp} CP</>}
+              </Button>
             </div>
-            <Button size="sm" variant="outline" disabled={contractInfo.slots_available <= 0 || actionId === ag.id}
-              className="text-[8px] h-7 border-amber-700/50 text-amber-400 hover:bg-amber-500/10"
-              onClick={() => sign(ag.id, ag.name, ag.cost_cp)}
-              data-testid={`sign-contract-${ag.id}`}>
-              {actionId === ag.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><FileSignature className="w-3 h-3 mr-0.5" /> {ag.cost_cp} CP</>}
-            </Button>
           </div>
         ))}
       </div>

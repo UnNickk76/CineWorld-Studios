@@ -688,7 +688,7 @@ export default function CastingAgencyPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-purple-300">{info?.agency_name || 'La tua Agenzia'}</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Livello {info?.level || 1} &bull; Attori: {info?.current_actors || 0}/{info?.max_actors || 12} &bull; Studenti: {info?.school_students || 0}</p>
+            <p className="text-xs text-gray-400 mt-0.5">Livello {info?.level || 1} &bull; Attori: {info?.current_actors || 0}/{info?.max_actors || 12} &bull; Studenti: {info?.school_students || 0}{info?.school_level > 0 ? ` (Scuola Lv${info.school_level})` : ''}</p>
           </div>
           <div className="flex items-center gap-2">
             <Badge className="bg-purple-500/20 text-purple-400 text-xs px-3 py-1">
@@ -713,7 +713,7 @@ export default function CastingAgencyPage() {
         <Button size="sm" variant={tab === 'school' ? 'default' : 'outline'}
           className={tab === 'school' ? 'bg-cyan-700 hover:bg-cyan-800' : 'border-gray-700'}
           onClick={() => setTab('school')} data-testid="tab-school">
-          <BookOpen className="w-3.5 h-3.5 mr-1" /> Scuola ({info?.school_students || 0})
+          <BookOpen className="w-3.5 h-3.5 mr-1" /> Scuola {info?.school_level > 0 ? `(Lv${info.school_level})` : ''} ({info?.school_students || 0})
         </Button>
         {info?.talent_scout_actors > 0 && (
           <Button size="sm" variant={tab === 'scout-actors' ? 'default' : 'outline'}

@@ -145,6 +145,11 @@ async def get_agency_info(user: dict = Depends(get_current_user)):
     scout_screenwriters = await db.infrastructure.find_one(
         {'owner_id': user['id'], 'type': 'talent_scout_screenwriters'}, {'_id': 0, 'level': 1}
     )
+    # School info
+    school_infra = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': {'$in': ['acting_school', 'scuola_recitazione', 'casting_school', 'cinema_school']}},
+        {'_id': 0, 'level': 1}
+    )
 
     return {
         'agency_name': agency_name,
@@ -154,6 +159,7 @@ async def get_agency_info(user: dict = Depends(get_current_user)):
         'slots_available': max(0, max_actors - current_count),
         'weekly_recruits_count': weekly_recruits,
         'school_students': school_count,
+        'school_level': school_infra.get('level', 1) if school_infra else 0,
         'talent_scout_actors': scout_actors.get('level', 1) if scout_actors else 0,
         'talent_scout_screenwriters': scout_screenwriters.get('level', 1) if scout_screenwriters else 0,
     }

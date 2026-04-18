@@ -1,5 +1,29 @@
 # CineWorld Studio's — PRD
 
+## Titoli di Coda hamburger + SideMenu espanso (18/04/2026 — iter7)
+
+### 🍔 Hamburger blu al centro dei Comandi Rapidi
+- Pulsante 44x44 circolare con gradient blue-500 → blue-700, ring bianco, shadow blue-900.
+- Animazione pulse (`sideMenuPulse` keyframes, 2.4s loop).
+- Posizionato `absolute left-1/2 top-1/2 -translate` + offset 7px verso il basso per centrarlo otticamente tra le 2 righe della griglia 4x2.
+- Click → chiude il popup Comandi Rapidi + dispatcha `global-sidemenu-toggle` → apre il SideMenu (Titoli di Coda).
+- Lucide `Menu` icon bianca strokeWidth=2.5.
+- Vibrazione haptic (se supportata).
+
+### 📋 SideMenu (Titoli di Coda) espanso: da 12 → 25 voci
+Raggruppate in sezioni logiche (l'ordine mantiene gerarchia visiva nella colonna scrollabile):
+
+**Produzione**: Produci 🎬 · Sceneggiature ✍️ · I Miei Film 🎥 · Saghe 📖
+**Mia rete**: Le mie TV 📺 · Mercato 🏪 · Infrastrutture 🏗️ · Strutture 🏢 · Agenzia 👤 · Strategico 🛡️
+**Stars & Casting**: Stelle ⭐ · Casting 🎭
+**Competizioni**: Arena 🎯 · Contest 🏆 · Festival 🎟️ · Major 👑 · Classifiche 📊
+**Social / Info**: CineBoard 🌐 · CineJournal 📰 · Eventi ✨ · Chat 💬 · Notifiche 🔔
+**Svago**: Minigiochi 🎮 · Parco 3D 🏞️
+**Account**: Profilo 👤
+
+Voci condizionate (visibili solo se possedute): Strutture, Agenzia, Strategico (fetch da `/infrastructure/owned-categories`).
+
+
 ## Bug fix + Online count (18/04/2026 — iter6)
 
 ### 🐛 Bug: schermata nera su profilo Emilians (P0)

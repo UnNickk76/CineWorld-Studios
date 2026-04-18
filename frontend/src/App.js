@@ -502,7 +502,7 @@ const MobileBottomNav = () => {
               transition={{ type: 'spring', damping: 25, stiffness: 400 }}
               className="fixed bottom-[52px] left-1 right-1 z-[56] sm:hidden" data-testid="quick-commands-panel"
             >
-              <div className="bg-[#111113] border border-white/10 rounded-xl p-2 shadow-2xl">
+              <div className="bg-[#111113] border border-white/10 rounded-xl p-2 shadow-2xl relative">
                 <p className="text-[9px] text-yellow-500/60 uppercase tracking-widest font-semibold px-2 mb-1.5">Comandi Rapidi</p>
                 <div className="grid grid-cols-4 gap-1">
                   {quickCommands.map(c => (
@@ -516,6 +516,34 @@ const MobileBottomNav = () => {
                     </button>
                   ))}
                 </div>
+
+                {/* 🍔 Titoli di Coda — hamburger centrale blu: apre il SideMenu */}
+                <button
+                  onClick={() => {
+                    setShowQuickCommands(false);
+                    window.dispatchEvent(new Event('global-sidemenu-toggle'));
+                    if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {}
+                  }}
+                  data-testid="qc-titoli-di-coda"
+                  title="Titoli di Coda (menu completo)"
+                  aria-label="Apri menu Titoli di Coda"
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 translate-y-[7px] w-11 h-11 rounded-full
+                             bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700
+                             hover:brightness-110 border-2 border-white/30
+                             shadow-xl shadow-blue-900/60
+                             flex items-center justify-center
+                             active:scale-90 transition
+                             animate-[sideMenuPulse_2.4s_ease-in-out_infinite]"
+                >
+                  <Menu className="w-5 h-5 text-white" strokeWidth={2.5} />
+                </button>
+
+                <style>{`
+                  @keyframes sideMenuPulse {
+                    0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.7), 0 8px 20px rgba(30,64,175,0.5); }
+                    50% { box-shadow: 0 0 0 8px rgba(59,130,246,0), 0 8px 20px rgba(30,64,175,0.5); }
+                  }
+                `}</style>
               </div>
             </motion.div>
           </>

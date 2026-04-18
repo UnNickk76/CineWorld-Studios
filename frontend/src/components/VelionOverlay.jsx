@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useLocation } from 'react-router-dom';
+import { useDraggable } from '../hooks/useDraggable';
 
 const VELION_SIZE = 72;
 const LS_KEY = 'velion_visible';
@@ -24,6 +25,11 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, onHelpClick, 
   const lastActivityRef = React.useRef(Date.now());
   const idleMinutesRef = React.useRef(0);
   const isOff = mode === 'off';
+  // Drag hook — shared position between recall & full states
+  const { dragProps, wasDragged } = useDraggable({
+    storageKey: 'cw_velion_pos',
+    size: VELION_SIZE,
+  });
 
   // Track user activity
   useEffect(() => {
@@ -215,10 +221,14 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, onHelpClick, 
         )}
       </AnimatePresence>
 
-      {/* Velion character */}
-      <motion.div
+      {/* Velion character (wrapped in drag handle) */}
+      <div
+        {...dragProps}
         className="fixed bottom-20 right-2 z-50 sm:bottom-6 sm:right-5"
-        style={{ width: VELION_SIZE, height: VELION_SIZE }}
+        style={{ width: VELION_SIZE, height: VELION_SIZE, ...dragProps.style }}
+      >
+      <motion.div
+        style={{ width: '100%', height: '100%', position: 'relative' }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0, opacity: 0 }}
@@ -227,6 +237,7 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, onHelpClick, 
         {/* Dismiss X */}
         <button
           onClick={handleDismiss}
+          data-no-drag="true"
           className="absolute -top-2 -left-2 z-30 w-5 h-5 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center hover:bg-red-600 hover:border-red-500 transition-colors"
           data-testid="velion-dismiss"
         >
@@ -237,6 +248,7 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, onHelpClick, 
         {onHelpClick && (
           <button
             onClick={(e) => { e.stopPropagation(); onHelpClick(); }}
+            data-no-drag="true"
             className="absolute -top-2 -right-2 z-30 w-5 h-5 rounded-full bg-gray-800 border border-yellow-500/40 flex items-center justify-center hover:bg-yellow-500/20 hover:border-yellow-500/60 transition-colors"
             data-testid="velion-help-btn"
           >
@@ -246,14 +258,15 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, onHelpClick, 
 
         {/* Clickable area */}
         <motion.button
-          onClick={onClick}
+          onClick={(e) => { if (wasDragged()) { e.preventDefault(); return; } onClick?.(); }}
+          data-no-drag="true"
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
           className="w-full h-full cursor-pointer relative"
           whileHover={{ scale: 1.12 }}
           whileTap={{ scale: 0.9 }}
           data-testid="velion-overlay"
-          title="Velion"
+          title="Velion (trascinami)"
         >
           <div
             className="absolute inset-0 rounded-full"
@@ -320,6 +333,7 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, onHelpClick, 
           </AnimatePresence>
         </motion.button>
       </motion.div>
+      </div>
     </>
   );
 };

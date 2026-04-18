@@ -10,6 +10,7 @@
 import React from 'react';
 import { useRadio } from '../contexts/RadioContext';
 import { Play, Pause, X, Loader2 } from 'lucide-react';
+import { useDraggable } from '../hooks/useDraggable';
 
 function MiniEqualizer({ active }) {
   return (
@@ -38,18 +39,27 @@ function MiniEqualizer({ active }) {
 
 export function RadioFloatingPlayer() {
   const { currentStation, isPlaying, loading, toggle, stop } = useRadio();
+  const { dragProps, isDragging } = useDraggable({
+    storageKey: 'cw_radio_player_pos',
+    size: 64,
+  });
 
   // Only render once the user has selected (or is playing) a station
   if (!currentStation) return null;
 
+  // Wrap button clicks so a drag doesn't fire the click
+  const handleToggle = (e) => { e.stopPropagation(); toggle(); };
+  const handleStop = (e) => { e.stopPropagation(); stop(); };
+
   return (
     <div
       data-testid="radio-floating-player"
-      className="fixed z-[58] right-3 select-none
-                 bottom-[calc(env(safe-area-inset-bottom)+132px)]"
-      style={{ animation: 'radioFloatIn 0.4s ease-out' }}
+      {...dragProps}
+      className={`fixed z-[58] right-3 select-none
+                 bottom-[calc(env(safe-area-inset-bottom)+132px)]
+                 ${isDragging ? '' : 'transition-transform'}`}
     >
-      <div className="relative">
+      <div className="relative" style={{ animation: isDragging ? 'none' : 'radioFloatIn 0.4s ease-out' }}>
         {/* Glow ring (stronger when playing) */}
         <div
           className={`absolute inset-0 rounded-full ${isPlaying ? 'animate-[radioGlow_1.8s_ease-in-out_infinite]' : ''}`}
@@ -70,13 +80,14 @@ export function RadioFloatingPlayer() {
                      flex items-center justify-center overflow-visible`}
         >
           {/* Mini equalizer at the top */}
-          <div className="absolute top-1.5 left-1/2 -translate-x-1/2">
+          <div className="absolute top-1.5 left-1/2 -translate-x-1/2 pointer-events-none">
             <MiniEqualizer active={isPlaying} />
           </div>
 
           {/* Central play/pause button */}
           <button
-            onClick={toggle}
+            onClick={handleToggle}
+            data-no-drag="true"
             data-testid="radio-floating-toggle"
             className="relative mt-3 w-9 h-9 rounded-full bg-white/95 hover:bg-white text-red-600 flex items-center justify-center active:scale-90 transition"
             aria-label={isPlaying ? 'Metti in pausa la radio' : 'Riproduci la radio'}
@@ -86,7 +97,8 @@ export function RadioFloatingPlayer() {
 
           {/* Close (top-left) — stops radio + hides widget */}
           <button
-            onClick={stop}
+            onClick={handleStop}
+            data-no-drag="true"
             data-testid="radio-floating-close"
             className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-gray-900/90 hover:bg-gray-800 text-white/90 flex items-center justify-center border border-white/20 active:scale-90 transition shadow"
             aria-label="Spegni e chiudi la radio"
@@ -96,7 +108,7 @@ export function RadioFloatingPlayer() {
         </div>
 
         {/* Station name below (truncated) */}
-        <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap max-w-[128px] overflow-hidden">
+        <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap max-w-[128px] overflow-hidden pointer-events-none">
           <p className="text-[9px] text-white/90 font-semibold bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded truncate text-center">
             {currentStation.emoji} {currentStation.name}
           </p>

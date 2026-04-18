@@ -1,5 +1,19 @@
 # CineWorld Studio's — PRD
 
+## Floating widgets draggable (18/04/2026 — iter3)
+- Nuovo hook riusabile `useDraggable` in `/app/frontend/src/hooks/useDraggable.js`:
+  - Supporta pointer + mouse + touch events
+  - Persistenza posizione per-widget in localStorage (chiave configurabile)
+  - Clamp al viewport (resiste ai resize)
+  - Soglia 6px per distinguere drag da click (`data-no-drag="true"` sui figli cliccabili)
+- Applicato a:
+  - **RadioFloatingPlayer**: storageKey `cw_radio_player_pos`. I pulsanti ⏯ e ✕ hanno `data-no-drag` così click e drag non interferiscono.
+  - **VelionOverlay**: storageKey `cw_velion_pos`. Draggable sia quando è il cerchio piccolo in pausa (recall) sia il cerchio grande attivo. Wrapped in un `<div>` esterno per non conflittare con le animazioni di framer-motion interne. `wasDragged()` check previene click accidentali dopo un drag.
+
+## Bug fix banner non visibile su Dashboard (iter3)
+- Event listener leak in RadioContext: il listener `cineworld:login` veniva registrato senza cleanup ad ogni re-render. Corretto + aggiunto polling retry fino a quando `banner.status` è definito, non più basato solo su `stations.length`.
+
+
 ## Radio UX Redesign (18/04/2026 — iter2)
 Sulla base del feedback utente, riprogettato completamente il sistema banner/radio:
 

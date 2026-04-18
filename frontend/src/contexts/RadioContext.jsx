@@ -91,25 +91,29 @@ export function RadioProvider({ children }) {
     const onStorage = (e) => {
       if (e.key === TOKEN_KEY) setTokenTick(n => n + 1);
     };
+    const onLogin = () => setTokenTick(n => n + 1);
     window.addEventListener('storage', onStorage);
-    window.addEventListener('cineworld:login', () => setTokenTick(n => n + 1));
+    window.addEventListener('cineworld:login', onLogin);
     return () => {
       window.removeEventListener('storage', onStorage);
+      window.removeEventListener('cineworld:login', onLogin);
     };
   }, [loadStations, loadBanner, tokenTick]);
 
-  // Lightweight polling: retry fetching if stations still empty (token set after mount)
+  // Retry fetch if either stations or banner are still empty
   useEffect(() => {
-    if (stations.length > 0) return;
+    const needsStations = stations.length === 0;
+    const needsBanner = !banner?.status;
+    if (!needsStations && !needsBanner) return;
     const interval = setInterval(() => {
       const t = localStorage.getItem(TOKEN_KEY);
       if (t) {
-        loadStations();
-        loadBanner();
+        if (needsStations) loadStations();
+        if (needsBanner) loadBanner();
       }
-    }, 3000);
+    }, 2500);
     return () => clearInterval(interval);
-  }, [stations.length, loadStations, loadBanner]);
+  }, [stations.length, banner?.status, loadStations, loadBanner]);
 
   const play = useCallback((station) => {
     if (!audioRef.current || !station?.url) return;

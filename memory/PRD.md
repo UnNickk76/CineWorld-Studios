@@ -226,3 +226,28 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 - Causa: `releasePhase` restava a `'wow'` dopo `setSelected(null)`. Quando l'utente selezionava un nuovo progetto, l'overlay si riattivava.
 - Fix: `onWowDone` resetta `releasePhase` a `'idle'`. `selectProject` resetta release state. Safety check per reset automatico se `releasePhase` è inconsistente.
 
+## Sistema Agenzie Integrato in V3 — Implementato (18/04/2026)
+### Agenzia del Player in Pipeline V3
+- Nuovo endpoint `GET /api/pipeline-v3/films/{pid}/my-agency-actors`
+  - Mostra attori dell'agenzia personale + studenti scuola
+  - Sconto automatico: -15% agenzia, -30% attori di ritorno (fedeltà)
+  - CRc calcolato per ogni attore
+  - Flag `is_returning` per chi ha già lavorato con il produttore
+- Nuovo endpoint `POST /api/pipeline-v3/films/{pid}/cast-agency-actor`
+  - Casting diretto di attori dall'agenzia nel progetto V3
+  - Supporta source `agency` e `school`
+  - Gestione fondi automatica con sconto applicato
+
+### Agenzie NPC in Pipeline V3
+- Nuovo endpoint `GET /api/pipeline-v3/films/{pid}/npc-agency-proposals`
+  - 30 agenzie NPC (Cinecittà Talent, Hollywood Prime, Tokyo Star, etc.)
+  - Filtrate per genere film (agenzie con specializzazione matching al top)
+  - Numero agenzie scala con livello player (3 + livello/10)
+  - Ogni agenzia propone cast dal pool globale con nome agenzia visibile
+
+### Frontend CastPhase.jsx — 3 Sorgenti Cast
+- Tab **Mercato**: pool globale filtrato per livello (come prima)
+- Tab **La Mia Agenzia**: attori propri con sconto e badge "Ritorno"/"Agenzia"
+- Tab **Agenzie NPC**: proposte da agenzie con nome, regione, reputazione
+- Cast selezionato mostra badge viola "Agenzia" e verde "Ritorno"
+

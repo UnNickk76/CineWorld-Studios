@@ -855,6 +855,299 @@ async def get_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
     return proposals
 
 
+@router.get("/films/{pid}/my-agency-actors")
+async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user)):
+    """Get player's own agency actors available for V3 casting."""
+    project = await _get_project(pid, user["id"])
+    genre = project.get("genre", "drama")
+
+    # Get player's agency actors
+    actors = await db.agency_actors.find(
+        {'user_id': user['id']}, {'_id': 0}
+    ).to_list(200)
+
+    # Get school students too
+    students = await db.casting_school_students.find(
+        {'user_id': user['id'], 'status': {'$in': ['training', 'max_potential']}},
+        {'_id': 0}
+    ).to_list(100)
+
+    # Already cast in this project
+    cast = project.get("cast", {})
+    cast_ids = set()
+    if cast.get("director"): cast_ids.add(cast["director"].get("id", ""))
+    if cast.get("composer"): cast_ids.add(cast["composer"].get("id", ""))
+    for a in cast.get("actors", []): cast_ids.add(a.get("id", ""))
+    for s in cast.get("screenwriters", []): cast_ids.add(s.get("id", ""))
+
+    # Check past collaborations for loyalty discount
+    past_films = await db.films.find(
+        {'producer_id': user['id']}, {'_id': 0, 'cast': 1}
+    ).limit(50).to_list(50)
+    past_actor_ids = set()
+    for pf in past_films:
+        c = pf.get('cast', {})
+        for a in c.get('actors', []):
+            if a.get('id'): past_actor_ids.add(a['id'])
+
+    result = []
+    for actor in actors:
+        # Convert legacy skills if needed
+        skills = actor.get('skills', {})
+        aid = actor.get('id', '')
+        is_returning = aid in past_actor_ids
+        base_cost = actor.get('cost_per_film', 100000)
+        discount = 0.30 if is_returning else 0.15  # -30% returning, -15% own agency
+        final_cost = int(base_cost * (1 - discount))
+
+        result.append({
+            "id": aid,
+            "name": actor.get("name", "?"),
+            "age": actor.get("age"),
+            "nationality": actor.get("nationality", ""),
+            "gender": actor.get("gender", ""),
+            "stars": actor.get("stars", 2),
+            "fame": actor.get("fame_score", 0),
+            "fame_category": actor.get("fame_category", ""),
+            "skills": skills,
+            "primary_skills": actor.get("primary_skills", []),
+            "cost": final_cost,
+            "original_cost": base_cost,
+            "discount_pct": int(discount * 100),
+            "is_returning": is_returning,
+            "is_agency": True,
+            "source": "agency",
+            "crc": _calc_crc_from_npc(actor),
+            "already_cast": aid in cast_ids,
+            "strong_genres": actor.get("strong_genres", []),
+        })
+
+    for student in students:
+        sid = student.get('id', '')
+        result.append({
+            "id": sid,
+            "name": student.get("name", "?"),
+            "age": student.get("age"),
+            "nationality": student.get("nationality", ""),
+            "gender": student.get("gender", ""),
+            "stars": 2,
+            "fame": 20,
+            "fame_category": "emerging",
+            "skills": student.get("skills", {}),
+            "primary_skills": [],
+            "cost": 50000,
+            "original_cost": 50000,
+            "discount_pct": 0,
+            "is_returning": False,
+            "is_agency": True,
+            "source": "school",
+            "crc": _calc_crc_from_npc(student),
+            "already_cast": sid in cast_ids,
+            "strong_genres": student.get("strong_genres", []),
+        })
+
+    # Sort by CRc
+    result.sort(key=lambda x: x.get("crc", 0), reverse=True)
+
+    # Agency info
+    studio = await db.infrastructure.find_one(
+        {'owner_id': user['id'], 'type': 'production_studio'}, {'_id': 0, 'level': 1}
+    )
+    level = (studio or {}).get('level', 1)
+    agency_name = f"{user.get('production_house_name', 'Studio')} Agency"
+
+    return {
+        "agency_name": agency_name,
+        "agency_level": level,
+        "actors": result,
+        "total": len(result),
+    }
+
+
+@router.get("/films/{pid}/npc-agency-proposals")
+async def get_npc_agency_proposals(pid: str, user: dict = Depends(get_current_user)):
+    """Get cast proposals from NPC agencies, filtered by genre and player level."""
+    project = await _get_project(pid, user["id"])
+    genre = project.get("genre", "drama")
+    player_level = user.get("level", 1) or 1
+
+    # Ensure agencies exist
+    from routes.pipeline_v2 import ensure_agencies_seeded
+    await ensure_agencies_seeded()
+
+    # Get matching agencies (specialization includes film genre)
+    all_agencies = await db.npc_agencies.find({'active': True}, {'_id': 0}).to_list(100)
+
+    # Score agencies by genre match
+    scored = []
+    for ag in all_agencies:
+        specs = ag.get('specialization', [])
+        rep = ag.get('reputation', 50)
+        match_score = rep
+        if genre in specs:
+            match_score += 30  # Genre bonus
+        scored.append((ag, match_score))
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    # Pick top agencies based on player level (3 at lv1, up to 8 at high level)
+    num_agencies = min(len(scored), 3 + player_level // 10)
+    selected_agencies = [s[0] for s in scored[:num_agencies]]
+
+    # For each agency, pull genre-compatible cast from the pool
+    proposals = []
+    for ag in selected_agencies:
+        ag_specs = ag.get('specialization', [])
+        # Fetch a few NPCs per role for this agency
+        for role_type in ['actor', 'director', 'screenwriter', 'composer']:
+            count = 3 if role_type == 'actor' else 1
+            cursor = db.people.aggregate([
+                {'$match': {'type': role_type}},
+                {'$sample': {'size': count * 3}},
+                {'$project': {'_id': 0}},
+            ])
+            candidates = await cursor.to_list(count * 3)
+            # Score by genre affinity
+            for npc in candidates[:count]:
+                crc = _calc_crc_from_npc(npc)
+                proposals.append({
+                    "id": npc.get("id", ""),
+                    "name": npc.get("name", "?"),
+                    "age": npc.get("age"),
+                    "nationality": npc.get("nationality", ""),
+                    "gender": npc.get("gender", ""),
+                    "stars": npc.get("stars", 1),
+                    "fame": npc.get("fame_score", npc.get("fame", 0)),
+                    "fame_category": npc.get("fame_category", ""),
+                    "role_type": role_type,
+                    "skills": npc.get("skills", {}),
+                    "primary_skills": npc.get("primary_skills", []),
+                    "cost": npc.get("cost_per_film", npc.get("cost", 50000)),
+                    "crc": crc,
+                    "agency_name": ag.get("name", "Agenzia"),
+                    "agency_region": ag.get("region", ""),
+                    "agency_reputation": ag.get("reputation", 50),
+                    "is_agency_proposal": True,
+                })
+
+    proposals.sort(key=lambda x: x.get("crc", 0), reverse=True)
+    return {
+        "agencies": [{"name": a.get("name"), "region": a.get("region"), "reputation": a.get("reputation"), "specialization": a.get("specialization", [])} for a in selected_agencies],
+        "proposals": proposals,
+        "num_agencies": len(selected_agencies),
+    }
+
+
+@router.post("/films/{pid}/cast-agency-actor")
+async def cast_agency_actor_v3(pid: str, data: dict, user: dict = Depends(get_current_user)):
+    """Cast a player's agency actor into a V3 film project."""
+    project = await _get_project(pid, user["id"])
+    if project.get("pipeline_state") != "cast":
+        raise HTTPException(400, "Il progetto non e in fase cast")
+
+    actor_id = data.get("actor_id")
+    role = data.get("role", "actor")  # actor, director, screenwriter, composer
+    cast_role = data.get("cast_role", "generico")
+    source = data.get("source", "agency")  # agency or school
+
+    if not actor_id:
+        raise HTTPException(400, "actor_id richiesto")
+
+    # Find actor in player's agency
+    actor = None
+    if source == "school":
+        student = await db.casting_school_students.find_one(
+            {'id': actor_id, 'user_id': user['id']}, {'_id': 0}
+        )
+        if student:
+            actor = {
+                'id': student['id'], 'name': student['name'],
+                'skills': student.get('skills', {}), 'gender': student.get('gender', ''),
+                'nationality': student.get('nationality', ''), 'stars': 2,
+                'fame_score': 20, 'fame_category': 'emerging',
+                'cost_per_film': 50000, 'primary_skills': [],
+            }
+    else:
+        actor = await db.agency_actors.find_one(
+            {'id': actor_id, 'user_id': user['id']}, {'_id': 0}
+        )
+
+    if not actor:
+        raise HTTPException(404, "Attore non trovato nella tua agenzia")
+
+    # Check past collaborations for discount
+    past_films = await db.films.find(
+        {'producer_id': user['id']}, {'_id': 0, 'cast': 1}
+    ).limit(50).to_list(50)
+    past_ids = set()
+    for pf in past_films:
+        for a in pf.get('cast', {}).get('actors', []):
+            if a.get('id'): past_ids.add(a['id'])
+
+    is_returning = actor_id in past_ids
+    base_cost = actor.get('cost_per_film', 100000)
+    discount = 0.30 if is_returning else 0.15
+    final_cost = int(base_cost * (1 - discount))
+
+    # Check funds
+    if user.get('funds', 0) < final_cost:
+        raise HTTPException(400, f"Fondi insufficienti. Servono ${final_cost:,}")
+
+    cast = project.get("cast", {"director": None, "screenwriters": [], "actors": [], "composer": None})
+    cast.setdefault("screenwriters", [])
+    cast.setdefault("actors", [])
+
+    entry = {
+        "id": actor.get("id"),
+        "name": actor.get("name"),
+        "age": actor.get("age"),
+        "nationality": actor.get("nationality", ""),
+        "gender": actor.get("gender", ""),
+        "stars": actor.get("stars", 2),
+        "fame": actor.get("fame_score", 0),
+        "fame_category": actor.get("fame_category", ""),
+        "role_type": role,
+        "cast_role": cast_role,
+        "cost": final_cost,
+        "skills": actor.get("skills", {}),
+        "primary_skills": actor.get("primary_skills", []),
+        "crc": _calc_crc_from_npc(actor),
+        "is_agency_actor": True,
+        "is_returning": is_returning,
+        "discount_pct": int(discount * 100),
+    }
+
+    if role == "director":
+        if cast.get("director"):
+            raise HTTPException(400, "Hai gia un regista")
+        cast["director"] = entry
+    elif role == "composer":
+        if cast.get("composer"):
+            raise HTTPException(400, "Hai gia un compositore")
+        cast["composer"] = entry
+    elif role == "screenwriter":
+        if len(cast.get("screenwriters", [])) >= 3:
+            raise HTTPException(400, "Max 3 sceneggiatori")
+        cast["screenwriters"].append(entry)
+    else:
+        entry["cast_role"] = cast_role
+        cast["actors"].append(entry)
+
+    # Deduct cost
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -final_cost}})
+
+    project = await _update_project(pid, user["id"], {"cast": cast})
+    discount_label = f"-{int(discount*100)}% {'ritorno' if is_returning else 'agenzia'}"
+    return {
+        "success": True,
+        "project": project,
+        "added": entry,
+        "cost": final_cost,
+        "discount": discount_label,
+        "message": f"{actor.get('name')} aggiunto al cast! ({discount_label}, ${final_cost:,})"
+    }
+
+
+
 class SelectCastBody(BaseModel):
     npc_id: str
     role: str  # director, screenwriter, actor, composer

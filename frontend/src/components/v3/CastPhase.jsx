@@ -161,13 +161,22 @@ const NpcCard = ({ npc, selected, onSelect, castRole, onRoleChange, onNameClick 
 export const CastPhase = ({ film, onRefresh, toast }) => {
   const [tab, setTab] = useState('directors');
   const [proposals, setProposals] = useState({});
+  const [agencyActors, setAgencyActors] = useState([]);
+  const [agencyInfo, setAgencyInfo] = useState(null);
+  const [npcAgencies, setNpcAgencies] = useState(null);
   const [loading, setLoading] = useState(false);
   const [actorRoles, setActorRoles] = useState({});
   const [skillNpc, setSkillNpc] = useState(null);
+  const [castSource, setCastSource] = useState('pool'); // 'pool' | 'agency' | 'npc_agencies'
   const cast = film.cast || { director: null, screenwriters: [], actors: [], composer: null };
 
   useEffect(() => {
     v3api(`/films/${film.id}/cast-proposals`).then(setProposals).catch(() => {});
+    v3api(`/films/${film.id}/my-agency-actors`).then(d => {
+      setAgencyActors(d.actors || []);
+      setAgencyInfo(d);
+    }).catch(() => {});
+    v3api(`/films/${film.id}/npc-agency-proposals`).then(setNpcAgencies).catch(() => {});
   }, [film.id]);
 
   const selectMember = async (npc, role, castRole) => {
@@ -175,6 +184,20 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
     try {
       await v3api(`/films/${film.id}/select-cast-member`, 'POST', { npc_id: npc.id, role, cast_role: castRole || 'generico' });
       await onRefresh(); toast?.(`${npc.name} aggiunto al cast!`);
+    } catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  const castAgencyActor = async (actor, role, castRole) => {
+    setLoading(true);
+    try {
+      const res = await v3api(`/films/${film.id}/cast-agency-actor`, 'POST', {
+        actor_id: actor.id, role, cast_role: castRole || 'generico', source: actor.source || 'agency'
+      });
+      await onRefresh();
+      toast?.(res.message || `${actor.name} aggiunto!`);
+      // Refresh agency list
+      v3api(`/films/${film.id}/my-agency-actors`).then(d => setAgencyActors(d.actors || [])).catch(() => {});
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
@@ -203,6 +226,10 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
 
   const roleDisplay = (r) => ROLE_DISPLAY[r] || (r || 'generico').replace(/_/g, ' ');
 
+  // Filter agency actors that aren't already cast
+  const availableAgency = agencyActors.filter(a => !a.already_cast && !selectedIds.has(a.id));
+  const npcProposals = (npcAgencies?.proposals || []).filter(p => !selectedIds.has(p.id));
+
   return (
     <PhaseWrapper title="Il Cast" subtitle="Assembla la tua squadra" icon={Users} color="cyan">
       <div className="space-y-3">
@@ -218,7 +245,7 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
         <div className="grid grid-cols-4 gap-1.5">
           <div className="p-1.5 rounded-lg bg-gray-800/30 border border-gray-700/30 text-center">
             <p className="text-[7px] text-gray-500">Regista</p>
-            <p className="text-[8px] font-bold text-white truncate">{cast.director?.name || '—'}</p>
+            <p className="text-[8px] font-bold text-white truncate">{cast.director?.name || '\u2014'}</p>
           </div>
           <div className="p-1.5 rounded-lg bg-gray-800/30 border border-gray-700/30 text-center">
             <p className="text-[7px] text-gray-500">Scenegg.</p>
@@ -230,7 +257,7 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
           </div>
           <div className="p-1.5 rounded-lg bg-gray-800/30 border border-gray-700/30 text-center">
             <p className="text-[7px] text-gray-500">Compos.</p>
-            <p className="text-[8px] font-bold text-white truncate">{cast.composer?.name || '—'}</p>
+            <p className="text-[8px] font-bold text-white truncate">{cast.composer?.name || '\u2014'}</p>
           </div>
         </div>
 
@@ -243,36 +270,161 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                 <button onClick={() => setSkillNpc(a)} className="text-[8px] font-bold text-cyan-400 hover:text-cyan-300 underline decoration-dotted underline-offset-2">{a.name}</button>
                 {a.gender && GENDER_SYMBOL[a.gender] && <span className={`text-[9px] ${GENDER_COLOR[a.gender] || ''}`}>{GENDER_SYMBOL[a.gender]}</span>}
                 <span className="text-[7px] text-gray-500">({roleDisplay(a.cast_role)})</span>
+                {a.is_agency_actor && <span className="text-[6px] px-1 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">Agenzia</span>}
+                {a.is_returning && <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">Ritorno</span>}
               </div>
             ))}
           </div>
         )}
 
-        {/* Tabs */}
+        {/* Source Selector: Pool / La Mia Agenzia / Agenzie NPC */}
         <div className="flex gap-1">
-          {CAST_TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex-1 py-1.5 rounded-lg text-[8px] font-bold border ${
-                tab === t.id ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'border-gray-800 text-gray-500'
-              }`}>{t.label}</button>
-          ))}
+          <button onClick={() => setCastSource('pool')}
+            className={`flex-1 py-1.5 rounded-lg text-[8px] font-bold border ${
+              castSource === 'pool' ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'border-gray-800 text-gray-500'
+            }`}>Mercato</button>
+          <button onClick={() => setCastSource('agency')}
+            className={`flex-1 py-1.5 rounded-lg text-[8px] font-bold border ${
+              castSource === 'agency' ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'border-gray-800 text-gray-500'
+            }`}>La Mia Agenzia {availableAgency.length > 0 ? `(${availableAgency.length})` : ''}</button>
+          <button onClick={() => setCastSource('npc_agencies')}
+            className={`flex-1 py-1.5 rounded-lg text-[8px] font-bold border ${
+              castSource === 'npc_agencies' ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'border-gray-800 text-gray-500'
+            }`}>Agenzie ({npcAgencies?.num_agencies || 0})</button>
         </div>
 
-        {/* NPC List */}
-        <p className="text-[7px] text-gray-500">{currentTab?.label} disponibili ({tabItems.length}) {isFull && <span className="text-amber-400">— Slot pieno</span>}</p>
-        <div className="space-y-1.5 max-h-64 overflow-y-auto">
-          {tabItems.map(npc => {
-            const sel = selectedIds.has(npc.id);
-            const role = actorRoles[npc.id] || 'generico';
-            return (
-              <NpcCard key={npc.id} npc={npc} selected={sel}
-                castRole={tab === 'actors' ? role : undefined}
-                onRoleChange={(r) => setActorRoles(prev => ({ ...prev, [npc.id]: r }))}
-                onNameClick={(n) => setSkillNpc(n)}
-                onSelect={() => !sel && !isFull && selectMember(npc, tab === 'directors' ? 'director' : tab === 'screenwriters' ? 'screenwriter' : tab === 'composers' ? 'composer' : 'actor', tab === 'actors' ? (actorRoles[npc.id] || 'generico') : undefined)} />
-            );
-          })}
-        </div>
+        {/* === SOURCE: POOL (original cast-proposals) === */}
+        {castSource === 'pool' && (
+          <>
+            <div className="flex gap-1">
+              {CAST_TABS.map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)}
+                  className={`flex-1 py-1.5 rounded-lg text-[8px] font-bold border ${
+                    tab === t.id ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'border-gray-800 text-gray-500'
+                  }`}>{t.label}</button>
+              ))}
+            </div>
+            <p className="text-[7px] text-gray-500">{currentTab?.label} disponibili ({tabItems.length}) {isFull && <span className="text-amber-400">\u2014 Slot pieno</span>}</p>
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {tabItems.map(npc => {
+                const sel = selectedIds.has(npc.id);
+                const role = actorRoles[npc.id] || 'generico';
+                return (
+                  <NpcCard key={npc.id} npc={npc} selected={sel}
+                    castRole={tab === 'actors' ? role : undefined}
+                    onRoleChange={(r) => setActorRoles(prev => ({ ...prev, [npc.id]: r }))}
+                    onNameClick={(n) => setSkillNpc(n)}
+                    onSelect={() => !sel && !isFull && selectMember(npc, tab === 'directors' ? 'director' : tab === 'screenwriters' ? 'screenwriter' : tab === 'composers' ? 'composer' : 'actor', tab === 'actors' ? (actorRoles[npc.id] || 'generico') : undefined)} />
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* === SOURCE: MY AGENCY === */}
+        {castSource === 'agency' && (
+          <div className="space-y-2">
+            {agencyInfo && (
+              <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-purple-500/5 border border-purple-500/15">
+                <div>
+                  <p className="text-[9px] font-bold text-purple-300">{agencyInfo.agency_name}</p>
+                  <p className="text-[7px] text-gray-500">Lv.{agencyInfo.agency_level} \u2022 {agencyInfo.total} attori</p>
+                </div>
+              </div>
+            )}
+            {availableAgency.length === 0 ? (
+              <p className="text-center text-[8px] text-gray-600 py-4">Nessun attore disponibile nella tua agenzia. Recluta dalla pagina Agenzia!</p>
+            ) : (
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {availableAgency.map(actor => (
+                  <div key={actor.id} className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all bg-purple-500/5 border-purple-500/20 hover:border-purple-500/40`}>
+                    <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-xs font-bold text-purple-300 shrink-0">
+                      {(actor.name || '?')[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <button onClick={() => setSkillNpc(actor)} className="text-[9px] font-bold text-white truncate hover:text-purple-400 underline decoration-dotted underline-offset-2">{actor.name}</button>
+                        {actor.gender && GENDER_SYMBOL[actor.gender] && <span className={`text-[10px] ${GENDER_COLOR[actor.gender] || ''}`}>{GENDER_SYMBOL[actor.gender]}</span>}
+                        <span className={`text-[6px] px-1 py-0.5 rounded font-black border ${
+                          actor.crc >= 80 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
+                          actor.crc >= 60 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' :
+                          'bg-amber-500/15 text-amber-400 border-amber-500/25'
+                        }`}>CRc {actor.crc}</span>
+                        {actor.is_returning && <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">Ritorno</span>}
+                      </div>
+                      <div className="flex items-center gap-1 mt-0.5 text-[7px] text-gray-500">
+                        <span>{actor.nationality}</span>
+                        <span>\u2022</span>
+                        <span className="text-emerald-400 font-bold">-{actor.discount_pct}%</span>
+                        <span>\u2022</span>
+                        <span>${(actor.cost || 0).toLocaleString()}</span>
+                        {actor.original_cost !== actor.cost && <span className="line-through text-gray-700">${(actor.original_cost || 0).toLocaleString()}</span>}
+                      </div>
+                      <div className="flex items-center gap-0.5 mt-0.5">
+                        {Array.from({ length: actor.stars || 1 }).map((_, i) => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}
+                      </div>
+                    </div>
+                    <button onClick={() => !isFull && castAgencyActor(actor, 'actor', actorRoles[actor.id] || 'generico')} disabled={loading || isFull}
+                      className="text-[7px] px-2 py-1 rounded-lg font-bold shrink-0 bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 disabled:opacity-30">+</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* === SOURCE: NPC AGENCIES === */}
+        {castSource === 'npc_agencies' && (
+          <div className="space-y-2">
+            {/* Agency badges */}
+            {npcAgencies?.agencies && (
+              <div className="flex flex-wrap gap-1">
+                {npcAgencies.agencies.map((ag, i) => (
+                  <span key={i} className="text-[7px] px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 font-bold">
+                    {ag.name} \u2022 Rep {ag.reputation}
+                  </span>
+                ))}
+              </div>
+            )}
+            {npcProposals.length === 0 ? (
+              <p className="text-center text-[8px] text-gray-600 py-4">Nessuna proposta dalle agenzie.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {npcProposals.map(npc => {
+                  const sel = selectedIds.has(npc.id);
+                  return (
+                    <div key={npc.id} className="w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all bg-amber-500/5 border-amber-500/15 hover:border-amber-500/30">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center text-xs font-bold text-amber-300 shrink-0">
+                        {(npc.name || '?')[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <button onClick={() => setSkillNpc(npc)} className="text-[9px] font-bold text-white truncate hover:text-amber-400 underline decoration-dotted underline-offset-2">{npc.name}</button>
+                          {npc.gender && GENDER_SYMBOL[npc.gender] && <span className={`text-[10px] ${GENDER_COLOR[npc.gender] || ''}`}>{GENDER_SYMBOL[npc.gender]}</span>}
+                          <span className={`text-[6px] px-1 py-0.5 rounded font-black border ${
+                            npc.crc >= 80 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
+                            npc.crc >= 60 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' :
+                            'bg-amber-500/15 text-amber-400 border-amber-500/25'
+                          }`}>CRc {npc.crc}</span>
+                          <span className="text-[6px] px-1 py-0.5 rounded bg-gray-800 text-gray-400 font-bold">{npc.role_type}</span>
+                        </div>
+                        <p className="text-[7px] text-gray-500">{npc.nationality} | ${(npc.cost || 0).toLocaleString()} | {npc.agency_name}</p>
+                        <div className="flex items-center gap-0.5 mt-0.5">
+                          {Array.from({ length: npc.stars || 1 }).map((_, i) => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}
+                        </div>
+                      </div>
+                      <button onClick={() => !sel && !isFull && selectMember(npc, npc.role_type === 'director' ? 'director' : npc.role_type === 'screenwriter' ? 'screenwriter' : npc.role_type === 'composer' ? 'composer' : 'actor', npc.role_type === 'actor' ? 'generico' : undefined)}
+                        disabled={sel || loading || isFull}
+                        className={`text-[7px] px-2 py-1 rounded-lg font-bold shrink-0 ${sel ? 'bg-gray-800 text-gray-600' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20'} disabled:opacity-30`}>
+                        {sel ? 'OK' : '+'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </PhaseWrapper>
   );

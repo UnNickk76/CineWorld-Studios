@@ -1,14 +1,16 @@
 import React from 'react';
 
 /**
- * AvatarWithLogo — Avatar con logo sovrapposto in basso a destra.
+ * AvatarWithLogo — Avatar con logo della casa di produzione sovrapposto.
+ * Il logo copre circa il 55% dell'avatar in basso a destra ma l'avatar resta
+ * visibile dietro (logo con leggera trasparenza + bordo ring).
  */
 export function AvatarWithLogo({ avatarUrl, logoUrl, nickname, size = 'sm', className = '' }) {
   const sizes = {
-    xs: { outer: 'w-6 h-6', logo: 'w-3 h-3 -bottom-0.5 -right-0.5', text: 'text-[8px]' },
-    sm: { outer: 'w-10 h-10', logo: 'w-5 h-5 -bottom-0.5 -right-0.5', text: 'text-sm' },
-    md: { outer: 'w-14 h-14', logo: 'w-7 h-7 -bottom-1 -right-1 border-2', text: 'text-lg' },
-    lg: { outer: 'w-20 h-20', logo: 'w-9 h-9 -bottom-1 -right-1 border-2', text: 'text-2xl' },
+    xs: { outer: 'w-7 h-7', logo: 'w-4 h-4 -bottom-0.5 -right-0.5 ring-1', text: 'text-[9px]' },
+    sm: { outer: 'w-12 h-12', logo: 'w-7 h-7 -bottom-1 -right-1 ring-2', text: 'text-base' },
+    md: { outer: 'w-16 h-16', logo: 'w-9 h-9 -bottom-1 -right-1 ring-2', text: 'text-lg' },
+    lg: { outer: 'w-24 h-24', logo: 'w-14 h-14 -bottom-1 -right-1 ring-2', text: 'text-2xl' },
   };
   const s = sizes[size] || sizes.sm;
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
@@ -16,7 +18,7 @@ export function AvatarWithLogo({ avatarUrl, logoUrl, nickname, size = 'sm', clas
 
   return (
     <div className={`relative shrink-0 ${className}`} data-testid="avatar-with-logo">
-      <div className={`${s.outer} rounded-full border-2 border-yellow-500/40 overflow-hidden bg-gray-800`}>
+      <div className={`${s.outer} rounded-full border-2 border-yellow-500/40 overflow-hidden bg-gray-800 shadow-lg shadow-black/30`}>
         {avatarUrl ? (
           <img src={imgSrc} alt={nickname} className="w-full h-full object-cover"
             onError={(e) => { e.target.onerror=null; e.target.style.display='none'; }} />
@@ -25,7 +27,12 @@ export function AvatarWithLogo({ avatarUrl, logoUrl, nickname, size = 'sm', clas
         )}
       </div>
       {logoUrl && (
-        <img src={logoUrl} alt="" className={`absolute ${s.logo} rounded-full border-gray-900 object-contain bg-gray-900/90`} />
+        <img
+          src={logoUrl}
+          alt=""
+          className={`absolute ${s.logo} rounded-full ring-gray-900 object-contain bg-gradient-to-br from-gray-900/95 to-gray-800/95 shadow-md shadow-black/50`}
+          style={{ opacity: 0.95 }}
+        />
       )}
     </div>
   );

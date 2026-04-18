@@ -47,6 +47,8 @@ import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
 import { GameStoreProvider, useGameStore } from './contexts/GameStore';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import { NotificationProvider, useNotifications } from './components/NotificationProvider';
+import { RadioProvider } from './contexts/RadioContext';
+import { RadioPromoBanner } from './components/RadioPromoBanner';
 import { CompareProducersModal } from './components/CompareProducersModal';
 import { PullToRefresh } from './components/PullToRefresh';
 import { VelionOverlay } from './components/VelionOverlay';
@@ -2020,8 +2022,10 @@ function App() {
             <ConfirmProvider>
             <LogoutConfirmHandler />
             <NotificationProvider>
+            <RadioProvider>
             <UrlManager>
               <Toaster position="top-center" theme="dark" toastOptions={{ style: { marginTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))' } }} />
+              <RadioPromoBanner />
               <Routes>
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/recovery/password" element={<PasswordRecoveryPage />} />
@@ -2091,6 +2095,7 @@ function App() {
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </UrlManager>
+            </RadioProvider>
             </NotificationProvider>
             </ConfirmProvider>
           </LanguageProvider>

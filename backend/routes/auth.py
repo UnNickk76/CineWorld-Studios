@@ -28,32 +28,14 @@ from pydantic import BaseModel
 
 
 async def persist_base64_avatar(user_dict: dict) -> str:
-    """If avatar_url is a base64 data URI, save to file and return the file URL.
-    Also updates the DB so this conversion only happens once."""
-    avatar_url = user_dict.get('avatar_url', '') or ''
-    if not avatar_url.startswith('data:image'):
-        return avatar_url
-    try:
-        header, b64data = avatar_url.split(',', 1)
-        ext = 'png'
-        if 'jpeg' in header or 'jpg' in header:
-            ext = 'jpg'
-        elif 'webp' in header:
-            ext = 'webp'
-        avatar_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'avatars')
-        os.makedirs(avatar_dir, exist_ok=True)
-        filename = f"{user_dict.get('id', uuid.uuid4().hex)}.{ext}"
-        filepath = os.path.join(avatar_dir, filename)
-        raw = base64.b64decode(b64data)
-        with open(filepath, 'wb') as f:
-            f.write(raw)
-        file_url = f"/api/avatar/image/{filename}"
-        await db.users.update_one({'id': user_dict['id']}, {'$set': {'avatar_url': file_url}})
-        logging.info(f"Converted base64 avatar to file for user {user_dict.get('nickname')}: {file_url}")
-        return file_url
-    except Exception as e:
-        logging.error(f"Failed to persist base64 avatar: {e}")
-        return avatar_url
+    """No-op: base64 data URIs are the source of truth in MongoDB.
+
+    Previously this converted base64 → ephemeral file under /app/backend/uploads,
+    but that directory is not persistent in k8s containers: files vanished on
+    restart and the conversion overwrote the DB-stored base64, causing Avatar
+    loss after fresh login. We now keep the base64 data URI directly in DB.
+    """
+    return user_dict.get('avatar_url', '') or ''
 
 router = APIRouter()
 

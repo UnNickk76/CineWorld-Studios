@@ -34,6 +34,8 @@ class UserResponse(BaseModel):
     funds: float
     avatar_url: Optional[str] = None
     avatar_id: Optional[str] = None
+    logo_url: Optional[str] = None
+    radio_promo_status: Optional[str] = 'active'
     created_at: str
     likeability_score: float = 50.0
     interaction_score: float = 50.0

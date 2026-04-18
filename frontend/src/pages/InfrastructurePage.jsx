@@ -44,6 +44,7 @@ import {
   Car, Building2, GraduationCap, ArrowUpCircle, ShoppingBag, Landmark, Ticket
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { useRadio } from '../contexts/RadioContext';
 
 const INFRA_CINEPASS = {
   cinema: 10, drive_in: 8, multiplex: 15, cinema_school: 12,
@@ -62,6 +63,9 @@ const InfrastructurePage = () => {
   const { api, user, refreshUser } = useContext(AuthContext);
   const { t, language } = useTranslations();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isRadioPromo = searchParams.get('promo') === 'radio';
+  const { refreshBanner } = useRadio();
   const [infraTypes, setInfraTypes] = useState([]);
   const [myInfra, setMyInfra] = useState({ infrastructure: [], grouped: {} });
   const [cities, setCities] = useState({});
@@ -104,8 +108,16 @@ const InfrastructurePage = () => {
       setMyInfra(my.data);
       setCities(citiesData.data);
       setLevelInfo(level.data);
+      // If redirected from Radio Promo banner, auto-scroll to Emittente TV card
+      if (isRadioPromo) {
+        toast.success('📻 PROMO RADIO attiva: 80% di sconto sull\'Emittente TV!', { duration: 6000 });
+        setTimeout(() => {
+          const el = document.querySelector('[data-infra-type="emittente_tv"]');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 400);
+      }
     });
-  }, [api]);
+  }, [api, isRadioPromo]);
 
   const getIcon = (iconName) => {
     const icons = { film: Film, car: Car, 'shopping-bag': ShoppingBag, building: Building, 'building-2': Building2, 'graduation-cap': GraduationCap, landmark: Landmark, crown: Crown, award: Award, 'ferris-wheel': Star, clapperboard: Clapperboard, radio: Video, sparkles: Sparkles, video: Video, tv: Film, target: Target, shield: Shield, swords: Swords, users: Users, search: Search };
@@ -125,7 +137,12 @@ const InfrastructurePage = () => {
         custom_name: customName || null
       };
       const res = await api.post('/infrastructure/purchase', payload);
-      toast.success(`Acquistato! Hai speso $${res.data.cost.toLocaleString()}`);
+      if (res.data.radio_promo_applied) {
+        toast.success(`📻 PROMO RADIO APPLICATA! Hai speso solo $${res.data.cost.toLocaleString()} (80% di sconto)`);
+        refreshBanner?.();
+      } else {
+        toast.success(`Acquistato! Hai speso $${res.data.cost.toLocaleString()}`);
+      }
       setShowPurchaseDialog(false);
       if (refreshUser) refreshUser();
       const my = await api.get('/infrastructure/my');
@@ -483,12 +500,18 @@ const InfrastructurePage = () => {
               {filteredTypes.map(infra => {
                 const Icon = getIcon(infra.icon);
                 const canBuy = infra.can_purchase;
+                const isPromoEligible = isRadioPromo && infra.id === 'emittente_tv';
+                const promoPrice = isPromoEligible ? Math.round((infra.base_cost || 0) * 0.2) : null;
                 return (
                   <Card
                     key={infra.id}
-                    className={`border transition-all cursor-pointer ${canBuy ? `bg-white/5 ${activeCat.border} hover:bg-white/10` : 'bg-white/3 border-white/5 opacity-50'}`}
+                    data-infra-type={infra.id}
+                    className={`border transition-all cursor-pointer relative ${canBuy ? `bg-white/5 ${activeCat.border} hover:bg-white/10` : 'bg-white/3 border-white/5 opacity-50'} ${isPromoEligible ? 'ring-2 ring-red-400/70 shadow-lg shadow-red-900/40' : ''}`}
                     onClick={() => { if (canBuy) { setSelectedType(infra); setShowPurchaseDialog(true); } }}
                   >
+                    {isPromoEligible && (
+                      <div className="absolute -top-2 -right-2 z-10 bg-gradient-to-br from-red-500 to-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-pulse">-80%</div>
+                    )}
                     <CardContent className="p-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${activeCat.bg}`}>
                         {canBuy ? <Icon className={`w-5 h-5 ${activeCat.color}`} /> : <Lock className="w-5 h-5 text-gray-500" />}
@@ -504,7 +527,14 @@ const InfrastructurePage = () => {
                       </div>
                       <p className="text-[9px] text-gray-500 line-clamp-2 mb-2">{language === 'it' ? infra.description_it : infra.description}</p>
                       <div className="flex items-center justify-between">
-                        <span className={`font-bold text-xs ${activeCat.color}`}>${infra.base_cost?.toLocaleString()}</span>
+                        {isPromoEligible ? (
+                          <div className="flex flex-col">
+                            <span className="text-[9px] text-gray-500 line-through">${infra.base_cost?.toLocaleString()}</span>
+                            <span className="font-bold text-xs text-red-400">${promoPrice?.toLocaleString()}</span>
+                          </div>
+                        ) : (
+                          <span className={`font-bold text-xs ${activeCat.color}`}>${infra.base_cost?.toLocaleString()}</span>
+                        )}
                         {infra.already_owned && <Badge className="bg-blue-500/20 text-blue-400 text-[8px] h-3.5">Posseduto</Badge>}
                       </div>
                     </CardContent>

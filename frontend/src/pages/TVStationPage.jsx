@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { SeriesDetailModal } from '../components/SeriesDetailModal';
 import { PalinsestoModal } from '../components/PalinsestoModal';
 import { TVMenuModal } from '../components/TVMenuModal';
+import { RadioPlayer } from '../components/RadioPlayer';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -287,6 +288,9 @@ export default function TVStationPage() {
 
       {/* Netflix Content Area */}
       <div className="px-3">
+        {/* Radio Player */}
+        <RadioPlayer />
+
         {!allContentsEmpty ? (
           <>
             {/* Prossimamente */}

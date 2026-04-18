@@ -229,6 +229,12 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
     if request.type == 'emittente_tv' and existing > 0:
         cost = int(cost * (2.5 ** existing))
     
+    # 📻 RADIO PROMO: 80% discount on first emittente_tv if promo is active
+    radio_promo_applied = False
+    if request.type == 'emittente_tv' and user.get('radio_promo_status', 'active') == 'active':
+        cost = int(cost * 0.20)  # 80% off
+        radio_promo_applied = True
+    
     # Check funds
     if user.get('funds', 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient funds. Need ${cost:,}")
@@ -262,16 +268,23 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
     new_funds = user['funds'] - cost
     new_xp = user.get('total_xp', 0) + XP_REWARDS['infrastructure_purchase']
     
+    user_updates = {'funds': new_funds, 'total_xp': new_xp}
+    # Consume the radio promo if it was applied
+    if radio_promo_applied:
+        user_updates['radio_promo_status'] = 'used'
+        user_updates['radio_promo_used_at'] = datetime.now(timezone.utc).isoformat()
+    
     await db.users.update_one(
         {'id': user['id']},
-        {'$set': {'funds': new_funds, 'total_xp': new_xp}}
+        {'$set': user_updates}
     )
     
     return {
         'infrastructure': {k: v for k, v in new_infra.items() if k != '_id'},
         'cost': cost,
         'new_funds': new_funds,
-        'xp_gained': XP_REWARDS['infrastructure_purchase']
+        'xp_gained': XP_REWARDS['infrastructure_purchase'],
+        'radio_promo_applied': radio_promo_applied,
     }
 
 @router.get("/infrastructure/{infra_id}")

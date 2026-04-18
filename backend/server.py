@@ -76,6 +76,7 @@ from routes.economy import parse_date_with_timezone
 from routes.notifications import router as notifications_router
 from routes.social import router as social_router
 from routes.infrastructure import router as infrastructure_router
+from routes.radio import router as radio_router
 from routes.acting_school import router as acting_school_router
 from routes.casting_agency import router as casting_agency_router
 from routes.film_pipeline import router as film_pipeline_router
@@ -10070,6 +10071,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
 app.include_router(social_router, prefix="/api")
 app.include_router(infrastructure_router, prefix="/api")
+app.include_router(radio_router, prefix="/api")
 app.include_router(acting_school_router, prefix="/api")
 app.include_router(casting_agency_router)
 app.include_router(film_pipeline_router, prefix="/api")

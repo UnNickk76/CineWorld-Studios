@@ -154,6 +154,32 @@ async def activate_promo(user: dict = Depends(get_current_user)):
             "discount_percent": PROMO_DISCOUNT_PERCENT}
 
 
+@router.post("/radio/reactivate-banner")
+async def reactivate_banner(user: dict = Depends(get_current_user)):
+    """Re-show the radio promo banner for a user who doesn't own a TV yet.
+
+    Triggered when a non-TV owner clicks the frozen radio icon in the bottom
+    navbar: the promo banner pops back up so they can grab the 80% discount.
+    For users who already own a TV, we refuse (they should never see the promo
+    again since the offer doesn't apply to them).
+    """
+    has_tv = await db.infrastructure.count_documents({
+        "owner_id": user["id"], "type": "emittente_tv"
+    })
+    if has_tv > 0:
+        raise HTTPException(status_code=400, detail="L'utente possiede già un'Emittente TV")
+    current = user.get("radio_promo_status", "active")
+    if current == "used":
+        raise HTTPException(status_code=400, detail="Promo già utilizzata")
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"radio_promo_status": "active"},
+         "$unset": {"radio_promo_dismissed_at": ""}}
+    )
+    return {"success": True, "status": "active",
+            "discount_percent": PROMO_DISCOUNT_PERCENT}
+
+
 # ==================== ICY METADATA PROXY ====================
 # Shoutcast/Icecast streams embed track metadata using the "ICY" protocol.
 # When a client sends the header `Icy-MetaData: 1`, the server returns

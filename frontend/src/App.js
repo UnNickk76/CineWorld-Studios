@@ -14,7 +14,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff, Play,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, Disc, Video
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, RadioTower, Disc, Video
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -47,10 +47,11 @@ import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
 import { GameStoreProvider, useGameStore } from './contexts/GameStore';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import { NotificationProvider, useNotifications } from './components/NotificationProvider';
-import { RadioProvider } from './contexts/RadioContext';
+import { RadioProvider, useRadio } from './contexts/RadioContext';
 import { RadioPromoBanner } from './components/RadioPromoBanner';
 import { RadioFloatingPlayer } from './components/RadioFloatingPlayer';
 import { NowPlayingBanner } from './components/NowPlayingBanner';
+import { RadioStationsPopup } from './components/RadioStationsPopup';
 import { CompareProducersModal } from './components/CompareProducersModal';
 import { PullToRefresh } from './components/PullToRefresh';
 import { VelionOverlay } from './components/VelionOverlay';
@@ -415,6 +416,20 @@ const MobileBottomNav = () => {
   const { setIsOpen: setShowProductionMenu } = useProductionMenu();
   const [showQuickCommands, setShowQuickCommands] = useState(false);
   const [showIMiei, setShowIMiei] = useState(false);
+  const [showRadioPopup, setShowRadioPopup] = useState(false);
+  const { banner: radioBanner, reactivateBanner } = useRadio();
+  const radioLocked = !radioBanner?.user_has_tv;
+
+  const handleRadioClick = async () => {
+    if (radioLocked) {
+      // Utente senza Emittente TV: rianima il banner promo 80%
+      const ok = await reactivateBanner();
+      if (ok) toast.success('📻 Banner promo riattivato! Sconto 80% disponibile.');
+      else toast.info("Non puoi accedere alla radio senza un'Emittente TV");
+    } else {
+      setShowRadioPopup(true);
+    }
+  };
 
   const items = [
     { path: '/dashboard', icon: Home, label: 'Home', testid: 'bn-home' },
@@ -425,6 +440,7 @@ const MobileBottomNav = () => {
     { path: null, icon: Heart, label: 'Dona', testid: 'bn-dona', action: () => window.open('https://www.paypal.me/UnNickk', '_blank'), donate: true },
     { path: '/journal', icon: Newspaper, label: 'CineJournal', testid: 'bn-journal' },
     { path: '/marketplace', icon: Store, label: 'Mercato', testid: 'bn-mercato' },
+    { path: null, icon: RadioTower, label: 'Radio', testid: 'bn-radio', action: handleRadioClick, radio: true, locked: radioLocked },
     { path: '/minigiochi', icon: Gamepad2, label: 'Minigiochi', testid: 'bn-minigiochi' },
     { path: '/event-history', icon: Sparkles, label: 'Eventi', testid: 'bn-eventi' },
     { path: null, icon: Zap, label: 'Rapidi', testid: 'bn-rapidi', action: () => setShowQuickCommands(!showQuickCommands), quick: true },
@@ -521,19 +537,28 @@ const MobileBottomNav = () => {
                   item.highlight ? 'text-yellow-400' :
                   item.quick ? (showQuickCommands ? 'text-yellow-400' : 'text-orange-400/70') :
                   item.imiei ? (showIMiei ? 'text-yellow-400' : (isActive ? 'text-yellow-400' : 'text-gray-500')) :
+                  item.radio ? (item.locked ? 'text-gray-600 opacity-60' : 'text-red-400 hover:text-red-300') :
                   isActive ? 'text-yellow-400' : 'text-gray-500'
                 }`}
                 style={item.donate ? { animationDuration: '2s' } : {}}
                 onClick={() => item.action ? item.action() : navigate(item.path)}
                 data-testid={item.testid}
               >
-                <item.icon className="w-3.5 h-3.5" />
+                <div className="relative">
+                  <item.icon className="w-3.5 h-3.5" />
+                  {item.radio && item.locked && (
+                    <Lock className="w-2 h-2 absolute -bottom-0.5 -right-0.5 text-gray-400" strokeWidth={3} />
+                  )}
+                </div>
                 <span className="text-[6.5px] leading-tight mt-0.5 truncate w-full text-center">{item.label}</span>
               </button>
             );
           })}
         </div>
       </div>
+
+      {/* Popup selezione stazioni radio (triggered dall'icona Radio della bottom nav) */}
+      <RadioStationsPopup open={showRadioPopup} onClose={() => setShowRadioPopup(false)} />
     </>
   );
 };
@@ -1188,88 +1213,104 @@ const TopNavbar = () => {
         {/* 8 icone principali: CIACK HOME PRODUCI ARENA LE MIE TV MAJOR CHAT NOTIFICHE */}
         <div className="flex items-center gap-0 w-full justify-between">
           {/* CIACK */}
-          <Button variant="ghost" size="sm" className="relative flex flex-col h-7 w-7 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
+          <Button variant="ghost" size="sm" className="relative flex flex-col h-10 w-8 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
             onClick={() => { window.dispatchEvent(new Event('global-sidemenu-toggle')); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
             data-testid="ciack-btn" aria-label="Menu">
-            <Clapperboard className="w-4 h-4" />
-            <ChevronDown className="w-2 h-2 opacity-50 -mt-0.5 animate-bounce" style={{ animationDuration: '2s' }} />
-            {(prodCounts.total > 0) && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
+            <Clapperboard className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Menù</span>
+            {(prodCounts.total > 0) && <span className="absolute top-0 -right-0.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
           </Button>
           {/* HOME */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}`}
             onClick={() => navigate('/dashboard')} data-testid="home-btn" aria-label="Home">
             <Home className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Home</span>
           </Button>
           {/* PRODUCI — gold, pulse when active */}
-          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 text-yellow-500 hover:text-yellow-400 ${prodCounts.total > 0 ? 'animate-pulse' : ''}`}
+          <Button variant="ghost" size="sm" className={`relative flex flex-col h-10 w-8 p-0 flex-shrink-0 text-yellow-500 hover:text-yellow-400 ${prodCounts.total > 0 ? 'animate-pulse' : ''}`}
             style={prodCounts.total > 0 ? { animationDuration: '2.5s' } : {}}
             onClick={() => setShowProductionMenu(!showProductionMenu)} data-testid="top-nav-produci" aria-label="Produci">
             <Video className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Produci</span>
             {prodCounts.total > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[10px] h-2.5 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute top-0 -right-0.5 min-w-[10px] h-2.5 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">
                 {prodCounts.total > 9 ? '9+' : prodCounts.total}
               </span>
             )}
           </Button>
           {/* ARENA */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
             onClick={() => navigate('/pvp-arena')} data-testid="top-nav-arena" aria-label="Arena">
             <Target className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Arena</span>
           </Button>
           {/* LE MIE TV */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/my-tv' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/my-tv' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/my-tv')} data-testid="top-nav-tv" aria-label="Le Mie TV">
             <Tv className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Le Mie TV</span>
           </Button>
           {/* MAJOR */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
             onClick={() => navigate('/major')} data-testid="top-nav-major" aria-label="Major">
             <Crown className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Major</span>
           </Button>
           {/* INFRA */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/infrastructure' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/infrastructure' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/infrastructure')} data-testid="top-nav-infra" aria-label="Infrastrutture">
             <Building className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Infra</span>
           </Button>
           {/* 3D PARCO STUDIO */}
-          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/parco-studio' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`relative flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/parco-studio' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/parco-studio')} data-testid="top-nav-parco3d" aria-label="Parco Studio 3D">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
               <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
             </svg>
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Parco 3D</span>
           </Button>
           {/* CHAT */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
             onClick={() => navigate('/chat')} data-testid="top-nav-chat" aria-label="Chat">
             <MessageSquare className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Chat</span>
           </Button>
           {/* NOTIFICHE */}
-          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`relative flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/notifications')} data-testid="top-nav-notifiche" aria-label="Notifiche">
             <Bell className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Notifiche</span>
             {notificationCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute top-0 -right-0.5 min-w-[12px] h-3 px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
                 {notificationCount > 9 ? '9+' : notificationCount}
               </span>
             )}
           </Button>
           {/* Funds */}
-          <div className="flex items-center bg-yellow-500/10 px-0.5 py-0 rounded border border-yellow-500/20 flex-shrink-0">
-            <DollarSign className="w-2 h-2 text-yellow-500" />
-            <span className="text-yellow-500 font-bold text-[7px]" data-testid="user-funds">
-              {user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
-            </span>
+          <div className="flex flex-col items-center bg-yellow-500/10 px-1 py-0.5 rounded border border-yellow-500/20 flex-shrink-0">
+            <div className="flex items-center">
+              <DollarSign className="w-2 h-2 text-yellow-500" />
+              <span className="text-yellow-500 font-bold text-[7px]" data-testid="user-funds">
+                {user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
+              </span>
+            </div>
+            <span className="text-[6px] text-yellow-500/70 leading-none">Soldi</span>
           </div>
           {/* CinePass */}
-          <div className="flex items-center bg-cyan-500/10 px-0.5 py-0 rounded border border-cyan-500/20 flex-shrink-0">
-            <Ticket className="w-2 h-2 text-cyan-400" />
-            <span className="text-cyan-400 font-bold text-[7px]" data-testid="cinepass-balance">{user?.cinepass ?? 100}</span>
+          <div className="flex flex-col items-center bg-cyan-500/10 px-1 py-0.5 rounded border border-cyan-500/20 flex-shrink-0">
+            <div className="flex items-center">
+              <Ticket className="w-2 h-2 text-cyan-400" />
+              <span className="text-cyan-400 font-bold text-[7px]" data-testid="cinepass-balance">{user?.cinepass ?? 100}</span>
+            </div>
+            <span className="text-[6px] text-cyan-400/70 leading-none">CinePass</span>
           </div>
           {/* Online Users — opens panel */}
-          <Button variant="ghost" size="sm" className="flex h-7 w-7 p-0 text-green-400/70 hover:text-green-400 flex-shrink-0"
+          <Button variant="ghost" size="sm" className="flex flex-col h-10 w-8 p-0 text-green-400/70 hover:text-green-400 flex-shrink-0"
             onClick={() => setShowOnlineUsersPanel(!showOnlineUsersPanel)} data-testid="top-nav-online" aria-label="Utenti Online">
             <Users className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Online</span>
           </Button>
         </div>
       </div>

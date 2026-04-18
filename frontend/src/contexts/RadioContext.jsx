@@ -184,6 +184,18 @@ export function RadioProvider({ children }) {
     setBanner(b => ({ ...b, should_show: false, status: 'dismissed' }));
   }, []);
 
+  // Riporta il promo a "active" per utenti che NON possiedono ancora un'Emittente TV.
+  const reactivateBanner = useCallback(async () => {
+    try {
+      const res = await axios.post(`${API}/radio/reactivate-banner`, {}, { headers: authHeaders() });
+      setBanner(b => ({ ...b, should_show: true, status: 'active', discount_percent: res.data?.discount_percent || 80 }));
+      return true;
+    } catch (e) {
+      console.warn('Reactivate failed', e?.response?.data?.detail);
+      return false;
+    }
+  }, []);
+
   const refreshBanner = useCallback(() => loadBanner(), [loadBanner]);
 
   // Poll ICY metadata every 20s while a station is playing.
@@ -219,7 +231,7 @@ export function RadioProvider({ children }) {
     <RadioContext.Provider value={{
       stations, currentStation, isPlaying, loading, volume,
       setVolume, play, pause, resume, stop, toggle, next, prev,
-      banner, dismissBanner, refreshBanner,
+      banner, dismissBanner, refreshBanner, reactivateBanner,
       nowPlaying, dismissNowPlaying,
     }}>
       {children}

@@ -1,5 +1,26 @@
 # CineWorld Studio's — PRD
 
+## Radio icon in bottom navbar + Labels top nav (18/04/2026 — iter5)
+
+### Icona Radio nella bottom navbar
+- Aggiunto 12° elemento: `RadioTower` (lucide-react) tra Mercato e Minigiochi.
+- **Stato "attivo"** (utente ha Emittente TV): icona rossa `text-red-400`, click apre il `RadioStationsPopup`.
+- **Stato "freezato"** (utente senza TV): icona grigia `text-gray-600 opacity-60` con piccolo `Lock` sovrapposto in basso-destra. Click chiama `POST /api/radio/reactivate-banner` che reimposta `radio_promo_status='active'` → il banner promo 80% riappare immediatamente.
+- Nuovo endpoint backend `POST /api/radio/reactivate-banner` rifiuta se l'utente possiede già una TV (conteggio `infrastructure` con `type='emittente_tv'`) o se la promo era già 'used'.
+- Nuovo metodo `reactivateBanner()` nel `RadioContext` restituisce `true/false` in base al successo.
+
+### Label sotto TUTTE le icone navbar
+- **Top navbar**: ogni button ora è `flex flex-col h-10 w-8` con `<icon>` + `<span className="text-[7px] leading-none mt-0.5">LABEL</span>`. Altezza del nav invariata (h-11) per non rompere sticky-top delle altre pagine.
+- **Bottom navbar**: già aveva le label (`text-[6.5px]`), aggiunta etichetta "Radio" per il nuovo item.
+- **Side menu**: già aveva le label nel componente `SideMenu.jsx`.
+- Anche i badge **Soldi** e **CinePass** ora hanno una label "Soldi" / "CinePass" sotto il valore.
+
+### Tecniche
+- `RadioTower` importato da lucide-react.
+- `useRadio` usato dentro `MobileBottomNav` → sicuro perché il `RadioProvider` wrappa tutto dentro `App.js`.
+- `RadioStationsPopup` riutilizzato con `createPortal(document.body)` per evitare z-index conflicts con la navbar.
+
+
 ## Radio v4 — ICY Metadata + UI refinements (18/04/2026)
 
 ### Nuove radio italiane aggiunte (7)

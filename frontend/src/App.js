@@ -49,6 +49,7 @@ import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import { NotificationProvider, useNotifications } from './components/NotificationProvider';
 import { RadioProvider } from './contexts/RadioContext';
 import { RadioPromoBanner } from './components/RadioPromoBanner';
+import { RadioFloatingPlayer } from './components/RadioFloatingPlayer';
 import { CompareProducersModal } from './components/CompareProducersModal';
 import { PullToRefresh } from './components/PullToRefresh';
 import { VelionOverlay } from './components/VelionOverlay';
@@ -2026,6 +2027,7 @@ function App() {
             <UrlManager>
               <Toaster position="top-center" theme="dark" toastOptions={{ style: { marginTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))' } }} />
               <RadioPromoBanner />
+              <RadioFloatingPlayer />
               <Routes>
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/recovery/password" element={<PasswordRecoveryPage />} />

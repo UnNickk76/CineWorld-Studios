@@ -93,15 +93,23 @@ async def get_banner_status(user: dict = Depends(get_current_user)):
       - 'active'   → show banner
       - 'dismissed' → user manually closed it
       - 'used'     → already benefited from the discount
+
+    Also returns `user_has_tv` so the frontend can decide the click behavior:
+      - No TV → click navigates to /infrastructure?promo=radio to use the 80% promo.
+      - Has TV → click just dismisses the banner (no redirect).
     """
     status = user.get("radio_promo_status", "active")
+    has_tv_count = await db.infrastructure.count_documents({
+        "owner_id": user["id"], "type": "emittente_tv"
+    })
     return {
         "status": status,
         "should_show": status == "active",
+        "user_has_tv": has_tv_count > 0,
         "discount_percent": PROMO_DISCOUNT_PERCENT,
         "infra_types": PROMO_INFRA_TYPES,
         "headline": "📻 RADIO PROMO — 80% SCONTO TV!",
-        "subline": "Solo oggi: 80% di sconto sull'acquisto di un'Emittente TV.",
+        "subline": "Ascolta musica in-game e ottieni 80% di sconto sull'Emittente TV.",
     }
 
 

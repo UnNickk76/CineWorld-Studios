@@ -110,24 +110,34 @@ async def get_my_infrastructure(user: dict = Depends(get_current_user)):
 @router.post("/infrastructure/purchase")
 async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: dict = Depends(get_current_user)):
     """Purchase new infrastructure."""
-    # CinePass check
+    # 📻 RADIO PROMO: 80% off on ALL requirements for emittente_tv
+    is_radio_promo = (
+        request.type == 'emittente_tv'
+        and user.get('radio_promo_status', 'active') == 'active'
+    )
+    radio_discount = 0.20 if is_radio_promo else 1.0
+
+    # CinePass check (apply discount if promo)
     from routes.cinepass import spend_cinepass, get_infra_cinepass_cost
-    cp_cost = get_infra_cinepass_cost(request.type)
+    cp_cost_raw = get_infra_cinepass_cost(request.type)
+    cp_cost = int(cp_cost_raw * radio_discount) if is_radio_promo else cp_cost_raw
     await spend_cinepass(user['id'], cp_cost, user.get('cinepass', 100))
     
     infra_type = INFRASTRUCTURE_TYPES.get(request.type)
     if not infra_type:
         raise HTTPException(status_code=400, detail="Tipo di infrastruttura non valido")
     
-    # Check level requirement
+    # Check level requirement (with radio-promo discount)
     level_info = get_level_from_xp(user.get('total_xp', 0))
-    if level_info['level'] < infra_type['level_required']:
-        raise HTTPException(status_code=400, detail=f"Level {infra_type['level_required']} required")
+    req_level = int(infra_type['level_required'] * radio_discount) if is_radio_promo else infra_type['level_required']
+    if level_info['level'] < req_level:
+        raise HTTPException(status_code=400, detail=f"Level {req_level} required")
     
-    # Check fame requirement
+    # Check fame requirement (with radio-promo discount)
     fame = user.get('fame', 50)
-    if fame < infra_type['fame_required']:
-        raise HTTPException(status_code=400, detail=f"Fame {infra_type['fame_required']} required")
+    req_fame = int(infra_type['fame_required'] * radio_discount) if is_radio_promo else infra_type['fame_required']
+    if fame < req_fame:
+        raise HTTPException(status_code=400, detail=f"Fame {req_fame} required")
     
     # PvP infrastructure: no city required, activate pvp division
     is_pvp = infra_type.get('is_pvp', False)
@@ -229,9 +239,9 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
     if request.type == 'emittente_tv' and existing > 0:
         cost = int(cost * (2.5 ** existing))
     
-    # 📻 RADIO PROMO: 80% discount on first emittente_tv if promo is active
+    # 📻 RADIO PROMO: 80% discount on emittente_tv money cost
     radio_promo_applied = False
-    if request.type == 'emittente_tv' and user.get('radio_promo_status', 'active') == 'active':
+    if is_radio_promo:
         cost = int(cost * 0.20)  # 80% off
         radio_promo_applied = True
     

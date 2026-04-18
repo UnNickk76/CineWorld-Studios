@@ -1,5 +1,35 @@
 # CineWorld Studio's — PRD
 
+## Radio UX Redesign (18/04/2026 — iter2)
+Sulla base del feedback utente, riprogettato completamente il sistema banner/radio:
+
+### Banner Promo TV (nuovo comportamento)
+- **Sempre visibile** in tutte le pagine (tranne `/auth`, `/recovery/*`) finché `status='active'`, non più gated da `isPlaying`.
+- Stile semi-trasparente (backdrop-blur + gradient red/pink/amber a 55% opacità) posizionato sopra la bottom nav.
+- **Logica click intelligente**:
+  - Se `user_has_tv=false` → naviga a `/infrastructure?promo=radio` + chiude banner permanentemente.
+  - Se `user_has_tv=true` → chiude banner permanentemente, senza redirect.
+- Endpoint `GET /api/radio/banner` ora ritorna anche `user_has_tv: bool` (count di `emittente_tv` per l'utente).
+
+### Sconto Radio Promo (esteso a TUTTI i requisiti)
+In `infrastructure/purchase` quando `type='emittente_tv'` e promo attiva:
+- Money cost × 0.20 (80% off)
+- CinePass cost × 0.20 (80% off)
+- `level_required` × 0.20 (80% off requisito)
+- `fame_required` × 0.20 (80% off requisito)
+
+### RadioFloatingPlayer (nuovo componente)
+Mini-player fluttuante in basso a destra, visibile **solo quando una stazione è selezionata/in riproduzione**:
+- Cerchio rosso con glow animato (intensificato durante il playback).
+- 5-bar mini equalizer in cima al cerchio, animato solo quando `isPlaying`.
+- ⏯ centrale: play/pause (NON chiude il widget).
+- ✕ piccolo in alto a sinistra: stop radio + chiude widget.
+- Nome stazione truncato sotto il cerchio.
+
+### Bug fix: "0 stazioni disponibili"
+RadioContext leggeva `localStorage.getItem('token')` ma la chiave corretta è `cineworld_token`. Corretto + aggiunto polling di retry ogni 3s e dispatch di un evento `window.dispatchEvent(new CustomEvent('cineworld:login'))` al login/register/guest per forzare il refetch immediato di stazioni+banner.
+
+
 ## In-Game Web Radio + TV Promo (18/04/2026) — Implementato
 **Feature principale**: Radio web integrata in "La Mia TV" con 20 stazioni streaming verificate.
 - `GET /api/radio/stations` — Lista 20 stazioni MP3 (SomaFM, RAI 2/3/4/5, RTL 102.5, Radio 105, Virgin, RMC).

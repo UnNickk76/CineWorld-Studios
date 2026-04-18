@@ -160,6 +160,7 @@ export const AuthProvider = ({ children }) => {
     setToken(res.data.access_token);
     setUser(res.data.user);
     clearApiCache();
+    try { window.dispatchEvent(new CustomEvent('cineworld:login')); } catch {}
     return res.data;
   };
 
@@ -172,6 +173,7 @@ export const AuthProvider = ({ children }) => {
     setToken(res.data.access_token);
     setUser(res.data.user);
     clearApiCache();
+    try { window.dispatchEvent(new CustomEvent('cineworld:login')); } catch {}
     return res.data;
   };
 
@@ -182,6 +184,7 @@ export const AuthProvider = ({ children }) => {
     setToken(res.data.access_token);
     setUser(res.data.user);
     clearApiCache();
+    try { window.dispatchEvent(new CustomEvent('cineworld:login')); } catch {}
     return res.data;
   };
 

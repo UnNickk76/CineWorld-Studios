@@ -7,6 +7,12 @@ import { toast } from 'sonner';
 
 const RadioContext = createContext(null);
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const TOKEN_KEY = 'cineworld_token';
+
+function authHeaders() {
+  const t = localStorage.getItem(TOKEN_KEY);
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
 
 export function RadioProvider({ children }) {
   const [stations, setStations] = useState([]);
@@ -14,13 +20,14 @@ export function RadioProvider({ children }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.7);
   const [loading, setLoading] = useState(false);
-  const [banner, setBanner] = useState({ should_show: false, discount_percent: 80 });
+  const [banner, setBanner] = useState({ should_show: false, discount_percent: 80, user_has_tv: false });
+  // Track localStorage token changes so we can re-fetch after login
+  const [tokenTick, setTokenTick] = useState(0);
   const audioRef = useRef(null);
 
   // Initialize audio element
   useEffect(() => {
     const audio = new Audio();
-    audio.crossOrigin = 'anonymous';
     audio.preload = 'none';
     audio.volume = volume;
     audioRef.current = audio;
@@ -46,6 +53,7 @@ export function RadioProvider({ children }) {
       audio.removeEventListener('waiting', onWaiting);
       audio.removeEventListener('error', onError);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync volume
@@ -53,33 +61,55 @@ export function RadioProvider({ children }) {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
-  // Fetch stations on mount (only if user is logged in — check via localStorage token)
+  // Fetch stations/banner whenever token appears
   const loadStations = useCallback(async () => {
+    const t = localStorage.getItem(TOKEN_KEY);
+    if (!t) return;
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      const res = await axios.get(`${API}/radio/stations`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await axios.get(`${API}/radio/stations`, { headers: authHeaders() });
       setStations(res.data.stations || []);
     } catch (e) {
-      console.warn('Radio stations fetch failed', e);
+      console.warn('Radio stations fetch failed', e?.response?.status);
     }
   }, []);
 
   const loadBanner = useCallback(async () => {
+    const t = localStorage.getItem(TOKEN_KEY);
+    if (!t) return;
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      const res = await axios.get(`${API}/radio/banner`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await axios.get(`${API}/radio/banner`, { headers: authHeaders() });
       setBanner(res.data);
     } catch (e) {
-      console.warn('Radio banner fetch failed', e);
+      console.warn('Radio banner fetch failed', e?.response?.status);
     }
   }, []);
 
+  // Re-fetch when token changes (storage event OR manual tick after login)
   useEffect(() => {
     loadStations();
     loadBanner();
-  }, [loadStations, loadBanner]);
+    const onStorage = (e) => {
+      if (e.key === TOKEN_KEY) setTokenTick(n => n + 1);
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('cineworld:login', () => setTokenTick(n => n + 1));
+    return () => {
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [loadStations, loadBanner, tokenTick]);
+
+  // Lightweight polling: retry fetching if stations still empty (token set after mount)
+  useEffect(() => {
+    if (stations.length > 0) return;
+    const interval = setInterval(() => {
+      const t = localStorage.getItem(TOKEN_KEY);
+      if (t) {
+        loadStations();
+        loadBanner();
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [stations.length, loadStations, loadBanner]);
 
   const play = useCallback((station) => {
     if (!audioRef.current || !station?.url) return;
@@ -140,13 +170,11 @@ export function RadioProvider({ children }) {
 
   const dismissBanner = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API}/radio/dismiss-banner`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      setBanner(b => ({ ...b, should_show: false, status: 'dismissed' }));
+      await axios.post(`${API}/radio/dismiss-banner`, {}, { headers: authHeaders() });
     } catch (e) {
       console.warn('Dismiss failed', e);
-      setBanner(b => ({ ...b, should_show: false }));
     }
+    setBanner(b => ({ ...b, should_show: false, status: 'dismissed' }));
   }, []);
 
   const refreshBanner = useCallback(() => loadBanner(), [loadBanner]);

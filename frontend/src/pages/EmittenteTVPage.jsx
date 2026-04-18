@@ -33,7 +33,7 @@ const TABS = [
 ];
 
 export default function EmittenteTVPage() {
-  const { api } = useContext(AuthContext);
+  const { api, user } = useContext(AuthContext);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -43,16 +43,27 @@ export default function EmittenteTVPage() {
   const [renewCp, setRenewCp] = useState(0);
   const [renewLoading, setRenewLoading] = useState(false);
   const [sendingToTv, setSendingToTv] = useState(null);
-  const [hasEmittente, setHasEmittente] = useState(true); // infrastruttura TV
+  const [hasEmittente, setHasEmittente] = useState(true);
+  const [myStationId, setMyStationId] = useState(null);
 
   const loadData = useCallback(async () => {
     try {
+      // Check if player has a TV station → redirect to full station page
+      const stationsRes = await api.get('/tv-stations/my').catch(() => ({ data: { stations: [] } }));
+      const stations = stationsRes.data?.stations || [];
+      if (stations.length > 0) {
+        // Player has a station — redirect to the full Netflix-style page
+        setMyStationId(stations[0].id);
+        navigate(`/tv-station/${stations[0].id}`, { replace: true });
+        return;
+      }
+
+      // No station — show the simplified dashboard with series/anime
       const [tvRes, infraRes] = await Promise.all([
         api.get('/pipeline-series-v3/tv/my-dashboard'),
         api.get('/infrastructure/my').catch(() => ({ data: [] })),
       ]);
       setData(tvRes.data);
-      // Check if player has emittente TV infrastructure
       const infras = Array.isArray(infraRes.data) ? infraRes.data : infraRes.data?.infrastructure || [];
       const hasTV = infras.some(i => i.type === 'emittente_tv' || i.type === 'tv_station');
       setHasEmittente(hasTV);

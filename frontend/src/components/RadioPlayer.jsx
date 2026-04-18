@@ -41,6 +41,16 @@ export function RadioPlayer() {
     setVolume, play, toggle, next, prev
   } = useRadio();
   const [listOpen, setListOpen] = useState(false);
+  // iOS Safari ignores HTML5 audio.volume programmatic changes — users must
+  // use hardware volume buttons. Detect it and show a hint instead of a
+  // misleading inert slider.
+  const isIOS = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const platform = navigator.platform || '';
+    return /iPad|iPhone|iPod/.test(ua)
+      || (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }, []);
 
   return (
     <div
@@ -96,26 +106,37 @@ export function RadioPlayer() {
           <SkipForward className="w-4 h-4" />
         </button>
 
-        {/* Volume */}
-        <div className="flex items-center gap-1.5 ml-1 flex-1">
-          <button
-            onClick={() => setVolume(volume > 0 ? 0 : 0.7)}
-            className="text-gray-400 hover:text-white"
-            data-testid="radio-volume-btn"
+        {/* Volume — desktop/Android shows slider; iOS shows a hint */}
+        {isIOS ? (
+          <div
+            className="flex items-center gap-1.5 ml-1 flex-1 text-[10px] text-gray-400"
+            data-testid="radio-volume-ios-hint"
           >
-            {volume > 0 ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-          </button>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={volume}
-            onChange={(e) => setVolume(parseFloat(e.target.value))}
-            className="w-full h-1 accent-red-500"
-            data-testid="radio-volume-slider"
-          />
-        </div>
+            <Volume2 className="w-3.5 h-3.5 shrink-0 text-gray-500" />
+            <span className="leading-tight truncate">Usa i tasti volume del dispositivo</span>
+            <Info className="w-3 h-3 text-gray-600 shrink-0" aria-hidden />
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 ml-1 flex-1">
+            <button
+              onClick={() => setVolume(volume > 0 ? 0 : 0.7)}
+              className="text-gray-400 hover:text-white"
+              data-testid="radio-volume-btn"
+            >
+              {volume > 0 ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              className="w-full h-1 accent-red-500"
+              data-testid="radio-volume-slider"
+            />
+          </div>
+        )}
       </div>
 
       {/* Station picker toggle */}

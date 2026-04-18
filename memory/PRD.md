@@ -282,6 +282,21 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 
 
 ## Fix Layout Mobile Contratti Agenzie — Risolto (18/04/2026)
+
+## Pool Eventi Espanso 583+ — Implementato (18/04/2026)
+- AI-generated: 141 Common + 143 Rare + 116 Epic + 113 Legendary = 513 nuovi eventi
+- Merge con 70 esistenti = **583 eventi totali** (target: 200/180/150/150)
+- Temi: box office, social media, critica, festival, fan, streaming, scandali, colonna sonora, CGI, marketing, making of, sequel/franchise
+- File: `event_templates_expanded.py` (pool espanso), `event_templates.py` (import + funzioni)
+- Job auto-generazione settimanale predisposto (endpoint admin per trigger)
+
+## Pipeline Events → WOW Matrix — Implementato (18/04/2026)
+- Quando un evento pipeline significativo (positivo, hype_delta >= 8) accade:
+  - Budget tier determina probabilita WOW (1% micro → 12% mega per Epic, 0-5% per Legendary)
+  - Se WOW → crea `auto_tick_events` record → `AutoTickNotifications` lo mostra come cinematic
+  - Epic → animazione viola VelionCinematicEvent
+  - Legendary → animazione dorata + MatrixOverlay
+
 - Testo "slot disponibili" abbreviato, bottoni responsive
 - Card agenzie con flex-col e truncate per nomi lunghi
 

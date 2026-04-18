@@ -692,6 +692,7 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
         update["finalcut_complete_at"] = (now + timedelta(hours=fc_hours)).isoformat()
 
     # ═══ PIPELINE EVENTS — generate random events on step advance ═══
+    new_events = []
     try:
         from utils.pipeline_events import generate_pipeline_events, apply_events_to_project
         new_events = generate_pipeline_events(project, current, req.next_state)
@@ -703,11 +704,43 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
             # Merge event effects into update
             for k, v in event_updates.items():
                 update[k] = v
+
+            # ═══ WOW MATRIX — if event is significant, create auto_tick_event ═══
+            budget_tier = project.get("budget_tier", "mid")
+            # Budget tier → WOW probability mapping (higher budget = rarer events but more WOW)
+            wow_chances = {"micro": (0.01, 0.00), "low": (0.02, 0.005), "mid": (0.03, 0.01),
+                           "big": (0.05, 0.02), "blockbuster": (0.08, 0.03), "mega": (0.12, 0.05)}
+            epic_chance, legendary_chance = wow_chances.get(budget_tier, (0.03, 0.01))
+
+            for ev in new_events:
+                import random as _rng
+                wow_roll = _rng.random()
+                if ev.get("type") == "positive" and abs(ev.get("hype_delta", 0)) >= 8:
+                    # Significant positive event — chance for WOW
+                    if wow_roll < legendary_chance:
+                        wow_tier = "legendary"
+                    elif wow_roll < epic_chance:
+                        wow_tier = "epic"
+                    else:
+                        wow_tier = None
+
+                    if wow_tier:
+                        # Create auto_tick_event for WOW display
+                        await db.auto_tick_events.insert_one({
+                            "user_id": user["id"],
+                            "type": "PROJECT_EVENT",
+                            "tier": wow_tier,
+                            "text": ev["text"],
+                            "film_title": project.get("title", "Film"),
+                            "phase": current,
+                            "created_at": _now(),
+                            "seen": False,
+                        })
     except Exception:
         pass  # Events are non-critical
 
     project = await _update_project(pid, user["id"], update)
-    return {"success": True, "project": project, "new_events": new_events if 'new_events' in dir() and new_events else []}
+    return {"success": True, "project": project, "new_events": new_events}
 
 
 

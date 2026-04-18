@@ -14,7 +14,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff, Play,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, RadioTower, Disc, Video
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, RadioTower, Disc, Video, Loader2
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -1559,7 +1559,7 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
   const avatarSrc = p.avatar_url?.startsWith('data:') ? p.avatar_url : p.avatar_url?.startsWith('/') ? `${BACKEND_URL}${p.avatar_url}` : p.avatar_url;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative w-full max-w-sm bg-[#111113] rounded-2xl border border-yellow-500/20 overflow-hidden" onClick={e => e.stopPropagation()} data-testid="player-profile-popup">
         {/* Header with avatar */}
@@ -1949,6 +1949,15 @@ const ProtectedRoute = ({ children }) => {
       </AnimatePresence>
 
       {/* ═══ PLAYER PROFILE POPUP ═══ */}
+      {popupData && popupData.loading && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center px-4" onClick={() => setPopupData(null)} data-testid="player-profile-loading">
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#111113] rounded-2xl border border-yellow-500/20 p-6 flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-yellow-400 animate-spin" />
+            <span className="text-sm text-gray-300">Caricamento profilo…</span>
+          </div>
+        </div>
+      )}
       {popupData && !popupData.loading && popupData.profile && (
         <PlayerProfilePopup data={popupData} onClose={() => setPopupData(null)} navigate={navigate} api={api} user={user}
           onCompare={(pid) => { setPopupData(null); setCompareProducerId(pid); }} />

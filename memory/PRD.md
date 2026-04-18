@@ -1,7 +1,7 @@
 # CineWorld Studio's — PRD
 
 ## Problema Originale
-Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a più fasi (Hype → Pre-Produzione → CIAK → Final Cut → La Prima → Marketing → Distribuzione), Cast System V3, AI event/avatar generation, "La Mia TV", Web Radio in-game con 27 stazioni + metadata ICY + player fluttuante draggable, banner promo TV (-80%), navbar custom con label e contatore utenti online.
+Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a più fasi, Cast System V3, AI event/avatar generation, "La Mia TV", Web Radio in-game (27 stazioni + ICY metadata + player fluttuante), banner promo TV (-80%), navbar custom con label e contatore utenti online.
 
 ## Stack
 - Frontend: React + Tailwind + Lucide + Framer Motion
@@ -9,8 +9,10 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - LLM: Emergent LlmChat (GPT-4o-mini) via Emergent Key
 
 ## Changelog
-- **Feb 2026** — ETA Pipeline V3 Hype (P0): aggiunto countdown live "Mancano: Xh Ym Zs" alla `HypePhase` usando `hype_started_at`/`hype_complete_at` dal backend, affiancato alla barra arancione e alla percentuale già presenti. CIAK e Final Cut mostravano già il tempo residuo (invariati).
-- Avatar base64 persistence fix, Web Radio system completo (27 stazioni, ICY proxy, UI draggable, banner -80%), Top/Bottom navbar con label e radio icon, profilo Emilians fix (500), hamburger center button Quick Commands.
+- **Feb 2026 (sessione corrente)**
+  - ETA Pipeline V3 Hype (P0): countdown live "Mancano: Xh Ym Zs" in `HypePhase` da `hype_started_at`/`hype_complete_at`.
+  - Fix Profilo Player Emilians recurring: popup con `z-[120]` (sopra OnlineUsersPanel z-[100]), loading state visibile con spinner, import `Loader2` aggiunto in `App.js`.
+- Web Radio system completo (27 stazioni, ICY proxy, draggable UI, banner -80%), avatar base64 fix, Top/Bottom navbar labels + radio icon + online counter, profilo Emilians 500 backend fix, hamburger center button Quick Commands.
 
 ## Backlog Prioritizzato
 ### P1
@@ -21,15 +23,17 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Notifiche push follower
 - Personalizzazione avatar produttore (UI builder)
 - Tornei PvP mensili con bracket
+- Top Nav: il pulsante "Online" esce dal viewport su telefoni stretti (≤393px). Valutare riduzione icone o hamburger.
 
 ## Aree da Refactor
 - `scheduler_tasks.py` troppo grande
-- Valutare anche split `server.py` in moduli
+- `server.py` valutare split in moduli
+- `App.js` (2200+ righe) — spostare PlayerProfilePopup in componente dedicato
 
-## File di Riferimento Principali
-- `/app/frontend/src/components/v3/Phases.jsx`
+## File di Riferimento
+- `/app/frontend/src/App.js` (PlayerProfilePopup, openPlayerPopup, OnlineUsersPanel)
+- `/app/frontend/src/components/v3/Phases.jsx` (HypePhase ETA)
 - `/app/frontend/src/components/RadioFloatingPlayer.jsx`
-- `/app/frontend/src/contexts/RadioContext.jsx`
 - `/app/backend/routes/pipeline_v3.py`
 - `/app/backend/routes/radio.py`
 

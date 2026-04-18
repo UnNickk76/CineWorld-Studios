@@ -364,10 +364,14 @@ const Dashboard = () => {
             <button className="text-left w-full" onClick={() => setShowWelcomeStats(p => !p)} data-testid="welcome-nickname-btn">
               <div className="flex items-center gap-2 mt-1">
                 {/* Avatar */}
-                <Avatar className="w-10 h-10 border-2 border-yellow-500/40 shrink-0">
-                  <AvatarImage src={user?.avatar_url?.startsWith('/') ? `${BACKEND_URL}${user.avatar_url}` : user?.avatar_url} />
-                  <AvatarFallback className="bg-gray-800 text-yellow-400 font-bold text-sm">{(user?.nickname || '?')[0]}</AvatarFallback>
-                </Avatar>
+                <div className="w-10 h-10 rounded-full border-2 border-yellow-500/40 shrink-0 overflow-hidden bg-gray-800 flex items-center justify-center">
+                  {user?.avatar_url ? (
+                    <img src={user.avatar_url.startsWith('/') ? `${BACKEND_URL}${user.avatar_url}` : user.avatar_url}
+                      alt="" className="w-full h-full object-cover"
+                      onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }} />
+                  ) : null}
+                  <span className="text-yellow-400 font-bold text-sm" style={user?.avatar_url ? {display:'none'} : {}}>{(user?.nickname || '?')[0]}</span>
+                </div>
                 {/* Nickname + Logo + Production House */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">

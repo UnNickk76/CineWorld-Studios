@@ -2066,7 +2066,7 @@ function App() {
                 <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
                 <Route path="/parco-studio" element={<ProtectedRoute><ParcoStudioPage /></ProtectedRoute>} />
                 <Route path="/strutture" element={<ProtectedRoute><StrutturePage /></ProtectedRoute>} />
-                <Route path="/agenzia" element={<ProtectedRoute><AgenziaPage /></ProtectedRoute>} />
+                <Route path="/agenzia" element={<ProtectedRoute><CastingAgencyPage /></ProtectedRoute>} />
                 <Route path="/strategico" element={<ProtectedRoute><StrategicoPage /></ProtectedRoute>} />
                 <Route path="/acting-school" element={<ProtectedRoute><ActingSchool /></ProtectedRoute>} />
                 <Route path="/casting-agency" element={<ProtectedRoute><CastingAgencyPage /></ProtectedRoute>} />

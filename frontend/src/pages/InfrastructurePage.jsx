@@ -181,37 +181,6 @@ const InfrastructurePage = () => {
     }
   };
 
-  // School actions
-  const schoolStartTraining = async (recruitId) => {
-    try {
-      const res = await api.post('/acting-school/train', { recruit_id: recruitId });
-      toast.success(res.data.message);
-      refreshUser();
-      // Refresh school data
-      const [statusRes, recruitsRes] = await Promise.all([
-        api.get('/acting-school/status'),
-        api.get('/acting-school/recruits').catch(() => ({ data: { recruits: [] } }))
-      ]);
-      setSchoolStatus(statusRes.data);
-      setSchoolRecruits(recruitsRes.data.recruits || []);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    }
-  };
-
-  const schoolComplete = async (traineeId, action, months = 3) => {
-    try {
-      const res = await api.post(`/acting-school/complete/${traineeId}`, { action, engagement_months: months });
-      toast.success(res.data.message);
-      refreshUser();
-      const statusRes = await api.get('/acting-school/status');
-      setSchoolStatus(statusRes.data);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    }
-  };
-
-
   const handleUpgrade = async () => {
     if (!selectedInfra || upgrading) return;
     setUpgrading(true);
@@ -228,13 +197,10 @@ const InfrastructurePage = () => {
       // Refresh infrastructure list
       try {
         const myRes = await api.get('/infrastructure/my');
-        setMyInfrastructure(myRes.data);
+        setMyInfra(myRes.data);
       } catch {}
       // Refresh user funds in header
-      try {
-        const userRes = await api.get('/auth/me');
-        if (userRes.data) setUser(prev => ({ ...prev, funds: userRes.data.funds }));
-      } catch {}
+      try { await refreshUser?.(); } catch {}
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nell\'upgrade');
     } finally {
@@ -255,87 +221,6 @@ const InfrastructurePage = () => {
       toast.error(e.response?.data?.detail || 'Errore nel salvataggio');
     } finally {
       setSavingPrices(false);
-    }
-  };
-
-  const openAddFilmDialog = async () => {
-    try {
-      const res = await api.get('/films/my-available');
-      setMyFilms(res.data);
-      setShowAddFilmDialog(true);
-    } catch (e) {
-      toast.error('Errore nel caricamento dei film');
-    }
-  };
-
-  const openRentFilmDialog = async () => {
-    try {
-      const res = await api.get('/films/available-for-rental');
-      setRentalFilms(res.data);
-      setShowRentFilmDialog(true);
-    } catch (e) {
-      toast.error('Errore nel caricamento dei film');
-    }
-  };
-
-  const addFilmToCinema = async () => {
-    if (!selectedFilmToAdd || !selectedInfra) return;
-    setAddingFilm(true);
-    try {
-      const res = await api.post(`/infrastructure/${selectedInfra.id}/add-film`, {
-        film_id: selectedFilmToAdd.id
-      });
-      toast.success(`"${selectedFilmToAdd.title}" aggiunto alla programmazione!`);
-      setInfraDetail({...infraDetail, films_showing: res.data.films_showing});
-      setShowAddFilmDialog(false);
-      setSelectedFilmToAdd(null);
-      // Refresh my infra
-      const my = await api.get('/infrastructure/my');
-      setMyInfra(my.data);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    } finally {
-      setAddingFilm(false);
-    }
-  };
-
-  const rentFilmForCinema = async () => {
-    if (!selectedFilmToRent || !selectedInfra) return;
-    setRentingFilm(true);
-    try {
-      const res = await api.post(`/infrastructure/${selectedInfra.id}/rent-film`, {
-        film_id: selectedFilmToRent.id,
-        weeks: rentalWeeks
-      });
-      toast.success(`"${selectedFilmToRent.title}" affittato per ${rentalWeeks} settimane! ${res.data.owner_name} ha ricevuto $${res.data.owner_received.toLocaleString()}`);
-      setInfraDetail({...infraDetail, films_showing: res.data.films_showing});
-      setShowRentFilmDialog(false);
-      setSelectedFilmToRent(null);
-      setRentalWeeks(1);
-      // Refresh my infra and user
-      const my = await api.get('/infrastructure/my');
-      setMyInfra(my.data);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    } finally {
-      setRentingFilm(false);
-    }
-  };
-
-  const removeFilmFromCinema = async (filmId) => {
-    if (!selectedInfra) return;
-    setRemovingFilm(filmId);
-    try {
-      const res = await api.delete(`/infrastructure/${selectedInfra.id}/films/${filmId}`);
-      toast.success('Film rimosso dalla programmazione');
-      setInfraDetail({...infraDetail, films_showing: res.data.films_showing});
-      // Refresh
-      const my = await api.get('/infrastructure/my');
-      setMyInfra(my.data);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    } finally {
-      setRemovingFilm(null);
     }
   };
 

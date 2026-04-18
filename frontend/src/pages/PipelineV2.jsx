@@ -800,7 +800,7 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
                         const st = await api.get(`/poster-status/${jobId}`);
                         if (st.data.status === 'completed') {
                           clearInterval(poll);
-                          setFilm(prev => ({ ...prev, poster_url: st.data.poster_url + '?t=' + Date.now(), poster_regen_count: (prev.poster_regen_count || 0) + 1 }));
+                          await onRefresh?.();
                           toast({ title: 'Locandina rigenerata!' });
                           setLoading(null);
                         } else if (st.data.status === 'failed') {
@@ -839,7 +839,7 @@ const IdeaPhase = ({ film, onRefresh, toast }) => {
                       const st = await api.get(`/poster-status/${jobId}`);
                       if (st.data.status === 'completed') {
                         clearInterval(poll);
-                        setFilm(prev => ({ ...prev, poster_url: st.data.poster_url, poster_regen_count: 1, pipeline_flags: { ...prev.pipeline_flags, has_poster: true } }));
+                        await onRefresh?.();
                         toast({ title: 'Locandina generata!' });
                         setLoading(null);
                       } else if (st.data.status === 'failed') {

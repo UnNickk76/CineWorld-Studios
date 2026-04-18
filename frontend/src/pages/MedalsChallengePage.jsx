@@ -11,6 +11,13 @@ import {
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const API = process.env.REACT_APP_BACKEND_URL;
+const posterSrc = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http') || url.startsWith('data:')) return url;
+  return `${API}${url}`;
+};
+
 const ICON_MAP = {
   Film, Tv, Sparkles, Crown, Star, DollarSign, TrendingUp, Store, Swords, Shield,
   Flame, Heart, Skull, BookOpen, Users, Building2, UserPlus: Users, Laugh: Sparkles,

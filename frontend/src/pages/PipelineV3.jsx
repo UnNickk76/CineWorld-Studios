@@ -406,7 +406,7 @@ export default function PipelineV3() {
         {/* Scarta Film — in every step except idea */}
         {currentStep !== 'idea' && currentStep !== 'release_pending' && (
           <div className="px-3 pb-4">
-            <DiscardFilmButton filmId={selected.id} onDiscard={() => { setSelected(null); refreshProjects(); showToast('Film scartato'); }} />
+            <DiscardFilmButton filmId={selected.id} onDiscard={() => { setSelected(null); loadProjects(); showToast('Film scartato'); }} />
           </div>
         )}
       </div>

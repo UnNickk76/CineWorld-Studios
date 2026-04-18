@@ -7,7 +7,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRadio } from '../contexts/RadioContext';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Radio as RadioIcon, Loader2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Radio as RadioIcon, Loader2, Info } from 'lucide-react';
 
 function Equalizer({ active }) {
   // 7-bar CSS equalizer. Bars animate only when `active`.

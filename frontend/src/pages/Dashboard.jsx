@@ -21,6 +21,7 @@ import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
+import { AvatarWithLogo } from '../components/StudioName';
 import {
   Film, Sparkles, ChevronRight, Globe, Loader2, DollarSign, TrendingUp, Heart,
   Clapperboard, MapPin, Building, Tv, Star, Menu as MenuIcon,
@@ -363,16 +364,8 @@ const Dashboard = () => {
             <p className="text-gray-400 text-xs">Benvenuto in CineWorld Studio's,</p>
             <button className="text-left w-full" onClick={() => setShowWelcomeStats(p => !p)} data-testid="welcome-nickname-btn">
               <div className="flex items-center gap-2 mt-1">
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-full border-2 border-yellow-500/40 shrink-0 overflow-hidden bg-gray-800">
-                  {user?.avatar_url ? (
-                    <img src={user.avatar_url.startsWith('/') ? `${BACKEND_URL}${user.avatar_url}` : user.avatar_url}
-                      alt={user?.nickname} className="w-full h-full object-cover"
-                      onError={(e) => { e.target.onerror=null; e.target.src=''; e.target.style.display='none'; }} />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-yellow-400 font-bold text-sm">{(user?.nickname || '?')[0]}</div>
-                  )}
-                </div>
+                {/* Avatar + Logo sovrapposti */}
+                <AvatarWithLogo avatarUrl={user?.avatar_url} logoUrl={user?.logo_url} nickname={user?.nickname} size="sm" />
                 {/* Nickname + Logo + Production House */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -383,7 +376,6 @@ const Dashboard = () => {
                   </div>
                   {user?.production_house_name && (
                     <div className="flex items-center gap-1 -mt-0.5">
-                      {user?.logo_url && <img src={user.logo_url} alt="" className="w-3.5 h-3.5 rounded-sm object-contain shrink-0" />}
                       <span className="text-[10px] text-gray-500 truncate">{user.production_house_name}</span>
                     </div>
                   )}
@@ -392,9 +384,11 @@ const Dashboard = () => {
             </button>
             {showWelcomeStats && (
               <div className="mt-2 space-y-2">
-                {/* Level/Fame row (avatar already in header) */}
-                {levelInfo && (
-                  <div className="flex items-center gap-3">
+                {/* Avatar grande + Logo ben visibili */}
+                <div className="flex items-center gap-3">
+                  <AvatarWithLogo avatarUrl={user?.avatar_url} logoUrl={user?.logo_url} nickname={user?.nickname} size="md" />
+                  {/* Level/Fame */}
+                  {levelInfo && (
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-[9px] font-bold text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded px-1.5 py-0.5">LV {levelInfo.level}</span>
@@ -405,8 +399,8 @@ const Dashboard = () => {
                       </div>
                       <p className="text-[8px] text-gray-600 mt-0.5">{levelInfo.current_xp?.toLocaleString()} / {levelInfo.xp_needed?.toLocaleString()} XP</p>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
                 {/* Stats grid */}
                 {batchData?.stats && (
                   <div className="grid grid-cols-2 gap-2">

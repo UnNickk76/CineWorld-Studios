@@ -2230,3 +2230,55 @@ async def process_ri_cinema():
         logger.info(f"[CITY_TASTES] Cities in DB: {count}")
     except Exception as e:
         logger.error(f"[CITY_TASTES] Seed error: {e}")
+
+
+async def auto_generate_weekly_events():
+    """Weekly: generate 26 new cinema events via AI (10 common + 8 rare + 5 epic + 3 legendary)."""
+    try:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        llm_key = os.environ.get('EMERGENT_LLM_KEY', '')
+        if not llm_key:
+            logger.warning("[EVENTS] No LLM key, skipping auto-generation")
+            return
+
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import json, random
+
+        THEMES = ["box office incassi record", "social media TikTok meme", "critica festival premi",
+                   "fan merchandise cosplay", "streaming diritti TV", "scandali gossip", "colonna sonora",
+                   "CGI effetti speciali", "marketing trailer", "red carpet interviste", "sequel franchise", "cultura pop"]
+        themes = ", ".join(random.sample(THEMES, 4))
+
+        async def gen_batch(tier, count):
+            rules = {'common':'Quotidiani. revenue_mod ±0.03-0.10, hype_mod ±1-5.',
+                     'rare':'Significativi. revenue_mod ±0.10-0.20, hype_mod ±5-15.',
+                     'epic':'STRAORDINARI MAIUSCOLO. revenue_mod ±0.20-0.40. global:true',
+                     'legendary':'LEGGENDARI MAIUSCOLO. revenue_mod ±0.35-0.60. global:true'}
+            chat = LlmChat(api_key=llm_key, session_id=f"weekly_{tier}_{random.randint(0,9999)}", system_message="Genera eventi cinema italiani unici per CineWorld.")
+            chat.with_model("openai", "gpt-4o-mini")
+            prompt = f"Genera {count} eventi UNICI {tier.upper()} ({rules[tier]}) per cinema. Temi: {themes}. JSON: [{{\"t\":\"testo {{movie}}/{{actor}}\",\"type\":\"positive\",\"revenue_mod\":0.05,\"hype_mod\":3,\"fame_mod\":2,\"audience_mod\":30}}]. Solo JSON."
+            resp = await chat.send_message(UserMessage(text=prompt))
+            text = resp.strip()
+            if text.startswith('```'): text = text.split('\n',1)[1].rsplit('```',1)[0]
+            return json.loads(text)
+
+        total_added = 0
+        for tier, count in [('common', 10), ('rare', 8), ('epic', 5), ('legendary', 3)]:
+            try:
+                events = await gen_batch(tier, count)
+                # Store in DB collection for persistent growth
+                for ev in events:
+                    if tier in ('epic', 'legendary'):
+                        ev['global'] = True
+                    ev['tier'] = tier
+                    ev['generated_at'] = datetime.now(timezone.utc).isoformat()
+                    await _db.generated_events.update_one({'t': ev['t']}, {'$setOnInsert': ev}, upsert=True)
+                total_added += len(events)
+            except Exception as e:
+                logger.error(f"[EVENTS] {tier} generation failed: {e}")
+
+        logger.info(f"[EVENTS] Weekly auto-generation: +{total_added} events")
+    except Exception as e:
+        logger.error(f"[EVENTS] Weekly generation error: {e}")

@@ -7698,12 +7698,13 @@ async def startup_event():
     )
 
     # Trend scores: every 6 hours
-    from scheduler_tasks import update_trend_scores, evolve_city_tastes, seed_city_tastes_if_needed, check_theater_life, migrate_theater_films, expire_old_challenges, process_ri_cinema
+    from scheduler_tasks import update_trend_scores, evolve_city_tastes, seed_city_tastes_if_needed, check_theater_life, migrate_theater_films, expire_old_challenges, process_ri_cinema, auto_generate_weekly_events
     scheduler.add_job(update_trend_scores, IntervalTrigger(hours=6), id='update_trend_scores', replace_existing=True)
     scheduler.add_job(evolve_city_tastes, IntervalTrigger(hours=6), id='evolve_city_tastes', replace_existing=True)
     scheduler.add_job(check_theater_life, IntervalTrigger(hours=1), id='check_theater_life', replace_existing=True)
     scheduler.add_job(expire_old_challenges, IntervalTrigger(minutes=2), id='expire_old_challenges', replace_existing=True)
     scheduler.add_job(process_ri_cinema, IntervalTrigger(hours=2), id='process_ri_cinema', replace_existing=True)
+    scheduler.add_job(auto_generate_weekly_events, IntervalTrigger(days=7), id='auto_generate_weekly_events', replace_existing=True)
     scheduler.start()
     logging.info("APScheduler started with background jobs for autonomous game operations")
     import asyncio

@@ -211,13 +211,27 @@ def calculate_flop_risk(project: dict) -> dict:
     Low budget + high quality = sleeper hit (slow revenue growth).
     """
     budget_tier = project.get("budget_tier")
-    if not budget_tier or budget_tier not in BUDGET_TIERS:
+    if not budget_tier:
         return {"flop_risk": 0.10, "revenue_curve": "normal", "label": "Standard"}
 
-    from utils.calc_production_cost import BUDGET_TIERS
-    tier = BUDGET_TIERS[budget_tier]
+    # Import locally to avoid circular
+    _TIERS = {
+        "micro": {"flop_base": 0.05, "hype_mod": -0.20},
+        "low": {"flop_base": 0.08, "hype_mod": -0.10},
+        "mid": {"flop_base": 0.12, "hype_mod": 0.00},
+        "big": {"flop_base": 0.18, "hype_mod": 0.15},
+        "blockbuster": {"flop_base": 0.25, "hype_mod": 0.30},
+        "mega": {"flop_base": 0.35, "hype_mod": 0.50},
+    }
+    tier = _TIERS.get(budget_tier)
+    if not tier:
+        return {"flop_risk": 0.10, "revenue_curve": "normal", "label": "Standard"}
+
     flop_base = tier["flop_base"]
-    quality = project.get("quality_score", 5) or 5
+    quality = project.get("quality_score", 50) or 50
+    # Normalize to 0-10 scale (quality_score can be 0-100 or 0-10)
+    if quality > 10:
+        quality = quality / 10  # Convert 0-100 to 0-10
 
     # CWSv 0-10 scale: 7+ is good, 5 is average, <4 is bad
     quality_factor = max(0, (7 - quality) * 0.08)  # Higher when quality is low
@@ -226,7 +240,7 @@ def calculate_flop_risk(project: dict) -> dict:
     # Sleeper hit detection: low budget + high quality
     is_sleeper = budget_tier in ("micro", "low") and quality >= 7
     # Blockbuster bomb: high budget + low quality
-    is_bomb = budget_tier in ("blockbuster", "mega") and quality < 5
+    is_bomb = budget_tier in ("blockbuster", "mega") and quality < 4
 
     if is_sleeper:
         curve = "sleeper_hit"

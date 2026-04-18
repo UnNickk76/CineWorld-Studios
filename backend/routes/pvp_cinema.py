@@ -545,6 +545,31 @@ async def arena_support(req: ArenaActionRequest, user: dict = Depends(get_curren
     else:
         await coll.update_one({'id': req.film_id}, {'$inc': {'hype_score': int(effective_bonus)}})
 
+    # ═══ ARENA → PIPELINE EVENT: support on V3 project ═══
+    if source == 'projects':
+        try:
+            project_doc = await db.film_projects.find_one({'id': req.film_id}, {'_id': 0, 'pipeline_state': 1, 'pipeline_events': 1, 'budget_tier': 1})
+            if project_doc and project_doc.get('budget_tier'):
+                arena_event = {
+                    "text": f"Supporto Arena: {config['name']} da un produttore amico!",
+                    "type": "positive",
+                    "phase": project_doc.get('pipeline_state', 'unknown'),
+                    "hype_delta": int(effective_bonus * 2),
+                    "cost_mod": 0,
+                    "timer_mod": round(-effective_bonus * 0.01, 3),
+                    "quality_delta": 1,
+                    "timestamp": now.isoformat(),
+                    "source": "arena_pvp",
+                }
+                existing = project_doc.get('pipeline_events', [])
+                await db.film_projects.update_one(
+                    {'id': req.film_id},
+                    {'$set': {'pipeline_events': existing + [arena_event]},
+                     '$inc': {'event_hype_bonus': arena_event['hype_delta']}}
+                )
+        except Exception:
+            pass
+
     action_doc = {
         'id': str(uuid.uuid4()), 'user_id': user['id'],
         'target_film_id': req.film_id, 'target_film_title': film.get('title', ''),
@@ -701,6 +726,31 @@ async def arena_boycott(req: ArenaActionRequest, user: dict = Depends(get_curren
             await coll.update_one({'id': req.film_id}, {'$inc': {'pvp_revenue_modifier': -effective_damage, 'total_revenue': -int(effective_damage * 8000)}})
         else:
             await coll.update_one({'id': req.film_id}, {'$inc': {'hype_score': -int(effective_damage)}})
+
+        # ═══ ARENA → PIPELINE EVENT: boycott on V3 project ═══
+        if source == 'projects':
+            try:
+                project_doc = await db.film_projects.find_one({'id': req.film_id}, {'_id': 0, 'pipeline_state': 1, 'pipeline_events': 1, 'budget_tier': 1})
+                if project_doc and project_doc.get('budget_tier'):
+                    arena_event = {
+                        "text": f"Boicottaggio Arena: {config['name']} da un rivale!",
+                        "type": "negative",
+                        "phase": project_doc.get('pipeline_state', 'unknown'),
+                        "hype_delta": -int(effective_damage * 2),
+                        "cost_mod": round(effective_damage * 0.01, 3),
+                        "timer_mod": round(effective_damage * 0.02, 3),
+                        "quality_delta": -1,
+                        "timestamp": now.isoformat(),
+                        "source": "arena_pvp",
+                    }
+                    existing = project_doc.get('pipeline_events', [])
+                    await db.film_projects.update_one(
+                        {'id': req.film_id},
+                        {'$set': {'pipeline_events': existing + [arena_event]},
+                         '$inc': {'event_hype_bonus': arena_event['hype_delta'], 'budget_cost_modifier': arena_event['cost_mod']}}
+                    )
+            except Exception:
+                pass
 
         # Own film bonus
         own_bonus = round(random.uniform(1, 3), 1)

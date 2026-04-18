@@ -1379,7 +1379,7 @@ async def auto_revenue_tick():
         }, {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'quality_score': 1, 'quality': 1,
             'imdb_rating': 1, 'opening_day_revenue': 1, 'release_date': 1, 'released_at': 1,
             'cast': 1, 'status': 1, 'content_type': 1, 'hype_score': 1,
-            'star_born_film': 1, 'star_born_at': 1}).to_list(5000)
+            'star_born_film': 1, 'star_born_at': 1, 'budget_tier': 1}).to_list(5000)
         
         # Mark source for films
         for f in active_films:
@@ -1504,7 +1504,39 @@ async def auto_revenue_tick():
                         except:
                             pass
                     
-                    daily_rev = opening * (decay ** days) * quality_mult * imdb_boost * star_revenue_boost
+                    # ═══ FLOP RISK / SLEEPER HIT — Budget-aware revenue curve ═══
+                    budget_tier = film.get('budget_tier', '')
+                    flop_multiplier = 1.0
+                    if budget_tier:
+                        _FLOP_TIERS = {
+                            "micro": {"flop_base": 0.05, "hype_mod": -0.20},
+                            "low": {"flop_base": 0.08, "hype_mod": -0.10},
+                            "mid": {"flop_base": 0.12, "hype_mod": 0.00},
+                            "big": {"flop_base": 0.18, "hype_mod": 0.15},
+                            "blockbuster": {"flop_base": 0.25, "hype_mod": 0.30},
+                            "mega": {"flop_base": 0.35, "hype_mod": 0.50},
+                        }
+                        tier_info = _FLOP_TIERS.get(budget_tier, {})
+                        flop_base = tier_info.get('flop_base', 0.10)
+                        hype_mod = tier_info.get('hype_mod', 0)
+                        # Quality factor: low quality + high budget = fast decay
+                        q_norm = quality / 100  # 0-1
+                        if q_norm < 0.5 and budget_tier in ('blockbuster', 'mega', 'big'):
+                            # FLOP: massive day 1-2 then crash
+                            if days <= 2:
+                                flop_multiplier = 1.5 + hype_mod  # Huge opening from hype
+                            else:
+                                crash_speed = 0.55 + flop_base  # Fast decay 0.6-0.9
+                                flop_multiplier = max(0.05, (crash_speed ** (days - 2)) * 0.5)
+                        elif q_norm >= 0.7 and budget_tier in ('micro', 'low'):
+                            # SLEEPER HIT: slow start, grows with word of mouth
+                            growth = min(2.5, 1.0 + days * 0.08)
+                            flop_multiplier = growth * 0.6  # Starts lower, grows
+                        else:
+                            # Normal: slight hype boost early
+                            flop_multiplier = 1.0 + hype_mod * max(0, (1 - days / 14))
+                    
+                    daily_rev = opening * (decay ** days) * quality_mult * imdb_boost * star_revenue_boost * flop_multiplier
                     tick_rev = max(0, int(daily_rev / 144))
                     total_revenue += tick_rev
                 

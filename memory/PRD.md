@@ -259,6 +259,28 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 - Messaggi errore leggibili ("Fondi insufficienti: servono $X ma hai $Y")
 - Bloccato cambio release_type a "premiere" dopo step la_prima
 
+## Flop Risk integrato in Revenue Tick — Implementato (18/04/2026)
+- `auto_revenue_tick()` ora applica `flop_multiplier` basato su budget_tier + qualita
+- **FLOP**: budget alto + qualita < 50 → opening 150% poi crash rapidissimo (0.55-0.9 decay)
+- **Sleeper Hit**: budget basso + qualita > 70 → cresce col passaparola (+8%/giorno, cap 2.5x)
+- **Normale**: hype modifier decrescente nei primi 14 giorni
+- Fetch film ora include `budget_tier` per il calcolo
+
+## Arena PvP come Fonte Eventi Pipeline — Implementato (18/04/2026)
+### Boicottaggio → Evento Negativo
+- Quando un rivale boicotta un film V3 in produzione (source='projects'):
+  - Genera evento "Boicottaggio Arena: {azione} da un rivale!"
+  - Effetti: -hype, +costo, +timer, -1 qualita
+  - Proporzionale al danno effettivo dell'azione PvP
+  - Evento registrato nel log pipeline del film
+
+### Supporto → Evento Positivo
+- Quando un produttore supporta un film V3 in produzione:
+  - Genera evento "Supporto Arena: {azione} da un produttore amico!"
+  - Effetti: +hype, -timer (accelera), +1 qualita
+  - Proporzionale al bonus dell'azione PvP
+
+
 ## Fix Layout Mobile Contratti Agenzie — Risolto (18/04/2026)
 - Testo "slot disponibili" abbreviato, bottoni responsive
 - Card agenzie con flex-col e truncate per nomi lunghi

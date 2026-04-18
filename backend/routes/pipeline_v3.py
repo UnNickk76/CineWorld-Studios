@@ -144,6 +144,19 @@ def _step_index(state: str) -> int:
     return order.get(state, 0)
 
 
+def _calc_crc_from_npc(npc: dict) -> int:
+    """Calculate CRc (Cast Rank CineWorld) 0-100."""
+    skills = npc.get('skills', {})
+    if not skills:
+        return 0
+    avg_skill = sum(skills.values()) / len(skills)
+    fame = npc.get('fame_score', npc.get('fame', 0)) or 0
+    stars = npc.get('stars', 1) or 1
+    crc = avg_skill * 0.6 + min(fame, 100) * 0.2 + stars * 4
+    return max(0, min(100, round(crc)))
+
+
+
 def _clean(doc: Optional[dict]) -> Optional[dict]:
     if not doc:
         return doc
@@ -744,41 +757,100 @@ async def save_cast(pid: str, req: CastRequest, user: dict = Depends(get_current
 
 @router.get("/films/{pid}/cast-proposals")
 async def get_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
-    """Get NPC cast proposals from people collection, grouped by role."""
+    """Get NPC cast proposals filtered by player level/fame, with CRc rating."""
     project = await _get_project(pid, user["id"])
+    genre = project.get("genre", "drama")
 
-    all_npcs = await db.people.find({"type": {"$in": ["director","screenwriter","actor","composer"]}}, {"_id": 0}).sort("stars", -1).limit(100).to_list(100)
+    # Player level/fame caps (same logic as V2 agency system)
+    player_level = user.get("level", 1) or 1
+    player_fame = user.get("fame", 0) or 0
+    fame_cap_base = min(40 + player_level * 2 + player_fame * 0.05, 95)
+    fame_cap_star = min(60 + player_level * 3 + player_fame * 0.1, 100)
+
+    # Genre→skill affinity weights for scoring
+    GENRE_SKILL_WEIGHT = {
+        'comedy': {'comedy': 2, 'timing': 2, 'humor_writing': 2, 'improvisation': 1.5, 'charisma': 1.3},
+        'horror': {'emotional_depth': 1.5, 'voice_acting': 1.3, 'atmosphere': 2, 'suspense_craft': 2},
+        'drama': {'emotional_depth': 2, 'method_acting': 1.5, 'character_development': 2, 'dialogue': 1.5},
+        'action': {'physical_acting': 2, 'charisma': 1.5, 'pacing': 1.5, 'visual_style': 1.5},
+        'thriller': {'emotional_depth': 1.5, 'suspense_craft': 2, 'pacing': 1.5, 'atmosphere': 1.5},
+        'romance': {'charisma': 2, 'emotional_depth': 2, 'dialogue': 1.5, 'melodic': 1.5},
+        'sci_fi': {'innovation': 1.5, 'visual_style': 2, 'world_building': 2, 'sound_design': 1.5},
+        'fantasy': {'world_building': 2, 'visual_style': 1.5, 'orchestration': 1.5, 'storytelling': 1.5},
+    }
+    genre_weights = GENRE_SKILL_WEIGHT.get(genre, {})
+
+    def _score_npc(npc):
+        skills = npc.get('skills', {})
+        score = 0
+        for sk, val in skills.items():
+            weight = genre_weights.get(sk, 1.0)
+            score += val * weight
+        score += (npc.get('fame_score', npc.get('fame', 0)) or 0) * 0.5
+        return score
+
+    def _calc_crc(npc):
+        return _calc_crc_from_npc(npc)
+
     proposals = {"directors": [], "screenwriters": [], "actors": [], "composers": []}
+    role_counts = {'director': 10, 'screenwriter': 10, 'actor': 30, 'composer': 8}
 
-    for npc in all_npcs:
-        role = npc.get("type", "actor")
-        entry = {
-            "id": npc.get("id", ""),
-            "name": npc.get("name", "???"),
-            "age": npc.get("age"),
-            "nationality": npc.get("nationality", ""),
-            "gender": npc.get("gender", ""),
-            "stars": npc.get("stars", 1),
-            "fame": npc.get("fame_score", npc.get("fame", 0)),
-            "fame_category": npc.get("fame_category", ""),
-            "role_type": role,
-            "skills": npc.get("skills", {}),
-            "primary_skills": npc.get("primary_skills", []),
-            "cost": npc.get("cost_per_film", npc.get("cost", 50000)),
-            "avatar_url": npc.get("avatar_url", ""),
-            "avatar_initial": (npc.get("name", "?")[0]).upper(),
-        }
-        if role == "director":
-            proposals["directors"].append(entry)
-        elif role in ("screenwriter", "writer"):
-            proposals["screenwriters"].append(entry)
-        elif role == "composer":
-            proposals["composers"].append(entry)
-        else:
-            proposals["actors"].append(entry)
+    for role_type, target_count in role_counts.items():
+        sample_size = target_count * 4
+        cursor = db.people.aggregate([
+            {'$match': {'type': role_type}},
+            {'$sample': {'size': sample_size}},
+            {'$project': {'_id': 0}},
+        ])
+        candidates = await cursor.to_list(sample_size)
+        candidates.sort(key=_score_npc, reverse=True)
+
+        # Filter by player level: max 2 star picks above base cap
+        stars_added = 0
+        filtered = []
+        for npc in candidates:
+            npc_fame = npc.get('fame_score', npc.get('fame', 30)) or 30
+            if not isinstance(npc_fame, (int, float)):
+                npc_fame = 30
+            if npc_fame > fame_cap_base and stars_added < 2:
+                if npc_fame <= fame_cap_star:
+                    filtered.append(npc)
+                    stars_added += 1
+            elif npc_fame <= fame_cap_base:
+                filtered.append(npc)
+            if len(filtered) >= target_count:
+                break
+        # Fill remaining if not enough
+        if len(filtered) < target_count:
+            for npc in candidates:
+                if npc not in filtered:
+                    filtered.append(npc)
+                if len(filtered) >= target_count:
+                    break
+
+        key = 'directors' if role_type == 'director' else 'screenwriters' if role_type == 'screenwriter' else 'composers' if role_type == 'composer' else 'actors'
+        for npc in filtered[:target_count]:
+            entry = {
+                "id": npc.get("id", ""),
+                "name": npc.get("name", "???"),
+                "age": npc.get("age"),
+                "nationality": npc.get("nationality", ""),
+                "gender": npc.get("gender", ""),
+                "stars": npc.get("stars", 1),
+                "fame": npc.get("fame_score", npc.get("fame", 0)),
+                "fame_category": npc.get("fame_category", ""),
+                "role_type": role_type,
+                "skills": npc.get("skills", {}),
+                "primary_skills": npc.get("primary_skills", []),
+                "cost": npc.get("cost_per_film", npc.get("cost", 50000)),
+                "avatar_url": npc.get("avatar_url", ""),
+                "avatar_initial": (npc.get("name", "?")[0]).upper(),
+                "crc": _calc_crc(npc),
+            }
+            proposals[key].append(entry)
 
     for key in proposals:
-        proposals[key].sort(key=lambda x: (x.get("stars", 0), x.get("fame", 0)), reverse=True)
+        proposals[key].sort(key=lambda x: (x.get("crc", 0), x.get("stars", 0)), reverse=True)
 
     return proposals
 
@@ -820,12 +892,16 @@ async def select_cast_member(pid: str, req: SelectCastBody, user: dict = Depends
         "name": npc.get("name"),
         "age": npc.get("age"),
         "nationality": npc.get("nationality"),
+        "gender": npc.get("gender", ""),
         "stars": npc.get("stars", 1),
-        "fame": npc.get("fame", 0),
+        "fame": npc.get("fame_score", npc.get("fame", 0)),
+        "fame_category": npc.get("fame_category", ""),
         "role_type": role,
         "cast_role": req.cast_role or "generico",
-        "cost": npc.get("cost", 50000),
+        "cost": npc.get("cost_per_film", npc.get("cost", 50000)),
         "skills": npc.get("skills", {}),
+        "primary_skills": npc.get("primary_skills", []),
+        "crc": _calc_crc_from_npc(npc),
     }
 
     if role == "director":
@@ -868,33 +944,38 @@ async def auto_cast(pid: str, user: dict = Depends(get_current_user)):
         by_role[key].sort(key=lambda x: (x.get("stars", 0), x.get("fame_score", 0)), reverse=True)
 
     used_ids = set()
-    def pick(role_list):
+    def pick(role_list, role_type):
         for n in role_list:
             nid = n.get("id")
             if nid and nid not in used_ids:
                 used_ids.add(nid)
                 return {"id": nid, "name": n.get("name"), "age": n.get("age"),
-                        "nationality": n.get("nationality"), "stars": n.get("stars", 1),
-                        "fame": n.get("fame_score", 0), "role_type": n.get("type", "actor"),
-                        "cost": n.get("cost", 50000), "skills": n.get("skills", {})}
+                        "nationality": n.get("nationality"), "gender": n.get("gender", ""),
+                        "stars": n.get("stars", 1),
+                        "fame": n.get("fame_score", 0), "fame_category": n.get("fame_category", ""),
+                        "role_type": role_type,
+                        "cost": n.get("cost_per_film", n.get("cost", 50000)),
+                        "skills": n.get("skills", {}),
+                        "primary_skills": n.get("primary_skills", []),
+                        "crc": _calc_crc_from_npc(n)}
         return None
 
     roles_order = ["protagonista", "antagonista", "co protagonista", "supporto", "generico"]
     if not cast.get("director"):
-        d = pick(by_role["director"])
-        if d: d["role_type"] = "director"; cast["director"] = d
+        d = pick(by_role["director"], "director")
+        if d: cast["director"] = d
     if not cast.get("composer"):
-        c = pick(by_role["composer"])
-        if c: c["role_type"] = "composer"; cast["composer"] = c
+        c = pick(by_role["composer"], "composer")
+        if c: cast["composer"] = c
     while len(cast["screenwriters"]) < 1:
-        s = pick(by_role["screenwriter"])
+        s = pick(by_role["screenwriter"], "screenwriter")
         if not s: break
-        s["role_type"] = "screenwriter"; cast["screenwriters"].append(s)
+        cast["screenwriters"].append(s)
     idx = 0
     while len(cast["actors"]) < 5:
-        a = pick(by_role["actor"])
+        a = pick(by_role["actor"], "actor")
         if not a: break
-        a["role_type"] = "actor"; a["cast_role"] = roles_order[idx] if idx < len(roles_order) else "generico"
+        a["cast_role"] = roles_order[idx] if idx < len(roles_order) else "generico"
         cast["actors"].append(a); idx += 1
 
     project = await _update_project(pid, user["id"], {"cast": cast})

@@ -46,7 +46,13 @@ export default function PipelineV3() {
   }, [selected?.id]);
 
   const selectProject = useCallback(async (p) => {
-    try { const d = await v3api(`/films/${p.id}`); setSelected(d); setDirty(false); } catch (e) { showToast(e.message, 'error'); }
+    try {
+      // Reset release state when selecting a new project
+      setReleasePhase('idle');
+      releaseCompletedRef.current = false;
+      const d = await v3api(`/films/${p.id}`);
+      setSelected(d); setDirty(false);
+    } catch (e) { showToast(e.message, 'error'); }
   }, []);
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
@@ -159,9 +165,9 @@ export default function PipelineV3() {
   };
 
   const onWowDone = useCallback(() => {
-    setReleasePhase('done');
+    setReleasePhase('idle');
+    releaseCompletedRef.current = false;
     setSelected(null);
-    // Navigate to dashboard
     setTimeout(() => navigate('/dashboard'), 100);
   }, [navigate]);
 
@@ -241,6 +247,11 @@ export default function PipelineV3() {
   }
   if (releasePhase === 'wow' && selected) {
     return <CinematicReleaseOverlay film={selected} releaseType="cinema" onComplete={onWowDone} />;
+  }
+  // Safety: if releasePhase got stuck, reset it
+  if (releasePhase !== 'idle' && releasePhase !== 'calling' && !selected) {
+    setReleasePhase('idle');
+    releaseCompletedRef.current = false;
   }
 
   // ═══ TOAST ═══

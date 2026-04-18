@@ -20,11 +20,13 @@ function SkillsModal({ npc, onClose }) {
   const skills = npc.skills || {};
   const primary = npc.primary_skills || [];
   const entries = Object.entries(skills).filter(([, v]) => v != null).sort((a, b) => b[1] - a[1]);
-  // Find lowest skill = negative/weakness
-  const lowestEntry = entries.length > 0 ? entries[entries.length - 1] : null;
+  // Show exactly 8 (pad with empty if less, truncate if more)
+  const displayEntries = entries.slice(0, 8);
+  const lowestEntry = displayEntries.length > 0 ? displayEntries[displayEntries.length - 1] : null;
   const gender = npc.gender || '';
   const gSymbol = GENDER_SYMBOL[gender] || '';
   const gColor = GENDER_COLOR[gender] || 'text-gray-400';
+  const crc = npc.crc ?? 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
@@ -33,6 +35,12 @@ function SkillsModal({ npc, onClose }) {
           <div className="flex items-center gap-2">
             <h4 className="text-sm font-bold text-white">{npc.name}</h4>
             {gSymbol && <span className={`text-base ${gColor}`}>{gSymbol}</span>}
+            <span className={`text-[8px] px-1.5 py-0.5 rounded font-black border ${
+              crc >= 80 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
+              crc >= 60 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' :
+              crc >= 40 ? 'bg-amber-500/15 text-amber-400 border-amber-500/25' :
+              'bg-red-500/15 text-red-400 border-red-500/25'
+            }`} data-testid="crc-badge">CRc {crc}</span>
           </div>
           <button onClick={onClose} className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center"><X className="w-3 h-3 text-gray-400" /></button>
         </div>
@@ -67,11 +75,11 @@ function SkillsModal({ npc, onClose }) {
         )}
 
         {/* All 8 Skills */}
-        {entries.length > 0 && (
+        {displayEntries.length > 0 && (
           <div>
-            <p className="text-[7px] text-gray-500 uppercase font-bold mb-1">Skills ({entries.length})</p>
+            <p className="text-[7px] text-gray-500 uppercase font-bold mb-1">Skills ({displayEntries.length})</p>
             <div className="space-y-1.5">
-              {entries.map(([key, val]) => {
+              {displayEntries.map(([key, val]) => {
                 const num = typeof val === 'number' ? val : 0;
                 const pct = Math.min(100, Math.max(0, num));
                 const isPrimary = primary.includes(key);
@@ -81,7 +89,7 @@ function SkillsModal({ npc, onClose }) {
                   <div key={key}>
                     <div className="flex justify-between text-[8px] mb-0.5">
                       <span className={`capitalize ${isWeakness ? 'text-red-400' : isPrimary ? 'text-yellow-400' : 'text-gray-400'}`}>
-                        {key.replace(/_/g, ' ')} {isPrimary ? '★' : ''}{isWeakness ? '▼' : ''}
+                        {key.replace(/_/g, ' ')} {isPrimary ? '\u2605' : ''}{isWeakness ? '\u25BC' : ''}
                       </span>
                       <span className="text-white font-bold">{num}</span>
                     </div>
@@ -105,6 +113,7 @@ const NpcCard = ({ npc, selected, onSelect, castRole, onRoleChange, onNameClick 
   const gender = npc.gender || '';
   const gSymbol = GENDER_SYMBOL[gender] || '';
   const gColor = GENDER_COLOR[gender] || '';
+  const crc = npc.crc ?? 0;
   return (
     <div className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${
       selected ? 'bg-cyan-500/10 border-cyan-500/40' : 'bg-gray-800/30 border-gray-700 hover:border-gray-600'
@@ -113,10 +122,16 @@ const NpcCard = ({ npc, selected, onSelect, castRole, onRoleChange, onNameClick 
         {(npc.name || '?')[0]}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           <button onClick={(e) => { e.stopPropagation(); onNameClick?.(npc); }} className="text-[9px] font-bold text-white truncate hover:text-cyan-400 transition-colors underline decoration-dotted decoration-gray-600 underline-offset-2">{npc.name}</button>
           {gSymbol && <span className={`text-[10px] ${gColor}`}>{gSymbol}</span>}
           {npc.fame_category && <span className="text-[6px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold">{npc.fame_category}</span>}
+          <span className={`text-[6px] px-1 py-0.5 rounded font-black border ${
+            crc >= 80 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
+            crc >= 60 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' :
+            crc >= 40 ? 'bg-amber-500/15 text-amber-400 border-amber-500/25' :
+            'bg-red-500/15 text-red-400 border-red-500/25'
+          }`}>CRc {crc}</span>
         </div>
         <p className="text-[7px] text-gray-500">{npc.nationality} | {npc.age || '?'} anni | ${(npc.cost || npc.cost_per_film || 0).toLocaleString()}</p>
         <div className="flex items-center gap-0.5 mt-0.5">

@@ -204,3 +204,25 @@ Modal con stats produttore, filmografia, CWSv medio, badge.
 - `auto_fix` V3: ripara timer mancanti e cast placeholder
 - Testato: diagnosi, force_step, complete_project tutti verificati via API
 
+## CRc (Cast Rank CineWorld) — Implementato (18/04/2026)
+- Nuovo sistema di valutazione cast 0-100 (non percentuale): `CRc`
+- Formula: `avg_skill * 0.6 + fame * 0.2 + stars * 4`
+- Mostrato accanto al nome nella NpcCard e nel SkillsModal con colori a soglia (giallo/verde/ambra/rosso)
+- Backend: `_calc_crc_from_npc()` in pipeline_v3.py
+- Cast proposals ora ordinati per CRc decrescente
+
+## Cast Filtraggio per Livello — Implementato (18/04/2026)
+- V3 `cast-proposals` ora filtra cast per livello/fama del giocatore (come V2)
+- `fame_cap_base = min(40 + level*2 + fame*0.05, 95)` — max 2 star picks sopra il cap
+- Cast scoring basato su genere film (genre_skill_weight)
+- Giocatori bassi livello vedranno cast meno forti
+
+## Skills 8 nel Modal — Verificato (18/04/2026)
+- SkillsModal mostra esattamente 8 skills (slice 0-8)
+- Backend genera 8 skills per membro (SKILLS_PER_MEMBER = 8 in cast_system.py)
+- `cast-proposals` e `select-cast-member` passano gender, fame_category, primary_skills, crc
+
+## Bug Fix: Animazione Release Bloccata — Risolto (18/04/2026)
+- Causa: `releasePhase` restava a `'wow'` dopo `setSelected(null)`. Quando l'utente selezionava un nuovo progetto, l'overlay si riattivava.
+- Fix: `onWowDone` resetta `releasePhase` a `'idle'`. `selectProject` resetta release state. Safety check per reset automatico se `releasePhase` è inconsistente.
+

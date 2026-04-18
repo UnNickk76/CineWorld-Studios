@@ -5,7 +5,7 @@
 // - Volume slider
 // - Animated equalizer bars when playing
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRadio } from '../contexts/RadioContext';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Radio as RadioIcon, Loader2 } from 'lucide-react';
 

@@ -5,7 +5,7 @@ import uuid
 import pytest
 import requests
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://eta-tracker-ui.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://la-prima-dashboard.preview.emergentagent.com').rstrip('/')
 API = f"{BASE_URL}/api"
 
 NEO_EMAIL = "fandrex1@gmail.com"

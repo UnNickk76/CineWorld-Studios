@@ -1,30 +1,48 @@
 <analysis>**original_problem_statement**: 
-The user requested massive UI/UX enhancements and bug fixes. Core requirements included: fixing Avatar base64 persistence upon login, fixing Avatar/Logo UI overlapping, and building a fully functional In-Game Web Radio (with 27 MP3 stations, ICY metadata proxy for Now Playing tracking, a floating draggable player UI, and a global promo banner giving an 80% discount on TV Emittente). Further requests involved updating the Top/Bottom Navbar UI (labels, adding a radio icon, online users count), fixing an online profile display bug (500 error on specific players like Emilians), adding a hamburger menu inside quick commands, and adding an ETA/countdown timer to the V3 Pipeline progress UI.
+The user requested massive UI/UX enhancements and bug fixes. Core requirements included: unifying the Player Profile Popup system to match the movie poster click behavior, adding clickable studio names and follower counts, implementing a massive AI Cinematic Trailer feature (using Gemini Nano Banana and GPT-4o-mini) with tiers/fullscreen player/WebAudio SFX/emoji reactions, and adding an Instagram-style Likes system for posters, screenplays, and trailers. 
+**Latest Pending Requirements**: 
+1. Improve the Like system to show the last 20 likes via a long tap on the heart icon.
+2. Fix a bug where films in the La Prima phase incorrectly appear in the Prossimamente (Coming Soon) section of the dashboard instead of the dedicated La Prima section.
+3. Remove the choice between La Prima and Diretto from the Sponsor & Marketing pipeline step, as it causes state bugs in the subsequent steps (e.g., claiming no film is in La Prima if Diretto was clicked).
 
 **User's preferred language**: Italian (INSTRUCT NEXT AGENT: You MUST respond in Italian only)
 
 **what currently exists?** 
-A highly complex, fully functional full-stack cinema management game. It features a complete V3 pipeline, Cast System V3, AI event/avatar generation, a La Mia TV dashboard, and a newly integrated complete Web Radio system (with ICY streaming metadata, 27 stations, draggable floating UI, and iOS audio workarounds) fully built and styled to the user's exact preferences.
+A highly complex, fully functional full-stack cinema management game. It now features a unified Player Profile Popup (with clickable studio/avatar, follower counts, follow buttons, and collapsible filmography), a complete AI Cinematic Trailer generator (Base/Cinematic/Pro tiers, fullscreen player with gestures, procedural WebAudio SFX, emoji reactions), and an Instagram-style Likes system (red/user and blue/system hearts) for Posters, Screenplays, and Trailers.
 
 **Last working item**:
-    - Last item agent was working: The user reported a bug in the Pipeline V3 progress indicator: Avanzamento funziona ma non dice quanto manca.. (Progress works but it doesn't show how much time is left/ETA). The agent located  to begin implementing the ETA countdown but ran out of context.
+    - Last item agent was working: Investigating the dashboard bug where a film in the La Prima phase appears in the Prossimamente section. The agent started searching through  and  but the context window ended before any changes were made.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? Screenshot tool (to verify the ETA timer visually).
+    - Which testing method agent to use? Screenshot tool
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  Issue 1: Pipeline V3 Progress ETA missing (P0)
-     - Attempted fixes: Agent identified  as the target file but made no edits yet.
-     - Next debug checklist: Check  to see how progress is rendered. Calculate the remaining time using the current phase's end time or duration and display it as a live countdown (e.g., Tempo rimanente: HH:MM:SS) next to or below the progress bar.
-     - Why fix this issue and what will be achieved with the fix? The user feels the progress bar looks broken or stuck because it lacks a visible time estimate. 
+  Issue 1: La Prima phase film showing in Prossimamente section on Dashboard (P0)
+     - Attempted fixes: Investigated  and . No code written yet.
+     - Next debug checklist: Check how  filters films by status/phase. Ensure films with phase  are explicitly excluded from the standard upcoming list and only rendered in the dedicated La Prima section.
+     - Why fix this issue and what will be achieved with the fix? UI/UX correctness; users get confused when La Prima films show up in the standard coming soon list.
      - Status: IN PROGRESS
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Frontend
      - Blocked on other issue: None
 
+  Issue 2: Remove La Prima vs Diretto choice in Sponsor/Marketing step (P0)
+     - Attempted fixes: None.
+     - Next debug checklist: Find the Sponsor & Marketing step component in  or related files. Remove the manual radio/button choice. Ensure the pipeline correctly progresses to the next logical step without requiring this choice (or route it automatically).
+     - Why fix this issue and what will be achieved with the fix? It causes a state bug where clicking diretto and then later looking for La Prima says there is no film.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Frontend
+     - Blocked on other issue: None
+
 **In progress Task List**:
-  - None
+  Task 1: Long tap on Like button to view last 20 likes (P1)
+     - Where to resume:  and backend .
+     - What will be achieved with this? Social proof; users can see exactly who liked their content via a breakdown quick-view.
+     - Status: NOT STARTED
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on something: None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -37,17 +55,13 @@ A highly complex, fully functional full-stack cinema management game. It feature
     - (P2) Tornei PvP mensili con bracket a eliminazione diretta.
 
 **Completed work in this session**
-- Avatar base64 persistence bug on fresh login (DONE - saved directly in DB now, no ephemeral files).
-- Avatar & Logo overlapping UI styling (DONE).
-- Web Radio Backend () with 27 verified public MP3 streams, including Italian stations (DONE).
-- Web Radio Promo Banner (-80% infrastructure discount for TV) logic and UI (DONE).
-- ICY Metadata proxy endpoint () for real-time Now Playing track info (DONE).
-- Draggable hook () implemented for both the Web Radio floating player and Velion (DONE).
-- iOS Volume Bug Fix: Audio volume slider hidden on iOS due to Safari restrictions; hint added (DONE).
-- Radio UI Overhaul: Left-anchored popup, NowPlaying banner below player, popup list modal (DONE).
-- Top and Bottom Navbar UI: Added text labels under icons, added Radio Icon to bottom nav, added Online Users count under the Top Nav online icon (DONE).
-- Profile Popup Bugs: Fixed 500 error on Emilians profile caused by  being  in , and fixed frontend data mapping causing a black screen (DONE).
-- Blue Hamburger menu center button added in Quick Commands (DONE).
+- Pipeline V3 Hype ETA countdown added (DONE).
+-  z-index black screen bug fixed (DONE).
+- Le mie TV crash caused by missing  fixed (DONE).
+- ESLint  sweep: Fixed 8 undefined variable bugs across the app and added standard  config (DONE).
+- Unified Player Profile popup: Merged TopNav logic with Movie Poster logic, added clickable studio name, recent filmography, follow/unfollow toggle, and follower/following counts (DONE).
+- AI Cinematic Trailer Generator (Phases 1 & 2): Added 3 tiers, fullscreen player, GPT-4o-mini storyboard, Nano Banana image gen, procedural WebAudio SFX, emoji reactions, and Series/Anime integration (DONE).
+- Likes System: Added user (red) and system (blue) likes to Posters, Screenplays, and Trailers. Implemented double-tap to like, snapshotting on release, and fixed state merge bug (DONE).
 
 **Earlier issues found/mentioned but not fixed**
    - None
@@ -58,24 +72,25 @@ A highly complex, fully functional full-stack cinema management game. It feature
   - Status: RESOLVED
 
 **Code Architecture**
-- Frontend:  (React, Tailwind, Lucide React).
-- Backend:  (FastAPI, Motor/MongoDB, APScheduler).
-- Web Radio logic: , , , backend .
+- Frontend:  (React, Tailwind).
+- Backend:  (FastAPI, MongoDB, APScheduler).
+- AI & Storage:  used for Object Storage and LLM Generation.
 
 **Key Technical Concepts**
-React Contexts, Base64 image encoding, Framer Motion animations, HTTP proxying for ICY metadata extraction, HTML5 Audio API, custom React draggable hooks.
+React Contexts, WebAudio API (for procedural trailer SFX), APScheduler (background tasks for hype/likes snapshots), Emergent Object Storage (to prevent saving base64 to DB).
 
 **key DB schema**
-  - :  (now stores base64 string reliably).
-  - : handles  purchases (promo logic applies 80% discount here).
+  - : stores , , , etc.
+  - : newly added schema 
+  -  / : now contain nested  dict and  for likes.
 
 **changes in tech stack**
-  - Added simple proxy capabilities in FastAPI for ICY streaming metadata (extracting real-time song info without breaking CORS).
+  - None
 
 **All files of reference** 
-  -  (CURRENT TARGET FOR ETA BUG)
-  - 
-  - 
+  -  (CURRENT TARGET FOR BUG 1)
+  -  (CURRENT TARGET FOR BUG 1 & 2)
+  -  (TARGET FOR TASK 1)
   - 
   - 
   - 
@@ -87,44 +102,46 @@ React Contexts, Base64 image encoding, Framer Motion animations, HTTP proxying f
   - 
   - 
   - 
+  - 
 
 **Critical Info for New Agent** 
 - **Italian Language Requirement!** You MUST communicate with the user entirely in Italian.
-- **Radio Feature is Highly Custom:** The Radio UI (draggable circle, specific spacing, transparent NowPlaying banner, ICY metadata) was finely tuned across multiple screenshots. Do NOT alter its layout or CSS logic unless strictly required.
-- **iOS Audio Restriction:** Volume control via JS is disabled on iOS Safari. Do not attempt to fix the hidden volume slider on iOS; it is intentional.
+- Nano Banana (Image Gen) and GPT-4o-mini (Text Gen) are fully integrated using the  library. Use the existing utility patterns if you need to touch the trailer logic.
+- Do NOT save base64 images to the database. Use Emergent Object Storage (already configured in ).
 
 **documents and test reports created in this job** 
   - 
   - 
-  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Uploaded screenshot. Volume is not adjustable in game.
-2. *Agent*: Fixed iOS volume slider hiding.
-3. *User*: Move banner below radio circle. Add a blue arrow on the red circle to open the station list anywhere. Default circle position just above bottom navbar.
-4. *Agent*: Implemented RadioStationsPopup, adjusted draggable clamps, and updated UI layout.
-5. *User*: Add radio icon to bottom navbar. Add labels below all icons in top/bottom navbars.
-6. *Agent*: Implemented Top/Bottom Navbar updates.
-7. *User*: Clicking on player Emilians gives a black screen. Add online number count under the top nav online icon.
-8. *Agent*: Fixed  in backend for Emilians' profile. Fixed UI flattening bug. Added online counter.
-9. *User*: Add a blue hamburger menu exactly in the center of quick commands. Add missing sections to SideMenu.
-10. *User*: Uploaded screenshot. Pipeline V3 progress bar moves but doesn't say how much time is left. (PENDING)
+1. *User*: Provided approvals for Phase 1 trailer ideas (tiers, auto-trending, bug fix in theater).
+2. *Agent*: Implemented Phase 1 of Trailer AI generator.
+3. *User*: Requested Phase 2 (Reactions + SFX) and extending Trailer generator to Series/Anime.
+4. *Agent*: Implemented Reactions and WebAudio SFX.
+5. *User*: Requested Instagram-style Likes system (red user hearts, blue system hearts) on Posters, Screenplays, and Trailers.
+6. *Agent*: Implemented the Likes system across the app.
+7. *User*: Reported a bug where clicking like on Il Sospetto makes it turn red and immediately go back to zero.
+8. *Agent*: Fixed ownership check and parent state  merging bug that caused the immediate reset.
+9. *User*: Requested 3 items: Long tap on heart to see last 20 likes. Bug 1: La Prima film shows up in Prossimamente section on Dashboard. Bug 2: Remove La Prima vs Diretto choice in Sponsor/Marketing step because it breaks the next step. (PENDING)
+10. *Agent*: Started looking into  and  for Bug 1 but context ended.
 
 **Project Health Check:**
-- Broken: Pipeline V3 ETA display in .
+- Broken: Dashboard La Prima filtering, Sponsor & Marketing pipeline step choice logic.
 - Mocked: None
 
 **3rd Party Integrations** 
-  - Emergent LlmChat (GPT-4o-mini) — uses Emergent LLM Key 
+  - Emergent LlmChat (GPT-4o-mini) — uses Emergent LLM Key
+  - Gemini Nano Banana (Image Generation) — uses Emergent LLM Key
+  - Emergent Object Storage — uses Emergent integrations
 
 **Testing status**
-  - Testing agent used after significant changes: YES ()
+  - Testing agent used after significant changes: NO (Self-testing via screenshots)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
   - Known regressions: None
 
 **Credentials to test flow:**
-Check 
+Check  (Note: User has two separate accounts: UnNickk and NeoMorpheus).
 
 **What agent forgot to execute**
-The agent located the  file to add the missing ETA countdown, but the context window filled up before the code changes could be written and tested.</analysis>
+The agent was right in the middle of executing the user's latest 3 requests (Long tap likes, La Prima dashboard bug, La Prima/Diretto pipeline choice removal) when the context ran out. Pick up exactly from resolving these three UI/logic tasks.</analysis>

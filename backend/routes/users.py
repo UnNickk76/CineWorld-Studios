@@ -416,7 +416,11 @@ async def get_player_public_profile(player_id: str, user: dict = Depends(get_cur
         norm_q = q / 10 if q > 10 else q
         display = c.get('cwsv_display') or (str(int(norm_q)) if norm_q == int(norm_q) else f"{norm_q:.1f}")
         filmography.append({'title': c.get('title', '?'), 'quality_score': norm_q, 'cwsv_display': display, 'type': c.get('type', 'film')})
-    
+
+    # Social counts
+    followers_count = await db.follows.count_documents({'following_id': player_id})
+    following_count = await db.follows.count_documents({'follower_id': player_id})
+
     return {
         'id': player['id'],
         'nickname': player.get('nickname'),
@@ -437,6 +441,8 @@ async def get_player_public_profile(player_id: str, user: dict = Depends(get_cur
         'avg_cwsv': avg_cwsv,
         'best_film': best,
         'filmography': filmography,
+        'followers_count': followers_count,
+        'following_count': following_count,
         'leaderboard_score': calculate_leaderboard_score(player),
         'last_active': player.get('last_active'),
         'created_at': player.get('created_at')

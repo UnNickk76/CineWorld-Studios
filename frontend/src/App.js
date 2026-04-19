@@ -1533,6 +1533,8 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
   const [showFilmography, setShowFilmography] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [followersCount, setFollowersCount] = useState(p?.followers_count || 0);
+  const followingCount = p?.following_count || 0;
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
   const isSelf = user?.id === data.userId;
 
@@ -1558,10 +1560,12 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
       if (isFollowing) {
         await api.delete(`/follow/${data.userId}`);
         setIsFollowing(false);
+        setFollowersCount(c => Math.max(0, c - 1));
         toast.success(`Non segui più ${p.nickname}`);
       } else {
         await api.post(`/follow/${data.userId}`);
         setIsFollowing(true);
+        setFollowersCount(c => c + 1);
         toast.success(`Ora segui ${p.nickname}!`);
       }
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
@@ -1633,6 +1637,15 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
                   {p.production_house_name}
                 </button>
               )}
+              <div className="flex items-center gap-2 mt-0.5" data-testid="popup-social-counts">
+                <span className="text-[9px] text-gray-500">
+                  <span className="text-white font-bold">{followersCount.toLocaleString()}</span> follower
+                </span>
+                <span className="text-gray-700">·</span>
+                <span className="text-[9px] text-gray-500">
+                  <span className="text-white font-bold">{followingCount.toLocaleString()}</span> seguiti
+                </span>
+              </div>
               <div className="flex items-center gap-2 mt-0.5">
                 {p.level && <span className="text-[8px] font-bold text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded px-1 py-0.5">LV {p.level}</span>}
                 {p.fame != null && <span className="text-[8px] text-amber-400/70 bg-amber-500/10 border border-amber-500/15 rounded px-1 py-0.5">Fama {p.fame?.toLocaleString()}</span>}

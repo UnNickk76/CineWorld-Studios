@@ -257,7 +257,7 @@ def _resolve_poster_path(content: dict) -> Optional[str]:
 
 
 # ─────────────────────── Background job ───────────────────────
-async def _run_trailer_job(content_id: str, tier: str, user_id: str):
+async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mode: str = "pre_launch"):
     """Orchestrates storyboard → images → upload → DB save."""
     job = _JOBS[content_id]
     tier_cfg = TIERS[tier]
@@ -324,13 +324,17 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str):
                 "duration_ms": durations[i],
             })
 
-        # Apply hype bonus if still in hype/upcoming phase
+        # Apply hype bonus if still in hype/upcoming phase. Highlights mode never grants hype.
         hype_bonus = tier_cfg["hype"]
-        pipeline_status = content.get("pipeline_status") or content.get("status") or ""
-        allow_hype_boost = pipeline_status in ("hype", "upcoming", "prossimamente", "pre_production", "pre-production", "production")
+        pipeline_status = content.get("pipeline_status") or content.get("pipeline_state") or content.get("status") or ""
+        allow_hype_boost = (
+            trailer_mode == "pre_launch"
+            and pipeline_status in ("hype", "upcoming", "prossimamente", "pre_production", "pre-production", "production")
+        )
         update_ops = {
             "trailer": {
                 "tier": tier,
+                "mode": trailer_mode,
                 "duration_seconds": tier_cfg["duration_s"],
                 "frames": frames_out,
                 "title_card_storage_path": poster if reuse_last else None,
@@ -360,8 +364,13 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str):
 
         # Charge credits for paid tier (only if not free upgrade delta)
         prev_tier = prev.get("tier")
-        prev_cost = TIERS.get(prev_tier, {}).get("cost", 0) if prev_tier else 0
-        cost_delta = max(0, tier_cfg["cost"] - prev_cost)
+        prev_mode = prev.get("mode") or "pre_launch"
+        prev_cost = TIERS.get(prev_tier, {}).get("cost", 0) if (prev_tier and prev_mode == trailer_mode) else 0
+        base_cost = tier_cfg["cost"]
+        if trailer_mode == "highlights":
+            base_cost = int(round(base_cost * 0.5))
+            prev_cost = int(round(prev_cost * 0.5))
+        cost_delta = max(0, base_cost - prev_cost)
         if cost_delta > 0:
             await db.users.update_one({"id": user_id}, {"$inc": {"cinecrediti": -cost_delta, "cinecredits": -cost_delta}})
 
@@ -380,27 +389,52 @@ def _dep():
 
 
 @router.post("/trailers/{content_id}/generate")
-async def generate_trailer(content_id: str, tier: str = Query("base"), user: dict = Depends(_dep())):
+async def generate_trailer(content_id: str, tier: str = Query("base"), mode: str = Query("pre_launch"), user: dict = Depends(_dep())):
     if tier not in TIERS:
         raise HTTPException(400, "Tier non valido")
+    if mode not in ("pre_launch", "highlights"):
+        raise HTTPException(400, "Mode non valido")
     content, _ = await _find_content(content_id)
     if not content:
         raise HTTPException(404, "Contenuto non trovato")
     _ensure_user_owns(content, user)
 
+    # Auto-detect mode if highlights-eligible (film already released)
+    pipeline_status = content.get("pipeline_status") or content.get("pipeline_state") or content.get("status") or ""
+    is_released = (
+        pipeline_status in ("released", "in_theaters", "in_tv", "catalog", "completed", "withdrawn")
+        or bool(content.get("released"))
+        or bool(content.get("released_at"))
+    )
+    # Enforce mode consistency: pre_launch requires a non-released film; highlights requires released
+    if mode == "pre_launch" and is_released:
+        raise HTTPException(400, "Il film e' gia' rilasciato. Usa mode=highlights.")
+    if mode == "highlights" and not is_released:
+        raise HTTPException(400, "Trailer highlights disponibile solo dopo il rilascio.")
+
     tier_cfg = TIERS[tier]
     prev = content.get("trailer") or {}
     prev_tier = prev.get("tier")
+    prev_mode = prev.get("mode") or "pre_launch"
 
-    # Only allow upgrade (not downgrade), or generate new
-    if prev_tier:
+    # Allow a fresh highlights generation even if a pre_launch trailer already exists
+    # (they're conceptually different: teaser vs post-release highlights)
+    if prev_tier and prev_mode == mode:
         order = {"base": 0, "cinematic": 1, "pro": 2}
         if order[tier] <= order[prev_tier]:
             raise HTTPException(400, "Puoi solo fare upgrade del trailer a un tier superiore")
 
-    # Credit check: pay delta if upgrade
-    prev_cost = TIERS.get(prev_tier, {}).get("cost", 0) if prev_tier else 0
-    cost_delta = max(0, tier_cfg["cost"] - prev_cost)
+    # Cost: highlights mode = 50% discount (cosmetic, no hype boost)
+    base_cost = tier_cfg["cost"]
+    if mode == "highlights":
+        effective_cost = int(round(base_cost * 0.5))
+    else:
+        effective_cost = base_cost
+    # Credit check: pay delta if upgrade (only applies when upgrading within same mode)
+    prev_cost = TIERS.get(prev_tier, {}).get("cost", 0) if (prev_tier and prev_mode == mode) else 0
+    if mode == "highlights":
+        prev_cost = int(round(prev_cost * 0.5))
+    cost_delta = max(0, effective_cost - prev_cost)
     if cost_delta > 0:
         credits = user.get("cinecrediti", user.get("cinecredits", 0)) or 0
         if credits < cost_delta:
@@ -418,14 +452,15 @@ async def generate_trailer(content_id: str, tier: str = Query("base"), user: dic
         "job_id": job_id,
         "content_id": content_id,
         "tier": tier,
+        "mode": mode,
         "status": "running",
         "progress": 0,
         "stage": "queued",
         "started_at": datetime.now(timezone.utc).isoformat(),
         "estimated_seconds": {"base": 15, "cinematic": 25, "pro": 40}.get(tier, 20),
     }
-    asyncio.create_task(_run_trailer_job(content_id, tier, user["id"]))
-    return {"job_id": job_id, "status": "running", "progress": 0, "estimated_seconds": _JOBS[content_id]["estimated_seconds"]}
+    asyncio.create_task(_run_trailer_job(content_id, tier, user["id"], mode))
+    return {"job_id": job_id, "status": "running", "progress": 0, "estimated_seconds": _JOBS[content_id]["estimated_seconds"], "mode": mode}
 
 
 @router.get("/trailers/{content_id}/status")

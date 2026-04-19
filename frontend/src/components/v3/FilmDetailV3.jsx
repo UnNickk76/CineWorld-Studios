@@ -589,6 +589,7 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
             contentId={film.id}
             contentTitle={film.title}
             contentGenre={film.genre || ''}
+            contentStatus={film.status || film.pipeline_state || ''}
             api={api}
             userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
             canGenerate={true}

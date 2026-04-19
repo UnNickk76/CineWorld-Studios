@@ -1,37 +1,44 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Film, Sparkles, Crown, Play, Loader2, Lock } from 'lucide-react';
+import { Film, Sparkles, Crown, Play, Loader2, Lock, TrendingUp, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import TrailerPlayerModal from './TrailerPlayerModal';
 
 const TIERS = [
-  { key: 'base', label: 'Trailer Base', duration: 10, cost: 0, hype: 3, frames: 3, icon: Film, color: 'from-sky-600 to-blue-500', border: 'border-sky-500/40' },
+  { key: 'base', label: 'Base', duration: 10, cost: 0, hype: 3, frames: 3, icon: Film, color: 'from-sky-600 to-blue-500', border: 'border-sky-500/40' },
   { key: 'cinematic', label: 'Cinematico', duration: 20, cost: 10, hype: 8, frames: 6, icon: Sparkles, color: 'from-purple-600 to-fuchsia-500', border: 'border-purple-500/40' },
-  { key: 'pro', label: 'Trailer PRO', duration: 30, cost: 20, hype: 15, frames: 10, icon: Crown, color: 'from-amber-500 to-orange-500', border: 'border-amber-500/40' },
+  { key: 'pro', label: 'PRO', duration: 30, cost: 20, hype: 15, frames: 10, icon: Crown, color: 'from-amber-500 to-orange-500', border: 'border-amber-500/40' },
 ];
 
 const tierOrder = { base: 0, cinematic: 1, pro: 2 };
 
+// Detect if content is in post-release phase (highlights mode).
+function isReleasedContent(contentStatus) {
+  const s = (contentStatus || '').toLowerCase();
+  return ['released', 'in_theaters', 'in_tv', 'catalog', 'completed', 'withdrawn'].includes(s);
+}
+
 /**
  * TrailerGeneratorCard — pipeline block for trailer generation.
- * Props:
- *  - contentId: id del film/serie/anime
- *  - contentTitle: titolo per share
- *  - api: axios instance
- *  - userCredits: cinecrediti disponibili
- *  - canGenerate: bool (false se non owner o fase non valida)
- *  - onGenerated: callback dopo generazione
+ * Auto-switches between two modes based on content status:
+ *   - pre_launch (default): blue/orange CTA, +hype boost, full price
+ *   - highlights (post-release): gold/trophy CTA, no hype boost, 50% discount
  */
-export default function TrailerGeneratorCard({ contentId, contentTitle, contentGenre = '', api, userCredits = 0, canGenerate = true, onGenerated }) {
+export default function TrailerGeneratorCard({ contentId, contentTitle, contentGenre = '', contentStatus = '', api, userCredits = 0, canGenerate = true, onGenerated }) {
   const [trailer, setTrailer] = useState(null);
-  const [job, setJob] = useState(null); // {status, progress, tier, estimated_seconds}
+  const [job, setJob] = useState(null);
   const [showPlayer, setShowPlayer] = useState(false);
   const pollRef = useRef(null);
+
+  const isReleased = isReleasedContent(contentStatus);
+  const mode = isReleased ? 'highlights' : 'pre_launch';
+  const modeMeta = isReleased
+    ? { label: 'Trailer Highlights', subtitle: 'Best-of per social & archivio · sconto 50%', icon: Trophy, accent: 'from-amber-400 to-yellow-500', accentText: 'text-amber-400', border: 'border-amber-500/30', bg: 'from-[#1a1510] to-[#0d0d10]' }
+    : { label: 'Trailer Pre-Lancio', subtitle: 'Concede +hype durante la fase di attesa', icon: TrendingUp, accent: 'from-sky-500 to-blue-500', accentText: 'text-sky-400', border: 'border-sky-500/30', bg: 'from-[#101620] to-[#0d0d10]' };
 
   // Initial load
   useEffect(() => {
     if (!contentId) return;
     refreshTrailer();
-    // Also check if a job is in flight
     api.get(`/trailers/${contentId}/status`).then(r => {
       if (r.data?.status === 'running') {
         setJob(r.data);
@@ -59,7 +66,7 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
           clearInterval(pollRef.current);
           setJob(null);
           await refreshTrailer();
-          toast.success('🎬 Trailer pronto!');
+          toast.success(isReleased ? '🏆 Trailer highlights pronto!' : '🎬 Trailer pronto!');
           onGenerated?.();
         } else if (r.data?.status === 'failed') {
           clearInterval(pollRef.current);
@@ -70,18 +77,23 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
     }, 2500);
   };
 
+  const effectiveCost = (baseCost) => isReleased ? Math.round(baseCost * 0.5) : baseCost;
+
   const handleGenerate = async (tierKey) => {
     const tier = TIERS.find(t => t.key === tierKey);
     const currentTierKey = trailer?.tier;
-    const delta = currentTierKey ? Math.max(0, tier.cost - (TIERS.find(t => t.key === currentTierKey)?.cost || 0)) : tier.cost;
+    const sameMode = trailer?.mode === mode;
+    const currentCost = (sameMode && currentTierKey) ? effectiveCost(TIERS.find(t => t.key === currentTierKey)?.cost || 0) : 0;
+    const targetCost = effectiveCost(tier.cost);
+    const delta = Math.max(0, targetCost - currentCost);
     if (delta > 0 && userCredits < delta) {
       toast.error(`Servono ${delta} cinecrediti (ne hai ${userCredits})`);
       return;
     }
     try {
-      const r = await api.post(`/trailers/${contentId}/generate?tier=${tierKey}`);
+      const r = await api.post(`/trailers/${contentId}/generate?tier=${tierKey}&mode=${mode}`);
       setJob({ ...r.data, tier: tierKey });
-      toast.success(`Generazione ${tier.label} avviata (~${r.data.estimated_seconds}s)`);
+      toast.success(`Generazione ${tier.label} ${isReleased ? 'highlights' : 'pre-lancio'} avviata (~${r.data.estimated_seconds}s)`);
       startPolling();
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore generazione');
@@ -96,7 +108,7 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
   if (job && job.status === 'running') {
     const tier = TIERS.find(t => t.key === job.tier) || TIERS[0];
     return (
-      <div className="rounded-2xl border border-yellow-500/20 bg-gradient-to-br from-[#161619] to-[#0d0d10] p-5 text-center" data-testid="trailer-generator-card">
+      <div className={`rounded-2xl border ${modeMeta.border} bg-gradient-to-br ${modeMeta.bg} p-5 text-center`} data-testid="trailer-generator-card">
         <div className="relative w-20 h-20 mx-auto mb-3">
           <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
             <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
@@ -104,10 +116,10 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
             <defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#f5a623" /><stop offset="100%" stopColor="#e94e77" /></linearGradient></defs>
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-lg font-black text-yellow-400">{progress}%</span>
+            <span className={`text-lg font-black ${modeMeta.accentText}`}>{progress}%</span>
           </div>
         </div>
-        <p className="text-[13px] font-bold text-yellow-300 mb-1">Creazione {tier.label} in corso…</p>
+        <p className={`text-[13px] font-bold ${modeMeta.accentText} mb-1`}>Creazione {tier.label} in corso…</p>
         <p className="text-[10px] text-gray-500">Stage: {job.stage || 'queued'} · Stima ~{job.estimated_seconds}s</p>
         <p className="text-[9px] text-gray-600 mt-2">Puoi chiudere questa pagina, ti avviso io quando è pronto.</p>
       </div>
@@ -118,17 +130,23 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
   if (trailer) {
     const tier = TIERS.find(t => t.key === trailer.tier) || TIERS[0];
     const Icon = tier.icon;
-    const canUpgrade = tierOrder[trailer.tier] < 2;
+    // Can upgrade if current tier isn't maxed AND mode matches
+    const sameMode = (trailer.mode || 'pre_launch') === mode;
+    const canUpgrade = sameMode && tierOrder[trailer.tier] < 2;
+    const trailerIsHighlights = (trailer.mode || 'pre_launch') === 'highlights';
     return (
       <>
-        <div className="rounded-2xl border border-yellow-500/25 bg-gradient-to-br from-[#1a1515] to-[#0d0d10] p-4" data-testid="trailer-generator-card">
+        <div className={`rounded-2xl border ${modeMeta.border} bg-gradient-to-br ${modeMeta.bg} p-4`} data-testid="trailer-generator-card">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${tier.color} flex items-center justify-center`}>
                 <Icon className="w-4 h-4 text-white" />
               </div>
               <div>
-                <p className="text-[11px] font-bold text-white">Trailer {tier.label}</p>
+                <p className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                  Trailer {tier.label}
+                  {trailerIsHighlights && <span className="text-[7px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold tracking-wider">HIGHLIGHTS</span>}
+                </p>
                 <p className="text-[8px] text-gray-500 uppercase tracking-wide">{trailer.duration_seconds}s · {trailer.frames?.length || 0} frame · {trailer.views_count || 0} viste</p>
               </div>
             </div>
@@ -143,13 +161,32 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
           {canUpgrade && canGenerate && (
             <div className="mt-2 flex gap-1.5">
               {TIERS.filter(t => tierOrder[t.key] > tierOrder[trailer.tier]).map(t => {
-                const delta = t.cost - tier.cost;
+                const delta = effectiveCost(t.cost) - effectiveCost(tier.cost);
                 return (
                   <button key={t.key} onClick={() => handleGenerate(t.key)} className={`flex-1 py-1.5 rounded-lg border ${t.border} bg-white/[0.02] text-[9px] font-bold text-white hover:bg-white/[0.05]`} data-testid={`trailer-upgrade-${t.key}`}>
                     Upgrade → {t.label}<br/><span className="text-yellow-400">{delta > 0 ? `+${delta} cc` : 'GRATIS'}</span>
                   </button>
                 );
               })}
+            </div>
+          )}
+          {/* Offer a different-mode trailer below if available and not already created */}
+          {canGenerate && !sameMode && (
+            <div className={`mt-3 p-2 rounded-lg bg-black/30 border ${modeMeta.border}`}>
+              <p className={`text-[9px] font-bold uppercase tracking-wider ${modeMeta.accentText} mb-1`}>
+                Crea anche un {modeMeta.label}
+              </p>
+              <p className="text-[8px] text-gray-500">{modeMeta.subtitle}</p>
+              <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+                {TIERS.map(t => {
+                  const cost = effectiveCost(t.cost);
+                  return (
+                    <button key={t.key} onClick={() => handleGenerate(t.key)} className={`py-1.5 rounded-lg border ${t.border} bg-gradient-to-br ${t.color} text-[8px] font-bold text-white`}>
+                      {t.label}<br/><span className="opacity-90">{cost === 0 ? 'GRATIS' : `${cost} cc`}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -177,34 +214,51 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
     );
   }
 
+  const ModeIcon = modeMeta.icon;
   return (
-    <div className="rounded-2xl border border-yellow-500/15 bg-gradient-to-br from-[#161619] to-[#0d0d10] p-4" data-testid="trailer-generator-card">
-      <div className="flex items-center gap-2 mb-3">
-        <Film className="w-4 h-4 text-yellow-400" />
-        <p className="text-[12px] font-bold text-yellow-400 uppercase tracking-wider">Trailer AI (opzionale)</p>
+    <div className={`rounded-2xl border ${modeMeta.border} bg-gradient-to-br ${modeMeta.bg} p-4`} data-testid="trailer-generator-card">
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${modeMeta.accent} flex items-center justify-center`}>
+          <ModeIcon className="w-3.5 h-3.5 text-white" />
+        </div>
+        <div>
+          <p className={`text-[12px] font-bold ${modeMeta.accentText} uppercase tracking-wider`}>{modeMeta.label}</p>
+          <p className="text-[8px] text-gray-500">{modeMeta.subtitle}</p>
+        </div>
       </div>
-      <p className="text-[10px] text-gray-500 mb-3">Crea un trailer cinematografico con immagini AI coerenti. Non blocca la pipeline — puoi generarlo adesso o quando vuoi.</p>
+      <p className="text-[10px] text-gray-500 mb-3">
+        {isReleased
+          ? 'Il film è già uscito: non concede hype, ma è perfetto per social e archivio. Costo ridotto del 50%.'
+          : 'Crea un trailer cinematografico con immagini AI coerenti. Non blocca la pipeline.'}
+      </p>
       <div className="grid grid-cols-3 gap-2">
         {TIERS.map(t => {
           const Icon = t.icon;
-          const canAfford = t.cost === 0 || userCredits >= t.cost;
+          const cost = effectiveCost(t.cost);
+          const canAfford = cost === 0 || userCredits >= cost;
           return (
             <button
               key={t.key}
               onClick={() => handleGenerate(t.key)}
               disabled={!canAfford}
-              className={`p-2 rounded-xl border ${t.border} bg-gradient-to-br ${t.color} opacity-${canAfford ? '100' : '40'} text-white flex flex-col items-center gap-1 hover:scale-[1.02] transition-transform disabled:cursor-not-allowed`}
+              className={`p-2 rounded-xl border ${t.border} bg-gradient-to-br ${t.color} ${canAfford ? 'opacity-100' : 'opacity-40'} text-white flex flex-col items-center gap-1 hover:scale-[1.02] transition-transform disabled:cursor-not-allowed`}
               data-testid={`trailer-tier-${t.key}`}>
               <Icon className="w-4 h-4" />
-              <span className="text-[10px] font-black uppercase">{t.label.replace('Trailer ', '')}</span>
+              <span className="text-[10px] font-black uppercase">{t.label}</span>
               <span className="text-[8px] opacity-80">{t.duration}s · {t.frames} frame</span>
-              <span className="text-[9px] font-bold bg-black/30 rounded-full px-2 py-0.5 mt-0.5">{t.cost === 0 ? 'GRATIS' : `${t.cost} cc`}</span>
-              <span className="text-[7px] opacity-70">+{t.hype}% hype</span>
+              <span className="text-[9px] font-bold bg-black/30 rounded-full px-2 py-0.5 mt-0.5">
+                {cost === 0 ? 'GRATIS' : isReleased && t.cost > 0 ? <><span className="line-through opacity-50 mr-1">{t.cost}</span>{cost} cc</> : `${cost} cc`}
+              </span>
+              <span className="text-[7px] opacity-70">{isReleased ? 'post-lancio' : `+${t.hype}% hype`}</span>
             </button>
           );
         })}
       </div>
-      <p className="text-[8px] text-gray-600 mt-2 text-center">Hype bonus applicato solo se il contenuto è ancora in fase Hype/Pre-Rilascio.</p>
+      <p className="text-[8px] text-gray-600 mt-2 text-center">
+        {isReleased
+          ? 'I trailer highlights non influenzano il gameplay: sono solo contenuto cosmetico.'
+          : 'Hype bonus applicato solo se il contenuto è ancora in fase Hype/Pre-Rilascio.'}
+      </p>
     </div>
   );
 }

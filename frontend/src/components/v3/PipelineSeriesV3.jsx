@@ -725,6 +725,7 @@ function SeriesTrailerSection({ project, onRefresh }) {
         contentId={project.id}
         contentTitle={project.title}
         contentGenre={project.genre || ''}
+        contentStatus={project.status || project.pipeline_state || ''}
         api={api}
         userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
         canGenerate={true}

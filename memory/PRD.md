@@ -10,6 +10,16 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Trailer mode: Pre-Launch vs Highlights**
+  - **Backend** (`trailers.py`): endpoint `/trailers/{id}/generate` accetta nuovo query param `mode=pre_launch|highlights`. Mode auto-detect + enforcement:
+    - `pre_launch` bloccato se film già uscito (`is_released`)
+    - `highlights` bloccato se film NON è uscito
+  - **Costo**: mode `highlights` applica sconto 50% sul costo tier (es. Cinematico 10cc → 5cc; PRO 20cc → 10cc; Base rimane gratis).
+  - **Hype boost**: solo mode `pre_launch` concede +hype boost durante fase hype/pre-release. Mode `highlights` è cosmetico, non influenza gameplay.
+  - **DB**: campo `trailer.mode` persistito (default `pre_launch` per back-compat). Upgrade tier funziona solo all'interno dello stesso mode (il che permette di avere 2 trailer coesistenti: 1 pre-launch + 1 highlights).
+  - **Frontend** (`TrailerGeneratorCard.jsx`): auto-switch UI in base a `contentStatus` prop. Pre-Launch = header azzurro + icona TrendingUp + "+hype". Highlights = header oro + icona Trophy + badge "HIGHLIGHTS" sui trailer esistenti + costo con prezzo base barrato (line-through) e prezzo scontato.
+  - **Offer cross-mode**: se esiste già un trailer di mode diverso da quello corrente del film, la card mostra una mini-sezione "Crea anche un {altro tipo}" con i 3 tier al costo effettivo.
+  - Prop `contentStatus` passato da `FilmDetailV3` e `PipelineSeriesV3`.
 - **Feb 2026 — Fix Like "Contenuto non trovato" + Trailer content lookup**
   - **Bug critico Like**: `_find_content` in `likes.py` cercava solo in `films.id` e `tv_series.id`. Falliva per V3 films (film_projects), per `films.film_id` (campo alternativo), per anime_series e per serie con `series_id`. Esteso lookup a tutte le varianti.
   - **Fix identico in `trailers.py`**: stesso problema, stessa soluzione. Ora trailer e like funzionano su TUTTI i contenuti, indipendentemente da stato (pre-release, coming_soon, in_theaters, released, catalogo, serie, anime, V1/V2/V3).

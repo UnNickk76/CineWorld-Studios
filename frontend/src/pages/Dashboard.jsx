@@ -534,7 +534,7 @@ const Dashboard = () => {
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
                     {/* Post-La Prima films awaiting release (dimmed + orange pulsing border) */}
                     {aBreveCinema.map(film => (
-                      <div key={`abreve-${film.film_id}`} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => setSelectedFilmId(film.film_id)} data-testid={`a-breve-cinema-${film.film_id}`}>
+                      <div key={`abreve-${film.film_id}`} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate(`/films/${film.film_id}`)} data-testid={`a-breve-cinema-${film.film_id}`}>
                         <div className="aspect-[2/3] relative rounded-lg overflow-hidden border-2 border-orange-500/70 animate-pulse-border-orange">
                           {film.poster_url ? (
                             <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover opacity-55 grayscale-[30%] group-hover:scale-105 active:scale-110 transition-transform" loading="lazy"
@@ -553,7 +553,7 @@ const Dashboard = () => {
                       </div>
                     ))}
                     {recentReleases.slice(0, 10).map(film => (
-                      <div key={film.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => setSelectedFilmId(film.id)} data-testid={`recent-film-${film.id}`}>
+                      <div key={film.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate(`/films/${film.id}`)} data-testid={`recent-film-${film.id}`}>
                         <div className={`aspect-[2/3] relative rounded-lg overflow-hidden ${film.status === 'in_theaters' ? 'border-2 border-emerald-500/50' : ''}`} style={{ boxShadow: film.status === 'premiere_live' ? '0 0 8px rgba(212,175,55,0.3)' : film.status === 'in_theaters' ? '0 0 8px rgba(80,220,110,0.35)' : 'none' }}>
                           <MasterpieceBadge isMasterpiece={film.is_masterpiece} size="xs" />
                           <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 active:scale-110 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />

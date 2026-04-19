@@ -10,6 +10,35 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — PStar System: classifica La Prima + premi giornalieri/settimanali + bonus AI**
+  - **Nuovo valore PStar 0.0-100.0** calcolato dopo ogni La Prima conclusa. Formula in `backend/la_prima_scoring.py`:
+    - Qualita CWSv (x2) → 0-20
+    - Hype accumulato (/5) → 0-20
+    - Affluenza (spectators/target x20) → 0-20
+    - Personalita Citta (weight x20 se genre match, x8 parziale, x5 fallback) → 0-20
+    - Guadagni log10(x2.2) → 0-20
+    - 6 tier: legendary (85+), brilliant (70+), great (55+), good (40+), ok (25+), weak (0+)
+  - **Eventi con premi**: nuovo endpoint router `routes/la_prima_events.py`:
+    - `GET /events/la-prima/daily` → top 10 della giornata con prize distribution
+    - `GET /events/la-prima/weekly` → top 10 ISO week corrente
+    - `GET /events/la-prima/my-history` → storico personale + veteran badge check
+    - `GET /events/la-prima/film/{id}/pstar` → score persistito o compute on-the-fly
+    - `GET /events/la-prima/formula` → explainer per UI
+  - **Premi giornalieri** (top 10): 1° $3M+10cp · 2° $2M+7cp · 3° $1.5M+5cp · scalati fino a 10° $100K+1cp
+  - **Premi settimanali**: 1° $10M+30cp · 2° $6M+20cp · 3° $4M+15cp · scalati fino a 10° $300K+2cp
+  - **Scheduler** (`scheduler_la_prima_events.py`):
+    - Ogni 15min: scan premiere concluse, compute PStar entry, auto-recensione critico (5 critici), cinegiornale auto-articolo
+    - Ogni 30min: random "live reactions" durante le 24h (standing ovation, applausi, fischi) con hype +/-
+    - Daily 00:05 UTC: payout top 10 giornaliera + notifiche
+    - Weekly Mon 00:10 UTC: payout top 10 settimanale + **badge Veterano La Prima** auto-unlock a 5+ premiere (+150 fama)
+  - **Premi CUMULATIVI**: oltre ai guadagni da distribuzione cinema, non al posto
+  - **Frontend**:
+    - `pages/LaPrimaEvents.jsx` — pagina dedicata con 2 tab (Giornaliera/Settimanale), explainer formula, history utente, veteran badge display
+    - `components/PStarBanner.jsx` — banner oro animato (shine sweep 3.8s) nel popup film sotto "IN SALA...". Mostra città + cinema + spettatori + score se disponibile. Click → dialog "Resoconto La Prima" con `PStarScoreCard` (breakdown 5 ingredienti con barre) + link a pagina eventi
+    - Route `/events/la-prima` protetta
+    - LaPrimaSection dashboard: tasto "Classifiche & premi" che naviga alla pagina eventi
+  - **Fix bug popup duplicato**: Dashboard recentReleases + aBreveCinema ora navigano a `/films/{id}` (ContentTemplate unificato) invece di aprire il vecchio `FilmDetailV3`.
+  - **Andamento con icona trend**: sostituito "OTTIMO ANDAMENTO" con chip colorato `▲ +12% Ottimo` (verde up) / `▼ -8% In calo` (rosso down) / `■ 0% Stabile` (grigio flat).
 - **Feb 2026 — La Prima + "A Breve Cinema" indipendenti dal pipeline_state**
   - **Bug fix critico (Fase A)**: il film in fase pre/live La Prima spariva dalla sezione "LA PRIMA" della dashboard appena il player avanzava allo step distribution/release_pending. Ora la query `/la-prima/active` filtra per `release_type='premiere'` + `premiere.datetime` window, **indipendentemente dal pipeline_state** (escludendo solo `released` e `discarded`).
   - **Nuovo endpoint (Fase B)**: `GET /api/la-prima/coming-to-cinemas` ritorna i film V3 nella finestra "in attesa uscita cinema":

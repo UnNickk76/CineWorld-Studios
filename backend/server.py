@@ -118,6 +118,7 @@ from routes.emerging_screenplays import router as emerging_screenplays_router
 from routes.emerging_screenplays import expire_old_screenplays
 from routes.sponsors import router as sponsors_router, initialize_sponsors as _init_sponsors
 from routes.la_prima import router as la_prima_router
+from routes.la_prima_events import router as la_prima_events_router
 from routes.deletion import router as deletion_router
 from routes.maintenance import router as maintenance_router
 from routes.city_dynamics import router as city_dynamics_router
@@ -7510,6 +7511,31 @@ async def startup_event():
         id='la_prima_buildup',
         replace_existing=True
     )
+
+    # La Prima Events (PStar): imports done lazily to avoid startup failures
+    try:
+        from scheduler_la_prima_events import (
+            process_la_prima_ended_films, process_live_reactions, payout_daily, payout_weekly
+        )
+        scheduler.add_job(
+            process_la_prima_ended_films, IntervalTrigger(minutes=15),
+            id='la_prima_pstar_compute', replace_existing=True
+        )
+        scheduler.add_job(
+            process_live_reactions, IntervalTrigger(minutes=30),
+            id='la_prima_live_reactions', replace_existing=True
+        )
+        scheduler.add_job(
+            payout_daily, CronTrigger(hour=0, minute=5),
+            id='la_prima_daily_payout', replace_existing=True
+        )
+        scheduler.add_job(
+            payout_weekly, CronTrigger(day_of_week='mon', hour=0, minute=10),
+            id='la_prima_weekly_payout', replace_existing=True
+        )
+        logger.info("[PSTAR] Scheduler jobs registered")
+    except Exception as e:
+        logger.error(f"[PSTAR] scheduler init failed: {e}")
     
     # Every 30 min: Auto-cleanup corrupted projects
     scheduler.add_job(
@@ -10132,6 +10158,7 @@ app.include_router(major_router, prefix="/api")
 app.include_router(emerging_screenplays_router, prefix="/api")
 app.include_router(sponsors_router, prefix="/api")
 app.include_router(la_prima_router, prefix="/api")
+app.include_router(la_prima_events_router, prefix="/api")
 app.include_router(deletion_router, prefix="/api")
 from routes.recovery import router as recovery_router
 app.include_router(recovery_router)

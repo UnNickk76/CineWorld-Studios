@@ -92,6 +92,13 @@ export function LaPrimaSection({ compact = false }) {
             <Badge className="bg-cyan-500/20 text-cyan-300 text-[9px] h-4">IN ARRIVO</Badge>
           )}
         </h3>
+        <button
+          onClick={() => navigate('/events/la-prima')}
+          className="flex items-center gap-1 text-[9px] px-2 py-1 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-300 font-bold hover:bg-yellow-500/25 transition-colors"
+          data-testid="la-prima-events-link">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+          Classifica &amp; premi
+        </button>
         <Button
           variant="ghost"
           size="sm"

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import LikeButton, { SystemLikeBadge, PreReleaseSnapshotBadge } from './LikeButton';
 import TrailerPlayerModal from './TrailerPlayerModal';
+import PStarBanner from './PStarBanner';
 import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
@@ -716,14 +717,24 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
               <span>{cinemaDays}g</span>
               <span className="ct2-cinema-bar-sep">·</span>
               <span>{cinemaRemain}g rimasti</span>
-              {cinemaPerf && (
-                <>
-                  <span className="ct2-cinema-bar-sep">·</span>
-                  <span className={`ct2-cinema-bar-perf ct2-perf-label-${cinemaPerf}`}>
-                    {({great:'Successone', good:'Ottimo andamento', ok:'Stabile', declining:'In calo', bad:'Affluenza scarsa', flop:'FLOP'})[cinemaPerf] || cinemaPerf}
-                  </span>
-                </>
-              )}
+              {cinemaPerf && (() => {
+                const trendUp = ['great', 'good'].includes(cinemaPerf);
+                const trendDown = ['bad', 'flop', 'declining'].includes(cinemaPerf);
+                const trendDelta = film.theater_stats?.trend_delta_pct
+                  ?? (cinemaPerf === 'great' ? 18 : cinemaPerf === 'good' ? 9 : cinemaPerf === 'declining' ? -7 : cinemaPerf === 'bad' ? -15 : cinemaPerf === 'flop' ? -30 : 0);
+                return (
+                  <>
+                    <span className="ct2-cinema-bar-sep">·</span>
+                    <span className={`ct2-cinema-bar-trend ct2-trend-${trendUp ? 'up' : trendDown ? 'down' : 'flat'}`}>
+                      <span className="ct2-trend-icon">{trendUp ? '▲' : trendDown ? '▼' : '■'}</span>
+                      <span className="ct2-trend-delta">{trendDelta >= 0 ? '+' : ''}{trendDelta}%</span>
+                      <span className="ct2-trend-label">
+                        {({great:'Successone', good:'Ottimo', ok:'Stabile', declining:'In calo', bad:'Scarso', flop:'FLOP'})[cinemaPerf]}
+                      </span>
+                    </span>
+                  </>
+                );
+              })()}
             </div>
             {(() => {
               // Hint di prolungamento negli ultimi 3-4 giorni se performance buona
@@ -747,6 +758,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </div>
         )}
       </div>
+      <PStarBanner film={film} />
 
       {/* 6. JOURNALIST REVIEWS (green boxes) */}
       <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>

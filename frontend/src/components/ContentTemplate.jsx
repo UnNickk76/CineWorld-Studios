@@ -566,7 +566,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           )}
           {/* Likes overlay on poster */}
           <div className="absolute left-2 bottom-2 flex items-center gap-1" data-testid="poster-like-real">
-            <LikeButton contentId={filmId} context="poster" api={api} count={likes.poster?.count || 0} liked={likes.poster?.liked_by_me || false} disabled={isOwner} onChange={s => setLikes(prev => ({ ...prev, poster: { ...prev.poster, ...s } }))} variant="chip" />
+            <LikeButton contentId={filmId} context="poster" api={api} count={likes.poster?.count || 0} liked={likes.poster?.liked_by_me || false} disabled={isOwner} onChange={s => setLikes(prev => ({ ...prev, poster: { ...prev.poster, count: s.count, liked_by_me: s.liked, system_count: s.system_count ?? prev.poster?.system_count } }))} variant="chip" />
             <PreReleaseSnapshotBadge snapshot={likesSnapshot} context="poster" />
           </div>
           <div className="absolute right-2 bottom-2" data-testid="poster-like-system">
@@ -706,7 +706,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         {/* Likes row sceneggiatura */}
         <div className="flex items-center justify-between px-2 pt-2" data-testid="screenplay-likes-row">
           <div className="flex items-center gap-1">
-            <LikeButton contentId={filmId} context="screenplay" api={api} count={likes.screenplay?.count || 0} liked={likes.screenplay?.liked_by_me || false} disabled={isOwner} onChange={s => setLikes(prev => ({ ...prev, screenplay: { ...prev.screenplay, ...s } }))} variant="chip" />
+            <LikeButton contentId={filmId} context="screenplay" api={api} count={likes.screenplay?.count || 0} liked={likes.screenplay?.liked_by_me || false} disabled={isOwner} onChange={s => setLikes(prev => ({ ...prev, screenplay: { ...prev.screenplay, count: s.count, liked_by_me: s.liked, system_count: s.system_count ?? prev.screenplay?.system_count } }))} variant="chip" />
             <PreReleaseSnapshotBadge snapshot={likesSnapshot} context="screenplay" />
           </div>
           <SystemLikeBadge count={likes.screenplay?.system_count || 0} variant="chip" />
@@ -729,7 +729,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </button>
           <div className="flex items-center justify-between px-2 pt-2" data-testid="trailer-likes-row">
             <div className="flex items-center gap-1">
-              <LikeButton contentId={filmId} context="trailer" api={api} count={likes.trailer?.count || 0} liked={likes.trailer?.liked_by_me || false} disabled={isOwner} onChange={s => setLikes(prev => ({ ...prev, trailer: { ...prev.trailer, ...s } }))} variant="chip" />
+              <LikeButton contentId={filmId} context="trailer" api={api} count={likes.trailer?.count || 0} liked={likes.trailer?.liked_by_me || false} disabled={isOwner} onChange={s => setLikes(prev => ({ ...prev, trailer: { ...prev.trailer, count: s.count, liked_by_me: s.liked, system_count: s.system_count ?? prev.trailer?.system_count } }))} variant="chip" />
               <PreReleaseSnapshotBadge snapshot={likesSnapshot} context="trailer" />
             </div>
             <SystemLikeBadge count={likes.trailer?.system_count || 0} variant="chip" />

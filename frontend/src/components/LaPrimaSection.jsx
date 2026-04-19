@@ -114,10 +114,10 @@ export function LaPrimaSection({ compact = false }) {
           return (
           <div
             key={ev.film_id}
-            className={`flex-shrink-0 w-[100px] rounded-lg bg-[#0E0E10] border transition-all cursor-pointer overflow-hidden ${
-              isWaiting ? 'border-cyan-500/30 hover:border-cyan-500/50' : 'border-amber-500/20 hover:border-amber-500/40'
+            className={`flex-shrink-0 w-[100px] rounded-lg bg-[#0E0E10] border-2 transition-all cursor-pointer overflow-hidden ${
+              isWaiting ? 'animate-pulse-border-cyan' : 'border-amber-500/20 hover:border-amber-500/40'
             }`}
-            style={{ boxShadow: isWaiting ? '0 0 10px rgba(96,205,255,0.12)' : '0 0 12px rgba(212,175,55,0.12)' }}
+            style={{ boxShadow: isWaiting ? undefined : '0 0 12px rgba(212,175,55,0.12)' }}
             onClick={() => navigate(`/films/${ev.film_id}`)}
             data-testid={`la-prima-event-${ev.film_id}`}
           >

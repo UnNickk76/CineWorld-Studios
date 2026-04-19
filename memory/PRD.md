@@ -10,6 +10,21 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — La Prima + "A Breve Cinema" indipendenti dal pipeline_state**
+  - **Bug fix critico (Fase A)**: il film in fase pre/live La Prima spariva dalla sezione "LA PRIMA" della dashboard appena il player avanzava allo step distribution/release_pending. Ora la query `/la-prima/active` filtra per `release_type='premiere'` + `premiere.datetime` window, **indipendentemente dal pipeline_state** (escludendo solo `released` e `discarded`).
+  - **Nuovo endpoint (Fase B)**: `GET /api/la-prima/coming-to-cinemas` ritorna i film V3 nella finestra "in attesa uscita cinema":
+    - premiere confermata + `now > premiere.datetime + 24h` + `distribution_confirmed=true` + non ancora released
+    - oppure `release_type='direct'` + `distribution_confirmed=true` + non ancora released
+    - Computa `a_breve_scope` con personality matching:
+      - `distribution_mondiale=true` → "MONDO"
+      - altrimenti: cross-match genre del film con `preferred_genres` delle city selezionate (usa `PREMIERE_CITIES` weights) e restituisce la citta' con score + weight piu' alto
+      - tiebreaker: prima city/nation in ordine di lista; fallback a continente o "MONDO"
+  - **Dashboard integration** (`Dashboard.jsx`): nuovo state `aBreveCinema`, fetch al load, pre-pende i film oscurati alla sezione "ULTIMI FILM AL CINEMA" con stile dimmed (opacity 55%, grayscale 30%) + overlay dark gradient + label "A BREVE {scope}" centrato.
+  - **Bordi animati pulsanti** per fase (CSS in `content-template.css`):
+    - Pre-La Prima waiting → `.animate-pulse-border-cyan` ciano (LaPrimaSection)
+    - Post-La Prima "A BREVE" → `.animate-pulse-border-orange` arancione (Dashboard ultimi film)
+    - AL CINEMA reale → bordo verde statico emerald-500/50 (recent releases con status in_theaters)
+  - Film mai duplicati: le 3 fasi sono mutuamente esclusive per design.
 - **Feb 2026 — Pre-La Prima in Sezione dedicata + Best Highlights Leaderboard**
   - **Task A (nuovo requisito utente)**: film in fase pre-La Prima (setup fatto, datetime futuro) ora sono visibili ANCHE nella sezione "La Prima" della dashboard, in aggiunta alla Prossimamente.
     - Backend `/la-prima/active` (in `la_prima.py`): aggiunge query separata per i film V3 in `pipeline_state='la_prima'` con `premiere.datetime > now`. Ogni evento ritorna `is_waiting: bool`, `countdown_to_start: "Xh Ym"` e `premiere_datetime`.

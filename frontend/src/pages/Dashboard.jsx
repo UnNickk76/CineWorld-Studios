@@ -129,6 +129,7 @@ const Dashboard = () => {
 
   // Data from batch
   const [recentReleases, setRecentReleases] = useState([]);
+  const [aBreveCinema, setABreveCinema] = useState([]);
   const [selectedFilmId, setSelectedFilmId] = useState(null);
   const [mySeries, setMySeries] = useState([]);
   const [myAnime, setMyAnime] = useState([]);
@@ -194,6 +195,13 @@ const Dashboard = () => {
     api.get('/pipeline-v3/recent-releases').then(r => {
       if (r.data?.items?.length) setRecentReleases(r.data.items);
     }).catch(() => {});
+  }, [api]);
+
+  // Load "a breve cinema" films (post La Prima, distribuzione confermata, non ancora rilasciati)
+  useEffect(() => {
+    api.get('/la-prima/coming-to-cinemas').then(r => {
+      setABreveCinema(r.data?.items || []);
+    }).catch(() => setABreveCinema([]));
   }, [api]);
 
   useEffect(() => {
@@ -522,11 +530,31 @@ const Dashboard = () => {
                     CineBoard <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
                   </Button>
                 </div>
-                {recentReleases.length > 0 ? (
+                {(aBreveCinema.length > 0 || recentReleases.length > 0) ? (
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
+                    {/* Post-La Prima films awaiting release (dimmed + orange pulsing border) */}
+                    {aBreveCinema.map(film => (
+                      <div key={`abreve-${film.film_id}`} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => setSelectedFilmId(film.film_id)} data-testid={`a-breve-cinema-${film.film_id}`}>
+                        <div className="aspect-[2/3] relative rounded-lg overflow-hidden border-2 border-orange-500/70 animate-pulse-border-orange">
+                          {film.poster_url ? (
+                            <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover opacity-55 grayscale-[30%] group-hover:scale-105 active:scale-110 transition-transform" loading="lazy"
+                              onError={(e) => { e.target.style.display = 'none'; }} />
+                          ) : (
+                            <div className="w-full h-full bg-black" />
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/85" />
+                          <div className="absolute inset-0 flex flex-col items-center justify-center px-1 text-center">
+                            <p className="text-[6px] font-bold text-orange-300 tracking-wider uppercase">A breve</p>
+                            <p className="text-[7px] font-black text-orange-200 truncate uppercase w-full leading-tight mt-0.5">{film.a_breve_scope}</p>
+                          </div>
+                        </div>
+                        <p className="text-[7px] font-semibold truncate mt-0.5 text-gray-300">{film.title}</p>
+                        <p className="text-[6px] text-gray-500 truncate">{film.owner_nickname}</p>
+                      </div>
+                    ))}
                     {recentReleases.slice(0, 10).map(film => (
                       <div key={film.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => setSelectedFilmId(film.id)} data-testid={`recent-film-${film.id}`}>
-                        <div className="aspect-[2/3] relative rounded-lg overflow-hidden" style={{ boxShadow: film.status === 'premiere_live' ? '0 0 8px rgba(212,175,55,0.3)' : film.status === 'in_theaters' ? '0 0 6px rgba(80,160,80,0.2)' : 'none' }}>
+                        <div className={`aspect-[2/3] relative rounded-lg overflow-hidden ${film.status === 'in_theaters' ? 'border-2 border-emerald-500/50' : ''}`} style={{ boxShadow: film.status === 'premiere_live' ? '0 0 8px rgba(212,175,55,0.3)' : film.status === 'in_theaters' ? '0 0 8px rgba(80,220,110,0.35)' : 'none' }}>
                           <MasterpieceBadge isMasterpiece={film.is_masterpiece} size="xs" />
                           <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 active:scale-110 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
                           {/* Status badge — LIVE pulse for in_theaters */}

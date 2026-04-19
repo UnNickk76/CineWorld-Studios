@@ -663,10 +663,13 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
                     pass
             elif project.get("finalcut_started_at"):
                 raise HTTPException(400, "Il montaggio e in corso. Attendi il completamento.")
-        # La Prima timer must be 100% if premiere chosen
-        if current == "la_prima" and project.get("release_type") == "premiere":
-            if (project.get("prima_progress", 0) or 0) < 100:
-                raise HTTPException(400, "La Prima non e ancora conclusa. Attendi o velocizza.")
+        # La Prima: must have chosen release_type (premiere or direct)
+        if current == "la_prima":
+            if not project.get("release_type"):
+                raise HTTPException(400, "Devi scegliere se fare La Prima o rilascio Diretto prima di continuare.")
+            if project.get("release_type") == "premiere":
+                if (project.get("prima_progress", 0) or 0) < 100:
+                    raise HTTPException(400, "La Prima non e ancora conclusa. Attendi o velocizza.")
 
     update = {**defaults, "pipeline_state": req.next_state}
     # Track max step ever reached (prevents getting stuck when going back)

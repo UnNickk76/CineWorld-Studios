@@ -208,23 +208,68 @@ const fmtMoney = (n) => {
 };
 
 // === STATUS MAPPING ===
+// Returns { label, cls } for the top status bar. Covers all V3 pipeline phases,
+// legacy statuses and series/anime TV broadcast state. `cls` maps to animated
+// glow variants defined in content-template.css.
 function getStatusInfo(film, contentType) {
   const s = (film?.status || '').toLowerCase();
+  const ps = (film?.pipeline_state || '').toLowerCase();
   const cinemas = film?.current_cinemas || 0;
   const onTv = film?.on_tv || film?.tv_broadcast || false;
+  const isSeriesLike = contentType === 'series' || contentType === 'anime' || film?.type === 'tv_series' || film?.type === 'anime';
 
-  if (s.includes('prima') || s === 'premiere_live' || s === 'premiere_setup') {
-    return { label: 'LaPrima!', cls: 'ct2-status-laprima' };
+  // 1) AL CINEMA / IN TV — release state (highest priority for released content)
+  if (cinemas > 0 || s === 'in_theaters') {
+    return { label: isSeriesLike ? 'In TV' : 'Al Cinema', cls: isSeriesLike ? 'ct2-status-ontv' : 'ct2-status-cinema' };
   }
+  if (onTv) {
+    return { label: 'In TV', cls: 'ct2-status-ontv' };
+  }
+
+  // 2) LA PRIMA (either V3 pipeline phase, legacy status, or premiere flags)
+  if (ps === 'la_prima' || ps === 'premiere_live' || ps === 'premiere_setup' ||
+      s.includes('prima') || s === 'premiere_live' || s === 'premiere_setup') {
+    return { label: 'La Prima', cls: 'ct2-status-laprima' };
+  }
+
+  // 3) V3 pipeline phases (takes priority when present)
+  const V3_PHASE = {
+    idea: { label: 'Sceneggiatura', cls: 'ct2-status-screenplay' },
+    hype: { label: 'Hype', cls: 'ct2-status-hype' },
+    cast: { label: 'Casting', cls: 'ct2-status-cast' },
+    prep: { label: 'Pre-Produzione', cls: 'ct2-status-prep' },
+    ciak: { label: 'Riprese', cls: 'ct2-status-shooting' },
+    finalcut: { label: 'Final Cut', cls: 'ct2-status-finalcut' },
+    marketing: { label: 'Marketing', cls: 'ct2-status-marketing' },
+    distribution: { label: 'Distribuzione', cls: 'ct2-status-distribution' },
+    release_pending: { label: 'In Uscita', cls: 'ct2-status-coming' },
+  };
+  if (V3_PHASE[ps]) return V3_PHASE[ps];
+
+  // 4) Legacy statuses
   if (s === 'coming_soon' || s === 'pending_release' || s === 'release_pending' || s.includes('hype')) {
     return { label: 'Prossimamente', cls: 'ct2-status-coming' };
   }
-  if (cinemas > 0 || s === 'in_theaters') {
-    return { label: 'Al Cinema', cls: 'ct2-status-cinema' };
+  if (s === 'shooting' || s === 'in_production' || s === 'production') {
+    return { label: 'Riprese', cls: 'ct2-status-shooting' };
   }
-  if (onTv) {
-    return { label: 'In TV!', cls: 'ct2-status-tv' };
+  if (s === 'casting' || s === 'ready_for_casting') {
+    return { label: 'Casting', cls: 'ct2-status-cast' };
   }
+  if (s === 'screenplay' || s === 'draft' || s === 'proposed' || s === 'concept' || s === 'idea') {
+    return { label: 'Sceneggiatura', cls: 'ct2-status-screenplay' };
+  }
+  if (s === 'pre_production' || s === 'prep') {
+    return { label: 'Pre-Produzione', cls: 'ct2-status-prep' };
+  }
+  if (s === 'post_production' || s === 'completed' || s === 'ready_to_release') {
+    return { label: 'Post-Produzione', cls: 'ct2-status-finalcut' };
+  }
+  if (s === 'remastering') {
+    return { label: 'In Remastering', cls: 'ct2-status-finalcut' };
+  }
+
+  // 5) Fallback: released / in catalogo
   return { label: 'In Catalogo', cls: 'ct2-status-catalogo' };
 }
 
@@ -547,7 +592,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       {/* 1. STATUS BAR */}
       <div className={`ct2-status-bar ${statusInfo.cls}`} data-testid="ct-status-bar">
         <span className="ct2-status-label">{statusInfo.label}</span>
-        {statusInfo.label === 'LaPrima!' && (
+        {statusInfo.cls === 'ct2-status-laprima' && (
           <div className="ct2-laprima-progress">
             <div className="ct2-laprima-bar">
               <div className="ct2-laprima-fill" style={{ width: `${Math.min(100, Math.max(5, (film.spectators_total || film.cumulative_attendance || 0) / Math.max(1, film.target_spectators || 5000) * 100))}%` }} />

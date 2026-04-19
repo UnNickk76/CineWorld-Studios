@@ -212,6 +212,47 @@ async def get_likes(content_id: str, context: str = Query("all"), user: dict = D
     return {"likes": results, "snapshot": snapshot}
 
 
+@router.get("/content/{content_id}/likes/recent")
+async def get_recent_likes(content_id: str, context: str = Query("poster"), limit: int = Query(20, ge=1, le=50), user: dict = Depends(_dep())):
+    """Return the latest N likers with avatar + nickname + timestamp for a given context."""
+    if context not in VALID_CONTEXTS:
+        raise HTTPException(400, "Context non valido")
+    content, _ = await _find_content(content_id)
+    if not content:
+        raise HTTPException(404, "Contenuto non trovato")
+
+    cursor = db.content_likes.find(
+        {"content_id": content_id, "context": context},
+        {"_id": 0, "user_id": 1, "nickname": 1, "created_at": 1}
+    ).sort("created_at", -1).limit(limit)
+    rows = await cursor.to_list(limit)
+    if not rows:
+        return {"likers": [], "total": 0}
+
+    user_ids = list({r["user_id"] for r in rows if r.get("user_id")})
+    users = {}
+    if user_ids:
+        async for u in db.users.find(
+            {"id": {"$in": user_ids}},
+            {"_id": 0, "id": 1, "nickname": 1, "avatar_url": 1, "production_house_name": 1}
+        ):
+            users[u["id"]] = u
+
+    likers = []
+    for r in rows:
+        u = users.get(r.get("user_id"), {})
+        likers.append({
+            "user_id": r.get("user_id"),
+            "nickname": u.get("nickname") or r.get("nickname") or "?",
+            "avatar_url": u.get("avatar_url"),
+            "studio": u.get("production_house_name"),
+            "created_at": r.get("created_at"),
+        })
+
+    total = await db.content_likes.count_documents({"content_id": content_id, "context": context})
+    return {"likers": likers, "total": total}
+
+
 @router.get("/featured/trailers")
 async def featured_trailers(user: dict = Depends(_dep())):
     """Return Cinematico+PRO trailers with active trending_boost_until (last 72h)."""

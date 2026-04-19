@@ -87,6 +87,7 @@
    1. STATUS BAR
    ═══════════════════════════════════ */
 .ct2-status-bar {
+  position: relative;
   width: 100%;
   padding: 10px 16px;
   text-align: center;
@@ -94,40 +95,126 @@
   font-size: 15px;
   letter-spacing: 2.5px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  animation: ct2-glowPulse 3s ease-in-out infinite;
+  animation: ct2-glowPulse 2.4s ease-in-out infinite;
+  overflow: hidden;
 }
+.ct2-status-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 14px var(--glow-color), 0 0 14px var(--glow-color);
+  opacity: 0.9;
+  animation: ct2-status-border-pulse 2.2s ease-in-out infinite;
+}
+@keyframes ct2-status-border-pulse {
+  0%, 100% { opacity: 0.45; box-shadow: inset 0 0 10px var(--glow-color), 0 0 8px var(--glow-color); }
+  50% { opacity: 1; box-shadow: inset 0 0 22px var(--glow-color), 0 0 22px var(--glow-color); }
+}
+/* LA PRIMA — oro animato */
 .ct2-status-laprima {
-  --glow-color: rgba(212, 175, 55, 0.4);
-  background: linear-gradient(135deg, rgba(120, 80, 0, 0.3) 0%, rgba(60, 40, 0, 0.15) 100%);
-  color: #f0d060;
-  border-bottom-color: rgba(212, 175, 55, 0.25);
+  --glow-color: rgba(240, 208, 96, 0.75);
+  background: linear-gradient(135deg, rgba(120, 80, 0, 0.35) 0%, rgba(60, 40, 0, 0.2) 100%);
+  color: #f6dd7a;
+  border-bottom-color: rgba(240, 208, 96, 0.4);
+}
+/* HYPE / Prossimamente — azzurro animato */
+.ct2-status-hype {
+  --glow-color: rgba(96, 205, 255, 0.7);
+  background: linear-gradient(135deg, rgba(10, 60, 110, 0.35) 0%, rgba(5, 30, 60, 0.18) 100%);
+  color: #7ed8ff;
+  border-bottom-color: rgba(96, 205, 255, 0.35);
 }
 .ct2-status-coming {
-  --glow-color: rgba(180, 140, 60, 0.2);
-  background: linear-gradient(135deg, rgba(80, 60, 10, 0.25) 0%, rgba(40, 30, 5, 0.1) 100%);
-  color: #d4af37;
-  border-bottom-color: rgba(212, 175, 55, 0.12);
+  --glow-color: rgba(96, 205, 255, 0.55);
+  background: linear-gradient(135deg, rgba(10, 50, 90, 0.3) 0%, rgba(5, 20, 50, 0.15) 100%);
+  color: #8ad8ff;
+  border-bottom-color: rgba(96, 205, 255, 0.25);
 }
+/* AL CINEMA — verde animato */
 .ct2-status-cinema {
-  --glow-color: rgba(80, 180, 80, 0.2);
-  background: linear-gradient(135deg, rgba(10, 60, 30, 0.25) 0%, rgba(5, 30, 15, 0.1) 100%);
-  color: #60c070;
-  border-bottom-color: rgba(80, 180, 80, 0.15);
+  --glow-color: rgba(96, 220, 110, 0.7);
+  background: linear-gradient(135deg, rgba(10, 80, 40, 0.35) 0%, rgba(5, 40, 20, 0.18) 100%);
+  color: #7be090;
+  border-bottom-color: rgba(96, 220, 110, 0.35);
+}
+/* IN TV — azzurro/indaco animato */
+.ct2-status-ontv {
+  --glow-color: rgba(110, 150, 255, 0.7);
+  background: linear-gradient(135deg, rgba(20, 30, 110, 0.35) 0%, rgba(10, 15, 60, 0.18) 100%);
+  color: #9db6ff;
+  border-bottom-color: rgba(110, 150, 255, 0.35);
 }
 .ct2-status-tv {
-  --glow-color: rgba(80, 144, 224, 0.2);
-  background: linear-gradient(135deg, rgba(10, 30, 80, 0.25) 0%, rgba(5, 15, 40, 0.1) 100%);
-  color: #5090e0;
-  border-bottom-color: rgba(80, 144, 224, 0.15);
+  --glow-color: rgba(80, 144, 224, 0.6);
+  background: linear-gradient(135deg, rgba(10, 30, 80, 0.3) 0%, rgba(5, 15, 40, 0.15) 100%);
+  color: #8fb6e6;
+  border-bottom-color: rgba(80, 144, 224, 0.25);
 }
+/* FINAL CUT — arancione animato */
+.ct2-status-finalcut {
+  --glow-color: rgba(255, 156, 72, 0.75);
+  background: linear-gradient(135deg, rgba(110, 55, 10, 0.35) 0%, rgba(60, 25, 5, 0.18) 100%);
+  color: #ffb77a;
+  border-bottom-color: rgba(255, 156, 72, 0.4);
+}
+/* RIPRESE (CIAK) — rosso animato */
+.ct2-status-shooting {
+  --glow-color: rgba(255, 80, 80, 0.7);
+  background: linear-gradient(135deg, rgba(110, 15, 15, 0.35) 0%, rgba(60, 8, 8, 0.18) 100%);
+  color: #ff8a8a;
+  border-bottom-color: rgba(255, 80, 80, 0.35);
+}
+/* PRE-PRODUZIONE — blu chiaro animato */
+.ct2-status-prep {
+  --glow-color: rgba(120, 180, 255, 0.65);
+  background: linear-gradient(135deg, rgba(10, 40, 90, 0.3) 0%, rgba(5, 20, 50, 0.15) 100%);
+  color: #a8c8ff;
+  border-bottom-color: rgba(120, 180, 255, 0.3);
+}
+/* CASTING — giallo animato */
+.ct2-status-cast {
+  --glow-color: rgba(255, 220, 60, 0.7);
+  background: linear-gradient(135deg, rgba(110, 90, 10, 0.3) 0%, rgba(60, 50, 5, 0.15) 100%);
+  color: #ffe275;
+  border-bottom-color: rgba(255, 220, 60, 0.3);
+}
+/* SCENEGGIATURA / IDEA — viola animato */
+.ct2-status-screenplay {
+  --glow-color: rgba(180, 120, 255, 0.7);
+  background: linear-gradient(135deg, rgba(60, 20, 110, 0.3) 0%, rgba(30, 10, 60, 0.15) 100%);
+  color: #c8a6ff;
+  border-bottom-color: rgba(180, 120, 255, 0.3);
+}
+/* MARKETING — verde acqua animato */
+.ct2-status-marketing {
+  --glow-color: rgba(72, 224, 192, 0.7);
+  background: linear-gradient(135deg, rgba(10, 80, 70, 0.3) 0%, rgba(5, 40, 35, 0.15) 100%);
+  color: #7fe6d0;
+  border-bottom-color: rgba(72, 224, 192, 0.3);
+}
+/* DISTRIBUZIONE — blu cielo animato */
+.ct2-status-distribution {
+  --glow-color: rgba(80, 200, 255, 0.7);
+  background: linear-gradient(135deg, rgba(10, 60, 100, 0.3) 0%, rgba(5, 30, 55, 0.15) 100%);
+  color: #9cd9ff;
+  border-bottom-color: rgba(80, 200, 255, 0.3);
+}
+/* IN CATALOGO — neutro, senza glow animato */
 .ct2-status-catalogo {
   --glow-color: rgba(120, 100, 70, 0.15);
   background: linear-gradient(135deg, rgba(40, 30, 15, 0.2) 0%, rgba(20, 15, 8, 0.1) 100%);
   color: var(--text-mid);
   border-bottom-color: rgba(120, 100, 70, 0.1);
+  animation: none;
 }
+.ct2-status-catalogo::before { display: none; }
 .ct2-status-label {
+  position: relative;
+  z-index: 1;
   text-shadow: 0 0 10px var(--glow-color);
+  font-weight: 700;
 }
 .ct2-laprima-progress {
   margin-top: 5px;

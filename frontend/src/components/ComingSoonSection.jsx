@@ -606,6 +606,12 @@ export function ComingSoonSection({ compact = false, filterType, sectionTitle })
         const db = b.scheduled_release_at ? new Date(b.scheduled_release_at) : new Date('2099-01-01');
         return da - db;
       });
+      // Bug fix: exclude items currently in La Prima phase — they belong to the dedicated LaPrimaSection.
+      sorted = sorted.filter(item => {
+        const label = (item.pipeline_status_label || '').toLowerCase();
+        const state = (item.pipeline_state || '').toLowerCase();
+        return label !== 'la prima' && state !== 'la_prima' && state !== 'premiere_live' && state !== 'premiere_setup';
+      });
       if (filterType) {
         sorted = sorted.filter(item => item.content_type === filterType);
       }

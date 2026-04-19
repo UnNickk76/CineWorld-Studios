@@ -209,6 +209,7 @@ export default function PipelineV3() {
       case 'marketing':
         return !!(selected.marketing_completed);
       case 'la_prima': {
+        if (!selected.release_type) return false; // must choose La Prima vs Diretto
         if (selected.release_type === 'premiere') {
           const pp = selected.prima_progress || 0;
           return pp >= 100;

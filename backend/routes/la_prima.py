@@ -739,7 +739,13 @@ async def get_active_la_prima(user: dict = Depends(get_current_user)):
         {'_id': 0}
     ).to_list(50)
 
-    projects = v1_projects + v2_projects
+    # V3 films in la_prima phase with release_type == 'premiere'
+    v3_projects = await db.film_projects.find(
+        {'pipeline_version': 3, 'pipeline_state': 'la_prima', 'release_type': 'premiere'},
+        {'_id': 0}
+    ).to_list(50)
+
+    projects = v1_projects + v2_projects + v3_projects
 
     results = []
     for p in projects:

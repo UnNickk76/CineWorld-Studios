@@ -729,7 +729,6 @@ export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
   const [selectedSponsors, setSelectedSponsors] = useState(film.selected_sponsors?.map(s => s.sponsor_id) || []);
   const [sponsorsConfirmed, setSponsorsConfirmed] = useState(!!film.sponsors_confirmed);
   const [pkgs, setPkgs] = useState(film.marketing_packages || []);
-  const [releaseType, setReleaseType] = useState(film.release_type || 'direct');
   const [loading, setLoading] = useState(false);
   const done = film.marketing_completed;
 
@@ -763,8 +762,7 @@ export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
     setLoading(true);
     try {
       await v3api(`/films/${film.id}/save-marketing`, 'POST', { packages: pkgs });
-      await v3api(`/films/${film.id}/set-release-type`, 'POST', { release_type: releaseType });
-      await onRefresh(); toast?.('Marketing + rilascio confermati!');
+      await onRefresh(); toast?.('Marketing confermato!');
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
@@ -863,25 +861,9 @@ export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
                 <p className="text-[9px] text-green-400 font-bold">Marketing confermato</p>
               </div>
             )}
-            {/* Release type */}
-            <div className="border-t border-gray-800 pt-3 space-y-2">
-              <p className="text-[8px] text-gray-500 uppercase font-bold text-center">Come vuoi rilasciare il film?</p>
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => { setReleaseType('premiere'); onDirty?.(); }}
-                  className={`p-3 rounded-xl border text-center ${releaseType === 'premiere' ? 'bg-yellow-500/15 border-yellow-500/50' : 'bg-gray-800/30 border-gray-700'}`}>
-                  <Award className={`w-5 h-5 mx-auto mb-1 ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-600'}`} />
-                  <p className={`text-[9px] font-bold ${releaseType === 'premiere' ? 'text-yellow-400' : 'text-gray-500'}`}>La Prima</p>
-                </button>
-                <button onClick={() => { setReleaseType('direct'); onDirty?.(); }}
-                  className={`p-3 rounded-xl border text-center ${releaseType === 'direct' ? 'bg-emerald-500/15 border-emerald-500/50' : 'bg-gray-800/30 border-gray-700'}`}>
-                  <Ticket className={`w-5 h-5 mx-auto mb-1 ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-600'}`} />
-                  <p className={`text-[9px] font-bold ${releaseType === 'direct' ? 'text-emerald-400' : 'text-gray-500'}`}>Diretto</p>
-                </button>
-              </div>
-            </div>
             {!done && (
               <button onClick={saveMarketing} disabled={loading} className="w-full text-[9px] py-2 rounded-xl bg-green-500/15 border border-green-500/30 text-green-400 disabled:opacity-30 font-bold">
-                {loading ? '...' : 'Conferma Marketing e Rilascio'}
+                {loading ? '...' : 'Conferma Marketing'}
               </button>
             )}
           </>
@@ -892,11 +874,23 @@ export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
 };
 
 /* ═══════ LA PRIMA ═══════ */
-export const LaPrimaPhase = ({ film, onRefresh, toast }) => {
+export const LaPrimaPhase = ({ film, onRefresh, toast, onDirty }) => {
   const [loading, setLoading] = useState(false);
   const [primaProgress, setPrimaProgress] = useState(film.prima_progress || 0);
   const progressRef = useRef(null);
+  const releaseTypeSet = film.release_type === 'premiere' || film.release_type === 'direct';
   const isPremiere = film.release_type === 'premiere';
+
+  const chooseReleaseType = async (type) => {
+    setLoading(true);
+    try {
+      await v3api(`/films/${film.id}/set-release-type`, 'POST', { release_type: type });
+      await onRefresh();
+      onDirty?.();
+      toast?.(type === 'premiere' ? 'La Prima selezionata!' : 'Rilascio Diretto selezionato');
+    } catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
 
   useEffect(() => {
     if (isPremiere && primaProgress < 100) {
@@ -928,7 +922,28 @@ export const LaPrimaPhase = ({ film, onRefresh, toast }) => {
   return (
     <PhaseWrapper title="La Prima" subtitle="L'evento esclusivo di anteprima" icon={Award} color="yellow">
       <div className="space-y-3">
-        {isPremiere ? (
+        {!releaseTypeSet ? (
+          <div className="space-y-2">
+            <p className="text-[8px] text-gray-500 uppercase font-bold text-center">Come vuoi rilasciare il film?</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => chooseReleaseType('premiere')} disabled={loading}
+                data-testid="choose-la-prima-btn"
+                className="p-3 rounded-xl border text-center bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20 active:scale-95 transition-all disabled:opacity-50">
+                <Award className="w-5 h-5 mx-auto mb-1 text-yellow-400" />
+                <p className="text-[9px] font-bold text-yellow-400">La Prima</p>
+                <p className="text-[7px] text-gray-500 mt-0.5">Evento esclusivo</p>
+              </button>
+              <button onClick={() => chooseReleaseType('direct')} disabled={loading}
+                data-testid="choose-direct-btn"
+                className="p-3 rounded-xl border text-center bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20 active:scale-95 transition-all disabled:opacity-50">
+                <Ticket className="w-5 h-5 mx-auto mb-1 text-emerald-400" />
+                <p className="text-[9px] font-bold text-emerald-400">Diretto</p>
+                <p className="text-[7px] text-gray-500 mt-0.5">Salta La Prima</p>
+              </button>
+            </div>
+            <p className="text-[7px] text-gray-600 text-center mt-1">La scelta non potra' essere modificata</p>
+          </div>
+        ) : isPremiere ? (
           <>
             <div className="p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/15 space-y-2">
               <div className="flex items-center justify-between">

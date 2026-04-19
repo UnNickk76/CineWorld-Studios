@@ -1571,10 +1571,23 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
         <div className="relative p-4 bg-gradient-to-b from-yellow-500/10 to-transparent">
           <button onClick={onClose} className="absolute top-2 right-2 text-gray-500"><X className="w-5 h-5" /></button>
           <div className="flex items-center gap-3">
-            <AvatarWithLogo avatarUrl={avatarSrc} logoUrl={logoSrc} nickname={p.nickname} size="sm" />
+            <button
+              onClick={() => { onClose(); navigate(`/player/${data.userId}/content`); }}
+              className="focus:outline-none hover:scale-105 transition-transform"
+              title="Vai ai contenuti del produttore"
+              data-testid="popup-avatar-studio-link">
+              <AvatarWithLogo avatarUrl={avatarSrc} logoUrl={logoSrc} nickname={p.nickname} size="sm" />
+            </button>
             <div>
               <h3 className="font-['Bebas_Neue'] text-xl text-yellow-400 tracking-wide">{p.nickname}</h3>
-              {p.production_house_name && <p className="text-[10px] text-gray-400">{p.production_house_name}</p>}
+              {p.production_house_name && (
+                <button
+                  onClick={() => { onClose(); navigate(`/player/${data.userId}/content`); }}
+                  className="text-[10px] text-gray-400 hover:text-yellow-400 underline decoration-dotted decoration-gray-600 hover:decoration-yellow-400 transition-colors"
+                  data-testid="popup-studio-link">
+                  {p.production_house_name}
+                </button>
+              )}
               <div className="flex items-center gap-2 mt-0.5">
                 {p.level && <span className="text-[8px] font-bold text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded px-1 py-0.5">LV {p.level}</span>}
                 {p.fame != null && <span className="text-[8px] text-amber-400/70 bg-amber-500/10 border border-amber-500/15 rounded px-1 py-0.5">Fama {p.fame?.toLocaleString()}</span>}

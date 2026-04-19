@@ -663,7 +663,7 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
                     pass
             elif project.get("finalcut_started_at"):
                 raise HTTPException(400, "Il montaggio e in corso. Attendi il completamento.")
-        # La Prima: must have chosen release_type (premiere or direct)
+        # La Prima: must have chosen release_type (premiere or direct) and configured it
         if current == "la_prima":
             if not project.get("release_type"):
                 raise HTTPException(400, "Devi scegliere se fare La Prima o rilascio Diretto prima di continuare.")
@@ -671,16 +671,8 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
                 prem = project.get("premiere") or {}
                 if not prem.get("city") or not prem.get("datetime"):
                     raise HTTPException(400, "Configura citta' e data della La Prima prima di continuare.")
-                # Must have completed the 24h La Prima window
-                try:
-                    pdt = datetime.fromisoformat(str(prem["datetime"]).replace("Z", "+00:00"))
-                    end = pdt + timedelta(hours=24)
-                    if datetime.now(timezone.utc) < end:
-                        raise HTTPException(400, "La Prima e' in corso. Attendi la fine delle 24 ore.")
-                except HTTPException:
-                    raise
-                except Exception:
-                    pass
+                # NOTE: advance to distribution is allowed immediately after setup.
+                # The final release (step 'uscita') enforces the +24h rule separately.
 
     update = {**defaults, "pipeline_state": req.next_state}
     # Track max step ever reached (prevents getting stuck when going back)
@@ -2337,6 +2329,25 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
             "status": "released",
             "quality_score": project.get("quality_score"),
         }
+
+    # If premiere: cannot release until La Prima 24h window has fully elapsed.
+    if project.get("release_type") == "premiere":
+        prem = project.get("premiere") or {}
+        pdt_str = prem.get("datetime")
+        if not pdt_str:
+            raise HTTPException(400, "La Prima non e' configurata.")
+        try:
+            pdt = datetime.fromisoformat(str(pdt_str).replace("Z", "+00:00"))
+            end = pdt + timedelta(hours=24)
+            if datetime.now(timezone.utc) < end:
+                remain = end - datetime.now(timezone.utc)
+                h = int(remain.total_seconds() // 3600)
+                m = int((remain.total_seconds() % 3600) // 60)
+                raise HTTPException(400, f"La Prima e' ancora in corso. Attendi {h}h {m}m prima di rilasciare il film.")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
 
     # Calculate CWSv (CineWorld Studio's voto)
     try:

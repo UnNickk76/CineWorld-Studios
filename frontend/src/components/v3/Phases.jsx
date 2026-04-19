@@ -1464,6 +1464,31 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
   const totalFunds = cost?.total_funds || 0;
   const totalCp = cost?.total_cp || 0;
 
+  // Compute La Prima 24h blocker
+  const premiere = film.premiere || {};
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    if (releaseType !== 'premiere' || !premiere.datetime) return;
+    const i = setInterval(() => setNowTick(Date.now()), 30000);
+    return () => clearInterval(i);
+  }, [releaseType, premiere.datetime]);
+  const laPrimaBlock = (() => {
+    if (releaseType !== 'premiere' || !premiere.datetime) return null;
+    try {
+      const pdt = new Date(premiere.datetime).getTime();
+      const end = pdt + 24 * 3600 * 1000;
+      if (nowTick < pdt) return { state: 'waiting', delta: pdt - nowTick };
+      if (nowTick < end) return { state: 'live', delta: end - nowTick };
+      return null;
+    } catch { return null; }
+  })();
+  const fmtDelta = (ms) => {
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    return h >= 24 ? `${Math.floor(h / 24)}g ${h % 24}h ${m}m` : `${h}h ${m}m`;
+  };
+  const releaseBlocked = !!laPrimaBlock;
+
   return (
     <PhaseWrapper title="STEP FINALE" subtitle="Riepilogo e conferma uscita" icon={Ticket} color="emerald">
       <div className="space-y-3">
@@ -1536,10 +1561,27 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
           </div>
         )}
 
+        {/* La Prima 24h blocker banner */}
+        {laPrimaBlock && (
+          <div className={`p-3 rounded-xl border text-center ${
+            laPrimaBlock.state === 'live' ? 'bg-red-500/10 border-red-500/40' : 'bg-yellow-500/10 border-yellow-500/40'
+          }`} data-testid="la-prima-blocker">
+            <p className={`text-[10px] font-bold uppercase tracking-wider ${laPrimaBlock.state === 'live' ? 'text-red-400' : 'text-yellow-400'}`}>
+              {laPrimaBlock.state === 'live' ? 'La Prima in corso' : 'La Prima in attesa'}
+            </p>
+            <p className={`text-2xl font-black mt-1 ${laPrimaBlock.state === 'live' ? 'text-red-300' : 'text-yellow-300'}`}>
+              {fmtDelta(laPrimaBlock.delta)}
+            </p>
+            <p className="text-[8px] text-gray-500 mt-1">
+              Il rilascio e' bloccato fino alla fine della La Prima a {premiere.city}
+            </p>
+          </div>
+        )}
+
         {/* Confirm Button with cost */}
-        <button onClick={onConfirm} disabled={loading}
-          className="w-full text-sm py-3 rounded-xl bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 font-bold disabled:opacity-50" data-testid="confirm-release-btn">
-          {loading ? '...' : `Confermi spendendo $${totalFunds.toLocaleString()} e ${totalCp}CP?`}
+        <button onClick={onConfirm} disabled={loading || releaseBlocked}
+          className="w-full text-sm py-3 rounded-xl bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 font-bold disabled:opacity-30 disabled:cursor-not-allowed" data-testid="confirm-release-btn">
+          {loading ? '...' : releaseBlocked ? `Bloccato: La Prima ${laPrimaBlock.state === 'live' ? 'in corso' : 'in attesa'}` : `Confermi spendendo $${totalFunds.toLocaleString()} e ${totalCp}CP?`}
         </button>
         <button onClick={onDiscard} disabled={loading}
           className="w-full text-[9px] py-2 rounded-xl bg-red-500/5 border border-red-500/20 text-red-400/70 disabled:opacity-50">

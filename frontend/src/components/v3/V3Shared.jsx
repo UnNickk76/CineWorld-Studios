@@ -66,7 +66,7 @@ export async function v3api(path, method = 'GET', body) {
 }
 
 /* ═══════ STEPPER ═══════ */
-export const StepperBar = ({ current }) => {
+export const StepperBar = ({ current, onSelect }) => {
   const ci = V3_STEPS.findIndex(s => s.id === current);
   const ref = useRef(null);
   useEffect(() => {
@@ -89,14 +89,16 @@ export const StepperBar = ({ current }) => {
         return (
           <React.Fragment key={s.id}>
             {i > 0 && <div className={`w-2 sm:w-4 h-0.5 shrink-0 ${done || active ? style.line : 'bg-gray-800'}`} />}
-            <div className="flex flex-col items-center shrink-0 gap-0.5" data-sid={s.id}>
+            <button type="button" onClick={() => onSelect?.(s.id, i)}
+              className="flex flex-col items-center shrink-0 gap-0.5 active:scale-95 transition-transform focus:outline-none"
+              data-sid={s.id} data-testid={`stepper-step-${s.id}`} aria-label={`Vai allo step ${s.label}`}>
               <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 transition-all ${
                 active ? `${style.active} shadow-lg scale-110` : done ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400' : 'border-gray-800 bg-gray-900/50 text-gray-700 opacity-40'
               }`}>{done ? <Check className="w-2.5 h-2.5" /> : <Icon className="w-2.5 h-2.5" />}</div>
               <span className={`text-[5px] sm:text-[6px] font-bold uppercase tracking-wider whitespace-nowrap ${
                 active ? style.text : done ? 'text-emerald-500/60' : 'text-gray-700'
               }`}>{s.label}</span>
-            </div>
+            </button>
           </React.Fragment>
         );
       })}

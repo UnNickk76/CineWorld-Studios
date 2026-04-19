@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Film, ChevronLeft, Save, X } from 'lucide-react';
+import { Plus, Film, ChevronLeft, Save, X, Eye } from 'lucide-react';
 import CinematicReleaseOverlay from '../components/CinematicReleaseOverlay';
 import { FilmRollAnimation, CrowdRushAnimation, MontageRollAnimation, LaPrimaAnimation } from '../components/v3/PipelineAnimations';
 import { V3_STEPS, StepperBar, GENRE_LABELS, v3api } from '../components/v3/V3Shared';
@@ -61,6 +61,15 @@ export default function PipelineV3() {
 
   const currentStep = selected?.pipeline_state || 'idea';
   const stepIndex = V3_STEPS.findIndex(s => s.id === currentStep);
+
+  // Read-only navigation: player can click any step to preview it.
+  // null = follow currentStep; otherwise override the rendered phase with this id.
+  const [viewStepOverride, setViewStepOverride] = useState(null);
+  // Reset override whenever the selected film or its currentStep changes
+  useEffect(() => { setViewStepOverride(null); }, [selected?.id, currentStep]);
+  const viewStep = viewStepOverride || currentStep;
+  const viewIndex = V3_STEPS.findIndex(s => s.id === viewStep);
+  const isReadOnly = viewStep !== currentStep;
 
   // Fetch pre-voto CWSv when film or step changes
   useEffect(() => {
@@ -213,10 +222,8 @@ export default function PipelineV3() {
         if (selected.release_type === 'premiere') {
           const prem = selected.premiere || {};
           if (!prem.city || !prem.datetime) return false;
-          try {
-            const end = new Date(prem.datetime).getTime() + 24 * 3600 * 1000;
-            if (Date.now() < end) return false;
-          } catch { return false; }
+          // NOTE: advance to distribution no longer waits for 24h. Only the final
+          // release (step 'uscita') is blocked until premiere.datetime + 24h.
         }
         return true;
       }
@@ -310,9 +317,9 @@ export default function PipelineV3() {
   }
 
   // ═══ PHASE CONTENT ═══
-  const phaseProps = { film: selected, onRefresh: refreshSelected, toast: showToast, onDirty: markDirty };
+  const phaseProps = { film: selected, onRefresh: refreshSelected, toast: showToast, onDirty: markDirty, readOnly: isReadOnly };
   const renderPhase = () => {
-    switch (currentStep) {
+    switch (viewStep) {
       case 'idea': return <IdeaPhase {...phaseProps} />;
       case 'hype': return <HypePhase {...phaseProps} />;
       case 'cast': return <CastPhase {...phaseProps} />;
@@ -322,8 +329,8 @@ export default function PipelineV3() {
       case 'marketing': return <MarketingPhase {...phaseProps} />;
       case 'la_prima': return <LaPrimaPhase {...phaseProps} onTriggerAnimation={() => setWowAnimation('la_prima_live')} />;
       case 'distribution': return <DistributionPhase {...phaseProps} />;
-      case 'release_pending': return <StepFinale film={selected} onConfirm={confirmRelease} onDiscard={discard} loading={loading || releasePhase !== 'idle'} releaseType={selected.release_type || 'direct'} />;
-      default: return <p className="text-gray-500 text-sm p-4">Stato: {currentStep}</p>;
+      case 'release_pending': return <StepFinale film={selected} onConfirm={confirmRelease} onDiscard={discard} loading={loading || releasePhase !== 'idle'} releaseType={selected.release_type || 'direct'} readOnly={isReadOnly} />;
+      default: return <p className="text-gray-500 text-sm p-4">Stato: {viewStep}</p>;
     }
   };
 
@@ -374,8 +381,8 @@ export default function PipelineV3() {
           </button>
         </div>
 
-        {/* Sticky Advance Button */}
-        {currentStep !== 'release_pending' && nextStep && (
+        {/* Sticky Advance Button — only when viewing the current step */}
+        {!isReadOnly && currentStep !== 'release_pending' && nextStep && (
           <div className="sticky top-[88px] z-30 px-3 py-1.5 bg-black/90 backdrop-blur-sm border-b border-gray-800/30 flex gap-2">
             {prevStep && (
               <button onClick={() => advance(prevStep)} disabled={loading}
@@ -390,8 +397,33 @@ export default function PipelineV3() {
           </div>
         )}
 
-        <StepperBar current={currentStep} />
-        {renderPhase()}
+        {/* Read-only view banner — shown when previewing a non-current step */}
+        {isReadOnly && (
+          <div className="sticky top-[88px] z-30 px-3 py-2 bg-blue-500/10 backdrop-blur-sm border-b border-blue-500/20 flex items-center gap-2" data-testid="readonly-banner">
+            <Eye className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <p className="text-[9px] text-blue-300 flex-1 leading-tight">
+              Anteprima: <span className="font-bold">{V3_STEPS[viewIndex]?.label}</span>
+              {viewIndex < stepIndex ? ' (gia completato)' : viewIndex > stepIndex ? ' (da fare)' : ''}
+            </p>
+            <button onClick={() => setViewStepOverride(null)}
+              className="px-2.5 py-1 rounded-full bg-blue-500/20 border border-blue-500/40 text-[8px] font-bold text-blue-300"
+              data-testid="return-current-step-btn">
+              Torna al tuo step
+            </button>
+          </div>
+        )}
+
+        <StepperBar current={viewStep} onSelect={(sid, idx) => {
+          // Allow clicking to preview any step; if user picks current step → clear override
+          if (sid === currentStep) setViewStepOverride(null);
+          else setViewStepOverride(sid);
+        }} />
+        <div className={isReadOnly ? 'pointer-events-none opacity-80 select-none relative' : ''} data-testid={isReadOnly ? 'phase-readonly-wrapper' : 'phase-active-wrapper'}>
+          {isReadOnly && (
+            <div className="absolute inset-0 bg-transparent z-10 pointer-events-auto" onClick={(e) => e.preventDefault()} />
+          )}
+          {renderPhase()}
+        </div>
 
         {/* Pipeline Events Log */}
         {selected.pipeline_events && selected.pipeline_events.length > 0 && (

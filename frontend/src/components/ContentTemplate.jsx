@@ -707,7 +707,46 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
       )}
 
-      <div style={{border:"2px solid #00ffff",background:"rgba(0,255,255,0.08)",padding:"10px",marginTop:"8px",textAlign:"center",fontWeight:"bold",color:"#00ffff",borderRadius:"8px",cursor:"pointer"}} onClick={() => setShowCinemaModal(true)}>{hasCinemaDays && hasCinemaRemain ? 'IN SALA - ' + cinemaDays + ' giorni - ' + cinemaRemain + ' rimanenti' : hasCinemaDays ? 'IN SALA - ' + cinemaDays + ' giorni' : 'IN SALA - dati cinema in aggiornamento'}</div>
+      <div className={`ct2-cinema-bar ct2-perf-${cinemaPerf || 'ok'}`} onClick={() => setShowCinemaModal(true)} data-testid="ct-cinema-bar">
+        {hasCinemaDays && hasCinemaRemain ? (
+          <>
+            <div className="ct2-cinema-bar-main">
+              <span>IN SALA</span>
+              <span className="ct2-cinema-bar-sep">·</span>
+              <span>{cinemaDays}g</span>
+              <span className="ct2-cinema-bar-sep">·</span>
+              <span>{cinemaRemain}g rimasti</span>
+              {cinemaPerf && (
+                <>
+                  <span className="ct2-cinema-bar-sep">·</span>
+                  <span className={`ct2-cinema-bar-perf ct2-perf-label-${cinemaPerf}`}>
+                    {({great:'Successone', good:'Ottimo andamento', ok:'Stabile', declining:'In calo', bad:'Affluenza scarsa', flop:'FLOP'})[cinemaPerf] || cinemaPerf}
+                  </span>
+                </>
+              )}
+            </div>
+            {(() => {
+              // Hint di prolungamento negli ultimi 3-4 giorni se performance buona
+              const willExtend = cinemaRemain > 0 && cinemaRemain <= 4 && (cinemaPerf === 'great' || cinemaPerf === 'good');
+              // Hint di ritiro anticipato se flop/bad
+              const willPullEarly = cinemaPerf === 'flop' || cinemaPerf === 'bad';
+              if (willExtend) return <div className="ct2-cinema-hint ct2-hint-extend">Possibile prolungamento: il pubblico continua ad affluire</div>;
+              if (willPullEarly) return <div className="ct2-cinema-hint ct2-hint-pull">Rischio ritiro anticipato per scarsa affluenza</div>;
+              if (cinemaExt > 0) return <div className="ct2-cinema-hint ct2-hint-extend">Prolungato di +{cinemaExt}g per successo</div>;
+              if (cinemaRed > 0) return <div className="ct2-cinema-hint ct2-hint-pull">Ridotto di -{cinemaRed}g</div>;
+              return null;
+            })()}
+          </>
+        ) : hasCinemaDays ? (
+          <div className="ct2-cinema-bar-main">
+            <span>IN SALA · {cinemaDays}g</span>
+          </div>
+        ) : (
+          <div className="ct2-cinema-bar-main">
+            <span>IN SALA · dati in aggiornamento</span>
+          </div>
+        )}
+      </div>
 
       {/* 6. JOURNALIST REVIEWS (green boxes) */}
       <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>

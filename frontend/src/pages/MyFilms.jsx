@@ -340,11 +340,45 @@ export default function MyFilms({ playerId, playerName, isPublicView }) {
   );
 }
 
+/* ─── Phase badge helper (mirrors ContentTemplate.getStatusInfo) ─── */
+function getPhaseBadge(item) {
+  const s = (item?.status || '').toLowerCase();
+  const ps = (item?.pipeline_state || '').toLowerCase();
+  const cinemas = item?.current_cinemas || 0;
+  const onTv = item?.on_tv || item?.tv_broadcast || false;
+  const isSeriesLike = item?._contentType === 'tv_series' || item?._contentType === 'anime';
+
+  if (cinemas > 0 || s === 'in_theaters') return { label: isSeriesLike ? 'IN TV' : 'CINEMA', cls: 'bg-emerald-500/90 text-white shadow-[0_0_6px_rgba(96,220,110,0.6)]' };
+  if (onTv) return { label: 'IN TV', cls: 'bg-indigo-500/90 text-white shadow-[0_0_6px_rgba(110,150,255,0.6)]' };
+  if (ps === 'la_prima' || ps === 'premiere_live' || ps === 'premiere_setup' || s.includes('prima')) return { label: 'LA PRIMA', cls: 'bg-yellow-500/90 text-black shadow-[0_0_6px_rgba(240,208,96,0.7)]' };
+  const V3 = {
+    idea: { label: 'SCEN', cls: 'bg-violet-500/90 text-white' },
+    hype: { label: 'HYPE', cls: 'bg-cyan-500/90 text-white shadow-[0_0_6px_rgba(96,205,255,0.6)]' },
+    cast: { label: 'CAST', cls: 'bg-yellow-400/90 text-black' },
+    prep: { label: 'PREP', cls: 'bg-sky-400/90 text-black' },
+    ciak: { label: 'CIAK', cls: 'bg-red-500/90 text-white' },
+    finalcut: { label: 'F.CUT', cls: 'bg-orange-500/90 text-white shadow-[0_0_6px_rgba(255,156,72,0.6)]' },
+    marketing: { label: 'MKT', cls: 'bg-teal-500/90 text-white' },
+    distribution: { label: 'DIST', cls: 'bg-blue-400/90 text-black' },
+    release_pending: { label: 'USCITA', cls: 'bg-cyan-400/90 text-black' },
+  };
+  if (V3[ps]) return V3[ps];
+  if (s === 'coming_soon' || s === 'pending_release' || s === 'release_pending' || s.includes('hype')) return { label: 'HYPE', cls: 'bg-cyan-500/90 text-white' };
+  if (s === 'shooting' || s === 'in_production' || s === 'production') return { label: 'CIAK', cls: 'bg-red-500/90 text-white' };
+  if (s === 'casting' || s === 'ready_for_casting') return { label: 'CAST', cls: 'bg-yellow-400/90 text-black' };
+  if (s === 'screenplay' || s === 'draft' || s === 'proposed' || s === 'concept' || s === 'idea') return { label: 'SCEN', cls: 'bg-violet-500/90 text-white' };
+  if (s === 'pre_production') return { label: 'PREP', cls: 'bg-sky-400/90 text-black' };
+  if (s === 'post_production' || s === 'completed' || s === 'ready_to_release') return { label: 'F.CUT', cls: 'bg-orange-500/90 text-white' };
+  if (s === 'remastering') return { label: 'REMAST', cls: 'bg-amber-500/90 text-white' };
+  return { label: 'CATAL', cls: 'bg-gray-600/80 text-gray-200' };
+}
+
 /* ─── Poster Card ─── */
 function PosterCard({ item, isOwner, regenLoading, onClick }) {
   const isLive = item.status === 'in_theaters' || item.status === 'in_tv';
   const url = posterSrc(item.poster_url);
   const isRegen = regenLoading === item.id;
+  const phase = getPhaseBadge(item);
 
   return (
     <div className="relative cursor-pointer active:scale-95 transition-transform" onClick={onClick} data-testid={`poster-${item.id}`}>
@@ -362,10 +396,14 @@ function PosterCard({ item, isOwner, regenLoading, onClick }) {
             <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
           </div>
         )}
+        {/* Phase badge (Bacheca-style) */}
+        <div className={`absolute bottom-0.5 left-0.5 right-0.5 text-center py-[1px] rounded-sm text-[6px] font-bold tracking-wider ${phase.cls}`} data-testid={`phase-badge-${item.id}`}>
+          {phase.label}
+        </div>
       </div>
-      {/* Status badge */}
+      {/* Live status dot */}
       {isLive && (
-        <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-green-400 shadow-sm shadow-green-400/50" />
+        <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-green-400 shadow-sm shadow-green-400/50 animate-pulse" />
       )}
       {/* Title below poster */}
       <p className="text-[7px] text-gray-400 truncate mt-0.5 px-0.5 leading-tight">{item.title}</p>

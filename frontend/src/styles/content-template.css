@@ -440,6 +440,78 @@
 .ct2-series .ct2-data-trend { color: #80b0e0; }
 
 /* ═══════════════════════════════════
+   5b. CINEMA STATUS BAR
+   Matched styling with data-bar (fuschia/burgundy) instead of cyan.
+   Clickable → opens cinema modal. Shows days, remaining, andamento, hint.
+   ═══════════════════════════════════ */
+.ct2-cinema-bar {
+  margin: 8px 10px 0;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(160, 50, 100, 0.18) 0%, rgba(100, 30, 60, 0.1) 100%);
+  border: 1px solid rgba(200, 80, 140, 0.25);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.8px;
+}
+.ct2-cinema-bar:active { transform: scale(0.98); }
+.ct2-cinema-bar-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #e8a0c0;
+  font-weight: 700;
+}
+.ct2-cinema-bar-sep {
+  color: rgba(200, 80, 140, 0.35);
+  font-size: 11px;
+}
+.ct2-cinema-bar-perf {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+.ct2-perf-label-great { color: #60e080; text-shadow: 0 0 6px rgba(96, 224, 128, 0.4); }
+.ct2-perf-label-good  { color: #80d8a0; }
+.ct2-perf-label-ok    { color: #d0a0b8; }
+.ct2-perf-label-declining { color: #f0a040; }
+.ct2-perf-label-bad   { color: #e05050; }
+.ct2-perf-label-flop  { color: #ff5060; text-shadow: 0 0 6px rgba(255, 80, 96, 0.45); animation: ct2-flop-flicker 1.8s ease-in-out infinite; }
+@keyframes ct2-flop-flicker { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+.ct2-cinema-hint {
+  margin-top: 5px;
+  padding: 3px 8px;
+  text-align: center;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.8px;
+  font-size: 10.5px;
+  border-radius: 4px;
+}
+.ct2-hint-extend {
+  background: rgba(80, 210, 120, 0.1);
+  border: 1px solid rgba(80, 210, 120, 0.3);
+  color: #60e080;
+}
+.ct2-hint-pull {
+  background: rgba(230, 80, 80, 0.1);
+  border: 1px solid rgba(230, 80, 80, 0.3);
+  color: #ff7878;
+}
+/* Performance-specific border highlight on the bar */
+.ct2-perf-great { border-color: rgba(96, 224, 128, 0.35); }
+.ct2-perf-flop  { border-color: rgba(255, 80, 96, 0.35); }
+.ct2-perf-bad   { border-color: rgba(230, 80, 80, 0.3); }
+.ct2-series .ct2-cinema-bar {
+  background: linear-gradient(135deg, rgba(50, 80, 160, 0.18) 0%, rgba(30, 50, 100, 0.1) 100%);
+  border-color: rgba(80, 140, 220, 0.25);
+}
+.ct2-series .ct2-cinema-bar-main { color: #a0c0e8; }
+
+/* ═══════════════════════════════════
    6. JOURNALIST REVIEWS (green boxes)
    ═══════════════════════════════════ */
 .ct2-section-label {

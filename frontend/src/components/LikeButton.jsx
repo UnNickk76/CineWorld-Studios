@@ -41,14 +41,15 @@ export default function LikeButton({ contentId, context, api, count = 0, liked =
       const newLiked = !!r.data?.liked;
       setLocalCount(newCount); setLocalLiked(newLiked);
       onChange?.({ count: newCount, liked: newLiked, system_count: r.data?.system_count });
-      // Burst on milestone crossing
       if (newLiked && MILESTONES.includes(newCount)) {
         setBurst(true);
         setTimeout(() => setBurst(false), 1400);
       }
     } catch (err) {
-      // revert
+      // revert + surface backend error
       setLocalLiked(wasLiked); setLocalCount(count);
+      const msg = err?.response?.data?.detail || 'Errore like';
+      import('sonner').then(({ toast }) => toast.error(msg)).catch(() => {});
     } finally { setBusy(false); }
   };
 

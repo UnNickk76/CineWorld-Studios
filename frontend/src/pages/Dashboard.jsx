@@ -7,6 +7,7 @@ import { AuthContext, LanguageContext, useTranslations, useProductionMenu } from
 import { useSWR } from '../contexts/GameStore';
 import { LaPrimaSection } from '../components/LaPrimaSection';
 import { ComingSoonSection } from '../components/ComingSoonSection';
+import FeaturedTrailersStrip from '../components/FeaturedTrailersStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
 import { Card, CardContent } from '../components/ui/card';
@@ -453,6 +454,9 @@ const Dashboard = () => {
 
           {/* 1.5 Evento Ri-Cinema */}
           <RiCinemaShowcase api={api} navigate={navigate} />
+
+          {/* 1.7 Trailer da non perdere (Cinematico+PRO trending) */}
+          <FeaturedTrailersStrip />
 
           {/* 2. Eventi WOW */}
           {eventiWow.length > 0 && (

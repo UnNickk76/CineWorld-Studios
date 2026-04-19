@@ -154,7 +154,14 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
           )}
         </div>
         {showPlayer && (
-          <TrailerPlayerModal trailer={trailer} contentTitle={contentTitle} contentGenre={contentGenre} contentId={contentId} api={api} onClose={() => { setShowPlayer(false); refreshTrailer(); }} />
+          <TrailerPlayerModal
+            trailer={trailer}
+            contentTitle={contentTitle}
+            contentGenre={contentGenre}
+            contentId={contentId}
+            api={api}
+            onClose={() => { setShowPlayer(false); refreshTrailer(); }}
+          />
         )}
       </>
     );

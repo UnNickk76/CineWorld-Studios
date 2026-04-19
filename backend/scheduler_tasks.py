@@ -880,6 +880,13 @@ async def auto_release_coming_soon():
                     'release_strategy_applied_bonus': strategy_bonus_pct,
                 }}
             )
+
+            # Snapshot likes Prossimamente → In Sala
+            try:
+                from routes.likes import finalize_pre_release_snapshot
+                await finalize_pre_release_snapshot(scheduler_db, series['id'], 'tv_series')
+            except Exception as _e:
+                logger.warning(f"snapshot likes series failed: {_e}")
             
             from social_system import create_notification
             type_label = "Anime" if series['type'] == 'anime' else "Serie TV"
@@ -1003,6 +1010,12 @@ async def auto_release_coming_soon():
                 link=f'/create-film?film={project["id"]}'
             )
             await scheduler_db.notifications.insert_one(notif)
+            # Snapshot likes Prossimamente → In Sala
+            try:
+                from routes.likes import finalize_pre_release_snapshot
+                await finalize_pre_release_snapshot(scheduler_db, project['id'], 'films')
+            except Exception as _e:
+                logger.warning(f"snapshot likes film failed: {_e}")
             logger.info(f"Release pending completed for film {project['id']} ({project['title']}) bonus={strategy_bonus_pct}%")
         except Exception as e:
             logger.error(f"Error releasing pending film {project['id']}: {e}")

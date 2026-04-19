@@ -10076,6 +10076,12 @@ try:
     app.include_router(trailers_router, prefix="/api")
 except Exception as _e:
     logger.error(f"Failed to load trailers router: {_e}")
+# Content Likes (real + system hype-based)
+try:
+    from routes.likes import router as likes_router
+    app.include_router(likes_router, prefix="/api")
+except Exception as _e:
+    logger.error(f"Failed to load likes router: {_e}")
 app.include_router(infrastructure_router, prefix="/api")
 app.include_router(radio_router, prefix="/api")
 app.include_router(acting_school_router, prefix="/api")

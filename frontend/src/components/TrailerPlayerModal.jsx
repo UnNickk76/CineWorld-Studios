@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, Share2, Play, Pause, Eye, Volume2, VolumeX, Smile, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { createTrailerAudio } from './trailerAudio';
+import LikeButton, { SystemLikeBadge } from './LikeButton';
 
 const EMOJIS = ['🔥', '🎬', '😱', '😂', '❤️', '🤯', '😴', '🍿', '👀', '🤔'];
 
@@ -10,7 +11,7 @@ const EMOJIS = ['🔥', '🎬', '😱', '😂', '❤️', '🤯', '😴', '🍿'
  * Fase 2: Sound FX procedurali per genere + sistema Reazioni emoji+frase.
  * Mobile gestures: tap=skip, hold=pause, swipe-down=exit, X button always visible.
  */
-export default function TrailerPlayerModal({ trailer, contentTitle, contentId, contentGenre = '', api, onClose }) {
+export default function TrailerPlayerModal({ trailer, contentTitle, contentId, contentGenre = '', contentOwnerId, currentUserId, api, onClose }) {
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const [viewRegistered, setViewRegistered] = useState(false);
@@ -20,6 +21,7 @@ export default function TrailerPlayerModal({ trailer, contentTitle, contentId, c
   const [selectedEmoji, setSelectedEmoji] = useState('🔥');
   const [reactionText, setReactionText] = useState('');
   const [submittingReaction, setSubmittingReaction] = useState(false);
+  const [likes, setLikes] = useState({ count: 0, liked: false, system_count: 0 });
   const frameTimer = useRef(null);
   const holdTimer = useRef(null);
   const startY = useRef(0);
@@ -40,6 +42,10 @@ export default function TrailerPlayerModal({ trailer, contentTitle, contentId, c
   useEffect(() => {
     if (!contentId) return;
     api.get(`/trailers/${contentId}/reactions`).then(r => setReactions(r.data?.reactions || [])).catch(() => {});
+    api.get(`/content/${contentId}/likes?context=trailer`).then(r => {
+      const tr = r.data?.likes?.trailer;
+      if (tr) setLikes({ count: tr.count || 0, liked: tr.liked_by_me || false, system_count: tr.system_count || 0 });
+    }).catch(() => {});
   }, [api, contentId]);
 
   // Auto-advance
@@ -245,11 +251,30 @@ export default function TrailerPlayerModal({ trailer, contentTitle, contentId, c
         </div>
       )}
 
-      {/* Bottom hint (se reazioni chiuse) */}
+      {/* Bottom hint + likes row (se reazioni chiuse) */}
       {!showReactions && (
-        <div className="absolute bottom-4 left-0 right-0 text-center text-[9px] text-white/40 pointer-events-none">
-          Tocca per saltare · Tieni premuto per pausa · Scorri giù per uscire
-        </div>
+        <>
+          <div className="absolute bottom-14 left-0 right-0 flex items-center justify-between px-4 pointer-events-none" data-testid="trailer-player-likes">
+            <div className="flex items-center gap-1 pointer-events-auto">
+              <LikeButton
+                contentId={contentId}
+                context="trailer"
+                api={api}
+                count={likes.count}
+                liked={likes.liked}
+                disabled={contentOwnerId === currentUserId}
+                onChange={s => setLikes(prev => ({ ...prev, count: s.count, liked: s.liked, system_count: s.system_count ?? prev.system_count }))}
+                variant="chip"
+              />
+            </div>
+            <div className="pointer-events-auto">
+              <SystemLikeBadge count={likes.system_count} variant="chip" />
+            </div>
+          </div>
+          <div className="absolute bottom-4 left-0 right-0 text-center text-[9px] text-white/40 pointer-events-none">
+            Tocca per saltare · Tieni premuto per pausa · Scorri giù per uscire
+          </div>
+        </>
       )}
 
       <style>{`

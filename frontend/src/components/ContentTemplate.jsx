@@ -8,6 +8,7 @@ import {
   Building, Sparkles, BookOpen, Clapperboard, Zap, Loader2,
   Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye
 } from 'lucide-react';
+import LikeButton, { SystemLikeBadge, PreReleaseSnapshotBadge } from './LikeButton';
 import TrailerPlayerModal from './TrailerPlayerModal';
 import '../styles/content-template.css';
 
@@ -435,6 +436,8 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const [showCinemaModal, setShowCinemaModal] = useState(false);
   const [trailer, setTrailer] = useState(null);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [likes, setLikes] = useState({ poster: { count: 0, liked_by_me: false, system_count: 0 }, screenplay: { count: 0, liked_by_me: false, system_count: 0 }, trailer: { count: 0, liked_by_me: false, system_count: 0 } });
+  const [likesSnapshot, setLikesSnapshot] = useState(null);
 
   const isSeries = contentType === 'series' || contentType === 'anime';
   const isAnime = contentType === 'anime' || film?.type === 'anime' || film?.content_type === 'anime';
@@ -473,6 +476,15 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   useEffect(() => {
     if (!filmId) return;
     api.get(`/trailers/${filmId}`).then(r => setTrailer(r.data?.trailer || null)).catch(() => {});
+  }, [filmId, api]);
+
+  // Likes fetch
+  useEffect(() => {
+    if (!filmId) return;
+    api.get(`/content/${filmId}/likes`).then(r => {
+      setLikes(r.data?.likes || {});
+      setLikesSnapshot(r.data?.snapshot || null);
+    }).catch(() => {});
   }, [filmId, api]);
 
   if (loading || !film) {
@@ -542,12 +554,20 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
       {/* 2. POSTER + INFO BOX */}
       <div className="ct2-top-block" data-testid="ct-top-block">
-        <div className="ct2-poster" data-testid="ct-poster">
+        <div className="ct2-poster relative" data-testid="ct-poster">
           {posterSrc(film.poster_url) ? (
             <img src={posterSrc(film.poster_url)} alt={film.title} onError={(e) => { e.target.style.display = 'none'; }} />
           ) : (
             <div className="ct2-poster-empty"><Film size={28} /></div>
           )}
+          {/* Likes overlay on poster */}
+          <div className="absolute left-2 bottom-2 flex items-center gap-1" data-testid="poster-like-real">
+            <LikeButton contentId={filmId} context="poster" api={api} count={likes.poster?.count || 0} liked={likes.poster?.liked_by_me || false} disabled={film.user_id === user?.id} onChange={s => setLikes(prev => ({ ...prev, poster: { ...prev.poster, ...s } }))} variant="chip" />
+            <PreReleaseSnapshotBadge snapshot={likesSnapshot} context="poster" />
+          </div>
+          <div className="absolute right-2 bottom-2" data-testid="poster-like-system">
+            <SystemLikeBadge count={likes.poster?.system_count || 0} variant="chip" />
+          </div>
         </div>
         <div className="ct2-short-plot" data-testid="ct-short-plot">
           <div className="ct2-info-title">{film.title}</div>
@@ -667,7 +687,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       </div>
 
       {/* 8. SCREENPLAY (scrollable) */}
-      <div className="ct2-screenplay-section" data-testid="ct-screenplay">
+      <div className="ct2-screenplay-section relative" data-testid="ct-screenplay">
         <div className="ct2-screenplay-header">
           <BookOpen size={14} />
           <span>Sceneggiatura completa</span>
@@ -679,21 +699,38 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           <div className="ct2-screenplay-fade-top" />
           <div className="ct2-screenplay-fade-bottom" />
         </div>
+        {/* Likes row sceneggiatura */}
+        <div className="flex items-center justify-between px-2 pt-2" data-testid="screenplay-likes-row">
+          <div className="flex items-center gap-1">
+            <LikeButton contentId={filmId} context="screenplay" api={api} count={likes.screenplay?.count || 0} liked={likes.screenplay?.liked_by_me || false} disabled={film.user_id === user?.id} onChange={s => setLikes(prev => ({ ...prev, screenplay: { ...prev.screenplay, ...s } }))} variant="chip" />
+            <PreReleaseSnapshotBadge snapshot={likesSnapshot} context="screenplay" />
+          </div>
+          <SystemLikeBadge count={likes.screenplay?.system_count || 0} variant="chip" />
+        </div>
       </div>
 
       {/* 9. TRAILER — visibile sia se esiste (Guarda Trailer) sia come placeholder */}
       {trailer ? (
-        <button
-          onClick={() => setShowTrailer(true)}
-          className="ct2-trailer-placeholder hover:brightness-110 transition-all cursor-pointer"
-          data-testid="ct-trailer-watch-btn"
-          style={{ background: 'linear-gradient(135deg, rgba(245,166,35,0.15), rgba(233,78,119,0.12))', border: '1px solid rgba(245,166,35,0.3)' }}>
-          <Play size={24} fill="#f5a623" color="#f5a623" />
-          <span className="ct2-trailer-text" style={{ color: '#f5a623', fontWeight: 700 }}>Guarda Trailer</span>
-          <span className="ct2-trailer-badge" style={{ color: '#f5a623', opacity: 0.75 }}>
-            {trailer.duration_seconds}s · {(trailer.views_count || 0)} viste{trailer.trending ? ' · 🔥 TRENDING' : ''}
-          </span>
-        </button>
+        <div>
+          <button
+            onClick={() => setShowTrailer(true)}
+            className="ct2-trailer-placeholder hover:brightness-110 transition-all cursor-pointer"
+            data-testid="ct-trailer-watch-btn"
+            style={{ background: 'linear-gradient(135deg, rgba(245,166,35,0.15), rgba(233,78,119,0.12))', border: '1px solid rgba(245,166,35,0.3)' }}>
+            <Play size={24} fill="#f5a623" color="#f5a623" />
+            <span className="ct2-trailer-text" style={{ color: '#f5a623', fontWeight: 700 }}>Guarda Trailer</span>
+            <span className="ct2-trailer-badge" style={{ color: '#f5a623', opacity: 0.75 }}>
+              {trailer.duration_seconds}s · {(trailer.views_count || 0)} viste{trailer.trending ? ' · 🔥 TRENDING' : ''}
+            </span>
+          </button>
+          <div className="flex items-center justify-between px-2 pt-2" data-testid="trailer-likes-row">
+            <div className="flex items-center gap-1">
+              <LikeButton contentId={filmId} context="trailer" api={api} count={likes.trailer?.count || 0} liked={likes.trailer?.liked_by_me || false} disabled={film.user_id === user?.id} onChange={s => setLikes(prev => ({ ...prev, trailer: { ...prev.trailer, ...s } }))} variant="chip" />
+              <PreReleaseSnapshotBadge snapshot={likesSnapshot} context="trailer" />
+            </div>
+            <SystemLikeBadge count={likes.trailer?.system_count || 0} variant="chip" />
+          </div>
+        </div>
       ) : (
         <div className="ct2-trailer-placeholder" data-testid="ct-trailer-placeholder">
           <Play size={20} />
@@ -702,7 +739,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
       )}
       {showTrailer && trailer && (
-        <TrailerPlayerModal trailer={trailer} contentTitle={film?.title} contentGenre={film?.genre || ''} contentId={filmId} api={api} onClose={() => setShowTrailer(false)} />
+        <TrailerPlayerModal trailer={trailer} contentTitle={film?.title} contentGenre={film?.genre || ''} contentId={filmId} contentOwnerId={film?.user_id} currentUserId={user?.id} api={api} onClose={() => setShowTrailer(false)} />
       )}
 
       {/* Cast Popup */}

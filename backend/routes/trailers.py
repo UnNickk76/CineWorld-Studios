@@ -572,6 +572,21 @@ async def add_or_update_reaction(content_id: str, payload: dict, user: dict = De
         owner = content.get("user_id") or content.get("producer_id")
         if owner:
             await db.users.update_one({"id": owner}, {"$inc": {"fame": 50}})
+            # Notifica celebrativa
+            try:
+                await db.notifications.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "user_id": owner,
+                    "type": "trailer_highly_anticipated",
+                    "title": "🎭 Trailer MOLTO ATTESO!",
+                    "body": f"\"{content.get('title','Il tuo contenuto')}\" ha raggiunto 20 reazioni! +50 fama.",
+                    "data": {"content_id": content_id},
+                    "link": f"/films/{content_id}",
+                    "read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+            except Exception:
+                pass
     return {"ok": True, "count": count, "reaction": doc}
 
 

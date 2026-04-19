@@ -588,6 +588,7 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
           <TrailerGeneratorCard
             contentId={film.id}
             contentTitle={film.title}
+            contentGenre={film.genre || ''}
             api={api}
             userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
             canGenerate={true}

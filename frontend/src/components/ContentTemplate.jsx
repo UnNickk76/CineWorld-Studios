@@ -702,7 +702,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
       )}
       {showTrailer && trailer && (
-        <TrailerPlayerModal trailer={trailer} contentTitle={film?.title} contentId={filmId} api={api} onClose={() => setShowTrailer(false)} />
+        <TrailerPlayerModal trailer={trailer} contentTitle={film?.title} contentGenre={film?.genre || ''} contentId={filmId} api={api} onClose={() => setShowTrailer(false)} />
       )}
 
       {/* Cast Popup */}

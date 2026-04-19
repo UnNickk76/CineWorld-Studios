@@ -438,8 +438,6 @@ async def get_trailer(content_id: str, request: Request, user: dict = Depends(_d
     if not tr:
         return {"trailer": None}
 
-    # Build frame URLs served by our backend endpoint (auth via query param)
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
     # Resolve image URLs: if storage_path starts with http/data or is absolute frontend url, use as-is; else proxy
     def _resolve(sp: Optional[str]) -> Optional[str]:
         if not sp:
@@ -476,6 +474,7 @@ async def get_trailer(content_id: str, request: Request, user: dict = Depends(_d
             "views_count": tr.get("views_count", 0),
             "trending": trending,
             "boosted": is_boosted,
+            "highly_anticipated": bool(tr.get("highly_anticipated")),
             "hype_bonus_applied": tr.get("hype_bonus_applied", 0),
         }
     }
@@ -487,7 +486,7 @@ async def register_trailer_view(content_id: str, user: dict = Depends(_dep())):
     if not content or not content.get("trailer"):
         raise HTTPException(404, "Trailer non trovato")
     # Increment views and track trending
-    r = await db[coll].update_one({"id": content_id}, {"$inc": {"trailer.views_count": 1}})
+    await db[coll].update_one({"id": content_id}, {"$inc": {"trailer.views_count": 1}})
     # Simple trending check: >= 50 total views triggers trending
     updated = await db[coll].find_one({"id": content_id}, {"_id": 0, "trailer.views_count": 1, "trailer.trending": 1})
     vc = ((updated or {}).get("trailer") or {}).get("views_count", 0)
@@ -525,3 +524,58 @@ async def serve_trailer_file(path: str, auth: Optional[str] = Query(None), autho
     except Exception as e:
         logger.error(f"serve file failed: {e}")
         raise HTTPException(404, "File not found")
+
+
+
+# ─────────────────────── Reactions (Fase 2) ───────────────────────
+
+ALLOWED_EMOJIS = {"🔥", "🎬", "😱", "😂", "❤️", "🤯", "😴", "🍿", "👀", "🤔"}
+
+
+@router.get("/trailers/{content_id}/reactions")
+async def list_trailer_reactions(content_id: str, user: dict = Depends(_dep())):
+    reactions = await db.trailer_reactions.find(
+        {"content_id": content_id}, {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return {"reactions": reactions, "count": len(reactions)}
+
+
+@router.post("/trailers/{content_id}/reactions")
+async def add_or_update_reaction(content_id: str, payload: dict, user: dict = Depends(_dep())):
+    emoji = (payload or {}).get("emoji", "").strip()
+    text = (payload or {}).get("text", "").strip()[:30]
+    if not emoji or emoji not in ALLOWED_EMOJIS:
+        raise HTTPException(400, "Emoji non valida")
+    content, _ = await _find_content(content_id)
+    if not content or not content.get("trailer"):
+        raise HTTPException(404, "Trailer non trovato")
+    # Upsert: un utente = una reazione per contenuto
+    doc = {
+        "content_id": content_id,
+        "user_id": user["id"],
+        "nickname": user.get("nickname", ""),
+        "avatar_url": user.get("avatar_url"),
+        "emoji": emoji,
+        "text": text,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.trailer_reactions.update_one(
+        {"content_id": content_id, "user_id": user["id"]},
+        {"$set": doc}, upsert=True
+    )
+    count = await db.trailer_reactions.count_documents({"content_id": content_id})
+    # Badge "MOLTO ATTESO" @ 20 reactions → +50 fame al proprietario (solo first crossing)
+    tr = content.get("trailer") or {}
+    if count >= 20 and not tr.get("highly_anticipated"):
+        coll = "films" if await db.films.find_one({"id": content_id}, {"_id": 1}) else "tv_series"
+        await db[coll].update_one({"id": content_id}, {"$set": {"trailer.highly_anticipated": True}})
+        owner = content.get("user_id") or content.get("producer_id")
+        if owner:
+            await db.users.update_one({"id": owner}, {"$inc": {"fame": 50}})
+    return {"ok": True, "count": count, "reaction": doc}
+
+
+@router.delete("/trailers/{content_id}/reactions")
+async def remove_my_reaction(content_id: str, user: dict = Depends(_dep())):
+    r = await db.trailer_reactions.delete_one({"content_id": content_id, "user_id": user["id"]})
+    return {"ok": True, "deleted": r.deleted_count}

@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Film, ChevronLeft, Save, X, Tv, Sparkles, Star } from 'lucide-react';
 import { StepperBar as FilmStepperBar, PhaseWrapper, ProgressCircle, STEP_STYLES, GENRE_LABELS, SUBGENRE_MAP, LOCATION_TAGS } from './V3Shared';
 import { Check, TrendingUp, Users, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket } from 'lucide-react';
+import { AuthContext } from '../../contexts';
+import TrailerGeneratorCard from '../TrailerGeneratorCard';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -706,7 +708,28 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
 
         <StepperBar current={currentStep} />
         {renderPhase()}
+        <SeriesTrailerSection project={selected} onRefresh={refreshSelected} />
       </div>
+    </div>
+  );
+}
+
+/* ─── Trailer AI section for series/anime ─── */
+function SeriesTrailerSection({ project, onRefresh }) {
+  const auth = useContext(AuthContext) || {};
+  const { api, user } = auth;
+  if (!project?.id || !api || user?.id !== project.user_id) return null;
+  return (
+    <div className="px-3 mt-3">
+      <TrailerGeneratorCard
+        contentId={project.id}
+        contentTitle={project.title}
+        contentGenre={project.genre || ''}
+        api={api}
+        userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
+        canGenerate={true}
+        onGenerated={onRefresh}
+      />
     </div>
   );
 }

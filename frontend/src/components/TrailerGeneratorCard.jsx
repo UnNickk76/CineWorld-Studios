@@ -21,7 +21,7 @@ const tierOrder = { base: 0, cinematic: 1, pro: 2 };
  *  - canGenerate: bool (false se non owner o fase non valida)
  *  - onGenerated: callback dopo generazione
  */
-export default function TrailerGeneratorCard({ contentId, contentTitle, api, userCredits = 0, canGenerate = true, onGenerated }) {
+export default function TrailerGeneratorCard({ contentId, contentTitle, contentGenre = '', api, userCredits = 0, canGenerate = true, onGenerated }) {
   const [trailer, setTrailer] = useState(null);
   const [job, setJob] = useState(null); // {status, progress, tier, estimated_seconds}
   const [showPlayer, setShowPlayer] = useState(false);
@@ -154,7 +154,7 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, api, use
           )}
         </div>
         {showPlayer && (
-          <TrailerPlayerModal trailer={trailer} contentTitle={contentTitle} contentId={contentId} api={api} onClose={() => { setShowPlayer(false); refreshTrailer(); }} />
+          <TrailerPlayerModal trailer={trailer} contentTitle={contentTitle} contentGenre={contentGenre} contentId={contentId} api={api} onClose={() => { setShowPlayer(false); refreshTrailer(); }} />
         )}
       </>
     );

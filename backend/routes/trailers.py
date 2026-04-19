@@ -77,13 +77,32 @@ GENRE_STYLES = {
 
 # ─────────────────────── Helper: find content ───────────────────────
 async def _find_content(content_id: str):
-    """Look up film / tv_series document by id. Returns (doc, collection_name)."""
-    film = await db.films.find_one({"id": content_id}, {"_id": 0})
-    if film:
-        return film, "films"
-    series = await db.tv_series.find_one({"id": content_id}, {"_id": 0})
-    if series:
-        return series, "tv_series"
+    """Look up film / tv_series / anime / v3 project document by id.
+    Supports all id variants (id, film_id, series_id) across collections."""
+    doc = await db.films.find_one({"id": content_id}, {"_id": 0})
+    if doc:
+        return doc, "films"
+    doc = await db.films.find_one({"film_id": content_id}, {"_id": 0})
+    if doc:
+        return doc, "films"
+    doc = await db.film_projects.find_one({"id": content_id}, {"_id": 0})
+    if doc:
+        return doc, "film_projects"
+    doc = await db.film_projects.find_one({"film_id": content_id}, {"_id": 0})
+    if doc:
+        return doc, "film_projects"
+    doc = await db.tv_series.find_one({"id": content_id}, {"_id": 0})
+    if doc:
+        return doc, "tv_series"
+    doc = await db.tv_series.find_one({"series_id": content_id}, {"_id": 0})
+    if doc:
+        return doc, "tv_series"
+    try:
+        doc = await db.anime_series.find_one({"id": content_id}, {"_id": 0})
+        if doc:
+            return doc, "anime_series"
+    except Exception:
+        pass
     return None, None
 
 

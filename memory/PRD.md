@@ -10,6 +10,10 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Fix Like "Contenuto non trovato" + Trailer content lookup**
+  - **Bug critico Like**: `_find_content` in `likes.py` cercava solo in `films.id` e `tv_series.id`. Falliva per V3 films (film_projects), per `films.film_id` (campo alternativo), per anime_series e per serie con `series_id`. Esteso lookup a tutte le varianti.
+  - **Fix identico in `trailers.py`**: stesso problema, stessa soluzione. Ora trailer e like funzionano su TUTTI i contenuti, indipendentemente da stato (pre-release, coming_soon, in_theaters, released, catalogo, serie, anime, V1/V2/V3).
+  - **Trailer postumi**: verificato che l'endpoint `/trailers/{id}/generate` NON blocca in base allo stato del film. Il flag `allow_hype_boost` decide solo se concedere +hype (solo per stati pre-release come `hype`, `upcoming`, `prossimamente`, `pre_production`). Post-release la generazione funziona ma senza boost hype (logico: film gia' uscito).
 - **Feb 2026 — Navigazione libera stepper + sblocco advance post-Setup La Prima**
   - **StepperBar cliccabile** (`V3Shared.jsx`): ogni step e' ora un button che apre quella fase in sola visione. `onSelect(sid,idx)` prop.
   - **Read-only preview** (`PipelineV3.jsx`): nuovo stato `viewStepOverride`. Quando l'utente clicca uno step ≠ currentStep, la fase viene mostrata in modalita' anteprima (pointer-events-none + opacity-80 + banner blu "Anteprima: STEP (da fare / gia completato)" con bottone "Torna al tuo step"). Il banner advance viene nascosto in read-only.

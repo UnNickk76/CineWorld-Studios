@@ -48,12 +48,38 @@ def _dep():
 
 
 async def _find_content(content_id: str):
+    """Lookup a content by id across all possible collections & id fields.
+    Supports: films.id, films.film_id, film_projects.id, film_projects.film_id,
+    tv_series.id, tv_series.series_id, anime_series.id.
+    """
+    # Films (released, V1/V2/V3)
     doc = await db.films.find_one({"id": content_id}, {"_id": 0})
     if doc:
         return doc, "films"
+    doc = await db.films.find_one({"film_id": content_id}, {"_id": 0})
+    if doc:
+        return doc, "films"
+    # V3 Film projects (pre-release & released state mirror)
+    doc = await db.film_projects.find_one({"id": content_id}, {"_id": 0})
+    if doc:
+        return doc, "film_projects"
+    doc = await db.film_projects.find_one({"film_id": content_id}, {"_id": 0})
+    if doc:
+        return doc, "film_projects"
+    # TV series
     doc = await db.tv_series.find_one({"id": content_id}, {"_id": 0})
     if doc:
         return doc, "tv_series"
+    doc = await db.tv_series.find_one({"series_id": content_id}, {"_id": 0})
+    if doc:
+        return doc, "tv_series"
+    # Anime series
+    try:
+        doc = await db.anime_series.find_one({"id": content_id}, {"_id": 0})
+        if doc:
+            return doc, "anime_series"
+    except Exception:
+        pass
     return None, None
 
 

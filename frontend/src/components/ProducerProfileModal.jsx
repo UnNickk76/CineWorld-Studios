@@ -54,11 +54,11 @@ export default function ProducerProfileModal({ producerId, producerData, isOpen,
     setFollowLoading(true);
     try {
       if (isFollowing) {
-        await api.delete(`/social/follow/${producerId}`);
+        await api.delete(`/follow/${producerId}`);
         setIsFollowing(false);
         toast.success('Non segui più questo produttore');
       } else {
-        await api.post(`/social/follow/${producerId}`);
+        await api.post(`/follow/${producerId}`);
         setIsFollowing(true);
         toast.success('Ora segui questo produttore!');
       }

@@ -1531,7 +1531,10 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
   const [gamesList, setGamesList] = useState([]);
   const [challengeLoading, setChallengeLoading] = useState('');
   const [showFilmography, setShowFilmography] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+  const isSelf = user?.id === data.userId;
 
   // Fetch all minigames from backend
   useEffect(() => {
@@ -1539,6 +1542,31 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
       api.get('/api/arcade/games').then(r => setGamesList(Array.isArray(r.data) ? r.data : r.data || [])).catch(() => {});
     }
   }, [showGames, gamesList.length, api]);
+
+  // Fetch follow status
+  useEffect(() => {
+    if (!isSelf && data.userId) {
+      api.get(`/players/${data.userId}/is-following`)
+        .then(r => setIsFollowing(!!r.data?.is_following))
+        .catch(() => {});
+    }
+  }, [data.userId, isSelf, api]);
+
+  const toggleFollow = async () => {
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        await api.delete(`/follow/${data.userId}`);
+        setIsFollowing(false);
+        toast.success(`Non segui più ${p.nickname}`);
+      } else {
+        await api.post(`/follow/${data.userId}`);
+        setIsFollowing(true);
+        toast.success(`Ora segui ${p.nickname}!`);
+      }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setFollowLoading(false); }
+  };
 
   const handleMessage = async () => {
     const ok = await confirm({ title: `Messaggia ${p.nickname}?`, subtitle: 'Verrai portato nella chat privata.', confirmLabel: 'Vai alla chat', cancelLabel: 'Annulla' });
@@ -1580,7 +1608,23 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
               <AvatarWithLogo avatarUrl={avatarSrc} logoUrl={logoSrc} nickname={p.nickname} size="sm" />
             </button>
             <div>
-              <h3 className="font-['Bebas_Neue'] text-xl text-yellow-400 tracking-wide">{p.nickname}</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-['Bebas_Neue'] text-xl text-yellow-400 tracking-wide">{p.nickname}</h3>
+                {!isSelf && (
+                  <button
+                    onClick={toggleFollow}
+                    disabled={followLoading}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[8px] font-bold transition-colors disabled:opacity-50 ${
+                      isFollowing
+                        ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'
+                        : 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20'
+                    }`}
+                    data-testid="popup-follow-btn">
+                    {isFollowing ? <UserCheck className="w-2.5 h-2.5" /> : <UserPlus className="w-2.5 h-2.5" />}
+                    {isFollowing ? 'Seguito' : 'Segui'}
+                  </button>
+                )}
+              </div>
               {p.production_house_name && (
                 <button
                   onClick={() => { onClose(); navigate(`/player/${data.userId}/content`); }}

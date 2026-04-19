@@ -474,7 +474,9 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
         {cwsv && (
           <>
             <Star size={13} fill={cwsvNum >= 8 ? '#f0c040' : cwsvNum >= 6 ? '#4ade80' : cwsvNum >= 4 ? '#facc15' : '#f87171'} color={cwsvNum >= 8 ? '#f0c040' : cwsvNum >= 6 ? '#4ade80' : cwsvNum >= 4 ? '#facc15' : '#f87171'} />
-            <span className="ct2-data-imdb" style={{ color: cwsvNum >= 8 ? '#f0c040' : cwsvNum >= 6 ? '#4ade80' : cwsvNum >= 4 ? '#facc15' : '#f87171' }}>CWSv {cwsv}</span>
+            <span className="ct2-data-imdb" style={{ color: cwsvNum >= 8 ? '#f0c040' : cwsvNum >= 6 ? '#4ade80' : cwsvNum >= 4 ? '#facc15' : '#f87171' }}>
+              <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', letterSpacing: 0 }}>CWSv</span> {cwsv}
+            </span>
             <span className="ct2-data-sep">|</span>
           </>
         )}

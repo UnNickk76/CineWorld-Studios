@@ -422,6 +422,7 @@ async def get_player_public_profile(player_id: str, user: dict = Depends(get_cur
         'nickname': player.get('nickname'),
         'production_house_name': player.get('production_house_name'),
         'avatar_url': player.get('avatar_url'),
+        'logo_url': player.get('logo_url'),
         'level': level_info['level'],
         'level_info': level_info,
         'fame': player.get('fame', 50),
@@ -437,6 +438,7 @@ async def get_player_public_profile(player_id: str, user: dict = Depends(get_cur
         'best_film': best,
         'filmography': filmography,
         'leaderboard_score': calculate_leaderboard_score(player),
+        'last_active': player.get('last_active'),
         'created_at': player.get('created_at')
     }
 

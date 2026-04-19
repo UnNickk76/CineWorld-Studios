@@ -53,6 +53,7 @@ import { RadioFloatingPlayer } from './components/RadioFloatingPlayer';
 import { NowPlayingBanner } from './components/NowPlayingBanner';
 import { RadioStationsPopup } from './components/RadioStationsPopup';
 import { CompareProducersModal } from './components/CompareProducersModal';
+import { AvatarWithLogo } from './components/StudioName';
 import { PullToRefresh } from './components/PullToRefresh';
 import { VelionOverlay } from './components/VelionOverlay';
 import { VelionPanel, shouldAutoShowTutorial } from './components/VelionPanel';
@@ -1557,18 +1558,20 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
   };
 
   const avatarSrc = p.avatar_url?.startsWith('data:') ? p.avatar_url : p.avatar_url?.startsWith('/') ? `${BACKEND_URL}${p.avatar_url}` : p.avatar_url;
+  const logoSrc = p.logo_url?.startsWith('data:') ? p.logo_url : p.logo_url?.startsWith('/') ? `${BACKEND_URL}${p.logo_url}` : p.logo_url;
+  // best_film ora arriva dall'endpoint /players/:id/profile come oggetto { title, quality_score, cwsv_display }
+  const bestFilmTitle = typeof p.best_film === 'string' ? p.best_film : p.best_film?.title;
+  const bestFilmCwsv = typeof p.best_film === 'object' ? p.best_film?.cwsv_display : p.best_cwsv_display;
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative w-full max-w-sm bg-[#111113] rounded-2xl border border-yellow-500/20 overflow-hidden" onClick={e => e.stopPropagation()} data-testid="player-profile-popup">
-        {/* Header with avatar */}
+        {/* Header with avatar + logo */}
         <div className="relative p-4 bg-gradient-to-b from-yellow-500/10 to-transparent">
           <button onClick={onClose} className="absolute top-2 right-2 text-gray-500"><X className="w-5 h-5" /></button>
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-full border-2 border-yellow-500/40 overflow-hidden bg-gray-800 flex items-center justify-center flex-shrink-0">
-              {avatarSrc ? <img src={avatarSrc} alt="" className="w-full h-full object-cover" /> : <span className="text-yellow-400 font-bold text-xl">{(p.nickname || '?')[0]}</span>}
-            </div>
+            <AvatarWithLogo avatarUrl={avatarSrc} logoUrl={logoSrc} nickname={p.nickname} size="sm" />
             <div>
               <h3 className="font-['Bebas_Neue'] text-xl text-yellow-400 tracking-wide">{p.nickname}</h3>
               {p.production_house_name && <p className="text-[10px] text-gray-400">{p.production_house_name}</p>}
@@ -1606,10 +1609,16 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
               <p className="text-[7px] text-gray-600">Produzioni</p>
             </div>
           </div>
-          {p.best_film && (
-            <div className="mt-1.5 flex items-center gap-2 px-2 py-1 bg-white/[0.02] rounded border border-white/5">
-              <Film className="w-3 h-3 text-yellow-500/50" />
-              <p className="text-[8px] text-gray-400">Miglior: <span className="text-white font-bold">{p.best_film}</span> {p.best_cwsv_display && <span className="text-yellow-400">CWSv {p.best_cwsv_display}</span>}</p>
+          {bestFilmTitle && (
+            <div className="mt-2 p-2 rounded-lg bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 border border-yellow-500/20" data-testid="popup-best-production">
+              <p className="text-[7px] text-gray-500 uppercase tracking-wider font-bold mb-1">Miglior Produzione</p>
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-bold text-white truncate">{bestFilmTitle}</p>
+                  {bestFilmCwsv && <p className="text-[9px] text-yellow-400">CWSv {bestFilmCwsv}</p>}
+                </div>
+              </div>
             </div>
           )}
           {p.challenge_stats && (
@@ -1796,21 +1805,13 @@ const ProtectedRoute = ({ children }) => {
     }
     setPopupData({ userId, loading: true });
     try {
+      // Usa lo stesso endpoint del popup produttore (da locandina film): funziona su tutti i giocatori
       const [profileRes, friendRes] = await Promise.all([
-        api.get(`/users/${userId}/full-profile`),
-        api.get(`/friends/status/${userId}`)
+        api.get(`/players/${userId}/profile`),
+        api.get(`/friends/status/${userId}`).catch(() => ({ data: { status: 'none' } }))
       ]);
-      // L'endpoint ritorna { user: {nickname, avatar_url, ...}, stats: {level, fame, ...}, best_film, recent_films, ... }
-      // ma il popup accede direttamente a p.nickname/p.level/ecc → appiattiamo user + stats a root.
-      const raw = profileRes.data || {};
-      const flat = {
-        ...(raw.user || {}),
-        ...(raw.stats || {}),
-        // Preserviamo tutti gli altri campi (best_film, recent_films, awards, infrastructure, is_online, ecc.)
-        ...raw,
-        // `user` e `stats` restano disponibili come sub-oggetti per eventuali accessi espliciti.
-      };
-      setPopupData({ userId, profile: flat, friendStatus: friendRes.data, loading: false });
+      const profile = profileRes.data || {};
+      setPopupData({ userId, profile, friendStatus: friendRes.data, loading: false });
     } catch(e) {
       console.warn('openPlayerPopup failed', e);
       toast.error('Impossibile caricare il profilo');

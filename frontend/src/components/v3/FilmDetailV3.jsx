@@ -6,6 +6,7 @@ import {
 import { AuthContext } from '../../contexts';
 import { toast } from 'sonner';
 import ProducerProfileModal from '../ProducerProfileModal';
+import TrailerGeneratorCard from '../TrailerGeneratorCard';
 import '../../styles/content-template.css';
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
@@ -578,6 +579,20 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
             <div className="ct2-screenplay-fade-top" />
             <div className="ct2-screenplay-fade-bottom" />
           </div>
+        </div>
+      )}
+
+      {/* ═══ TRAILER AI — pipeline block ═══ */}
+      {film?.user_id === user?.id && (
+        <div className="px-1 mb-3">
+          <TrailerGeneratorCard
+            contentId={film.id}
+            contentTitle={film.title}
+            api={api}
+            userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
+            canGenerate={true}
+            onGenerated={onRefresh}
+          />
         </div>
       )}
 

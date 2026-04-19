@@ -10070,6 +10070,12 @@ app.include_router(api_router)
 app.include_router(auth_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
 app.include_router(social_router, prefix="/api")
+# Trailer AI (cinematic trailer generator)
+try:
+    from routes.trailers import router as trailers_router
+    app.include_router(trailers_router, prefix="/api")
+except Exception as _e:
+    logger.error(f"Failed to load trailers router: {_e}")
 app.include_router(infrastructure_router, prefix="/api")
 app.include_router(radio_router, prefix="/api")
 app.include_router(acting_school_router, prefix="/api")

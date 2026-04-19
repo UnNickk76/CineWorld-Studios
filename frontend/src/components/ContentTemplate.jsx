@@ -8,6 +8,7 @@ import {
   Building, Sparkles, BookOpen, Clapperboard, Zap, Loader2,
   Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye
 } from 'lucide-react';
+import TrailerPlayerModal from './TrailerPlayerModal';
 import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
@@ -432,6 +433,8 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const [virtualAudience, setVirtualAudience] = useState(null);
   const [showCast, setShowCast] = useState(false);
   const [showCinemaModal, setShowCinemaModal] = useState(false);
+  const [trailer, setTrailer] = useState(null);
+  const [showTrailer, setShowTrailer] = useState(false);
 
   const isSeries = contentType === 'series' || contentType === 'anime';
   const isAnime = contentType === 'anime' || film?.type === 'anime' || film?.content_type === 'anime';
@@ -465,6 +468,12 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   }, [api, filmId, isSeries]);
 
   useEffect(() => { loadFilm(); }, [loadFilm]);
+
+  // Trailer fetch (independent, non-blocking)
+  useEffect(() => {
+    if (!filmId) return;
+    api.get(`/trailers/${filmId}`).then(r => setTrailer(r.data?.trailer || null)).catch(() => {});
+  }, [filmId, api]);
 
   if (loading || !film) {
     return (
@@ -672,12 +681,29 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
       </div>
 
-      {/* 9. TRAILER PLACEHOLDER */}
-      <div className="ct2-trailer-placeholder" data-testid="ct-trailer-placeholder">
-        <Play size={20} />
-        <span className="ct2-trailer-text">Trailer in sviluppo</span>
-        <span className="ct2-trailer-badge">Funzionalita in arrivo</span>
-      </div>
+      {/* 9. TRAILER — visibile sia se esiste (Guarda Trailer) sia come placeholder */}
+      {trailer ? (
+        <button
+          onClick={() => setShowTrailer(true)}
+          className="ct2-trailer-placeholder hover:brightness-110 transition-all cursor-pointer"
+          data-testid="ct-trailer-watch-btn"
+          style={{ background: 'linear-gradient(135deg, rgba(245,166,35,0.15), rgba(233,78,119,0.12))', border: '1px solid rgba(245,166,35,0.3)' }}>
+          <Play size={24} fill="#f5a623" color="#f5a623" />
+          <span className="ct2-trailer-text" style={{ color: '#f5a623', fontWeight: 700 }}>Guarda Trailer</span>
+          <span className="ct2-trailer-badge" style={{ color: '#f5a623', opacity: 0.75 }}>
+            {trailer.duration_seconds}s · {(trailer.views_count || 0)} viste{trailer.trending ? ' · 🔥 TRENDING' : ''}
+          </span>
+        </button>
+      ) : (
+        <div className="ct2-trailer-placeholder" data-testid="ct-trailer-placeholder">
+          <Play size={20} />
+          <span className="ct2-trailer-text">Trailer in sviluppo</span>
+          <span className="ct2-trailer-badge">Genera dalla pipeline del film</span>
+        </div>
+      )}
+      {showTrailer && trailer && (
+        <TrailerPlayerModal trailer={trailer} contentTitle={film?.title} contentId={filmId} api={api} onClose={() => setShowTrailer(false)} />
+      )}
 
       {/* Cast Popup */}
       <CastPopup open={showCast} onClose={setShowCast} cast={film?.cast} />

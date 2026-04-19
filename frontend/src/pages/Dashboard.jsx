@@ -7,6 +7,7 @@ import { AuthContext, LanguageContext, useTranslations, useProductionMenu } from
 import { useSWR } from '../contexts/GameStore';
 import { LaPrimaSection } from '../components/LaPrimaSection';
 import { ComingSoonSection } from '../components/ComingSoonSection';
+import BestHighlightsLeaderboard from '../components/BestHighlightsLeaderboard';
 import FeaturedTrailersStrip from '../components/FeaturedTrailersStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
@@ -457,6 +458,9 @@ const Dashboard = () => {
 
           {/* 1.7 Trailer da non perdere (Cinematico+PRO trending) */}
           <FeaturedTrailersStrip />
+
+          {/* 1.8 Best Highlights — Top trailer post-lancio */}
+          <BestHighlightsLeaderboard limit={10} />
 
           {/* 2. Eventi WOW */}
           {eventiWow.length > 0 && (

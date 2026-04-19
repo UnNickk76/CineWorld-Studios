@@ -648,3 +648,70 @@ async def add_or_update_reaction(content_id: str, payload: dict, user: dict = De
 async def remove_my_reaction(content_id: str, user: dict = Depends(_dep())):
     r = await db.trailer_reactions.delete_one({"content_id": content_id, "user_id": user["id"]})
     return {"ok": True, "deleted": r.deleted_count}
+
+
+
+# ─────────────────────── Leaderboard: Best Highlights ───────────────────────
+@router.get("/trailers/leaderboard/highlights")
+async def best_highlights_leaderboard(limit: int = Query(10, ge=3, le=50), user: dict = Depends(_dep())):
+    """Top N highlights trailers (post-release) ordered by views_count.
+    Returns compact entries with title, poster, owner, tier, views.
+    """
+    limit = max(3, min(50, limit))
+    items = []
+    # Films
+    cursor = db.films.find(
+        {"trailer.mode": "highlights", "trailer.frames": {"$exists": True, "$ne": []}},
+        {"_id": 0, "id": 1, "title": 1, "poster_url": 1, "user_id": 1, "genre": 1,
+         "trailer.tier": 1, "trailer.views_count": 1, "trailer.generated_at": 1,
+         "trailer.mode": 1, "film_id": 1}
+    ).sort("trailer.views_count", -1).limit(limit * 2)
+    async for d in cursor:
+        items.append({**d, "content_type": "film"})
+    # TV series (optional, same pattern)
+    try:
+        cursor2 = db.tv_series.find(
+            {"trailer.mode": "highlights", "trailer.frames": {"$exists": True, "$ne": []}},
+            {"_id": 0, "id": 1, "title": 1, "poster_url": 1, "user_id": 1, "genre": 1,
+             "trailer.tier": 1, "trailer.views_count": 1, "trailer.generated_at": 1,
+             "trailer.mode": 1}
+        ).sort("trailer.views_count", -1).limit(limit * 2)
+        async for d in cursor2:
+            items.append({**d, "content_type": "tv_series"})
+    except Exception:
+        pass
+
+    # Enrich with owner nickname
+    owner_ids = list({i.get("user_id") for i in items if i.get("user_id")})
+    owners = {}
+    if owner_ids:
+        async for u in db.users.find(
+            {"id": {"$in": owner_ids}},
+            {"_id": 0, "id": 1, "nickname": 1, "production_house_name": 1, "avatar_url": 1}
+        ):
+            owners[u["id"]] = u
+
+    # Sort cross-collection by views desc
+    items.sort(key=lambda x: (x.get("trailer") or {}).get("views_count", 0), reverse=True)
+    items = items[:limit]
+
+    out = []
+    for i, it in enumerate(items):
+        tr = it.get("trailer") or {}
+        o = owners.get(it.get("user_id"), {})
+        out.append({
+            "rank": i + 1,
+            "content_id": it.get("id"),
+            "title": it.get("title"),
+            "poster_url": it.get("poster_url"),
+            "genre": it.get("genre"),
+            "content_type": it.get("content_type"),
+            "tier": tr.get("tier", "base"),
+            "views_count": tr.get("views_count", 0),
+            "generated_at": tr.get("generated_at"),
+            "owner_id": it.get("user_id"),
+            "owner_nickname": o.get("nickname", "?"),
+            "owner_studio": o.get("production_house_name"),
+            "owner_avatar_url": o.get("avatar_url"),
+        })
+    return {"items": out, "total": len(out)}

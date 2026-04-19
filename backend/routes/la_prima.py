@@ -748,13 +748,24 @@ async def get_active_la_prima(user: dict = Depends(get_current_user)):
     now_iso = datetime.now(timezone.utc).isoformat()
     from datetime import timedelta as _td
     min_started = (datetime.now(timezone.utc) - _td(hours=24)).isoformat()
-    v3_projects = await db.film_projects.find(
+    v3_live_projects = await db.film_projects.find(
         {'pipeline_version': 3, 'pipeline_state': 'la_prima', 'release_type': 'premiere',
          'premiere.datetime': {'$ne': None, '$lte': now_iso, '$gte': min_started}},
         {'_id': 0}
     ).to_list(50)
 
-    projects = v1_projects + v2_projects + v3_projects
+    # V3 films WAITING for La Prima (setup done, datetime in the future).
+    # These are shown in the dashboard La Prima section with a dimmed style + "In arrivo a {city}".
+    v3_waiting_projects = await db.film_projects.find(
+        {'pipeline_version': 3, 'pipeline_state': 'la_prima', 'release_type': 'premiere',
+         'premiere.datetime': {'$ne': None, '$gt': now_iso},
+         'premiere.city': {'$ne': None}},
+        {'_id': 0}
+    ).to_list(50)
+
+    projects = v1_projects + v2_projects + v3_live_projects + v3_waiting_projects
+    # Build a set of waiting ids for quick flag lookup
+    waiting_ids = {p['id'] for p in v3_waiting_projects}
 
     results = []
     for p in projects:
@@ -794,6 +805,20 @@ async def get_active_la_prima(user: dict = Depends(get_current_user)):
         # Get owner name
         owner = await db.users.find_one({'id': p.get('user_id')}, {'_id': 0, 'nickname': 1})
 
+        # For waiting films, compute countdown to premiere start
+        is_waiting = p['id'] in waiting_ids
+        countdown_to_start = None
+        if is_waiting and premiere.get('datetime'):
+            try:
+                pdt = datetime.fromisoformat(str(premiere['datetime']).replace('Z', '+00:00'))
+                remaining = (pdt - datetime.now(timezone.utc)).total_seconds()
+                if remaining > 0:
+                    h = int(remaining // 3600)
+                    m = int((remaining % 3600) // 60)
+                    countdown_to_start = f"{h}h {m}m"
+            except Exception:
+                pass
+
         results.append({
             'film_id': p['id'],
             'title': p.get('title', ''),
@@ -808,6 +833,9 @@ async def get_active_la_prima(user: dict = Depends(get_current_user)):
             'time_remaining': time_remaining,
             'owner_name': owner.get('nickname', '?') if owner else '?',
             'owner_id': p.get('user_id'),
+            'is_waiting': is_waiting,
+            'countdown_to_start': countdown_to_start,
+            'premiere_datetime': premiere.get('datetime'),
         })
 
     return {'events': results, 'total': len(results)}

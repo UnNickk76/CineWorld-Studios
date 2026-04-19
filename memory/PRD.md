@@ -10,6 +10,15 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Pre-La Prima in Sezione dedicata + Best Highlights Leaderboard**
+  - **Task A (nuovo requisito utente)**: film in fase pre-La Prima (setup fatto, datetime futuro) ora sono visibili ANCHE nella sezione "La Prima" della dashboard, in aggiunta alla Prossimamente.
+    - Backend `/la-prima/active` (in `la_prima.py`): aggiunge query separata per i film V3 in `pipeline_state='la_prima'` con `premiere.datetime > now`. Ogni evento ritorna `is_waiting: bool`, `countdown_to_start: "Xh Ym"` e `premiere_datetime`.
+    - Frontend `LaPrimaSection.jsx`: card waiting ha poster oscurato (opacity 55% + grayscale 30%), overlay dark gradient, badge "IN ARRIVO" in ciano al posto del "LIVE" rosso, bottom label "In arrivo a {CITTA}" + countdown "-Xh Ym · al via". Bordo ciano invece che oro. Cliccabile normalmente (naviga a `/films/{id}`).
+    - Badge header: "LIVE" (rosso pulsante) se almeno un live event presente, altrimenti "IN ARRIVO" (ciano statico).
+  - **Task B — Best Highlights Leaderboard**: nuovo endpoint `GET /api/trailers/leaderboard/highlights?limit=N` che aggrega film/serie con `trailer.mode='highlights'` ordinati per `views_count` desc. Ritorna rank, poster, owner (nickname + studio + avatar), tier, views, generated_at.
+  - Nuovo componente `BestHighlightsLeaderboard.jsx`: scroll orizzontale mobile-first, medaglie oro/argento/bronzo sui top 3, chip tier colorato (Base/Cinematico/PRO), play overlay on hover, contatore viste. Nascosto automaticamente se 0 items.
+  - Integrato in Dashboard dopo `FeaturedTrailersStrip`, prima delle sezioni Prossimamente.
+  - **Task C+D** (Compilation annuale AI + Remaster trailer): spostati in roadmap — richiedono video generation pesante (Sora 2) e saranno implementati come feature dedicate.
 - **Feb 2026 — Trailer mode: Pre-Launch vs Highlights**
   - **Backend** (`trailers.py`): endpoint `/trailers/{id}/generate` accetta nuovo query param `mode=pre_launch|highlights`. Mode auto-detect + enforcement:
     - `pre_launch` bloccato se film già uscito (`is_released`)

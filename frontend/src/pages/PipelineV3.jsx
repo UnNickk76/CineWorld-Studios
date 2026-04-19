@@ -211,8 +211,12 @@ export default function PipelineV3() {
       case 'la_prima': {
         if (!selected.release_type) return false; // must choose La Prima vs Diretto
         if (selected.release_type === 'premiere') {
-          const pp = selected.prima_progress || 0;
-          return pp >= 100;
+          const prem = selected.premiere || {};
+          if (!prem.city || !prem.datetime) return false;
+          try {
+            const end = new Date(prem.datetime).getTime() + 24 * 3600 * 1000;
+            if (Date.now() < end) return false;
+          } catch { return false; }
         }
         return true;
       }
@@ -235,6 +239,11 @@ export default function PipelineV3() {
   }
   if (wowAnimation === 'la_prima') {
     return <LaPrimaAnimation film={selected} onComplete={() => { setWowAnimation(null); setReleasePhase('wow'); }} />;
+  }
+  if (wowAnimation === 'la_prima_live') {
+    // Triggered when film enters LIVE window (premiere.datetime reached).
+    // No release side-effect: just show the wow then return to normal.
+    return <LaPrimaAnimation film={selected} onComplete={() => setWowAnimation(null)} />;
   }
 
   // ═══ OVERLAY STATES ═══
@@ -311,7 +320,7 @@ export default function PipelineV3() {
       case 'ciak': return <CiakPhase {...phaseProps} />;
       case 'finalcut': return <FinalCutPhase {...phaseProps} />;
       case 'marketing': return <MarketingPhase {...phaseProps} />;
-      case 'la_prima': return <LaPrimaPhase {...phaseProps} />;
+      case 'la_prima': return <LaPrimaPhase {...phaseProps} onTriggerAnimation={() => setWowAnimation('la_prima_live')} />;
       case 'distribution': return <DistributionPhase {...phaseProps} />;
       case 'release_pending': return <StepFinale film={selected} onConfirm={confirmRelease} onDiscard={discard} loading={loading || releasePhase !== 'idle'} releaseType={selected.release_type || 'direct'} />;
       default: return <p className="text-gray-500 text-sm p-4">Stato: {currentStep}</p>;

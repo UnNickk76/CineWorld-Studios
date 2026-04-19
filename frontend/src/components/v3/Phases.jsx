@@ -874,12 +874,26 @@ export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
 };
 
 /* ═══════ LA PRIMA ═══════ */
-export const LaPrimaPhase = ({ film, onRefresh, toast, onDirty }) => {
+export const LaPrimaPhase = ({ film, onRefresh, toast, onDirty, onTriggerAnimation }) => {
   const [loading, setLoading] = useState(false);
-  const [primaProgress, setPrimaProgress] = useState(film.prima_progress || 0);
-  const progressRef = useRef(null);
   const releaseTypeSet = film.release_type === 'premiere' || film.release_type === 'direct';
   const isPremiere = film.release_type === 'premiere';
+  const premiere = film.premiere || {};
+  const isConfigured = !!premiere.city && !!premiere.datetime;
+
+  // Wizard state for configuring premiere
+  const [citiesByRegion, setCitiesByRegion] = useState({});
+  const [selectedCity, setSelectedCity] = useState('');
+  const [datetime, setDatetime] = useState('');
+  const [delayDays, setDelayDays] = useState(3);
+  const [wizardStep, setWizardStep] = useState(1); // 1=city, 2=datetime, 3=delay, 4=confirm
+
+  // Countdown ticker
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => { if (!isConfigured) return; const i = setInterval(() => setNowTick(Date.now()), 30000); return () => clearInterval(i); }, [isConfigured]);
+
+  // Trigger WOW animation on first transition waiting → live
+  const prevWindowState = useRef(null);
 
   const chooseReleaseType = async (type) => {
     setLoading(true);
@@ -892,31 +906,74 @@ export const LaPrimaPhase = ({ film, onRefresh, toast, onDirty }) => {
     setLoading(false);
   };
 
-  useEffect(() => {
-    if (isPremiere && primaProgress < 100) {
-      progressRef.current = setInterval(() => {
-        setPrimaProgress(prev => {
-          const next = prev + Math.random() * 0.3 + 0.05;
-          if (next >= 100) { clearInterval(progressRef.current); return 100; }
-          return next;
-        });
-      }, 4000);
-      return () => { if (progressRef.current) clearInterval(progressRef.current); };
-    }
-  }, [isPremiere, primaProgress]);
+  // Helper: call non-pipeline-v3 endpoints (la-prima router)
+  const apiCall = async (path, method = 'GET', body) => {
+    const API = process.env.REACT_APP_BACKEND_URL;
+    const token = localStorage.getItem('cineworld_token');
+    const res = await fetch(`${API}/api${path}`, {
+      method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || data.error || 'Errore API');
+    return data;
+  };
 
-  const speedup = async (pct) => {
-    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], primaProgress);
+  useEffect(() => {
+    if (isPremiere && !isConfigured && wizardStep === 1) {
+      apiCall('/la-prima/cities').then(d => setCitiesByRegion(d.by_region || {})).catch(() => {});
+    }
+  }, [isPremiere, isConfigured, wizardStep]);
+
+  // Datetime boundaries: from tomorrow 00:00 to +3 days 23:59 (local)
+  const dtMin = (() => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(0, 0, 0, 0); return d.toISOString().slice(0, 16); })();
+  const dtMax = (() => { const d = new Date(); d.setDate(d.getDate() + 3); d.setHours(23, 59, 0, 0); return d.toISOString().slice(0, 16); })();
+
+  const confirmSetup = async () => {
+    if (!selectedCity || !datetime) { toast?.('Seleziona citta e data', 'error'); return; }
     setLoading(true);
     try {
-      await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'premiere', percentage: pct });
-      const remaining = 100 - primaProgress;
-      const gain = remaining * (pct / 100);
-      setPrimaProgress(prev => Math.min(100, prev + gain));
+      const iso = new Date(datetime).toISOString();
+      await apiCall(`/la-prima/setup/${film.id}`, 'POST', {
+        city: selectedCity, datetime: iso, release_delay_days: delayDays,
+      });
       await onRefresh();
-      toast?.(`Velocizzato +${Math.ceil(gain)}% (-${cost} CP)`);
+      onDirty?.();
+      toast?.(`La Prima confermata a ${selectedCity}!`);
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
+  };
+
+  // Format countdown to event / end of event
+  const computeWindow = () => {
+    if (!premiere.datetime) return null;
+    const pdt = new Date(premiere.datetime).getTime();
+    const end = pdt + 24 * 3600 * 1000;
+    const now = nowTick;
+    if (now < pdt) {
+      const delta = pdt - now;
+      return { state: 'waiting', delta };
+    }
+    if (now < end) {
+      const delta = end - now;
+      return { state: 'live', delta };
+    }
+    return { state: 'done', delta: 0 };
+  };
+  const window = computeWindow();
+  useEffect(() => {
+    if (!window) return;
+    if (prevWindowState.current === 'waiting' && window.state === 'live') {
+      // Transition to LIVE! Trigger super animation.
+      onTriggerAnimation?.();
+    }
+    prevWindowState.current = window.state;
+  }, [window, onTriggerAnimation]);
+  const fmtDelta = (ms) => {
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    if (h >= 24) return `${Math.floor(h / 24)}g ${h % 24}h`;
+    return `${h}h ${m}m`;
   };
 
   return (
@@ -943,41 +1000,144 @@ export const LaPrimaPhase = ({ film, onRefresh, toast, onDirty }) => {
             </div>
             <p className="text-[7px] text-gray-600 text-center mt-1">La scelta non potra' essere modificata</p>
           </div>
-        ) : isPremiere ? (
-          <>
-            <div className="p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/15 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[8px] text-gray-500 uppercase font-bold">Preparazione Premiere</span>
-                <span className="text-[10px] font-black text-yellow-400">{Math.floor(primaProgress)}%</span>
-              </div>
-              <div className="h-2.5 bg-gray-800 rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-gradient-to-r from-yellow-600 to-amber-300 transition-all duration-1000 ease-out"
-                  style={{ width: `${Math.min(100, primaProgress)}%` }} />
-              </div>
-              <p className="text-[7px] text-gray-600 text-center">
-                {primaProgress >= 100 ? 'Premiere pronta! Avanza alla distribuzione.' :
-                 'L\'anteprima esclusiva sta prendendo forma...'}
-              </p>
+        ) : isPremiere && !isConfigured ? (
+          <div className="space-y-3" data-testid="la-prima-wizard">
+            {/* Stepper indicator */}
+            <div className="flex items-center justify-center gap-2">
+              {[1,2,3].map(n => (
+                <div key={n} className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold ${wizardStep >= n ? 'bg-yellow-500 text-black' : 'bg-gray-800 text-gray-600'}`}>{n}</div>
+              ))}
             </div>
-            <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza Premiere (a pagamento)</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[25,50,75,100].map(p => {
-                const cost = getSpeedupCost(SPEEDUP_COSTS[p], primaProgress);
-                const remaining = 100 - primaProgress;
-                const gain = Math.ceil(remaining * (p / 100));
-                return (
-                  <button key={p} onClick={() => speedup(p)} disabled={loading || primaProgress >= 100}
-                    className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all">
-                    <Zap className="w-3 h-3" />
-                    <span>+{gain}%</span>
-                    <span className="flex items-center gap-0.5 text-[7px] text-cyan-400 ml-1">
-                      <Coins className="w-2.5 h-2.5" />{cost}
-                    </span>
+
+            {/* STEP 1: City */}
+            {wizardStep === 1 && (
+              <>
+                <p className="text-[8px] text-gray-500 uppercase font-bold text-center">1. Scegli la citta'</p>
+                <div className="max-h-[360px] overflow-y-auto pr-1 space-y-2" data-testid="city-picker">
+                  {Object.entries(citiesByRegion).map(([region, cities]) => (
+                    <div key={region}>
+                      <p className="text-[7px] text-yellow-500/70 uppercase tracking-wider font-bold mb-1">{region}</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {cities.map(c => (
+                          <button key={c.name}
+                            onClick={() => setSelectedCity(c.name)}
+                            data-testid={`city-btn-${c.name}`}
+                            className={`p-2 rounded-lg border text-left transition-all ${
+                              selectedCity === c.name ? 'bg-yellow-500/15 border-yellow-500/50' : 'bg-gray-800/30 border-gray-700 hover:border-yellow-500/20'
+                            }`}>
+                            <p className={`text-[9px] font-bold ${selectedCity === c.name ? 'text-yellow-400' : 'text-white'}`}>{c.name}</p>
+                            <p className="text-[7px] text-gray-500 italic">{c.vibe}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={() => setWizardStep(2)} disabled={!selectedCity}
+                  className="w-full py-2 rounded-xl bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[9px] font-bold disabled:opacity-30"
+                  data-testid="wizard-next-city">
+                  Avanti ({selectedCity || '—'})
+                </button>
+              </>
+            )}
+
+            {/* STEP 2: Datetime */}
+            {wizardStep === 2 && (
+              <>
+                <p className="text-[8px] text-gray-500 uppercase font-bold text-center">2. Quando avverra' La Prima?</p>
+                <div className="p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/15 space-y-2">
+                  <input type="datetime-local"
+                    value={datetime}
+                    min={dtMin} max={dtMax}
+                    onChange={e => setDatetime(e.target.value)}
+                    data-testid="datetime-picker"
+                    className="w-full bg-black/40 border border-yellow-500/20 rounded-lg px-2 py-2 text-[11px] text-yellow-300 [color-scheme:dark]" />
+                  <p className="text-[7px] text-gray-500 text-center leading-tight">
+                    Minimo: domani ore 00:00 · Massimo: tra 3 giorni<br/>
+                    Orario consigliato: 19:00-21:00 locali ({selectedCity})
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setWizardStep(1)}
+                    className="py-2 rounded-xl bg-gray-800/30 border border-gray-700 text-gray-400 text-[9px] font-bold">
+                    Indietro
                   </button>
-                );
-              })}
+                  <button onClick={() => setWizardStep(3)} disabled={!datetime}
+                    className="py-2 rounded-xl bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[9px] font-bold disabled:opacity-30"
+                    data-testid="wizard-next-datetime">
+                    Avanti
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* STEP 3: Delay days */}
+            {wizardStep === 3 && (
+              <>
+                <p className="text-[8px] text-gray-500 uppercase font-bold text-center">3. Uscita al cinema dopo la La Prima</p>
+                <div className="p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/15 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] text-gray-400">Giorni dopo La Prima</span>
+                    <span className="text-2xl font-black text-yellow-400">{delayDays}</span>
+                  </div>
+                  <input type="range" min="1" max="6" step="1" value={delayDays}
+                    onChange={e => setDelayDays(parseInt(e.target.value))}
+                    data-testid="delay-slider"
+                    className="w-full accent-yellow-400" />
+                  <div className="flex justify-between text-[7px] text-gray-500">
+                    {[1,2,3,4,5,6].map(n => <span key={n} className={n === delayDays ? 'text-yellow-400 font-bold' : ''}>{n}g</span>)}
+                  </div>
+                  <p className="text-[7px] text-center text-gray-500 italic">
+                    {delayDays === 3 ? 'Ideale: massimo buzz' : delayDays < 3 ? 'Troppo veloce, meno tempo per il passaparola' : 'Hype rischia di raffreddarsi'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setWizardStep(2)}
+                    className="py-2 rounded-xl bg-gray-800/30 border border-gray-700 text-gray-400 text-[9px] font-bold">
+                    Indietro
+                  </button>
+                  <button onClick={confirmSetup} disabled={loading}
+                    className="py-2 rounded-xl bg-yellow-500 text-black text-[9px] font-black disabled:opacity-50"
+                    data-testid="confirm-setup-btn">
+                    {loading ? '...' : 'Conferma La Prima'}
+                  </button>
+                </div>
+                <p className="text-[7px] text-gray-600 text-center">Citta: <span className="text-yellow-400">{selectedCity}</span> · Data: <span className="text-yellow-400">{datetime ? new Date(datetime).toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</span></p>
+              </>
+            )}
+          </div>
+        ) : isPremiere && isConfigured ? (
+          <div className="space-y-3" data-testid="la-prima-configured">
+            <div className="p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 space-y-2">
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-yellow-400" />
+                <span className="text-[10px] font-bold text-yellow-400 uppercase tracking-wider">La Prima configurata</span>
+              </div>
+              <p className="text-[9px] text-gray-300">Citta: <span className="font-bold text-yellow-300">{premiere.city}</span></p>
+              <p className="text-[9px] text-gray-300">Data: <span className="font-bold text-yellow-300">{new Date(premiere.datetime).toLocaleString('it-IT', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}</span></p>
+              <p className="text-[9px] text-gray-300">Cinema dopo: <span className="font-bold text-yellow-300">{premiere.release_delay_days}g dalla Prima</span></p>
             </div>
-          </>
+            {window && window.state === 'waiting' && (
+              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-center">
+                <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider mb-1">In attesa</p>
+                <p className="text-2xl font-black text-cyan-300">{fmtDelta(window.delta)}</p>
+                <p className="text-[8px] text-gray-500 mt-1">L'hype cresce. Il film resta in Prossimamente.</p>
+              </div>
+            )}
+            {window && window.state === 'live' && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/40 text-center animate-pulse">
+                <p className="text-[10px] text-red-400 font-bold uppercase tracking-wider mb-1">LIVE ORA</p>
+                <p className="text-2xl font-black text-red-300">{fmtDelta(window.delta)}</p>
+                <p className="text-[8px] text-gray-500 mt-1">Fine evento. Poi sblocca distribuzione.</p>
+              </div>
+            )}
+            {window && window.state === 'done' && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center">
+                <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-1">La Prima conclusa</p>
+                <p className="text-[9px] text-gray-400">Premi Avanti per procedere alla distribuzione.</p>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="p-3 rounded-xl bg-gray-800/20 border border-gray-700/30 text-center">
             <p className="text-[10px] text-gray-400">Nessuna premiere selezionata (rilascio diretto)</p>
@@ -1147,7 +1307,10 @@ const ZoneTree = ({ zones, mondiale, setMondiale, selConts, setSelConts, selNati
 export const DistributionPhase = ({ film, onRefresh, toast, onDirty }) => {
   const [zones, setZones] = useState({});
   const [loading, setLoading] = useState(false);
-  const [date, setDate] = useState(film.distribution_release_delay || 'immediato');
+  const isPremiere = film.release_type === 'premiere';
+  // If premiere: force a non-immediato default (24h), block "Immediato"
+  const defaultDate = film.distribution_release_delay || (isPremiere ? '24_ore' : 'immediato');
+  const [date, setDate] = useState(defaultDate);
   const [theaterDays, setTheaterDays] = useState(film.distribution_theater_days || 21);
   const [mondiale, setMondiale] = useState(!!film.distribution_mondiale);
   const [selConts, setSelConts] = useState(film.distribution_continents || []);
@@ -1185,13 +1348,20 @@ export const DistributionPhase = ({ film, onRefresh, toast, onDirty }) => {
           </div>
         ) : (
           <>
-            <p className="text-[8px] text-gray-500 uppercase font-bold">Data uscita</p>
+            <p className="text-[8px] text-gray-500 uppercase font-bold">Data uscita{isPremiere ? ' (post La Prima)' : ''}</p>
+            {isPremiere && (
+              <p className="text-[7px] text-yellow-500/70 text-center -mt-1">Il rilascio Immediato non e' disponibile con La Prima</p>
+            )}
             <div className="grid grid-cols-3 gap-1.5">
               {DATES.map(label => {
                 const val = label.toLowerCase().replace(/ /g, '_');
+                const isImmediato = val === 'immediato';
+                const blocked = isPremiere && isImmediato;
                 return (
-                  <button key={label} onClick={() => { setDate(val); onDirty?.(); }}
-                    className={`py-2 rounded-lg text-[8px] font-bold border ${
+                  <button key={label} onClick={() => { if (blocked) return; setDate(val); onDirty?.(); }}
+                    disabled={blocked}
+                    className={`py-2 rounded-lg text-[8px] font-bold border transition-all ${
+                      blocked ? 'border-gray-900 bg-gray-900/50 text-gray-700 line-through cursor-not-allowed' :
                       date === val ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : 'border-gray-800 text-gray-400 hover:border-gray-600'
                     }`}>{label}</button>
                 );

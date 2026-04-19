@@ -7395,7 +7395,7 @@ async def startup_event():
         update_expired_cities,
         generate_film_city_notifications
     )
-    from scheduler_tasks import process_hype_and_events
+    from scheduler_tasks import process_hype_and_events, process_la_prima_buildup
     # Inizializza citta dinamiche
     await initialize_city_dynamics()
     # Inizializza hype per film esistenti senza campo hype
@@ -7500,6 +7500,14 @@ async def startup_event():
         process_coming_soon_dynamic_events,
         IntervalTrigger(minutes=20),
         id='coming_soon_dynamic_events',
+        replace_existing=True
+    )
+
+    # Every 30 minutes: La Prima pre-event hype buildup + auto news
+    scheduler.add_job(
+        process_la_prima_buildup,
+        IntervalTrigger(minutes=30),
+        id='la_prima_buildup',
         replace_existing=True
     )
     

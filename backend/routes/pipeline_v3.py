@@ -668,8 +668,19 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
             if not project.get("release_type"):
                 raise HTTPException(400, "Devi scegliere se fare La Prima o rilascio Diretto prima di continuare.")
             if project.get("release_type") == "premiere":
-                if (project.get("prima_progress", 0) or 0) < 100:
-                    raise HTTPException(400, "La Prima non e ancora conclusa. Attendi o velocizza.")
+                prem = project.get("premiere") or {}
+                if not prem.get("city") or not prem.get("datetime"):
+                    raise HTTPException(400, "Configura citta' e data della La Prima prima di continuare.")
+                # Must have completed the 24h La Prima window
+                try:
+                    pdt = datetime.fromisoformat(str(prem["datetime"]).replace("Z", "+00:00"))
+                    end = pdt + timedelta(hours=24)
+                    if datetime.now(timezone.utc) < end:
+                        raise HTTPException(400, "La Prima e' in corso. Attendi la fine delle 24 ore.")
+                except HTTPException:
+                    raise
+                except Exception:
+                    pass
 
     update = {**defaults, "pipeline_state": req.next_state}
     # Track max step ever reached (prevents getting stuck when going back)

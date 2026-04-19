@@ -274,85 +274,124 @@ const CITIES = ['ROMA', 'MILANO', 'NEW YORK', 'LOS ANGELES', 'TOKYO', 'PARIGI', 
 export function LaPrimaAnimation({ onComplete, film }) {
   const [phase, setPhase] = useState(0);
   const [visibleCities, setVisibleCities] = useState([]);
+  const [flashes, setFlashes] = useState([]);
   const posterUrl = film?.poster_url;
+  const premiereCity = film?.premiere?.city?.toUpperCase() || 'CITTA';
 
   useEffect(() => {
     const timers = [
-      setTimeout(() => setPhase(1), 500),
-      setTimeout(() => setPhase(2), 2500),
-      setTimeout(() => setPhase(3), 4500),
-      setTimeout(() => setPhase(4), 6500),
-      setTimeout(() => onComplete(), 8000),
+      setTimeout(() => setPhase(1), 400),    // Spotlight + carpet reveal
+      setTimeout(() => setPhase(2), 1800),   // Title drop + city reveal
+      setTimeout(() => setPhase(3), 3300),   // Cities storm + flash burst
+      setTimeout(() => setPhase(4), 5200),   // 5 stars reveal
+      setTimeout(() => setPhase(5), 6800),   // Final glow + LIVE badge
+      setTimeout(() => onComplete(), 8600),
     ];
     return () => timers.forEach(clearTimeout);
   }, [onComplete]);
 
-  // Cities appear/disappear
+  // Cities bubble up
   useEffect(() => {
     if (phase < 2) return;
     let idx = 0;
     const interval = setInterval(() => {
       const city = CITIES[idx % CITIES.length];
-      const pos = { x: 10 + Math.random() * 75, y: 15 + Math.random() * 65 };
-      setVisibleCities(prev => [...prev.slice(-6), { city, pos, id: Date.now() }]);
+      const pos = { x: 5 + Math.random() * 85, y: 10 + Math.random() * 75 };
+      setVisibleCities(prev => [...prev.slice(-8), { city, pos, id: Date.now() + idx }]);
       idx++;
-    }, 400);
+    }, 260);
     return () => clearInterval(interval);
+  }, [phase]);
+
+  // Camera flash burst during phase 3
+  useEffect(() => {
+    if (phase !== 3) return;
+    const id = setInterval(() => {
+      setFlashes(prev => [...prev.slice(-4), { id: Date.now(), x: Math.random() * 100, y: Math.random() * 100 }]);
+    }, 120);
+    return () => clearInterval(id);
   }, [phase]);
 
   return (
     <div className="fixed inset-0 z-[99999] overflow-hidden" data-testid="la-prima-animation">
-      {/* Background: dark red carpet gradient */}
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #0a0005 0%, #1a0510 30%, #2a0a15 60%, #0a0005 100%)' }} />
+      {/* Deep red-black premiere background */}
+      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 30%, #3a0a18 0%, #1a0508 40%, #050003 100%)' }} />
 
-      {/* Red carpet strips */}
-      <motion.div className="absolute bottom-0 left-[35%] w-[30%] h-full"
-        style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(220,38,38,0.15) 50%, rgba(220,38,38,0.3) 100%)' }}
-        initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ duration: 1, ease: 'easeOut' }} />
-
-      {/* Golden sparkles */}
-      {phase >= 1 && [...Array(20)].map((_, i) => (
-        <motion.div key={`spark-${i}`} className="absolute w-1 h-1 rounded-full bg-yellow-400"
-          style={{ left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%` }}
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 0] }}
-          transition={{ duration: 1.5, delay: i * 0.15, repeat: Infinity, repeatDelay: Math.random() * 2 }} />
+      {/* Vertical spotlight beams sweeping */}
+      {phase >= 1 && [0, 1, 2, 3].map(i => (
+        <motion.div key={`beam-${i}`} className="absolute top-0 w-[30%] h-full origin-top"
+          style={{ left: `${-10 + i * 30}%`, background: 'linear-gradient(180deg, rgba(250,204,21,0.18) 0%, transparent 80%)', transform: 'skewX(-8deg)' }}
+          initial={{ opacity: 0, scaleY: 0 }}
+          animate={{ opacity: [0, 0.9, 0.35, 0.7, 0.3], scaleY: 1, rotate: [0, 6, -6, 0] }}
+          transition={{ duration: 4, delay: i * 0.15, repeat: Infinity, repeatType: 'mirror' }} />
       ))}
 
-      {/* Golden flash burst */}
+      {/* Red carpet with perspective */}
+      <motion.div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[60%]"
+        style={{ width: '60%', background: 'linear-gradient(180deg, transparent 0%, rgba(220,38,38,0.15) 30%, rgba(220,38,38,0.55) 100%)',
+          clipPath: 'polygon(40% 0%, 60% 0%, 100% 100%, 0% 100%)' }}
+        initial={{ scaleY: 0, opacity: 0 }} animate={{ scaleY: 1, opacity: 1 }} transition={{ duration: 1.2, ease: 'easeOut' }} />
+
+      {/* Golden sparkles - increased density */}
+      {phase >= 1 && [...Array(35)].map((_, i) => (
+        <motion.div key={`spark-${i}`} className="absolute rounded-full"
+          style={{ width: 2 + Math.random() * 3, height: 2 + Math.random() * 3,
+            left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
+            background: '#facc15', boxShadow: '0 0 8px #facc15' }}
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: [0, 1, 0.2, 1, 0], scale: [0, 1.8, 0.8, 1.5, 0], y: [0, -30] }}
+          transition={{ duration: 2 + Math.random() * 2, delay: i * 0.08, repeat: Infinity, repeatDelay: Math.random() * 3 }} />
+      ))}
+
+      {/* Huge initial flash */}
       {phase === 1 && (
         <motion.div className="absolute inset-0"
-          style={{ background: 'radial-gradient(circle at 50% 40%, rgba(250,204,21,0.3) 0%, transparent 50%)' }}
-          initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1.5 }} />
+          style={{ background: 'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.85) 0%, rgba(250,204,21,0.4) 20%, transparent 55%)' }}
+          initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 0.3] }} transition={{ duration: 1.2 }} />
       )}
 
-      {/* Poster reveal */}
+      {/* Poster reveal with 3D flip */}
       {phase >= 1 && posterUrl && (
-        <motion.div className="absolute left-1/2 top-[15%] z-10"
-          initial={{ x: '-50%', scale: 0, rotateY: 90 }}
-          animate={{ x: '-50%', scale: 1, rotateY: 0 }}
-          transition={{ delay: 0.3, type: 'spring', damping: 12 }}>
+        <motion.div className="absolute left-1/2 top-[12%] z-10"
+          initial={{ x: '-50%', scale: 0, rotateY: 180, rotateZ: -15 }}
+          animate={{ x: '-50%', scale: 1, rotateY: 0, rotateZ: 0 }}
+          transition={{ delay: 0.3, type: 'spring', damping: 11, stiffness: 80 }}>
           <div className="relative">
             <img src={posterUrl.startsWith('http') ? posterUrl : `${API}${posterUrl}`} alt=""
-              className="w-32 h-48 object-cover rounded-xl shadow-2xl"
-              style={{ border: '3px solid rgba(250,204,21,0.5)', boxShadow: '0 0 40px rgba(250,204,21,0.3), 0 0 80px rgba(250,204,21,0.1)' }} />
-            {/* Glow ring around poster */}
-            <motion.div className="absolute -inset-2 rounded-2xl"
-              style={{ border: '2px solid rgba(250,204,21,0.3)' }}
-              animate={{ scale: [1, 1.05, 1], opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity }} />
+              className="w-36 h-52 object-cover rounded-xl"
+              style={{ border: '3px solid rgba(250,204,21,0.6)',
+                boxShadow: '0 0 60px rgba(250,204,21,0.5), 0 0 120px rgba(220,38,38,0.3), inset 0 0 20px rgba(0,0,0,0.4)' }} />
+            {/* Pulsing golden ring */}
+            <motion.div className="absolute -inset-3 rounded-2xl"
+              style={{ border: '2px solid rgba(250,204,21,0.5)' }}
+              animate={{ scale: [1, 1.08, 1], opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 1.8, repeat: Infinity }} />
+            <motion.div className="absolute -inset-6 rounded-3xl"
+              style={{ border: '1px solid rgba(220,38,38,0.4)' }}
+              animate={{ scale: [1, 1.15, 1], opacity: [0.2, 0.7, 0.2] }}
+              transition={{ duration: 2.4, repeat: Infinity, delay: 0.4 }} />
           </div>
         </motion.div>
       )}
 
       {/* Film title */}
       {phase >= 2 && (
-        <motion.div className="absolute left-0 right-0 top-[58%] text-center z-10"
-          initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring' }}>
-          <div className="text-3xl font-black text-yellow-400 px-4" style={{ fontFamily: "'Bebas Neue', sans-serif", textShadow: '0 0 20px rgba(250,204,21,0.4)', letterSpacing: '3px' }}>
+        <motion.div className="absolute left-0 right-0 top-[60%] text-center z-10"
+          initial={{ y: 50, opacity: 0, scale: 0.6 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', damping: 10 }}>
+          <div className="text-4xl font-black text-yellow-400 px-4"
+            style={{ fontFamily: "'Bebas Neue', sans-serif",
+              textShadow: '0 0 28px rgba(250,204,21,0.7), 0 0 56px rgba(220,38,38,0.4)',
+              letterSpacing: '4px' }}>
             {film?.title || 'LA PRIMA'}
           </div>
-          <div className="text-xs text-red-300/60 mt-1 tracking-[4px]">PREMIERE MONDIALE</div>
+          <motion.div className="text-[11px] text-red-300/80 mt-1.5 tracking-[6px]"
+            initial={{ letterSpacing: '0px', opacity: 0 }}
+            animate={{ letterSpacing: '6px', opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.8 }}>
+            LA PRIMA MONDIALE · {premiereCity}
+          </motion.div>
         </motion.div>
       )}
 
@@ -361,11 +400,14 @@ export function LaPrimaAnimation({ onComplete, film }) {
         {visibleCities.map(({ city, pos, id }) => (
           <motion.div key={id} className="absolute z-5 pointer-events-none"
             style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-            initial={{ opacity: 0, scale: 0.5, y: 10 }}
-            animate={{ opacity: 0.7, scale: 1, y: -10 }}
-            exit={{ opacity: 0, scale: 0.3, y: -30 }}
-            transition={{ duration: 1.5 }}>
-            <span className="text-[10px] font-bold tracking-[3px]" style={{ color: 'rgba(250,204,21,0.5)', fontFamily: "'Bebas Neue', sans-serif" }}>
+            initial={{ opacity: 0, scale: 0.4, y: 20 }}
+            animate={{ opacity: 0.8, scale: 1, y: -15 }}
+            exit={{ opacity: 0, scale: 0.2, y: -40 }}
+            transition={{ duration: 1.6 }}>
+            <span className="text-[11px] font-bold tracking-[3px]"
+              style={{ color: city === premiereCity ? '#facc15' : 'rgba(250,204,21,0.55)',
+                fontFamily: "'Bebas Neue', sans-serif",
+                textShadow: city === premiereCity ? '0 0 10px #facc15' : 'none' }}>
               {city}
             </span>
           </motion.div>
@@ -373,35 +415,53 @@ export function LaPrimaAnimation({ onComplete, film }) {
       </AnimatePresence>
 
       {/* Camera flashes */}
-      {phase >= 3 && [...Array(8)].map((_, i) => (
-        <motion.div key={`flash-${i}`} className="absolute rounded-full pointer-events-none"
-          style={{ width: 60, height: 60, left: `${10 + Math.random() * 80}%`, top: `${20 + Math.random() * 60}%`,
-            background: 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, transparent 70%)' }}
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: [0, 1, 0], scale: [0, 1, 0] }}
-          transition={{ duration: 0.3, delay: i * 0.4, repeat: 3 }} />
-      ))}
+      <AnimatePresence>
+        {flashes.map(f => (
+          <motion.div key={f.id} className="absolute rounded-full pointer-events-none"
+            style={{ width: 120, height: 120, left: `${f.x}%`, top: `${f.y}%`,
+              background: 'radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(250,204,21,0.3) 30%, transparent 70%)' }}
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: [0, 1, 0], scale: [0, 1.2, 0] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.45 }} />
+        ))}
+      </AnimatePresence>
 
       {/* Star rating reveal */}
       {phase >= 4 && (
-        <motion.div className="absolute bottom-16 left-0 right-0 text-center z-10"
-          initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 200 }}>
+        <motion.div className="absolute bottom-24 left-0 right-0 text-center z-10"
+          initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 200 }}>
           <div className="flex justify-center gap-2">
             {[1, 2, 3, 4, 5].map(i => (
-              <motion.span key={i} className="text-3xl"
-                initial={{ y: 20, opacity: 0, rotate: -180 }}
-                animate={{ y: 0, opacity: 1, rotate: 0 }}
-                transition={{ delay: i * 0.15, type: 'spring' }}
-                style={{ color: '#facc15', textShadow: '0 0 10px rgba(250,204,21,0.5)' }}>
+              <motion.span key={i} className="text-4xl"
+                initial={{ y: 40, opacity: 0, rotate: -180, scale: 0 }}
+                animate={{ y: 0, opacity: 1, rotate: 0, scale: 1 }}
+                transition={{ delay: i * 0.12, type: 'spring', stiffness: 180 }}
+                style={{ color: '#facc15', textShadow: '0 0 16px rgba(250,204,21,0.7)' }}>
                 &#9733;
               </motion.span>
             ))}
           </div>
-          <motion.p className="text-sm text-yellow-400/80 mt-2 tracking-[5px]"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
-            style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-            IN USCITA!
-          </motion.p>
+        </motion.div>
+      )}
+
+      {/* LIVE badge with pulsing */}
+      {phase >= 5 && (
+        <motion.div className="absolute bottom-10 left-0 right-0 text-center z-10"
+          initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 150 }}>
+          <motion.div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-red-600/90 border-2 border-red-300"
+            animate={{ boxShadow: ['0 0 20px rgba(220,38,38,0.5)', '0 0 40px rgba(220,38,38,0.9)', '0 0 20px rgba(220,38,38,0.5)'] }}
+            transition={{ duration: 1.2, repeat: Infinity }}>
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            <span className="text-sm font-black text-white tracking-[4px]" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+              LIVE ORA
+            </span>
+          </motion.div>
+          <p className="text-[10px] text-yellow-400/80 mt-2 tracking-[5px]" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+            24 ORE DI EVENTO ESCLUSIVO
+          </p>
         </motion.div>
       )}
     </div>

@@ -1369,6 +1369,103 @@ async def process_hype_and_events():
         logger.error(f"[HYPE] Errore process_hype_and_events: {e}")
 
 
+async def process_la_prima_buildup():
+    """Every 30min tick: apply hype buildup + random news to V3 films waiting for La Prima.
+    Active window: from premiere.setup_at to premiere.datetime.
+    - Hype: +0.5..+1.5 per tick (variable), capped at +25 vs baseline at setup
+    - News: ~30% chance per tick of auto-generating a teaser news event
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        waiting_films = await scheduler_db.film_projects.find(
+            {'pipeline_version': 3, 'pipeline_state': 'la_prima',
+             'release_type': 'premiere', 'premiere.datetime': {'$ne': None},
+             'premiere.setup_at': {'$ne': None}},
+            {'_id': 0, 'id': 1, 'title': 1, 'hype_score': 1, 'premiere': 1, 'user_id': 1, 'genre': 1,
+             'la_prima_buildup_baseline': 1, 'news_events': 1}
+        ).to_list(200)
+
+        if not waiting_films:
+            return
+
+        NEWS_TEMPLATES_WAITING = [
+            "I fan di '{title}' sono in trepidazione per la premiere a {city}!",
+            "A {city} i preparativi per la La Prima di '{title}' sono frenetici.",
+            "I media parlano dell'attesissima La Prima di '{title}' a {city}.",
+            "Red carpet gia' pronto per '{title}' a {city} — i biglietti vanno a ruba.",
+            "Critics in volo verso {city}: tutti aspettano '{title}'.",
+            "Social impazziti: #{hashtag} trend mondiale in vista della La Prima.",
+            "I fan del regista si stanno organizzando in massa per la La Prima a {city}.",
+            "Si prevede standing ovation per '{title}' a {city}.",
+        ]
+        updated = 0
+        for film in waiting_films:
+            prem = film.get('premiere') or {}
+            try:
+                pdt = datetime.fromisoformat(str(prem.get('datetime')).replace('Z', '+00:00'))
+            except Exception:
+                continue
+            if now >= pdt:
+                continue  # passed premiere time → handled elsewhere
+
+            # Init baseline if missing
+            baseline = film.get('la_prima_buildup_baseline')
+            if baseline is None:
+                baseline = int(film.get('hype_score', 0) or 0)
+                await scheduler_db.film_projects.update_one(
+                    {'id': film['id']},
+                    {'$set': {'la_prima_buildup_baseline': baseline}}
+                )
+
+            current_hype = int(film.get('hype_score', 0) or 0)
+            # Cap: +25 over baseline
+            if current_hype - baseline >= 25:
+                # No more hype, but maybe news
+                pass
+            else:
+                # Variable hype bump: 0.5-1.5 base, random surge chance 12%
+                bump = random.uniform(0.5, 1.5)
+                if random.random() < 0.12:
+                    bump += random.uniform(2.0, 4.0)  # random surge event
+                new_hype = min(baseline + 25, current_hype + int(round(bump)))
+                if new_hype != current_hype:
+                    await scheduler_db.film_projects.update_one(
+                        {'id': film['id']},
+                        {'$set': {'hype_score': new_hype}}
+                    )
+
+            # ~30% chance of auto news per tick
+            if random.random() < 0.30:
+                city = prem.get('city', 'citta sconosciuta')
+                hashtag = (film.get('title') or '').replace(' ', '').replace("'", '')[:20] or 'Premiere'
+                text = random.choice(NEWS_TEMPLATES_WAITING).format(
+                    title=film.get('title', 'il film'),
+                    city=city,
+                    hashtag=hashtag,
+                )
+                news_ev = {
+                    'type': 'positive',
+                    'source': 'CineWorld News',
+                    'title': 'Attesa per La Prima',
+                    'text': text,
+                    'created_at': now.isoformat(),
+                }
+                existing = film.get('news_events') or []
+                # Keep last 20 entries max
+                trimmed = (existing + [news_ev])[-20:]
+                await scheduler_db.film_projects.update_one(
+                    {'id': film['id']},
+                    {'$set': {'news_events': trimmed}}
+                )
+            updated += 1
+
+        if updated > 0:
+            logger.info(f"[LA_PRIMA_BUILDUP] Processati {updated} film in pre-La Prima")
+    except Exception as e:
+        logger.error(f"[LA_PRIMA_BUILDUP] errore: {e}")
+
+
+
 # ==================== AUTO REVENUE + STAR + SKILL TICK ====================
 
 

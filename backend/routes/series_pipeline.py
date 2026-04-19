@@ -1697,7 +1697,7 @@ async def get_coming_soon():
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
          'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
          'pre_imdb_score': 1, 'pipeline_state': 1, 'pipeline_ui_step': 1,
-         'pipeline_version': 1}
+         'pipeline_version': 1, 'release_type': 1, 'premiere': 1}
     ).sort('created_at', -1)
     v3_items = await v3_cursor.to_list(50)
     
@@ -1773,12 +1773,29 @@ async def get_coming_soon():
     for v3 in v3_items:
         owner = users.get(v3['user_id'], {})
         state_label = V3_STATE_LABEL.get(v3.get('pipeline_state', ''), v3.get('pipeline_state', ''))
+        # Compute La Prima live status (between premiere.datetime and +24h)
+        premiere = v3.get('premiere') or {}
+        la_prima_live = False
+        la_prima_waiting = False
+        if v3.get('pipeline_state') == 'la_prima' and v3.get('release_type') == 'premiere' and premiere.get('datetime'):
+            try:
+                from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+                pdt = _dt.fromisoformat(str(premiere['datetime']).replace('Z', '+00:00'))
+                now = _dt.now(_tz.utc)
+                if now < pdt:
+                    la_prima_waiting = True
+                elif now < pdt + _td(hours=24):
+                    la_prima_live = True
+            except Exception:
+                pass
         items.append({
             **v3,
             'content_type': 'film',
             'genre_name': v3.get('genre', ''),
             'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
             'pipeline_status_label': state_label,
+            'la_prima_live': la_prima_live,
+            'la_prima_waiting': la_prima_waiting,
             'is_v2': True,
         })
     

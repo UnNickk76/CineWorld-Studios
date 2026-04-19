@@ -406,23 +406,27 @@ async def setup_premiere(film_id: str, req: PremiereSetupRequest, user=Depends(g
     Calculates hidden impact score. Cannot be modified after confirmation."""
     project = await db.film_projects.find_one(
         {'id': film_id, 'user_id': user['id']},
-        {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'premiere': 1, 'genre': 1, 'cast': 1, 'sponsors': 1}
+        {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'premiere': 1, 'genre': 1, 'cast': 1, 'sponsors': 1, 'pipeline_version': 1}
     )
     if not project:
         raise HTTPException(status_code=404, detail="Progetto film non trovato")
 
-    premiere = project.get('premiere', {})
+    premiere = project.get('premiere') or default_premiere()
 
-    # Must be enabled first
+    # For V3 projects, auto-enable premiere on first setup (no separate enable step needed).
+    is_v3 = project.get('pipeline_version') == 3
     if not premiere.get('enabled'):
-        raise HTTPException(status_code=400, detail="Devi prima attivare La Prima")
+        if is_v3:
+            premiere['enabled'] = True
+        else:
+            raise HTTPException(status_code=400, detail="Devi prima attivare La Prima")
 
     # Cannot modify after setup
     if premiere.get('city') is not None:
         raise HTTPException(status_code=400, detail="La Prima e' gia' stata configurata e non puo' essere modificata")
 
-    # Block if already released
-    if project.get('status') in ('released', 'in_theaters', 'withdrawn'):
+    # Block if already released (legacy status only — V3 uses pipeline_state)
+    if not is_v3 and project.get('status') in ('released', 'in_theaters', 'withdrawn'):
         raise HTTPException(status_code=400, detail="Film gia' uscito, impossibile configurare La Prima")
 
     # Validate city
@@ -447,6 +451,7 @@ async def setup_premiere(film_id: str, req: PremiereSetupRequest, user=Depends(g
         'initial_hype_boost': impact['initial_hype_boost'],
         'decay_factor': impact['decay_factor'],
         'outcome': None,  # Will be set after premiere event
+        'setup_at': datetime.now(timezone.utc).isoformat(),
     })
 
     await db.film_projects.update_one(
@@ -739,9 +744,13 @@ async def get_active_la_prima(user: dict = Depends(get_current_user)):
         {'_id': 0}
     ).to_list(50)
 
-    # V3 films in la_prima phase with release_type == 'premiere'
+    # V3 films in la_prima phase with release_type == 'premiere' — only LIVE (between datetime and +24h)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    from datetime import timedelta as _td
+    min_started = (datetime.now(timezone.utc) - _td(hours=24)).isoformat()
     v3_projects = await db.film_projects.find(
-        {'pipeline_version': 3, 'pipeline_state': 'la_prima', 'release_type': 'premiere'},
+        {'pipeline_version': 3, 'pipeline_state': 'la_prima', 'release_type': 'premiere',
+         'premiere.datetime': {'$ne': None, '$lte': now_iso, '$gte': min_started}},
         {'_id': 0}
     ).to_list(50)
 

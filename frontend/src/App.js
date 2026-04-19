@@ -1530,6 +1530,7 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
   const [showGames, setShowGames] = useState(false);
   const [gamesList, setGamesList] = useState([]);
   const [challengeLoading, setChallengeLoading] = useState('');
+  const [showFilmography, setShowFilmography] = useState(false);
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
 
   // Fetch all minigames from backend
@@ -1632,6 +1633,36 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
                   {bestFilmCwsv && <p className="text-[9px] text-yellow-400">CWSv {bestFilmCwsv}</p>}
                 </div>
               </div>
+            </div>
+          )}
+          {/* Filmografia collassabile */}
+          {Array.isArray(p.filmography) && p.filmography.length > 0 && (
+            <div className="mt-2" data-testid="popup-filmography">
+              <button
+                onClick={() => setShowFilmography(v => !v)}
+                className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-colors"
+                data-testid="popup-filmography-toggle">
+                <span className="text-[8px] text-gray-500 uppercase tracking-wider font-bold">Filmografia recente ({p.filmography.length})</span>
+                <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform ${showFilmography ? 'rotate-180' : ''}`} />
+              </button>
+              {showFilmography && (
+                <div className="mt-1 space-y-0.5 rounded-lg bg-white/[0.02] border border-white/5 p-2">
+                  {p.filmography.slice(0, 5).map((f, i) => {
+                    const TypeIcon = f.type === 'anime' ? Sparkles : f.type === 'tv_series' ? Tv : Film;
+                    const typeColor = f.type === 'anime' ? 'text-pink-400' : f.type === 'tv_series' ? 'text-blue-400' : 'text-yellow-400';
+                    const cwsvNum = f.quality_score || 0;
+                    const cwsvColor = cwsvNum >= 8 ? 'text-yellow-400' : cwsvNum >= 6 ? 'text-green-400' : cwsvNum >= 4 ? 'text-orange-400' : 'text-red-400';
+                    return (
+                      <div key={i} className="flex items-center gap-2 py-1">
+                        <span className="text-[8px] text-gray-600 w-3">{i + 1}.</span>
+                        <TypeIcon className={`w-2.5 h-2.5 ${typeColor} flex-shrink-0`} />
+                        <span className="text-[10px] text-gray-300 flex-1 truncate">{f.title}</span>
+                        <span className={`text-[10px] font-bold ${cwsvColor}`}>{f.cwsv_display || '—'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
           {p.challenge_stats && (

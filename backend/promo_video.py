@@ -115,12 +115,33 @@ async def _spawn_demo_user() -> Dict[str, Any]:
 
 async def _seed_content(token: str, user_id: str):
     """Quick seed: ensure the demo user has at least 1 film in coming_soon and 1 released,
-    so leaderboards/my-films/my-tv show realistic content."""
-    # Minimal seed: insert directly to DB (faster than API cascade)
+    so leaderboards/my-films/my-tv show realistic content. Reuses a real poster from disk
+    to avoid AI generation cost and empty placeholders."""
     now = datetime.now(timezone.utc).isoformat()
     have = await db.film_projects.count_documents({"user_id": user_id})
     if have > 0:
         return
+
+    # Pick 2 real poster files from the static posters dir (PNG/JPG with UUID filenames)
+    posters_dir = "/app/backend/static/posters"
+    poster_urls: List[str] = []
+    try:
+        files = sorted([f for f in os.listdir(posters_dir) if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))])
+        # Skip placeholders
+        files = [f for f in files if not f.startswith("placeholder")]
+        if files:
+            # Use every N-th file to get visual variety
+            import random as _r
+            _r.seed(hash(user_id) & 0xFFFF)
+            poster_urls = [f"/api/posters/{_r.choice(files)}" for _ in range(2)]
+    except Exception as e:
+        logger.warning(f"[promo-seed] poster lookup failed: {e}")
+
+    def _pick_poster(idx: int) -> str:
+        if poster_urls:
+            return poster_urls[idx % len(poster_urls)]
+        return "/posters/placeholder_thriller.jpg"  # last-resort fallback
+
     demo_films = [
         {
             "id": uuid.uuid4().hex,
@@ -130,7 +151,7 @@ async def _seed_content(token: str, user_id: str):
             "subgenres": ["noir", "mystery"],
             "preplot": "Un ispettore affronta un serial killer che lascia indizi in vicoli d'epoca.",
             "screenplay_text": "Sceneggiatura demo…",
-            "poster_url": "/posters/placeholder_thriller.jpg",
+            "poster_url": _pick_poster(0),
             "pipeline_state": "released",
             "status": "completed",
             "imdb_rating": 7.8,
@@ -147,7 +168,7 @@ async def _seed_content(token: str, user_id: str):
             "genre": "sci-fi",
             "subgenres": ["cyberpunk"],
             "preplot": "Una programmatrice scopre che l'IA urbana sta riscrivendo i ricordi dei cittadini.",
-            "poster_url": "/posters/placeholder_sci-fi.jpg",
+            "poster_url": _pick_poster(1),
             "pipeline_state": "coming_soon",
             "status": "coming_soon",
             "scheduled_release_at": now,
@@ -156,7 +177,7 @@ async def _seed_content(token: str, user_id: str):
         },
     ]
     await db.film_projects.insert_many(demo_films)
-    logger.info(f"[promo] seeded {len(demo_films)} demo films for {user_id}")
+    logger.info(f"[promo] seeded {len(demo_films)} demo films for {user_id} (posters={len(poster_urls)})")
 
 
 async def _cleanup_demo(user_id: str):
@@ -188,15 +209,25 @@ async def _generate_caption(label: str, ctx: str, custom_prompt: str, tone: str 
             "Usa un PARAGONE cinematografico",
         ]
         angle = angles[variant_idx % len(angles)]
+        tone_hints = {
+            "energico": "tono energico, motivante, quasi epico",
+            "neutro": "tono descrittivo, professionale, sobrio",
+            "ironico": "tono leggero, divertente, auto-ironico ma mai cringe",
+        }
         chat = LlmChat(
             api_key=api_key,
             session_id=f"promo-{uuid.uuid4().hex[:6]}",
             system_message=(
-                "Sei un copywriter italiano per video promo Instagram Reels. "
-                "Rispondi SOLO con una frase breve in italiano (max 60 caratteri), "
-                f"tono {tone}, senza virgolette o spiegazioni. Usa emoji al massimo 1."
+                "Sei un copywriter italiano madrelingua per video promo Instagram Reels. "
+                f"TONO richiesto: {tone_hints.get(tone, tone_hints['energico'])}. "
+                "REGOLE FERREE: "
+                "1) Rispondi SOLO con una frase breve in italiano naturale (max 55 caratteri). "
+                "2) Italiano corretto e scorrevole — niente costruzioni forzate, niente traduzioni letterali. "
+                "3) Niente virgolette, spiegazioni, puntini finali superflui. "
+                "4) Max 1 emoji pertinente. "
+                "5) Focus: un solo concetto chiaro, come slogan o titolo di film."
             ),
-        ).with_model("openai", "gpt-4o-mini").with_params(max_tokens=60, temperature=0.95)
+        ).with_model("openai", "gpt-4o-mini").with_params(max_tokens=50, temperature=0.75)
         extra = f" Direzione richiesta: {custom_prompt}." if custom_prompt else ""
         user_msg = UserMessage(text=f"Pagina: {label}. Contesto: {ctx}. Angolo: {angle}.{extra}")
         resp = await asyncio.wait_for(chat.send_message(user_msg), timeout=15)
@@ -484,39 +515,23 @@ def _has_drawtext() -> bool:
 
 # ─── FFmpeg composition ─────────────────────────────────────────
 def _compose_video(captured: List[Dict[str, Any]], captions: List[str], total_seconds: int, output_path: str, music_path: Optional[str] = None) -> bool:
-    """Compose a 1080x1920 MP4. Uses drawtext if system ffmpeg supports it,
-    otherwise falls back to Pillow-burned captions for portability."""
+    """Compose a 1080x1920 MP4. Captions are always burned via Pillow for reliable
+    rendering across environments (drawtext has newline/spacing issues in some builds)."""
     if not captured:
         return False
 
     per = max(1.5, total_seconds / len(captured))
-    use_drawtext = _has_drawtext()
     tmpdir = tempfile.mkdtemp(prefix="promo_clip_")
     clip_paths = []
     try:
         for i, (item, caption) in enumerate(zip(captured, captions)):
             clip_out = os.path.join(tmpdir, f"clip_{i:02d}.mp4")
             src_image = item["path"]
-
-            if use_drawtext:
-                safe = caption.replace("\\", "\\\\").replace(":", r"\:").replace("'", r"\'").replace(",", r"\,")
-                wrapped = "\n".join(textwrap.wrap(safe, width=26)) or safe
-                wrapped_ff = wrapped.replace("\n", "\\n")
-                vf = (
-                    f"scale=1080:-2:flags=lanczos,"
-                    f"pad=1080:1920:0:(oh-ih)/2:color=black,"
-                    f"format=yuv420p,"
-                    f"drawbox=x=0:y=ih-320:w=iw:h=320:color=black@0.55:t=fill,"
-                    f"drawtext=fontfile='{FONT_PATH}':text='{wrapped_ff}':"
-                    f"fontcolor=white:fontsize=46:line_spacing=8:"
-                    f"x=(w-text_w)/2:y=h-260:box=0"
-                )
-            else:
-                # Pillow burn-in path
-                burned = os.path.join(tmpdir, f"burn_{i:02d}.png")
-                if _burn_caption_pillow(src_image, caption, burned):
-                    src_image = burned
-                vf = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p"
+            # ALWAYS use Pillow to burn caption (reliable word spacing + wrapping)
+            burned = os.path.join(tmpdir, f"burn_{i:02d}.png")
+            if _burn_caption_pillow(src_image, caption, burned):
+                src_image = burned
+            vf = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p"
 
             cmd = [
                 FFMPEG_BIN, "-y", "-loop", "1", "-t", f"{per:.2f}",
@@ -546,7 +561,6 @@ def _compose_video(captured: List[Dict[str, Any]], captions: List[str], total_se
         ]
         subprocess.run(concat_cmd, capture_output=True, timeout=60)
 
-        # Add music if provided
         final_input = os.path.join(tmpdir, "concat.mp4")
         if music_path and os.path.exists(music_path):
             mix_cmd = [

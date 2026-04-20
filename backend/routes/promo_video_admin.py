@@ -26,6 +26,7 @@ class PromoJobRequest(BaseModel):
     custom_prompt: str = Field(default="", max_length=400)
     tone: Literal["energico", "neutro", "ironico"] = "energico"
     music: bool = False
+    frame_count: int = Field(default=0, ge=0, le=100, description="0=auto (usa tutte le pagine selezionate una volta)")
 
 
 @router.get("/screens")

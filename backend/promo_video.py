@@ -170,13 +170,24 @@ async def _cleanup_demo(user_id: str):
 
 
 # ─── AI captions ────────────────────────────────────────────────
-async def _generate_caption(label: str, ctx: str, custom_prompt: str, tone: str = "energico") -> str:
-    """Generate a short Italian promo caption (≤80 chars) using Emergent LLM."""
+async def _generate_caption(label: str, ctx: str, custom_prompt: str, tone: str = "energico", variant_idx: int = 0) -> str:
+    """Generate a short Italian promo caption (≤80 chars) using Emergent LLM.
+    `variant_idx` lets repeated pages get different angles (e.g. 0=feature, 1=benefit, 2=emotion)."""
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         api_key = os.environ.get("EMERGENT_LLM_KEY", "")
         if not api_key:
             return label
+        angles = [
+            "Enfatizza la FEATURE principale",
+            "Enfatizza il BENEFICIO per il giocatore",
+            "Usa un approccio EMOTIVO / aspirazionale",
+            "Usa una DOMANDA provocatoria",
+            "Usa un NUMERO o statistica concreta",
+            "Usa una CALL-TO-ACTION forte",
+            "Usa un PARAGONE cinematografico",
+        ]
+        angle = angles[variant_idx % len(angles)]
         chat = LlmChat(
             api_key=api_key,
             session_id=f"promo-{uuid.uuid4().hex[:6]}",
@@ -185,12 +196,11 @@ async def _generate_caption(label: str, ctx: str, custom_prompt: str, tone: str 
                 "Rispondi SOLO con una frase breve in italiano (max 60 caratteri), "
                 f"tono {tone}, senza virgolette o spiegazioni. Usa emoji al massimo 1."
             ),
-        ).with_model("openai", "gpt-4o-mini").with_params(max_tokens=60, temperature=0.8)
+        ).with_model("openai", "gpt-4o-mini").with_params(max_tokens=60, temperature=0.95)
         extra = f" Direzione richiesta: {custom_prompt}." if custom_prompt else ""
-        user_msg = UserMessage(text=f"Pagina: {label}. Contesto: {ctx}.{extra}")
+        user_msg = UserMessage(text=f"Pagina: {label}. Contesto: {ctx}. Angolo: {angle}.{extra}")
         resp = await asyncio.wait_for(chat.send_message(user_msg), timeout=15)
         text = (resp or "").strip().strip('"').strip("'")
-        # Hard cap to 80 chars
         if len(text) > 80:
             text = text[:77].rsplit(" ", 1)[0] + "…"
         return text or label
@@ -583,12 +593,26 @@ async def run_promo_job(job_id: str, params: Dict[str, Any]):
         )
         if not captured:
             raise RuntimeError("Nessuno screenshot acquisito")
-        await _update_job(job_id, progress=62, stage="captions", log_line=f"🤖 Generazione caption AI ({len(captured)})")
 
-        # ─── Captions (parallel) ───
+        # ─── Extend to desired frame_count by cycling captured pages ───
+        desired = int(params.get("frame_count", 0) or 0)
+        if desired <= 0:
+            desired = len(captured)
+        desired = max(len(captured), min(100, desired))  # at least all unique pages, max 100
+        extended_captured = [captured[i % len(captured)] for i in range(desired)]
+
+        await _update_job(job_id, progress=62, stage="captions", log_line=f"🤖 Generazione caption AI ({desired})")
+
+        # ─── Captions (parallel) — one per frame with variant hints ───
         caption_tasks = [
-            _generate_caption(it["label"], it["ctx"], custom_prompt, tone=tone)
-            for it in captured
+            _generate_caption(
+                extended_captured[i]["label"],
+                extended_captured[i]["ctx"],
+                custom_prompt,
+                tone=tone,
+                variant_idx=i // max(1, len(captured)),
+            )
+            for i in range(desired)
         ]
         captions = await asyncio.gather(*caption_tasks, return_exceptions=False)
 
@@ -607,7 +631,7 @@ async def run_promo_job(job_id: str, params: Dict[str, Any]):
         # ─── Compose ───
         output_filename = f"promo_{job_id}.mp4"
         output_path = os.path.join(OUTPUT_DIR, output_filename)
-        ok = _compose_video(captured, list(captions), target_seconds, output_path, music_path=music_path)
+        ok = _compose_video(extended_captured, list(captions), target_seconds, output_path, music_path=music_path)
         if not ok:
             raise RuntimeError("FFmpeg ha fallito il rendering")
 

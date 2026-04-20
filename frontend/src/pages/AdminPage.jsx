@@ -2519,6 +2519,7 @@ function PromoVideoTab({ api }) {
   const [screens, setScreens] = useState([]);
   const [selected, setSelected] = useState(new Set());
   const [duration, setDuration] = useState(30);
+  const [frameCount, setFrameCount] = useState(0); // 0 = auto
   const [tone, setTone] = useState('energico');
   const [music, setMusic] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
@@ -2574,6 +2575,7 @@ function PromoVideoTab({ api }) {
         screens: Array.from(selected),
         custom_prompt: customPrompt.trim(),
         tone, music,
+        frame_count: frameCount,
       });
       const jobId = r.data.job_id;
       setCurrentJob({ job_id: jobId, status: 'queued', progress: 0, stage: 'queued', log: [] });
@@ -2657,6 +2659,51 @@ function PromoVideoTab({ api }) {
           <input id="promo-music" type="checkbox" checked={music} onChange={e => setMusic(e.target.checked)} disabled={running} className="w-4 h-4" data-testid="promo-music"/>
           <label htmlFor="promo-music" className="text-xs text-gray-300">Aggiungi musica di sottofondo (se disponibile)</label>
         </div>
+
+        {/* Frame count */}
+        {(() => {
+          const effective = frameCount > 0 ? frameCount : Math.max(1, selected.size);
+          const perFrame = duration / Math.max(1, effective);
+          const ratioLabel = perFrame.toFixed(2) + 's/frame';
+          let warnColor = 'text-emerald-400', warnMsg = 'Ritmo cinematografico ottimale';
+          if (perFrame < 0.8) { warnColor = 'text-red-400'; warnMsg = '⚠️ Troppo veloce! Frame illeggibili, caption non hanno tempo di essere lette'; }
+          else if (perFrame < 1.3) { warnColor = 'text-amber-400'; warnMsg = '⚠️ Ritmo frenetico — consigliato per flash/preview ma rischia caos visivo'; }
+          else if (perFrame > 5) { warnColor = 'text-amber-400'; warnMsg = 'ℹ️ Ritmo lento — frame fermi a lungo, rischia di essere noioso'; }
+          else if (perFrame > 3.5) { warnColor = 'text-sky-400'; warnMsg = 'ℹ️ Ritmo rilassato — ok per narrazione estesa'; }
+          return (
+            <div data-testid="frame-count-row">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Numero frame</label>
+                <span className="text-[10px] text-gray-500">
+                  {frameCount === 0 ? <>auto ({selected.size})</> : frameCount}
+                  <span className="text-gray-600"> · {ratioLabel}</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <button onClick={() => setFrameCount(0)} disabled={running}
+                  className={`text-[10px] px-2 py-1 rounded border font-semibold ${frameCount === 0 ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-gray-400'}`}
+                  data-testid="frame-auto">auto</button>
+                <input type="range" min="5" max="100" step="1"
+                  value={frameCount === 0 ? (selected.size || 14) : frameCount}
+                  onChange={e => setFrameCount(Number(e.target.value))}
+                  disabled={running}
+                  className="flex-1 accent-rose-500"
+                  data-testid="frame-count-slider"/>
+                <input type="number" min="5" max="100"
+                  value={frameCount === 0 ? '' : frameCount}
+                  placeholder="auto"
+                  onChange={e => setFrameCount(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                  disabled={running}
+                  className="w-14 text-[10px] bg-black/40 border border-white/10 rounded px-2 py-1 text-gray-200 text-right"
+                  data-testid="frame-count-input"/>
+              </div>
+              <div className={`text-[10px] mt-1 ${warnColor}`} data-testid="frame-warning">{warnMsg}</div>
+              <div className="text-[9px] text-gray-600 mt-0.5">
+                Esempi coerenti: 15 frame/30s · 30 frame/60s · 50 frame/120s. Se N supera le pagine selezionate, le pagine vengono ciclate con caption diverse.
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Custom prompt */}
         <div>

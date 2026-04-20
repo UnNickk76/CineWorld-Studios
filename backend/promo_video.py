@@ -200,6 +200,49 @@ async def _generate_caption(label: str, ctx: str, custom_prompt: str, tone: str 
 
 
 # ─── Playwright capture ─────────────────────────────────────────
+async def _ensure_chromium() -> Optional[str]:
+    """Ensure a usable Chromium is available. Returns executable path or None.
+    Tries common system paths first; if nothing found, runs `playwright install chromium`
+    (downloads ~200MB) as a one-time fallback."""
+    candidates = [
+        "/usr/bin/chromium",
+        "/usr/bin/google-chrome",
+        "/usr/bin/chromium-browser",
+    ]
+    # Playwright bundled (version may vary)
+    for root in ("/root/.cache/ms-playwright", "/home/user/.cache/ms-playwright"):
+        if os.path.isdir(root):
+            for sub in os.listdir(root):
+                if sub.startswith("chromium") and not sub.endswith("_headless_shell"):
+                    for fn in ("chrome-linux/chrome", "chrome-linux/chrome-wrapper"):
+                        p = os.path.join(root, sub, fn)
+                        if os.path.exists(p):
+                            candidates.insert(0, p)
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    # Nothing found → install chromium via Playwright (blocking ~1 min)
+    logger.warning("[promo] no Chromium found — running `playwright install chromium`")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "python3", "-m", "playwright", "install", "chromium",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        _out, _err = await asyncio.wait_for(proc.communicate(), timeout=180)
+        if proc.returncode == 0:
+            # Re-scan
+            for root in ("/root/.cache/ms-playwright", "/home/user/.cache/ms-playwright"):
+                if os.path.isdir(root):
+                    for sub in sorted(os.listdir(root)):
+                        if sub.startswith("chromium") and not sub.endswith("_headless_shell"):
+                            p = os.path.join(root, sub, "chrome-linux/chrome")
+                            if os.path.exists(p):
+                                return p
+    except Exception as e:
+        logger.error(f"[promo] playwright install failed: {e}")
+    return None
+
+
 async def _capture_screens(
     job_id: str,
     token: str,
@@ -210,6 +253,22 @@ async def _capture_screens(
 ) -> List[Dict[str, Any]]:
     """Capture each screen and return list of {path, label, ctx}."""
     from playwright.async_api import async_playwright
+
+    chromium_exec = await _ensure_chromium()
+    if not chromium_exec:
+        raise RuntimeError(
+            "Chromium non disponibile in questo ambiente. Richiede installazione manuale: "
+            "`apt install chromium` oppure `python3 -m playwright install chromium`."
+        )
+
+    # Check ffmpeg supports drawtext (system ffmpeg needed — not Playwright's minimal bundle)
+    try:
+        proc = await asyncio.create_subprocess_exec(FFMPEG_BIN, "-filters", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+        if b"drawtext" not in out:
+            logger.warning("[promo] FFmpeg in use does not support drawtext — captions will not render")
+    except Exception:
+        pass
 
     captured: List[Dict[str, Any]] = []
     n = len(screens)
@@ -224,7 +283,7 @@ async def _capture_screens(
                 "--disable-gpu",
                 "--ignore-certificate-errors",
             ],
-            executable_path="/usr/bin/chromium",
+            executable_path=chromium_exec,
         )
         # 9:16 portrait matching Instagram Reels at 1080x1920, viewport shrunk for speed
         ctx = await browser.new_context(
@@ -358,37 +417,100 @@ _ACTIONS = {
 }
 
 
+def _burn_caption_pillow(image_path: str, caption: str, out_path: str, width: int = 1080, height: int = 1920) -> bool:
+    """Fallback: draw caption overlay on the image itself via Pillow (so we don't need drawtext).
+    Output is a PNG at the target 9:16 aspect ratio."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except Exception:
+        return False
+    try:
+        img = Image.open(image_path).convert("RGB")
+        # Resize keeping aspect, then pad to 1080x1920
+        src_w, src_h = img.size
+        scale = width / src_w
+        new_h = int(src_h * scale)
+        img = img.resize((width, new_h), Image.LANCZOS)
+        canvas = Image.new("RGB", (width, height), "black")
+        canvas.paste(img, (0, (height - new_h) // 2))
+        # Bottom darkened band
+        overlay = Image.new("RGBA", (width, 320), (0, 0, 0, 140))
+        canvas.paste(overlay, (0, height - 320), overlay)
+        # Text
+        draw = ImageDraw.Draw(canvas)
+        font = None
+        for fp in (FONT_PATH, "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"):
+            if fp and os.path.exists(fp):
+                try:
+                    font = ImageFont.truetype(fp, 46)
+                    break
+                except Exception:
+                    pass
+        if not font:
+            font = ImageFont.load_default()
+        # Wrap
+        wrapped = textwrap.wrap(caption, width=26) or [caption]
+        total_h = len(wrapped) * 58
+        y = height - 180 - total_h // 2
+        for line in wrapped:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            tw = bbox[2] - bbox[0]
+            draw.text(((width - tw) // 2, y), line, fill="white", font=font)
+            y += 58
+        canvas.save(out_path, "PNG")
+        return True
+    except Exception as e:
+        logger.warning(f"[promo] pillow caption failed: {e}")
+        return False
+
+
+def _has_drawtext() -> bool:
+    try:
+        r = subprocess.run([FFMPEG_BIN, "-filters"], capture_output=True, text=True, timeout=5)
+        return "drawtext" in r.stdout
+    except Exception:
+        return False
+
+
 # ─── FFmpeg composition ─────────────────────────────────────────
 def _compose_video(captured: List[Dict[str, Any]], captions: List[str], total_seconds: int, output_path: str, music_path: Optional[str] = None) -> bool:
-    """Compose a 1080x1920 MP4 with image + caption overlay per screen.
-    All screens get equal duration. Captions drawn with drawtext (anti-aliased)."""
+    """Compose a 1080x1920 MP4. Uses drawtext if system ffmpeg supports it,
+    otherwise falls back to Pillow-burned captions for portability."""
     if not captured:
         return False
 
     per = max(1.5, total_seconds / len(captured))
-    # Build intermediate clip per screen using scale/pad + drawtext
+    use_drawtext = _has_drawtext()
     tmpdir = tempfile.mkdtemp(prefix="promo_clip_")
     clip_paths = []
     try:
         for i, (item, caption) in enumerate(zip(captured, captions)):
             clip_out = os.path.join(tmpdir, f"clip_{i:02d}.mp4")
-            # Escape caption for ffmpeg drawtext
-            safe = caption.replace("\\", "\\\\").replace(":", r"\:").replace("'", r"\'").replace(",", r"\,")
-            # Wrap text to ~25 chars for vertical
-            wrapped = "\n".join(textwrap.wrap(safe, width=26)) or safe
-            wrapped_ff = wrapped.replace("\n", "\\n")
-            vf = (
-                f"scale=1080:-2:flags=lanczos,"
-                f"pad=1080:1920:0:(oh-ih)/2:color=black,"
-                f"format=yuv420p,"
-                f"drawbox=x=0:y=ih-320:w=iw:h=320:color=black@0.55:t=fill,"
-                f"drawtext=fontfile='{FONT_PATH}':text='{wrapped_ff}':"
-                f"fontcolor=white:fontsize=46:line_spacing=8:"
-                f"x=(w-text_w)/2:y=h-260:box=0"
-            )
+            src_image = item["path"]
+
+            if use_drawtext:
+                safe = caption.replace("\\", "\\\\").replace(":", r"\:").replace("'", r"\'").replace(",", r"\,")
+                wrapped = "\n".join(textwrap.wrap(safe, width=26)) or safe
+                wrapped_ff = wrapped.replace("\n", "\\n")
+                vf = (
+                    f"scale=1080:-2:flags=lanczos,"
+                    f"pad=1080:1920:0:(oh-ih)/2:color=black,"
+                    f"format=yuv420p,"
+                    f"drawbox=x=0:y=ih-320:w=iw:h=320:color=black@0.55:t=fill,"
+                    f"drawtext=fontfile='{FONT_PATH}':text='{wrapped_ff}':"
+                    f"fontcolor=white:fontsize=46:line_spacing=8:"
+                    f"x=(w-text_w)/2:y=h-260:box=0"
+                )
+            else:
+                # Pillow burn-in path
+                burned = os.path.join(tmpdir, f"burn_{i:02d}.png")
+                if _burn_caption_pillow(src_image, caption, burned):
+                    src_image = burned
+                vf = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p"
+
             cmd = [
                 FFMPEG_BIN, "-y", "-loop", "1", "-t", f"{per:.2f}",
-                "-i", item["path"],
+                "-i", src_image,
                 "-vf", vf,
                 "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "30",
                 "-preset", "veryfast", "-crf", "22",
@@ -426,7 +548,6 @@ def _compose_video(captured: List[Dict[str, Any]], captions: List[str], total_se
             ]
             r = subprocess.run(mix_cmd, capture_output=True, text=True, timeout=120)
             if r.returncode != 0:
-                # Fall back: output without audio
                 shutil.copy(final_input, output_path)
         else:
             shutil.copy(final_input, output_path)
@@ -455,6 +576,7 @@ async def run_promo_job(job_id: str, params: Dict[str, Any]):
         await _seed_content(demo["token"], demo["user"]["id"])
 
         # ─── Capture ───
+        await _update_job(job_id, progress=8, stage="browser", log_line="🌐 Avvio browser headless")
         captured = await _capture_screens(
             job_id, demo["token"], playlist, workdir,
             progress_start=10, progress_end=60,

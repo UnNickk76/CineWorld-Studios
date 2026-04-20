@@ -729,6 +729,7 @@ function SeriesTrailerSection({ project, onRefresh }) {
         api={api}
         userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
         canGenerate={true}
+        isGuest={!!user?.is_guest}
         onGenerated={onRefresh}
       />
     </div>

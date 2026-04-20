@@ -9,6 +9,7 @@ import { LaPrimaSection } from '../components/LaPrimaSection';
 import { ComingSoonSection } from '../components/ComingSoonSection';
 import BestHighlightsLeaderboard from '../components/BestHighlightsLeaderboard';
 import FeaturedTrailersStrip from '../components/FeaturedTrailersStrip';
+import UltimiTrailerStrip from '../components/UltimiTrailerStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
 import { Card, CardContent } from '../components/ui/card';
@@ -466,6 +467,9 @@ const Dashboard = () => {
 
           {/* 1.7 Trailer da non perdere (Cinematico+PRO trending) */}
           <FeaturedTrailersStrip />
+
+          {/* 1.75 Ultimi Trailer (fresh from AI, all tiers) */}
+          <UltimiTrailerStrip limit={12} />
 
           {/* 1.8 Best Highlights — Top trailer post-lancio */}
           <BestHighlightsLeaderboard limit={10} />

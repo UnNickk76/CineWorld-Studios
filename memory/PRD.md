@@ -10,7 +10,24 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
-- **Feb 2026 — Guest Tutorial V3 + Free Pipeline + Location Picker (this session)**
+- **Feb 2026 — Trailer V3: Sub-Phase 4 + TStar Events + Dashboard Strip (this session, Option 3)**
+  - **Trailer decision point integrato** in pipeline V3 Film come sub-fase 4 IdeaPhase (dopo sceneggiatura OK): bottoni Base/Cinematic/Pro + Salta. Non blocca l'avanzamento alla HYPE (canAdvance dipende solo da screenplay+poster). Stesso pattern per Serie TV e Anime (in `PipelineSeriesV3`).
+  - **Progress circle 0-100%** nel TrailerGeneratorCard con countdown `elapsed / estimated_seconds`, X abort button (`trailer-abort-btn`), pulsante "Guarda Preview" (`trailer-watch-btn`), pulsante "Conferma e prosegui" (`trailer-confirm-btn`), pulsante "Salta trailer" (`trailer-skip-btn`).
+  - **Guest bypass AI gratis**: generate-trailer skip `_spend` se `user.is_guest` (0 CP, 0 $). Costi mostrati strikethrough + "GRATIS" per guest sui 3 tier cards.
+  - **Postuma (highlights) già funzionante** via auto-detect in `TrailerGeneratorCard` (`isReleasedContent`) — 50% costo, CTA oro con trofeo.
+  - **Backend TStar 0-100** (`trailer_scoring.py`): formula pesata su tier_bonus 25% + views 25% + hype 20% + engagement 15% + recency 15%. Tier: legendary (85+) → weak (<25).
+  - **Leaderboards trailer** (`routes/trailer_events.py`): `/events/trailers/daily|weekly|by-genre|hall-of-fame|my-history|formula|recent` + voto up/down community (`/trailers/{id}/vote`).
+  - **Scheduler** (`scheduler_trailer_events.py`): daily 00:05 UTC paga top 10 giornaliera, weekly lun 00:15 UTC paga top 10 settimanale. Notifiche a vincitori. Guest esclusi dal payout.
+  - **Premi**: daily #1 $500K+3CP → #10 $50K+1CP; weekly #1 $3M+15CP → #10 $200K+1CP.
+  - **Nuova pagina** `/events/trailers` (`TrailerEventsPage.jsx`): tab Giornaliera / Settimanale / Per Genere / Hall of Fame / I Miei, formula explainer, tabella premi, player modal per vedere trailer in classifica.
+  - **Nuova strip Dashboard** "ULTIMI TRAILER" (`UltimiTrailerStrip.jsx`) tra Featured e BestHighlights — ultimi 12 trailer generati (30gg) con badge tier, TStar score, time-ago, poster.
+  - **SideMenu voce "Eventi Trailer"** in sezione Competizioni (🎬 icon) → `/events/trailers`.
+  - **Anti-abuse**: già enforced (rate-limit 3/10min + up-tier only + 1 running job per content).
+  - **View tracking >=10s**: endpoint `/trailers/{id}/view?completed=true` incrementa `completed_views`.
+  - **Abort endpoint** `/trailers/{id}/abort`: il runner controlla `job.status == 'aborted'` tra storyboard/images e si ferma preservando CPU. Frontend conferma "Annullato, puoi proseguire senza trailer".
+  - **Stretch-deferred (non implementati in questa sessione)**: voice-over TTS Pro, teaser 3s Pro, share-to-CineBoard button, anime character-coherence via seed_url in Nano Banana, Sunday community vote UI panel, compilation annuale AI mashup. Backend vote+recency+engagement già pronti, manca solo la UI.
+
+- **Feb 2026 — Guest Tutorial V3 + Free Pipeline + Location Picker**
   - **Guest play is FREE** during tutorial: `_spend()` in `pipeline_v3.py` returns `{guest_free: true}` without charging when `user.is_guest`. `confirm_release` skips funds/cinepass pre-check for guests. All speedup + release actions are visually strikethrough + "GRATIS" badge.
   - **Location Picker restored in IdeaPhase V3**: replaced abstract `LOCATION_TAGS` with real `/api/locations` data — 4 category tabs (Studios / Città / Natura / Storici) + optional "Il Mio Studio" (gratis), search, multi-select up to 5, real `cost_per_day` per location. Guest sees strikethrough + GRATIS per location.
   - **Guest Tutorial rewired for V3 pipeline** (`GuestTutorial.jsx`): 18 steps (0-17) using correct V3 testids: `top-nav-produci`, `produci-film`, `new-project-btn`, `title-input`, `preplot-input`, `location-categories`, `idea-ok-phase0`, `poster-ai-auto`, `idea-ok-poster`, `screenplay-ai-auto`, `idea-ok-screenplay`, `advance-btn`, `speedup-*`, `confirm-release-btn`. Auto-advance polling detects DOM state for each step.

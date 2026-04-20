@@ -71,6 +71,7 @@ const ChallengesPage = React.lazy(() => import('./pages/ChallengesPage'));
 const ChatPage = React.lazy(() => import('./pages/ChatPage'));
 const CineBoard = React.lazy(() => import('./pages/CineBoard'));
 const LaPrimaEvents = React.lazy(() => import('./pages/LaPrimaEvents'));
+const TrailerEventsPage = React.lazy(() => import('./pages/TrailerEventsPage'));
 const CinemaJournal = React.lazy(() => import('./pages/CinemaJournal'));
 const CinemaTourPage = React.lazy(() => import('./pages/CinemaTourPage'));
 const CreatorBoard = React.lazy(() => import('./pages/CreatorBoard'));
@@ -2257,6 +2258,7 @@ function App() {
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/events/la-prima" element={<ProtectedRoute><LaPrimaEvents /></ProtectedRoute>} />
+                <Route path="/events/trailers" element={<ProtectedRoute><TrailerEventsPage /></ProtectedRoute>} />
                 <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
                 <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
                 <Route path="/player/:playerId/content" element={<ProtectedRoute><PlayerContentPage /></ProtectedRoute>} />

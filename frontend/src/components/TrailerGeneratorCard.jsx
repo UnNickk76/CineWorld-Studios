@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Film, Sparkles, Crown, Play, Loader2, Lock, TrendingUp, Trophy } from 'lucide-react';
+import { Film, Sparkles, Crown, Play, Lock, TrendingUp, Trophy, X, Check, SkipForward } from 'lucide-react';
 import { toast } from 'sonner';
 import TrailerPlayerModal from './TrailerPlayerModal';
 
@@ -23,11 +23,13 @@ function isReleasedContent(contentStatus) {
  *   - pre_launch (default): blue/orange CTA, +hype boost, full price
  *   - highlights (post-release): gold/trophy CTA, no hype boost, 50% discount
  */
-export default function TrailerGeneratorCard({ contentId, contentTitle, contentGenre = '', contentStatus = '', api, userCredits = 0, canGenerate = true, onGenerated }) {
+export default function TrailerGeneratorCard({ contentId, contentTitle, contentGenre = '', contentStatus = '', api, userCredits = 0, canGenerate = true, onGenerated, isGuest = false, onSkip, onConfirm }) {
   const [trailer, setTrailer] = useState(null);
   const [job, setJob] = useState(null);
   const [showPlayer, setShowPlayer] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const pollRef = useRef(null);
+  const jobStartRef = useRef(null);
 
   const isReleased = isReleasedContent(contentStatus);
   const mode = isReleased ? 'highlights' : 'pre_launch';
@@ -58,26 +60,51 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
 
   const startPolling = () => {
     clearInterval(pollRef.current);
+    if (!jobStartRef.current) jobStartRef.current = Date.now();
     pollRef.current = setInterval(async () => {
       try {
         const r = await api.get(`/trailers/${contentId}/status`);
         setJob(r.data);
+        setElapsed(Math.floor((Date.now() - (jobStartRef.current || Date.now())) / 1000));
         if (r.data?.status === 'completed') {
           clearInterval(pollRef.current);
+          jobStartRef.current = null;
           setJob(null);
           await refreshTrailer();
           toast.success(isReleased ? '🏆 Trailer highlights pronto!' : '🎬 Trailer pronto!');
           onGenerated?.();
         } else if (r.data?.status === 'failed') {
           clearInterval(pollRef.current);
+          jobStartRef.current = null;
           setJob(null);
           toast.error('Generazione trailer fallita. Riprova.');
+        } else if (r.data?.status === 'aborted') {
+          clearInterval(pollRef.current);
+          jobStartRef.current = null;
+          setJob(null);
+          toast.info('Generazione trailer annullata.');
         }
       } catch { /* */ }
     }, 2500);
   };
 
-  const effectiveCost = (baseCost) => isReleased ? Math.round(baseCost * 0.5) : baseCost;
+  const handleAbort = async () => {
+    if (!window.confirm('Sicuro di voler annullare la generazione? La pipeline può proseguire senza trailer.')) return;
+    try {
+      await api.post(`/trailers/${contentId}/abort`);
+      clearInterval(pollRef.current);
+      jobStartRef.current = null;
+      setJob(null);
+      toast.info('Generazione annullata. Puoi proseguire senza trailer.');
+    } catch (e) {
+      toast.error('Impossibile annullare');
+    }
+  };
+
+  const effectiveCost = (baseCost) => {
+    if (isGuest) return 0;
+    return isReleased ? Math.round(baseCost * 0.5) : baseCost;
+  };
 
   const handleGenerate = async (tierKey) => {
     const tier = TIERS.find(t => t.key === tierKey);
@@ -86,13 +113,15 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
     const currentCost = (sameMode && currentTierKey) ? effectiveCost(TIERS.find(t => t.key === currentTierKey)?.cost || 0) : 0;
     const targetCost = effectiveCost(tier.cost);
     const delta = Math.max(0, targetCost - currentCost);
-    if (delta > 0 && userCredits < delta) {
+    if (delta > 0 && userCredits < delta && !isGuest) {
       toast.error(`Servono ${delta} cinecrediti (ne hai ${userCredits})`);
       return;
     }
     try {
       const r = await api.post(`/trailers/${contentId}/generate?tier=${tierKey}&mode=${mode}`);
       setJob({ ...r.data, tier: tierKey });
+      jobStartRef.current = Date.now();
+      setElapsed(0);
       toast.success(`Generazione ${tier.label} ${isReleased ? 'highlights' : 'pre-lancio'} avviata (~${r.data.estimated_seconds}s)`);
       startPolling();
     } catch (e) {
@@ -107,21 +136,30 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
   // RENDER: job in corso
   if (job && job.status === 'running') {
     const tier = TIERS.find(t => t.key === job.tier) || TIERS[0];
+    const estimated = job.estimated_seconds || 20;
+    const remaining = Math.max(0, estimated - elapsed);
     return (
-      <div className={`rounded-2xl border ${modeMeta.border} bg-gradient-to-br ${modeMeta.bg} p-5 text-center`} data-testid="trailer-generator-card">
-        <div className="relative w-20 h-20 mx-auto mb-3">
-          <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
+      <div className={`relative rounded-2xl border ${modeMeta.border} bg-gradient-to-br ${modeMeta.bg} p-5 text-center`} data-testid="trailer-generator-card">
+        <button onClick={handleAbort}
+          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 flex items-center justify-center transition-colors"
+          data-testid="trailer-abort-btn" title="Annulla generazione">
+          <X className="w-4 h-4" />
+        </button>
+        <div className="relative w-24 h-24 mx-auto mb-3">
+          <svg className="w-24 h-24 -rotate-90" viewBox="0 0 80 80">
             <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="6" />
             <circle cx="40" cy="40" r="34" fill="none" stroke="url(#gg)" strokeWidth="6" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dashOffset} style={{ transition: 'stroke-dashoffset 0.5s' }} />
             <defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#f5a623" /><stop offset="100%" stopColor="#e94e77" /></linearGradient></defs>
           </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className={`text-lg font-black ${modeMeta.accentText}`}>{progress}%</span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className={`text-xl font-black ${modeMeta.accentText}`}>{progress}%</span>
+            <span className="text-[8px] text-gray-500 font-bold">{remaining}s</span>
           </div>
         </div>
         <p className={`text-[13px] font-bold ${modeMeta.accentText} mb-1`}>Creazione {tier.label} in corso…</p>
-        <p className="text-[10px] text-gray-500">Stage: {job.stage || 'queued'} · Stima ~{job.estimated_seconds}s</p>
-        <p className="text-[9px] text-gray-600 mt-2">Puoi chiudere questa pagina, ti avviso io quando è pronto.</p>
+        <p className="text-[10px] text-gray-400 mb-1">Attendi il completamento, non chiudere ancora.</p>
+        <p className="text-[9px] text-gray-500">Stage: {job.stage || 'queued'} · trascorsi {elapsed}s / ~{estimated}s</p>
+        <p className="text-[8px] text-gray-600 mt-2">Tocca la ✕ in alto a destra per annullare e proseguire senza trailer.</p>
       </div>
     );
   }
@@ -156,8 +194,16 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
             onClick={() => setShowPlayer(true)}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-bold flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
             data-testid="trailer-watch-btn">
-            <Play className="w-4 h-4 fill-black" /> Guarda Trailer
+            <Play className="w-4 h-4 fill-black" /> Guarda Preview
           </button>
+          {onConfirm && (
+            <button
+              onClick={onConfirm}
+              className="mt-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/40 text-emerald-300 font-bold flex items-center justify-center gap-2 hover:bg-emerald-500/30 transition-colors"
+              data-testid="trailer-confirm-btn">
+              <Check className="w-4 h-4" /> Conferma e prosegui
+            </button>
+          )}
           {canUpgrade && canGenerate && (
             <div className="mt-2 flex gap-1.5">
               {TIERS.filter(t => tierOrder[t.key] > tierOrder[trailer.tier]).map(t => {
@@ -247,7 +293,9 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
               <span className="text-[10px] font-black uppercase">{t.label}</span>
               <span className="text-[8px] opacity-80">{t.duration}s · {t.frames} frame</span>
               <span className="text-[9px] font-bold bg-black/30 rounded-full px-2 py-0.5 mt-0.5">
-                {cost === 0 ? 'GRATIS' : isReleased && t.cost > 0 ? <><span className="line-through opacity-50 mr-1">{t.cost}</span>{cost} cc</> : `${cost} cc`}
+                {isGuest && t.cost > 0 ? <><span className="line-through opacity-50 mr-1">{t.cost}</span><span className="text-emerald-300">GRATIS</span></> :
+                 cost === 0 ? 'GRATIS' :
+                 isReleased && t.cost > 0 ? <><span className="line-through opacity-50 mr-1">{t.cost}</span>{cost} cc</> : `${cost} cc`}
               </span>
               <span className="text-[7px] opacity-70">{isReleased ? 'post-lancio' : `+${t.hype}% hype`}</span>
             </button>
@@ -259,6 +307,14 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
           ? 'I trailer highlights non influenzano il gameplay: sono solo contenuto cosmetico.'
           : 'Hype bonus applicato solo se il contenuto è ancora in fase Hype/Pre-Rilascio.'}
       </p>
+      {onSkip && (
+        <button
+          onClick={onSkip}
+          className="mt-3 w-full py-2 rounded-xl border border-gray-700 bg-gray-900/50 text-gray-300 text-[11px] font-bold hover:bg-gray-800 flex items-center justify-center gap-2"
+          data-testid="trailer-skip-btn">
+          <SkipForward className="w-3.5 h-3.5" /> Salta trailer, prosegui
+        </button>
+      )}
     </div>
   );
 }

@@ -7536,6 +7536,21 @@ async def startup_event():
         logger.info("[PSTAR] Scheduler jobs registered")
     except Exception as e:
         logger.error(f"[PSTAR] scheduler init failed: {e}")
+
+    # TRAILER EVENTS: Daily + Weekly payout
+    try:
+        from scheduler_trailer_events import payout_daily_trailer_event, payout_weekly_trailer_event
+        scheduler.add_job(
+            payout_daily_trailer_event, CronTrigger(hour=0, minute=5),
+            id='trailer_daily_payout', replace_existing=True
+        )
+        scheduler.add_job(
+            payout_weekly_trailer_event, CronTrigger(day_of_week='mon', hour=0, minute=15),
+            id='trailer_weekly_payout', replace_existing=True
+        )
+        logger.info("[TRAILER EVENTS] Scheduler jobs registered")
+    except Exception as e:
+        logger.error(f"[TRAILER EVENTS] scheduler init failed: {e}")
     
     # Every 30 min: Auto-cleanup corrupted projects
     scheduler.add_job(
@@ -10110,6 +10125,13 @@ try:
     app.include_router(trailers_router, prefix="/api")
 except Exception as _e:
     logger.error(f"Failed to load trailers router: {_e}")
+
+# Trailer Events (TStar leaderboards, daily/weekly, hall of fame, voting)
+try:
+    from routes.trailer_events import router as trailer_events_router
+    app.include_router(trailer_events_router, prefix="/api")
+except Exception as _e:
+    logger.error(f"Failed to load trailer events router: {_e}")
 # Content Likes (real + system hype-based)
 try:
     from routes.likes import router as likes_router

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, useContext } from 'react';
 import { Sparkles, Film, RefreshCw, Building2, MapPin, Trees, Landmark, Home } from 'lucide-react';
 import { PhaseWrapper, GENRES, GENRE_LABELS, SUBGENRE_MAP, ProgressCircle, v3api } from './V3Shared';
 import { AuthContext } from '../../contexts';
+import TrailerGeneratorCard from '../TrailerGeneratorCard';
 
 /*
   Flusso sequenziale:
@@ -153,6 +154,10 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
     }
     setSubPhase(3);
   };
+
+  // Sub-phase 3 → 4: user either generates trailer or skips
+  const skipTrailer = () => setSubPhase(4);
+  const confirmTrailerAndProceed = () => setSubPhase(4);
 
   const toggleLoc = (l) => { setLocations(v => v.includes(l) ? v.filter(x => x !== l) : [...v, l]); mark(); };
   const toggleSubgenre = (s) => { setSubgenres(v => v.includes(s) ? v.filter(x => x !== s) : v.length < 3 ? [...v, s] : v); mark(); };
@@ -479,8 +484,39 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
           </div>
         )}
 
-        {/* DONE message */}
+        {/* ═══ FASE 3: TRAILER AI (opzionale, dopo sceneggiatura) ═══ */}
         {subPhase >= 3 && (
+          <div className={`p-3 rounded-xl border space-y-2 ${subPhase === 3 ? 'bg-gray-800/20 border-sky-500/30' : 'bg-gray-900/20 border-gray-800/20 opacity-60'}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-[8px] text-gray-500 uppercase font-bold">Trailer AI (opzionale)</span>
+              {subPhase > 3 && <span className="text-[8px] text-emerald-400 font-bold">✓ Confermato</span>}
+            </div>
+            {subPhase === 3 && (
+              <>
+                <p className="text-[9px] text-gray-400">
+                  Crea un trailer cinematografico basato su pretrama e sceneggiatura. Aumenta l'hype del film.
+                  Puoi anche saltarlo — la pipeline continua comunque.
+                </p>
+                <TrailerGeneratorCard
+                  contentId={film.id}
+                  contentTitle={film.title}
+                  contentGenre={film.genre || ''}
+                  contentStatus={film.pipeline_state || film.status || ''}
+                  api={api}
+                  userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
+                  canGenerate={true}
+                  isGuest={isGuest}
+                  onGenerated={onRefresh}
+                  onSkip={skipTrailer}
+                  onConfirm={confirmTrailerAndProceed}
+                />
+              </>
+            )}
+          </div>
+        )}
+
+        {/* DONE message */}
+        {subPhase >= 4 && (
           <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-400" />
             <p className="text-[9px] text-emerald-400 font-bold">Idea completa! Premi Avanti HYPE in alto.</p>

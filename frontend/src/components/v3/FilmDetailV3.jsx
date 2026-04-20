@@ -593,6 +593,7 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
             api={api}
             userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
             canGenerate={true}
+            isGuest={!!user?.is_guest}
             onGenerated={onRefresh}
           />
         </div>

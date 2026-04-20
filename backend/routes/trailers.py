@@ -268,6 +268,8 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
             return
 
         job.update(progress=5, stage="storyboard")
+        if job.get("status") == "aborted":
+            return
         storyboard = await _generate_storyboard(content, tier_cfg)
 
         # Reuse existing poster as last title-card frame (idea B)
@@ -276,6 +278,8 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
         n_to_generate = len(storyboard) - (1 if reuse_last else 0)
 
         job.update(progress=15, stage="images")
+        if job.get("status") == "aborted":
+            return
         genre = content.get("genre") or ""
 
         # Reuse existing trailer frames if upgrade (idea 5)
@@ -292,6 +296,11 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
         image_paths: List[Optional[str]] = []
         done = 0
         for t in asyncio.as_completed(tasks):
+            if job.get("status") == "aborted":
+                for pending in tasks:
+                    if not pending.done():
+                        pending.cancel()
+                return
             p = await t
             image_paths.append(p)
             done += 1
@@ -435,7 +444,9 @@ async def generate_trailer(content_id: str, tier: str = Query("base"), mode: str
     if mode == "highlights":
         prev_cost = int(round(prev_cost * 0.5))
     cost_delta = max(0, effective_cost - prev_cost)
-    if cost_delta > 0:
+    # Guest users play trailer generation FREE (AI is internal, no real spend)
+    is_guest = bool(user.get("is_guest"))
+    if cost_delta > 0 and not is_guest:
         credits = user.get("cinecrediti", user.get("cinecredits", 0)) or 0
         if credits < cost_delta:
             raise HTTPException(402, f"Cinecrediti insufficienti (servono {cost_delta})")
@@ -535,14 +546,17 @@ async def get_trailer(content_id: str, request: Request, user: dict = Depends(_d
 
 
 @router.post("/trailers/{content_id}/view")
-async def register_trailer_view(content_id: str, user: dict = Depends(_dep())):
+async def register_trailer_view(content_id: str, completed: bool = Query(False), user: dict = Depends(_dep())):
     content, coll = await _find_content(content_id)
     if not content or not content.get("trailer"):
         raise HTTPException(404, "Trailer non trovato")
-    # Increment views and track trending
-    await db[coll].update_one({"id": content_id}, {"$inc": {"trailer.views_count": 1}})
+    # Increment views; if completed=true (>=10s watch), also increment completed_views
+    inc = {"trailer.views_count": 1}
+    if completed:
+        inc["trailer.completed_views"] = 1
+    await db[coll].update_one({"id": content_id}, {"$inc": inc})
     # Simple trending check: >= 50 total views triggers trending
-    updated = await db[coll].find_one({"id": content_id}, {"_id": 0, "trailer.views_count": 1, "trailer.trending": 1})
+    updated = await db[coll].find_one({"id": content_id}, {"_id": 0, "trailer.views_count": 1, "trailer.trending": 1, "trailer.completed_views": 1})
     vc = ((updated or {}).get("trailer") or {}).get("views_count", 0)
     if vc >= 50 and not ((updated or {}).get("trailer") or {}).get("trending"):
         await db[coll].update_one({"id": content_id}, {"$set": {"trailer.trending": True}})
@@ -551,7 +565,24 @@ async def register_trailer_view(content_id: str, user: dict = Depends(_dep())):
             await db.users.update_one({"id": content.get("user_id") or content.get("producer_id")}, {"$inc": {"fame": 25}})
         except Exception:
             pass
-    return {"ok": True, "views": vc}
+    return {"ok": True, "views": vc, "completed_views": ((updated or {}).get("trailer") or {}).get("completed_views", 0)}
+
+
+@router.post("/trailers/{content_id}/abort")
+async def abort_trailer_job(content_id: str, user: dict = Depends(_dep())):
+    """Abort a running trailer generation job. Pipeline may proceed without trailer."""
+    content, coll = await _find_content(content_id)
+    if not content:
+        raise HTTPException(404, "Contenuto non trovato")
+    _ensure_user_owns(content, user)
+    job = _JOBS.get(content_id)
+    if not job:
+        return {"ok": True, "was_running": False}
+    if job.get("status") != "running":
+        return {"ok": True, "was_running": False, "status": job.get("status")}
+    # Mark as aborted — the running task checks job.status
+    job.update(status="aborted", stage="aborted", progress=job.get("progress", 0))
+    return {"ok": True, "was_running": True}
 
 
 @router.get("/trailers/files/{path:path}")

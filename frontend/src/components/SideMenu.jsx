@@ -41,6 +41,7 @@ const SideMenu = ({ open, setOpen }) => {
     { icon: "\uD83C\uDFAF", label: "Arena", action: () => go('/pvp-arena'), always: true },
     { icon: "\uD83C\uDFC6", label: "Contest", action: () => go('/games'), always: true },
     { icon: "\uD83C\uDF9F\uFE0F", label: "Festival", action: () => go('/festivals'), always: true },
+    { icon: "\uD83C\uDFAC", label: "Eventi Trailer", action: () => go('/events/trailers'), always: true },
     { icon: "\uD83D\uDC51", label: "Major", action: () => go('/major'), always: true },
     { icon: "\uD83D\uDCCA", label: "Classifiche", action: () => go('/leaderboard'), always: true },
 

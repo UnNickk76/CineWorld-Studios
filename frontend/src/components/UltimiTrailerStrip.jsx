@@ -45,15 +45,20 @@ export default function UltimiTrailerStrip({ limit = 10 }) {
     return `${Math.floor(h / 24)}g fa`;
   };
 
-  if (!items.length) return null;
-
   return (
     <div className="mb-4" data-testid="ultimi-trailer-strip">
       <div className="flex items-center gap-2 mb-2 px-1">
         <Film className="w-4 h-4 text-sky-400" />
         <h3 className="text-[12px] font-black text-white uppercase tracking-wider">Ultimi Trailer</h3>
         <span className="text-[9px] text-gray-500">· freschi di AI</span>
+        {items.length > 0 && <span className="ml-auto text-[9px] text-sky-400 font-bold">{items.length}</span>}
       </div>
+      {items.length === 0 ? (
+        <div className="px-3 py-5 rounded-xl border border-dashed border-sky-500/25 bg-sky-500/[0.03] text-center" data-testid="ultimi-trailer-empty">
+          <p className="text-[10px] text-gray-400 mb-1">Nessun trailer recente. Crea il tuo primo!</p>
+          <p className="text-[8px] text-gray-500">Vai su un tuo film → Idea → sub-fase Trailer, oppure da qualsiasi step in navigazione read-only.</p>
+        </div>
+      ) : (
       <div className="flex gap-2 overflow-x-auto pb-2 px-1 -mx-1 snap-x">
         {items.map(it => {
           const TierIcon = it.tier === 'pro' ? Crown : it.tier === 'cinematic' ? Sparkles : Film;
@@ -98,6 +103,7 @@ export default function UltimiTrailerStrip({ limit = 10 }) {
           );
         })}
       </div>
+      )}
       {selected && trailerData && (
         <TrailerPlayerModal
           trailer={trailerData}

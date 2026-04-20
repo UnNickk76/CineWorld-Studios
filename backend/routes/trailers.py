@@ -468,7 +468,7 @@ async def generate_trailer(content_id: str, tier: str = Query("base"), mode: str
         "progress": 0,
         "stage": "queued",
         "started_at": datetime.now(timezone.utc).isoformat(),
-        "estimated_seconds": {"base": 15, "cinematic": 25, "pro": 40}.get(tier, 20),
+        "estimated_seconds": {"base": 25, "cinematic": 50, "pro": 80}.get(tier, 35),
     }
     asyncio.create_task(_run_trailer_job(content_id, tier, user["id"], mode))
     return {"job_id": job_id, "status": "running", "progress": 0, "estimated_seconds": _JOBS[content_id]["estimated_seconds"], "mode": mode}

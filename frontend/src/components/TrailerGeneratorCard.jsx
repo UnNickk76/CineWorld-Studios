@@ -30,6 +30,17 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
   const [elapsed, setElapsed] = useState(0);
   const pollRef = useRef(null);
   const jobStartRef = useRef(null);
+  const tickerRef = useRef(null);
+
+  // Smooth 1-second ticker while a job is running, for the progress circle
+  useEffect(() => {
+    if (job && job.status === 'running' && jobStartRef.current) {
+      tickerRef.current = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - jobStartRef.current) / 1000));
+      }, 1000);
+      return () => clearInterval(tickerRef.current);
+    }
+  }, [job]);
 
   const isReleased = isReleasedContent(contentStatus);
   const mode = isReleased ? 'highlights' : 'pre_launch';
@@ -129,15 +140,21 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
     }
   };
 
-  const progress = job?.progress || 0;
+  // Virtual progress: always moves forward based on elapsed time, never goes backwards,
+  // clamps to max 95% until backend confirms completion. Takes the max of backend progress
+  // and virtual ticker so the user always sees motion even when backend is stuck on storyboard.
+  const estimatedTotal = job?.estimated_seconds || 30;
+  const virtualProgress = Math.min(95, Math.round((elapsed / estimatedTotal) * 95));
+  const progress = Math.max(job?.progress || 0, virtualProgress);
   const circumference = 2 * Math.PI * 34;
   const dashOffset = circumference - (progress / 100) * circumference;
 
   // RENDER: job in corso
   if (job && job.status === 'running') {
     const tier = TIERS.find(t => t.key === job.tier) || TIERS[0];
-    const estimated = job.estimated_seconds || 20;
+    const estimated = job.estimated_seconds || 30;
     const remaining = Math.max(0, estimated - elapsed);
+    const overtime = elapsed > estimated;
     return (
       <div className={`relative rounded-2xl border ${modeMeta.border} bg-gradient-to-br ${modeMeta.bg} p-5 text-center`} data-testid="trailer-generator-card">
         <button onClick={handleAbort}
@@ -153,12 +170,12 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className={`text-xl font-black ${modeMeta.accentText}`}>{progress}%</span>
-            <span className="text-[8px] text-gray-500 font-bold">{remaining}s</span>
+            <span className="text-[8px] text-gray-500 font-bold">{overtime ? 'quasi pronto…' : `${remaining}s`}</span>
           </div>
         </div>
         <p className={`text-[13px] font-bold ${modeMeta.accentText} mb-1`}>Creazione {tier.label} in corso…</p>
         <p className="text-[10px] text-gray-400 mb-1">Attendi il completamento, non chiudere ancora.</p>
-        <p className="text-[9px] text-gray-500">Stage: {job.stage || 'queued'} · trascorsi {elapsed}s / ~{estimated}s</p>
+        <p className="text-[9px] text-gray-500">Stage: {job.stage || 'queued'} · trascorsi {elapsed}s / ~{estimated}s{overtime ? ' (leggero delay, quasi fatto)' : ''}</p>
         <p className="text-[8px] text-gray-600 mt-2">Tocca la ✕ in alto a destra per annullare e proseguire senza trailer.</p>
       </div>
     );

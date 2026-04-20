@@ -230,6 +230,65 @@ async def film_pstar(film_id: str, user: dict = Depends(get_current_user)):
     return {"entry": entry}
 
 
+@router.get("/film/{film_id}/report")
+async def film_premiere_report(film_id: str, user: dict = Depends(get_current_user)):
+    """Resoconto La Prima: realistic cinema participation,
+    rejection reasons (progressively revealed), audience comments (hourly).
+    Works for BOTH in-progress and ended premieres, and for legacy/released films.
+    """
+    project = await db.film_projects.find_one({"id": film_id}, {"_id": 0})
+    if not project:
+        project = await db.films.find_one({"id": film_id}, {"_id": 0})
+        if project:
+            src_id = project.get("source_project_id") or project.get("id")
+            src = await db.film_projects.find_one({"id": src_id}, {"_id": 0})
+            if src:
+                # Merge source project (has premiere + hype + quality) for computation
+                merged = {**src, **{k: v for k, v in project.items() if k not in src}}
+                project = merged
+    if not project:
+        raise HTTPException(status_code=404, detail="Film non trovato")
+
+    # Compute realistic premiere report (cinemas, reports, comments)
+    from la_prima_report import build_premiere_report
+    report = build_premiere_report(project)
+
+    # Also include spectators (from existing logic) if premiere is enabled
+    try:
+        if report.get("enabled"):
+            from routes.la_prima import calculate_spectators
+            # Force enabled flag for calculate_spectators (which checks premiere.enabled)
+            proj_copy = dict(project)
+            premiere_copy = dict(proj_copy.get("premiere") or {})
+            premiere_copy["enabled"] = True
+            proj_copy["premiere"] = premiere_copy
+            sp = calculate_spectators(proj_copy)
+            report["spectators_current"] = sp.get("spectators_current", 0)
+            report["spectators_total"] = sp.get("spectators_total", 0)
+    except Exception:
+        report["spectators_current"] = 0
+        report["spectators_total"] = 0
+
+    # Persist cinemas_count on the premiere sub-doc so other UI (banner) picks it up
+    try:
+        if report.get("enabled") and report.get("participating_cinemas"):
+            coll = "film_projects" if await db.film_projects.find_one({"id": film_id}, {"_id": 0, "id": 1}) else "films"
+            await db[coll].update_one(
+                {"id": film_id},
+                {"$set": {
+                    "premiere.cinemas_count": report["participating_cinemas"],
+                    "premiere.total_cinemas_in_city": report["total_cinemas"],
+                    "premiere.opening_showtime": report["opening_showtime"],
+                }}
+            )
+    except Exception:
+        pass
+
+    return report
+
+
+
+
 @router.get("/formula")
 async def pstar_formula(user: dict = Depends(get_current_user)):
     """Explains the PStar formula to the player."""

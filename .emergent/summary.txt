@@ -1,72 +1,70 @@
 <analysis><handoff summary>
 **original_problem_statement**: 
-The user requested multiple major updates to the cinema management game: 
-1) Fix the V3 Guest Tutorial (Velion) and make all guest actions (speedups, releases) visually free.
-2) Restore the detailed Location Picker (Studios, Cities, Nature, etc.) in the V3 pipeline.
-3) Implement a massive Trailer System overhaul: Add a dedicated Trailer Events page with TStar scoring (0-100), daily/weekly prizes, a Recent Trailers strip on the Dashboard, and integrate the trailer generation as an optional sub-phase 4 in the V3 IdeaPhase (allowing skip or delayed post-release creation).
-4) Fix bugs related to trailer image loading (auth tokens) and AI hallucinations (Jack Black appearing due to wrong DB field mapping). 
-5) Add a Regenerate Trailer button.
-6) **CURRENT GOAL:** Migrate all AI image generation (posters and trailers) to **Pollinations.ai** by default (with WebP compression for mobile performance) to avoid API costs, while keeping the Emergent LLM Key as a fallback toggleable via a new Admin Panel tab.
+The user originally requested to migrate AI image generation (posters and trailers) to a free provider (Pollinations.ai) because the Emergent LLM Key budget was exhausted. The user later requested a dedicated internal admin tool to generate 30s-120s promotional videos using automated screenshots of the game (via Playwright) and AI-generated captions (via FFmpeg/Pillow). Most recently, after dissatisfaction with Pollinations' quality, the user provided API keys for Cloudflare Workers AI and HuggingFace (FLUX) to create a multi-provider fallback/round-robin system. The CURRENT GOAL is to integrate an additional free image provider called Pixazo using the API key provided by the user (), and to investigate Raphael AI as another potential alternative.
 
 **User's preferred language**: Italian (You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only)
 
 **what currently exists?** 
-A highly complex cinema management game. The Guest tutorial is now fixed for V3 and guest costs are bypassed. The TStar Trailer Events system is fully built (leaderboards, cron jobs for payouts). The trailer generation card is integrated into  and works post-release as well. However, the Emergent LLM Key ran out of budget, causing AI image generation to fail. The user agreed to switch entirely to  as the default provider to make the game 100% free to run, with a backend abstraction layer to handle image fetching and WebP compression.
+A highly complex, full-stack cinema management game. The application now features a robust Multi-Provider AI Image System () that routes image generation through Cloudflare (SDXL), HuggingFace (FLUX), Pollinations (Sana), and Emergent, using smart fallback for posters and weighted round-robin for trailers. The trailer generation UI () now includes a live grid preview of frames as they generate. Additionally, a Promo Video Generator () exists in the Admin Panel, utilizing a headless Chromium browser (Playwright) and  to autonomously capture up to 56 game pages, write AI captions, and render vertical 9:16 MP4 videos for Instagram/TikTok marketing.
 
 **Last working item**: 
-    - Last item agent was working: The agent just started implementing the Pollinations.ai integration. The agent created the  file to build the abstraction layer (router) between Pollinations.ai (default) and Emergent LLM Key (fallback). The plan includes fetching images from Pollinations, compressing them to WebP using Pillow, uploading to Object Storage, and adding an Admin Panel toggle.
+    - Last item agent was working: The agent was attempting to integrate the Pixazo API as an additional free text-to-image provider. The agent was actively testing endpoints (, , etc.) using  but was consistently receiving 404 errors and struggling to locate the correct endpoint structure.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use?: backend testing agent/ manual testing by curl (to verify the new  logic and Pollinations generation).
+    - Which testing method agent to use?: backend testing agent/ manual testing by curl (to figure out the correct Pixazo API endpoint).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Emergent LLM Key Out of Budget - Switch to Pollinations.ai (P0)
-     - Attempted fixes: Agent verified the budget is exhausted. Proposed a 4-phase plan to switch to Pollinations.ai. Created .
+  Issue 1: Pixazo API Integration failing with 404s (P0)
+     - Attempted fixes: Agent scraped the Pixazo site and tried calling multiple assumed endpoints (, , ) with the user's key, but all returned 404.
      - Next debug checklist: 
-       1. Complete  (Add Pollinations HTTP fetch, Pillow WebP compression, and Object Storage upload).
-       2. Update  () and  () to use the new .
-       3. Create  for the Admin toggle.
-       4. Update  with an AI Providers tab to toggle between Pollinations and Emergent.
-     - Why fix this issue and what will be achieved with the fix? The app currently cannot generate posters or trailers because the OpenAI/Gemini budget is exhausted. Pollinations.ai will make the app free to operate. WebP compression will prevent mobile lag.
+       1. Identify the correct API endpoint and payload structure for Pixazo.ai text-to-image generation.
+       2. Implement  in .
+       3. Update the Admin UI ( and ) to include Pixazo in the quota tracker and toggle list.
+     - Why fix this issue and what will be achieved with the fix? Expands the pool of high-quality free image providers, ensuring the game remains free to operate while delivering cinema-grade visuals.
      - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both (Verify images generate, compress to WebP, and render correctly in UI).
-     - Blocked on other issue: None.
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on other issue: None
+
+  Issue 2: Investigate Raphael AI (P1)
+     - Attempted fixes: None yet.
+     - Next debug checklist: Conduct a web search to determine if Raphael AI offers a public API, if it is free, and how to obtain an API key. Report findings to the user.
+     - Why fix this issue and what will be achieved with the fix? User requested this specific platform to be evaluated as another fallback option.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? N/A
 
 **In progress Task List**:
-  Task 1: AI Provider Admin Toggle & WebP Compression
-     - Where to resume: Continue building  and the associated Admin routes/UI.
-     - What will be achieved with this? Gives the admin control over the AI generation provider and ensures mobile optimization via WebP.
+  Task 1: Pixazo API Integration & Raphael AI Research
+     - Where to resume: Continue debugging the  requests to the Pixazo API to find the correct endpoint. Once found, add it to . Concurrently, perform a web search for Raphael AI image generation API.
+     - What will be achieved with this? Fulfills the user's latest request for more free AI image alternatives.
      - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: None.
+     - Should Test frontend/backend/both after fix? Backend (curl)
+     - Blocked on something: Missing correct Pixazo API documentation.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
     - (P1) Refactoring  (File has become bloated, needs splitting into specialized background workers).
     
     Future Tasks:
-    - (P2) Monetizzazione AI Premium: Integrate Stripe Pack Qualità Cinema when the user has VAT/P.IVA, allowing players to pay real money for Emergent/Gemini high-quality generation.
+    - (P2) Monetizzazione AI Premium: Integrate Stripe Pack Qualità Cinema / Trailer Premium button (forces CF+HF-FLUX skipping Pollinations for 1 CinePass).
     - (P2) Whitelist admin users (NeoMorpheus, UnNickk) with a monthly cap for Emergent LLM Key usage.
     - (P2) Add FREE/PREMIUM badges on trailers if monetization activates.
+    - (P2) Promo Video Enhancement: Add an overlay watermark with Instagram handle (e.g., @cineworld_studios) and a QR code to the registration page on the final frame.
     - (P2) Compilation annuale AI (Backlog: un trailer mashup di fine anno per l'intero studio).
     - (P2) Tornei PvP mensili con bracket a eliminazione diretta.
 
 **Completed work in this session**
-- Guest costs bypassed: Speedup and Release now show GRATIS for guests and skip backend deductions (DONE).
-- V3 Location Picker restored: Integrated real locations with costs into  (DONE).
-- Guest Tutorial fixed: Updated selectors for V3, suppressed conflicting overlays (DONE).
-- Trailer Events System: Added TStar scoring, daily/weekly leaderboards, payouts, and  page (DONE).
-- Trailer integration: Added as Sub-phase 4 in  and allowed delayed creation in read-only mode (DONE).
--  added to Dashboard with empty states (DONE).
-- Trailer progress bar animation smoothed out (virtual progress up to 95%) (DONE).
-- Fixed trailer image loading bug (was using  instead of ) (DONE).
-- Fixed trailer prompt context: Mapped  and  correctly, added anti-celebrity guardrails (DONE).
-- Added Regenerate Trailer feature (max 3 times) (DONE).
+- Multi-Provider AI Image System (DONE): Integrated Cloudflare Workers AI (SDXL) and HuggingFace (FLUX.1-schnell) alongside Pollinations and Emergent.
+- Implemented Smart Fallback for posters and Weighted Round-Robin for trailer frames in  (DONE).
+- Trailer Generator Live Preview (DONE):  now shows a live grid of frame thumbnails as they are generated, along with provider badges.
+- Promo Video Generator tool (DONE): Admin tool that uses Playwright and  to autonomously navigate 56 game pages, take screenshots, write LLM captions, and render a vertical MP4 video.
+- Fixed V3 Trailer generation (DONE): Frames are now generated sequentially to bypass rate limits, and missing frames fallback to the movie poster to prevent black screens.
+- Updated Admin UI with Promo Video and AI Providers tabs (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-  - None (All user feedback was systematically addressed up to the budget exhaustion).
+  - None
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: None
@@ -74,30 +72,64 @@ A highly complex cinema management game. The Guest tutorial is now fixed for V3 
   - Status: RESOLVED
 
 **Code Architecture**
-- Frontend:  (React, Tailwind).
+- Frontend:  (React, Tailwind, Shadcn).
 - Backend:  (FastAPI, MongoDB, APScheduler).
-- AI & Storage: Moving towards  for images,  for WebP compression, Emergent Object Storage for hosting.
+- AI Routing:  handles the logic for distributing image generation requests across multiple third-party APIs.
+- Headless Automation:  uses Playwright to capture the UI and  / Pillow to compile videos.
 
 **Key Technical Concepts**
-APScheduler (Cron jobs for TStar/PStar events), React Contexts, Asynchronous image fetching and compression pipeline.
+APScheduler (Cron jobs), Multi-provider API routing (Weighted Round Robin & Fallback), Playwright (Headless browser automation), FFmpeg/Pillow video compilation.
 
 **key DB schema**
-  - : .
-  - : New singleton collection to be created for storing the active image provider ( vs ).
+  - : Tracks active providers, fallbacks, and usage quotas.
+  -  (in-memory dict in ): Tracks background trailer generation progress, storing  for the live preview.
 
 **changes in tech stack**
-  - Introducing  for WebP compression in the backend. 
-  - Using  as a free third-party HTTP endpoint for images.
+  - Added  for headless browser screenshots.
+  - Added  (Python package with embedded static FFmpeg binary) to ensure video rendering works without relying on system-level apt 2.6.1 (arm64)
+Usage: apt-get [options] command
+       apt-get [options] install|remove pkg1 [pkg2 ...]
+       apt-get [options] source pkg1 [pkg2 ...]
+
+apt-get is a command line interface for retrieval of packages
+and information about them from authenticated sources and
+for installation, upgrade and removal of packages together
+with their dependencies.
+
+Most used commands:
+  update - Retrieve new lists of packages
+  upgrade - Perform an upgrade
+  install - Install new packages (pkg is libc6 not libc6.deb)
+  reinstall - Reinstall packages (pkg is libc6 not libc6.deb)
+  remove - Remove packages
+  purge - Remove packages and config files
+  autoremove - Remove automatically all unused packages
+  dist-upgrade - Distribution upgrade, see apt-get(8)
+  dselect-upgrade - Follow dselect selections
+  build-dep - Configure build-dependencies for source packages
+  satisfy - Satisfy dependency strings
+  clean - Erase downloaded archive files
+  autoclean - Erase old downloaded archive files
+  check - Verify that there are no broken dependencies
+  source - Download source archives
+  download - Download the binary package into the current directory
+  changelog - Download and display the changelog for the given package
+
+See apt-get(8) for more information about the available commands.
+Configuration options and syntax is detailed in apt.conf(5).
+Information about how to configure sources can be found in sources.list(5).
+Package and version choices can be expressed via apt_preferences(5).
+Security details are available in apt-secure(8).
+                                        This APT has Super Cow Powers. packages, which do not persist in the production container.
+  - Added Cloudflare Workers AI and HuggingFace to the third-party integrations list.
 
 **All files of reference** 
-  -  (Created JUST NOW, needs implementation)
-  -  (Needs updating to use )
-  -  (Needs updating to use  for posters)
-  -  (Needs new AI Providers tab)
-  -  (Created: TStar logic)
-  -  (Created: Payout cron jobs)
-  -  (Updated with Location Picker and Trailer sub-phase)
-  -  (Updated with smooth progress and Regenerate button)
+  -  (Core AI routing logic)
+  -  (Updated with sequential generation and live preview support)
+  -  (Updated with live thumbnail grid)
+  -  (New: Video generation orchestrator)
+  -  (New: API for promo video)
+  -  (Updated with new tabs and quota trackers)
 
 **Areas that need refactoring**: 
   -  (Bloated)
@@ -105,50 +137,96 @@ APScheduler (Cron jobs for TStar/PStar events), React Contexts, Asynchronous ima
 **key api endpoints**
   - 
   - 
-  -  (and weekly/hall-of-fame)
+  -  (Now returns )
+  - 
 
 **Critical Info for New Agent** 
 - **Italian Language Requirement!** You MUST communicate with the user entirely in Italian.
-- The immediate next step is to implement the **Pollinations.ai integration** as agreed upon in the last messages. The plan is explicitly detailed in Message 691:
-  1. Complete  (fetch from , compress to WebP quality 85, upload to Object Storage).
-  2. Swap out the direct LLM calls in  and  to use this new module.
-  3. Build the Admin toggle UI/routes.
-- The Emergent LLM Key is out of budget, so any direct calls to Gemini Nano Banana or  will currently fail with a 400 Budget Exceeded error. Testing must rely on Pollinations.
+- The  package is being used because standard Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libaacs0 libass9 libavc1394-0 libavcodec59 libavdevice59 libavfilter8
+  libavformat59 libavutil57 libbdplus0 libblas3 libbluray2 libbs2b0 libcaca0
+  libcdio-cdda2 libcdio-paranoia2 libcdio19 libchromaprint1 libcjson1
+  libcodec2-1.0 libdc1394-25 libdecor-0-0 libdecor-0-plugin-1-cairo libflite1
+  libgfortran5 libgme0 libgsm1 libhwy1 libiec61883-0 libjack-jackd2-0
+  libjxl0.7 liblapack3 liblilv-0-0 libmbedcrypto7 libmysofa1 libnorm1
+  libopenal-data libopenal1 libopenmpt0 libpgm-5.3-0 libplacebo208
+  libpocketsphinx3 libpostproc56 librabbitmq4 libraw1394-11 librist4
+  librsvg2-2 librsvg2-common librubberband2 libsamplerate0 libsdl2-2.0-0
+  libserd-0-0 libshine3 libslang2 libsnappy1v5 libsndio7.0 libsord-0-0
+  libsoxr0 libspeex1 libsphinxbase3 libsratom-0-0 libsrt1.5-gnutls
+  libssh-gcrypt-4 libswresample4 libswscale6 libtheora0 libtwolame0
+  libudfread0 libusb-1.0-0 libva-drm2 libva-x11-2 libva2 libvdpau-va-gl1
+  libvdpau1 libvidstab1.1 libvorbisfile3 libvpx7 libvulkan1 libwebpmux3
+  libx264-164 libxvidcore4 libzimg2 libzmq5 libzvbi-common libzvbi0
+  mesa-va-drivers mesa-vdpau-drivers mesa-vulkan-drivers ocl-icd-libopencl1
+  pocketsphinx-en-us va-driver-all vdpau-driver-all
+Suggested packages:
+  ffmpeg-doc libcuda1 libnvcuvid1 libnvidia-encode1 libbluray-bdj jackd2
+  libportaudio2 libraw1394-doc librsvg2-bin serdi sndiod sordi speex
+  opencl-icd nvidia-vdpau-driver
+The following NEW packages will be installed:
+  ffmpeg libaacs0 libass9 libavc1394-0 libavcodec59 libavdevice59 libavfilter8
+  libavformat59 libavutil57 libbdplus0 libblas3 libbluray2 libbs2b0 libcaca0
+  libcdio-cdda2 libcdio-paranoia2 libcdio19 libchromaprint1 libcjson1
+  libcodec2-1.0 libdc1394-25 libdecor-0-0 libdecor-0-plugin-1-cairo libflite1
+  libgfortran5 libgme0 libgsm1 libhwy1 libiec61883-0 libjack-jackd2-0
+  libjxl0.7 liblapack3 liblilv-0-0 libmbedcrypto7 libmysofa1 libnorm1
+  libopenal-data libopenal1 libopenmpt0 libpgm-5.3-0 libplacebo208
+  libpocketsphinx3 libpostproc56 librabbitmq4 libraw1394-11 librist4
+  librsvg2-2 librsvg2-common librubberband2 libsamplerate0 libsdl2-2.0-0
+  libserd-0-0 libshine3 libslang2 libsnappy1v5 libsndio7.0 libsord-0-0
+  libsoxr0 libspeex1 libsphinxbase3 libsratom-0-0 libsrt1.5-gnutls
+  libssh-gcrypt-4 libswresample4 libswscale6 libtheora0 libtwolame0
+  libudfread0 libusb-1.0-0 libva-drm2 libva-x11-2 libva2 libvdpau-va-gl1
+  libvdpau1 libvidstab1.1 libvorbisfile3 libvpx7 libvulkan1 libwebpmux3
+  libx264-164 libxvidcore4 libzimg2 libzmq5 libzvbi-common libzvbi0
+  mesa-va-drivers mesa-vdpau-drivers mesa-vulkan-drivers ocl-icd-libopencl1
+  pocketsphinx-en-us va-driver-all vdpau-driver-all
+0 upgraded, 92 newly installed, 0 to remove and 0 not upgraded.
+Need to get 84.8 MB of archives.
+After this operation, 223 MB of additional disk space will be used.
+Do you want to continue? [Y/n] Abort. does not persist across container restarts/deployments in production. Keep this in mind if modifying video compilation logic.
+- The user provided a Pixazo API key (). Your immediate task is to find the correct API endpoint for Pixazo.ai and implement it in . The previous agent was trying various URLs and getting 404s. Do not waste time making random requests; try to find authoritative documentation or alternative free providers if Pixazo proves too obscure.
+- The user also asked you to investigate Raphael AI. Do a web search to determine if it exists, has an API, and is free, then report back in Italian.
 
 **documents and test reports created in this job** 
   -  (Updated)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Pointed out that images had nothing to do with the plot and included celebrities (Jack Black). Asked for a regenerate button.
-2. *Agent*: Fixed prompt context ( mapping), added anti-celebrity guardrails, added regenerate endpoint. Hit LLM Key budget limit during testing.
-3. *User*: Asked how much API credits are used for posters/trailers and if a 100% free system exists.
-4. *Agent*: Detailed costs. Proposed Pollinations.ai (Free) vs Third-party providers vs Self-hosted. Recommended a Freemium Hybrid approach.
-5. *User*: Chose to use Pollinations for everyone (free), but asked if players could pay via the game for high quality, and if admin whitelist is possible.
-6. *Agent*: Explained how Stripe Quality Packs or in-game CinePass conversions could work alongside an Admin Whitelist.
-7. *User*: Facciamo pollination per tutti e basta. Mantieni il mio in stand by... Attualmente non posso fare partita iva. Asked for the action plan.
-8. *Agent*: Provided a 4-phase plan: 1) , 2) Swap in routes, 3) Admin panel toggle, 4) Testing. Estimated 75 mins.
-9. *User*: Asked to ensure images are very lightweight (WebP/URLs) so the game doesn't slow down on mobile. Confirmed the plan.
-10. *Agent*: Confirmed the WebP compression strategy via Pillow. Created . (Context ended). (PENDING IMPLEMENTATION)
+1. *User*: Asked for a live preview of trailer generation and requested round-robin rotation for Cloudflare, Together, and HuggingFace.
+2. *Agent*: Explained strategy options. Recommended Opzione D (smart fallback for posters, weighted round-robin for trailers). Asked for API keys.
+3. *User*: Chose Opzione C+D. Provided keys for Cloudflare, Together AI, and HuggingFace.
+4. *Agent*: Tested keys. Found CF format wrong, Together out of credits, HF permissions wrong. Asked user to fix them.
+5. *User*: Provided corrected Cloudflare Token, Cloudflare Account ID, and HuggingFace Token.
+6. *Agent*: Verified CF and HF work perfectly. Integrated them into , built the live thumbnail preview, and updated the Admin UI.
+7. *User*: Possiamo aggiungere anche Pixaso. Api key: f7c571ea46ff471c8af6e3e407746f8e. È valido? Testa! Esiste anche raphael ai ma non trovo api key, forse esiste solo via web. Informati!
+8. *Agent*: Searched for Pixazo docs, attempted to call endpoints, but context ended while getting 404s on the Pixazo API. (PENDING HUMAN FULFILLMENT/DEBUGGING)
 
 **Project Health Check:**
-- Broken: AI Image Generation (Due to Emergent LLM Key budget exhaustion).
+- Broken: Pixazo API Integration (Currently failing with 404s)
 - Mocked: None
 
 **3rd Party Integrations** 
   - Emergent LlmChat (GPT-4o-mini) — uses Emergent LLM Key
-  - Gemini Nano Banana (Image Generation) — uses Emergent LLM Key (CURRENTLY OUT OF BUDGET)
-  - Pollinations.ai (Image Generation) — FREE, no key required (PENDING INTEGRATION)
+  - Gemini Nano Banana (Image Generation) — uses Emergent LLM Key (Current fallback)
+  - Cloudflare Workers AI (SDXL Lightning) — uses User API Key
+  - HuggingFace Inference (FLUX.1-schnell) — uses User API Key
+  - Pollinations.ai (Image Generation) — FREE, anonymous
+  - Pixazo API (Image Generation) — uses User API Key (PENDING INTEGRATION)
   - Emergent Object Storage — uses Emergent integrations
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Earlier in session)
+  - Testing agent used after significant changes: NO
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: AI image generation failing due to budget.
+  - Known regressions: None
 
 **Credentials to test flow:**
-Check 
+Check  (Use the NeoMorpheus account to access the Admin Panel).
 
 **What agent forgot to execute**
-The agent planned the Pollinations.ai integration and created the first file (), but the context window expired before the code could be written. You must implement the 4-phase plan detailed in the context.
+The agent was in the middle of diagnosing the Pixazo API endpoints via curl when the context limit was reached. It did not yet implement Pixazo into the image routing system, nor did it answer the user's question regarding Raphael AI.
 </handoff summary></analysis>

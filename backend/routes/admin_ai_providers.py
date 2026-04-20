@@ -22,8 +22,8 @@ def _require_admin(user: dict):
 
 
 class ProviderConfig(BaseModel):
-    poster_provider: Literal["auto", "auto_rr", "cloudflare", "huggingface_flux", "huggingface_together", "pollinations", "emergent"] = "auto"
-    trailer_provider: Literal["auto", "auto_rr", "cloudflare", "huggingface_flux", "huggingface_together", "pollinations", "emergent"] = "auto_rr"
+    poster_provider: Literal["auto", "auto_rr", "cloudflare", "huggingface_flux", "huggingface_together", "pixazo", "wavespeed", "pollinations", "emergent"] = "auto"
+    trailer_provider: Literal["auto", "auto_rr", "cloudflare", "huggingface_flux", "huggingface_together", "pixazo", "wavespeed", "pollinations", "emergent"] = "auto_rr"
     fallback_on_error: bool = True
     weights: Optional[dict] = None
 
@@ -57,10 +57,14 @@ async def test_providers(user: dict = Depends(get_current_user)):
     cloudflare = await test_provider("cloudflare")
     huggingface_flux = await test_provider("huggingface_flux")
     huggingface_together = await test_provider("huggingface_together")
+    pixazo = await test_provider("pixazo")
+    wavespeed = await test_provider("wavespeed")
     return {
         "cloudflare": cloudflare,
         "huggingface_flux": huggingface_flux,
         "huggingface_together": huggingface_together,
+        "pixazo": pixazo,
+        "wavespeed": wavespeed,
         "pollinations": pollinations,
         "emergent": emergent,
     }

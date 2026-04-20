@@ -2619,7 +2619,7 @@ function PromoVideoTab({ api }) {
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3 text-[10px] text-amber-200 leading-relaxed" data-testid="promo-preview-notice">
           <div className="font-bold text-amber-300 mb-1">⚠️ Raccomandato: usa la Preview</div>
           Questa funzione richiede Chromium + FFmpeg e funziona in modo affidabile solo su preview. In produzione alcune dipendenze potrebbero non essere disponibili.
-          <a href="https://ai-provider-toggle.preview.emergentagent.com/admin" target="_blank" rel="noopener noreferrer"
+          <a href="https://cinema-ai-suite.preview.emergentagent.com/admin" target="_blank" rel="noopener noreferrer"
              className="block mt-1.5 text-amber-300 underline font-semibold break-all"
              data-testid="promo-preview-link">
             → Apri Admin su Preview
@@ -2857,14 +2857,16 @@ function AIProvidersTab({ api }) {
     cloudflare: { label: 'Cloudflare SDXL', color: 'bg-orange-500/20 border-orange-500/40 text-orange-300' },
     huggingface_flux: { label: 'HF FLUX', color: 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300' },
     huggingface_together: { label: 'HF·Together', color: 'bg-amber-500/20 border-amber-500/40 text-amber-300' },
+    pixazo: { label: 'Pixazo FLUX (FREE)', color: 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300' },
+    wavespeed: { label: 'WaveSpeed FLUX', color: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300' },
     pollinations: { label: 'Pollinations', color: 'bg-pink-500/20 border-pink-500/40 text-pink-300' },
     emergent: { label: 'Emergent', color: 'bg-purple-500/20 border-purple-500/40 text-purple-300' },
     auto: { label: '⚡ Auto (smart)', color: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' },
     auto_rr: { label: '🎲 Auto RR (bilanciato)', color: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' },
   };
 
-  const PROVIDER_OPTIONS_POSTER = ['auto', 'cloudflare', 'huggingface_flux', 'huggingface_together', 'pollinations', 'emergent'];
-  const PROVIDER_OPTIONS_TRAILER = ['auto_rr', 'auto', 'cloudflare', 'huggingface_flux', 'huggingface_together', 'pollinations', 'emergent'];
+  const PROVIDER_OPTIONS_POSTER = ['auto', 'cloudflare', 'huggingface_flux', 'huggingface_together', 'pixazo', 'wavespeed', 'pollinations', 'emergent'];
+  const PROVIDER_OPTIONS_TRAILER = ['auto_rr', 'auto', 'cloudflare', 'huggingface_flux', 'huggingface_together', 'pixazo', 'wavespeed', 'pollinations', 'emergent'];
 
   const ProviderRow = ({ label, field, options }) => (
     <div className="space-y-1.5" data-testid={`ai-provider-row-${field}`}>
@@ -2891,7 +2893,7 @@ function AIProvidersTab({ api }) {
         <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
           <ImageIcon className="w-4 h-4 text-emerald-400" /> AI Image Providers
         </CardTitle>
-        <p className="text-[10px] text-gray-500">Multi-provider rotation: Cloudflare SDXL + HuggingFace FLUX + Pollinations + Emergent. Auto = smart fallback. Auto RR = round-robin bilanciato.</p>
+        <p className="text-[10px] text-gray-500">Multi-provider rotation: Cloudflare SDXL + HuggingFace FLUX + Pixazo (FREE) + WaveSpeed FLUX + Pollinations + Emergent. Auto = smart fallback. Auto RR = round-robin bilanciato.</p>
       </CardHeader>
       <CardContent className="p-4 pt-2 space-y-3">
         <ProviderRow label="Locandine" field="poster_provider" options={PROVIDER_OPTIONS_POSTER} />
@@ -2901,7 +2903,7 @@ function AIProvidersTab({ api }) {
         <div className="pt-2 border-t border-white/5" data-testid="usage-tracker">
           <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">Quota giornaliera</div>
           <div className="space-y-1">
-            {['cloudflare', 'huggingface_flux', 'huggingface_together', 'pollinations'].map(p => {
+            {['cloudflare', 'huggingface_flux', 'huggingface_together', 'pixazo', 'wavespeed', 'pollinations'].map(p => {
               const u = usage[p] || { used: 0, limit: 0, remaining: 0 };
               const pct = u.limit > 0 ? Math.min(100, Math.round(u.used / u.limit * 100)) : 0;
               const meta = PROVIDER_META[p];
@@ -2928,7 +2930,7 @@ function AIProvidersTab({ api }) {
         <div className="text-[10px] text-gray-500 bg-white/5 rounded-md p-2 border border-white/5 leading-relaxed">
           <strong className="text-gray-300">Strategia raccomandata:</strong><br/>
           Locandine → <span className="text-emerald-300">Auto</span> (usa il migliore disponibile).<br/>
-          Trailer → <span className="text-emerald-300">Auto RR</span> (bilancia il carico tra i 4 provider).<br/>
+          Trailer → <span className="text-emerald-300">Auto RR</span> (bilancia il carico tra i 6 provider).<br/>
           Tutte le immagini convertite in <strong>WebP ≤1280px</strong> per mobile.
         </div>
 

@@ -22,14 +22,23 @@ POLLINATIONS_TOKEN = os.environ.get("POLLINATIONS_TOKEN", "")
 CLOUDFLARE_ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
 CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
 HUGGINGFACE_TOKEN = os.environ.get("HUGGINGFACE_TOKEN", "")
+PIXAZO_API_KEY = os.environ.get("PIXAZO_API_KEY", "")
+WAVESPEED_API_KEY = os.environ.get("WAVESPEED_API_KEY", "")
 
 DEFAULT_CONFIG = {
     "_id": "current",
-    "poster_provider": "auto",        # auto = smart fallback (CF→HF-FLUX→HF-Together→Pollinations)
+    "poster_provider": "auto",        # auto = smart fallback (CF→HF-FLUX→Pixazo→HF-Together→WaveSpeed→Pollinations)
     "trailer_provider": "auto_rr",    # auto_rr = weighted round-robin across all
     "fallback_on_error": True,
     # Weights (0-100) used by auto_rr trailer mode; also inform auto poster priority order
-    "weights": {"cloudflare": 40, "huggingface_flux": 40, "huggingface_together": 15, "pollinations": 5},
+    "weights": {
+        "cloudflare": 30,
+        "huggingface_flux": 25,
+        "pixazo": 20,
+        "huggingface_together": 10,
+        "wavespeed": 10,
+        "pollinations": 5,
+    },
 }
 
 
@@ -46,9 +55,11 @@ async def save_provider_config(cfg: dict, user_id: str) -> dict:
         "trailer_provider": cfg.get("trailer_provider", "auto_rr"),
         "fallback_on_error": bool(cfg.get("fallback_on_error", True)),
         "weights": {
-            "cloudflare": int(weights.get("cloudflare", 40)),
-            "huggingface_flux": int(weights.get("huggingface_flux", 40)),
-            "huggingface_together": int(weights.get("huggingface_together", 15)),
+            "cloudflare": int(weights.get("cloudflare", 30)),
+            "huggingface_flux": int(weights.get("huggingface_flux", 25)),
+            "pixazo": int(weights.get("pixazo", 20)),
+            "huggingface_together": int(weights.get("huggingface_together", 10)),
+            "wavespeed": int(weights.get("wavespeed", 10)),
             "pollinations": int(weights.get("pollinations", 5)),
         },
         "updated_by": user_id,
@@ -252,6 +263,83 @@ PROVIDERS.update({
     "huggingface_together": _huggingface_generate_together,
 })
 
+
+# ─── Pixazo adapter (FREE Flux 1 Schnell — synchronous) ───
+async def _pixazo_generate(prompt: str, kind: ImageKind) -> Optional[bytes]:
+    if not PIXAZO_API_KEY:
+        return None
+    # Pixazo Flux 1 Schnell free tier: max 1024x1024; 16:9 not supported natively
+    # so we use 1024x576 / 1024x1024
+    w, h = (1024, 576) if kind == "trailer" else (1024, 1024)
+    url = "https://gateway.pixazo.ai/flux-1-schnell/v1/getData"
+    import hashlib as _h
+    seed = int(_h.md5(prompt.encode("utf-8")).hexdigest()[:8], 16) % 1000000
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            r = await client.post(
+                url,
+                headers={
+                    "Content-Type": "application/json",
+                    "Cache-Control": "no-cache",
+                    "Ocp-Apim-Subscription-Key": PIXAZO_API_KEY,
+                },
+                json={"prompt": prompt[:2000], "num_steps": 4, "seed": seed, "height": h, "width": w},
+            )
+            if r.status_code == 200:
+                data = r.json() if r.content else {}
+                img_url = data.get("output")
+                if img_url:
+                    rr = await client.get(img_url, timeout=30)
+                    if rr.status_code == 200 and rr.content:
+                        return rr.content
+            logger.warning(f"[pixazo] HTTP {r.status_code}: {r.text[:200] if r.status_code != 200 else ''}")
+    except Exception as e:
+        logger.warning(f"[pixazo] request failed: {e}")
+    return None
+
+
+# ─── WaveSpeed AI adapter (flux-schnell — ~$0.003/image) ───
+async def _wavespeed_generate(prompt: str, kind: ImageKind) -> Optional[bytes]:
+    if not WAVESPEED_API_KEY:
+        return None
+    # flux-schnell sync mode: returns CDN URL directly in a few seconds
+    url = "https://api.wavespeed.ai/api/v3/wavespeed-ai/flux-schnell"
+    # size: flux-schnell accepts {width}*{height} string
+    w, h = (1024, 576) if kind == "trailer" else (1024, 1024)
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            r = await client.post(
+                url,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {WAVESPEED_API_KEY}",
+                },
+                json={
+                    "prompt": prompt[:2000],
+                    "size": f"{w}*{h}",
+                    "enable_sync_mode": True,
+                    "enable_base64_output": False,
+                },
+            )
+            if r.status_code == 200:
+                data = r.json() if r.content else {}
+                outputs = ((data.get("data") or {}).get("outputs")) or []
+                img_url = outputs[0] if outputs else None
+                if img_url:
+                    rr = await client.get(img_url, timeout=30)
+                    if rr.status_code == 200 and rr.content:
+                        return rr.content
+            logger.warning(f"[wavespeed] HTTP {r.status_code}: {r.text[:200] if r.status_code != 200 else ''}")
+    except Exception as e:
+        logger.warning(f"[wavespeed] request failed: {e}")
+    return None
+
+
+PROVIDERS.update({
+    "pixazo": _pixazo_generate,
+    "wavespeed": _wavespeed_generate,
+})
+
 # Per-provider daily usage counter (in-memory; resets on backend restart)
 from collections import defaultdict as _dd
 import time as _time
@@ -261,6 +349,8 @@ _DAILY_LIMITS = {
     "cloudflare": 10000,
     "huggingface_flux": 300,   # HF shared rate — conservative
     "huggingface_together": 300,
+    "pixazo": 500,             # Pixazo free tier — daily cap per quota page
+    "wavespeed": 300,          # Paid ($0.003/img), keep a reasonable daily cap
     "pollinations": 99999,
     "emergent": 99999,
 }
@@ -294,7 +384,8 @@ def _rotate_order(weights: dict, frame_idx: int, skip: set = None) -> list:
     """Weighted round-robin: pick providers whose cumulative-weight bucket
     contains (frame_idx*step) mod 100. Returns priority order (best first)."""
     skip = skip or set()
-    pool = [(p, weights.get(p, 0)) for p in ("cloudflare", "huggingface_flux", "huggingface_together", "pollinations") if p not in skip]
+    ROTATE_PROVIDERS = ("cloudflare", "huggingface_flux", "pixazo", "huggingface_together", "wavespeed", "pollinations")
+    pool = [(p, weights.get(p, 0)) for p in ROTATE_PROVIDERS if p not in skip]
     total = sum(w for _, w in pool) or 1
     # Compute "current" provider by frame_idx for rr
     step = (frame_idx * 37) % 100  # 37 = pseudo-random step to avoid consecutive same-provider
@@ -320,8 +411,8 @@ async def generate_image_meta(prompt: str, kind: ImageKind, frame_idx: int = 0) 
 
     # Build the provider order to try
     if mode == "auto":
-        # Smart fallback — always best quality first (CF → HF-FLUX → HF-Together → Pollinations)
-        order = ["cloudflare", "huggingface_flux", "huggingface_together", "pollinations"]
+        # Smart fallback — always best quality first
+        order = ["cloudflare", "huggingface_flux", "pixazo", "huggingface_together", "wavespeed", "pollinations"]
     elif mode == "auto_rr":
         # Weighted round-robin with failover
         order = _rotate_order(weights, frame_idx)
@@ -329,7 +420,7 @@ async def generate_image_meta(prompt: str, kind: ImageKind, frame_idx: int = 0) 
         order = [mode]
         if fallback_enabled:
             # Add remaining as fallback in weight order
-            extras = [p for p in ["cloudflare", "huggingface_flux", "huggingface_together", "pollinations", "emergent"] if p != mode]
+            extras = [p for p in ["cloudflare", "huggingface_flux", "pixazo", "huggingface_together", "wavespeed", "pollinations", "emergent"] if p != mode]
             order.extend(extras)
     else:
         order = ["pollinations"]
@@ -408,6 +499,37 @@ async def test_provider(provider: str) -> dict:
                 name = r.json().get("name", "?") if ok else "?"
                 return {"ok": ok, "latency_ms": int((_t.time() - start) * 1000),
                         "details": f"HTTP {r.status_code} · user {name}"}
+        except Exception as e:
+            return {"ok": False, "latency_ms": int((_t.time() - start) * 1000), "details": str(e)}
+    if provider == "pixazo":
+        if not PIXAZO_API_KEY:
+            return {"ok": False, "latency_ms": 0, "details": "PIXAZO_API_KEY missing"}
+        # Lightweight text-to-image call with a trivial prompt to confirm key
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                r = await client.post(
+                    "https://gateway.pixazo.ai/flux-1-schnell/v1/getData",
+                    headers={"Content-Type": "application/json", "Ocp-Apim-Subscription-Key": PIXAZO_API_KEY},
+                    json={"prompt": "ping", "num_steps": 1, "seed": 1, "height": 512, "width": 512},
+                )
+                ok = r.status_code == 200 and bool((r.json() or {}).get("output"))
+                return {"ok": ok, "latency_ms": int((_t.time() - start) * 1000),
+                        "details": f"HTTP {r.status_code} · flux-1-schnell (FREE)"}
+        except Exception as e:
+            return {"ok": False, "latency_ms": int((_t.time() - start) * 1000), "details": str(e)}
+    if provider == "wavespeed":
+        if not WAVESPEED_API_KEY:
+            return {"ok": False, "latency_ms": 0, "details": "WAVESPEED_API_KEY missing"}
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                r = await client.get("https://api.wavespeed.ai/api/v3/balance",
+                                     headers={"Authorization": f"Bearer {WAVESPEED_API_KEY}"})
+                if r.status_code == 200:
+                    bal = (r.json() or {}).get("data", {}).get("balance", 0)
+                    return {"ok": True, "latency_ms": int((_t.time() - start) * 1000),
+                            "details": f"balance ${bal:.3f} · flux-schnell ($0.003/img)"}
+                return {"ok": False, "latency_ms": int((_t.time() - start) * 1000),
+                        "details": f"HTTP {r.status_code}"}
         except Exception as e:
             return {"ok": False, "latency_ms": int((_t.time() - start) * 1000), "details": str(e)}
     if provider == "emergent":

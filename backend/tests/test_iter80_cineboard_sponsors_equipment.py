@@ -12,7 +12,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ai-provider-toggle.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://cinema-ai-suite.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "fandrex1@gmail.com"

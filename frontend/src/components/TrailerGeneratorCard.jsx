@@ -182,11 +182,13 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
     const slots = Array.from({ length: totalFrames }, (_, i) => partials.find(p => p.idx === i) || null);
     const providerLabel = (prov) => ({
       cloudflare: 'CF', huggingface_flux: 'HF', huggingface_together: 'HF+T',
+      pixazo: 'PIX', wavespeed: 'WAVE',
       pollinations: 'POLL', emergent: 'EMRG', placeholder: '—', fallback: '•'
     }[prov] || prov?.slice(0, 3) || '?');
     const providerColor = (prov) => ({
       cloudflare: 'bg-orange-500/80', huggingface_flux: 'bg-yellow-500/80',
-      huggingface_together: 'bg-amber-500/80', pollinations: 'bg-pink-500/80',
+      huggingface_together: 'bg-amber-500/80', pixazo: 'bg-cyan-500/80',
+      wavespeed: 'bg-indigo-500/80', pollinations: 'bg-pink-500/80',
       emergent: 'bg-purple-500/80', placeholder: 'bg-gray-600/80', fallback: 'bg-gray-600/80'
     }[prov] || 'bg-gray-600/80');
     return (

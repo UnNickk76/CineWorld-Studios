@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ai-provider-toggle.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://cinema-ai-suite.preview.emergentagent.com')
 
 # Test credentials
 TEST_USER_EMAIL = "flow_test@test.com"

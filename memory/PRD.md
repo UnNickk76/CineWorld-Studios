@@ -10,6 +10,18 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Apr 2026 — Pixazo + WaveSpeed AI Integration (Multi-provider extension)**
+  - **Pixazo (FREE)**: Integrato Flux 1 Schnell tramite `gateway.pixazo.ai/flux-1-schnell/v1/getData` (header `Ocp-Apim-Subscription-Key`, sync, cost $0). Key in `PIXAZO_API_KEY`.
+  - **WaveSpeed AI ($0.003/img)**: Integrato `wavespeed-ai/flux-schnell` tramite `api.wavespeed.ai/api/v3/...` (Bearer auth, `enable_sync_mode: true`). Key in `WAVESPEED_API_KEY`. Budget verificato via `/balance`.
+  - Nuovi pesi default auto_rr: CF 30, HF-FLUX 25, Pixazo 20, HF-Together 10, WaveSpeed 10, Pollinations 5. Ordine smart fallback: CF → HF-FLUX → Pixazo → HF-Together → WaveSpeed → Pollinations.
+  - Daily limits: Pixazo 500/day, WaveSpeed 300/day (~$0.90).
+  - Admin UI `/admin` → AI Providers: nuovi pulsanti toggle Pixazo/WaveSpeed, quota tracker, test connettività (7/7 OK, Pixazo 3485ms, WaveSpeed 260ms).
+  - Badge provider nel TrailerGeneratorCard: `PIX` (cyan), `WAVE` (indigo).
+  - **Raphael AI**: verificato — NO public API, solo accesso web. Non integrato.
+  - E2E test Python: Pixazo 834KB raw → 216KB WebP OK, WaveSpeed 239KB OK.
+
+
+## Changelog
 - **Feb 2026 — Trailer V3: Sub-Phase 4 + TStar Events + Dashboard Strip (this session, Option 3)**
   - **Trailer decision point integrato** in pipeline V3 Film come sub-fase 4 IdeaPhase (dopo sceneggiatura OK): bottoni Base/Cinematic/Pro + Salta. Non blocca l'avanzamento alla HYPE (canAdvance dipende solo da screenplay+poster). Stesso pattern per Serie TV e Anime (in `PipelineSeriesV3`).
   - **Progress circle 0-100%** nel TrailerGeneratorCard con countdown `elapsed / estimated_seconds`, X abort button (`trailer-abort-btn`), pulsante "Guarda Preview" (`trailer-watch-btn`), pulsante "Conferma e prosegui" (`trailer-confirm-btn`), pulsante "Salta trailer" (`trailer-skip-btn`).

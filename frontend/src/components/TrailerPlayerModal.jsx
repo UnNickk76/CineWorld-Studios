@@ -26,7 +26,7 @@ export default function TrailerPlayerModal({ trailer, contentTitle, contentId, c
   const holdTimer = useRef(null);
   const startY = useRef(0);
   const audioRef = useRef(null);
-  const token = (typeof window !== 'undefined' ? localStorage.getItem('token') : null) || '';
+  const token = (typeof window !== 'undefined' ? localStorage.getItem('cineworld_token') : null) || '';
 
   const frames = trailer?.frames || [];
   const cur = frames[idx];

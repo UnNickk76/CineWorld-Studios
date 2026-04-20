@@ -31,7 +31,7 @@ export default function FeaturedTrailersStrip() {
   const resolveImg = (url) => {
     if (!url) return null;
     if (url.startsWith('data:') || url.startsWith('http')) return url;
-    const token = localStorage.getItem('token') || '';
+    const token = localStorage.getItem('cineworld_token') || '';
     if (url.startsWith('/api/')) {
       const sep = url.includes('?') ? '&' : '?';
       return `${process.env.REACT_APP_BACKEND_URL}${url}${sep}auth=${encodeURIComponent(token)}`;

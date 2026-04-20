@@ -88,8 +88,9 @@ async def _pollinations_generate(prompt: str, kind: ImageKind) -> Optional[bytes
         f"?width={w}&height={h}&nologo=true&seed={seed}"
         f"&referrer={urllib.parse.quote(_POLLINATIONS_REFERRER)}"
     )
+    headers = {}
     if POLLINATIONS_TOKEN:
-        url += f"&token={urllib.parse.quote(POLLINATIONS_TOKEN)}"
+        headers["Authorization"] = f"Bearer {POLLINATIONS_TOKEN}"
     # Pollinations free tier: 1 req per IP in queue. Image gen takes ~10-30s.
     # Strategy: serialize via semaphore, wait FULL duration per attempt,
     # on 429 wait 20s for the queue to drain then retry once.
@@ -99,7 +100,7 @@ async def _pollinations_generate(prompt: str, kind: ImageKind) -> Optional[bytes
         for attempt in range(3):
             try:
                 async with httpx.AsyncClient(timeout=90.0) as client:
-                    r = await client.get(url, follow_redirects=True)
+                    r = await client.get(url, headers=headers, follow_redirects=True)
                 if r.status_code == 200 and r.content:
                     ct = (r.headers.get("content-type") or "").lower()
                     if "image" in ct:

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Film, ChevronLeft, Save, X, Eye } from 'lucide-react';
 import CinematicReleaseOverlay from '../components/CinematicReleaseOverlay';
@@ -7,9 +7,12 @@ import { V3_STEPS, StepperBar, GENRE_LABELS, v3api } from '../components/v3/V3Sh
 import { IdeaPhase } from '../components/v3/IdeaPhase';
 import { CastPhase } from '../components/v3/CastPhase';
 import { HypePhase, PrepPhase, CiakPhase, FinalCutPhase, MarketingPhase, LaPrimaPhase, DistributionPhase, StepFinale, DiscardFilmButton } from '../components/v3/Phases';
+import TrailerGeneratorCard from '../components/TrailerGeneratorCard';
+import { AuthContext } from '../contexts';
 
 export default function PipelineV3() {
   const navigate = useNavigate();
+  const { api, user } = useContext(AuthContext) || {};
   const [projects, setProjects] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -424,6 +427,27 @@ export default function PipelineV3() {
           )}
           {renderPhase()}
         </div>
+
+        {/* ═══ TRAILER AI ALWAYS-AVAILABLE in read-only navigation ═══ */}
+        {isReadOnly && selected?.user_id === user?.id && api && (
+          <div className="px-3 mt-3" data-testid="trailer-always-available">
+            <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-wider text-sky-400 font-black">
+              <span className="w-1 h-3 bg-sky-400 rounded-full" />
+              Trailer AI · disponibile in qualsiasi momento
+            </div>
+            <TrailerGeneratorCard
+              contentId={selected.id}
+              contentTitle={selected.title}
+              contentGenre={selected.genre || ''}
+              contentStatus={selected.status || selected.pipeline_state || ''}
+              api={api}
+              userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
+              canGenerate={true}
+              isGuest={!!user?.is_guest}
+              onGenerated={refreshSelected}
+            />
+          </div>
+        )}
 
         {/* Pipeline Events Log */}
         {selected.pipeline_events && selected.pipeline_events.length > 0 && (

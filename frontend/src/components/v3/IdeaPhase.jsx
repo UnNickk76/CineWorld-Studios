@@ -22,7 +22,7 @@ const LOC_CAT_META = {
 
 const MAX_LOCATIONS = 5;
 
-export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
+export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false }) => {
   const { user, api } = useContext(AuthContext) || {};
   const isGuest = !!user?.is_guest;
   // Determine which sub-phase we're in based on saved data
@@ -484,8 +484,8 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
           </div>
         )}
 
-        {/* ═══ FASE 3: TRAILER AI (opzionale, dopo sceneggiatura) ═══ */}
-        {subPhase >= 3 && (
+        {/* ═══ FASE 3: TRAILER AI (opzionale, dopo sceneggiatura) — solo edit mode ═══ */}
+        {subPhase >= 3 && !readOnly && (
           <div className={`p-3 rounded-xl border space-y-2 ${subPhase === 3 ? 'bg-gray-800/20 border-sky-500/30' : 'bg-gray-900/20 border-gray-800/20 opacity-60'}`}>
             <div className="flex items-center justify-between">
               <span className="text-[8px] text-gray-500 uppercase font-bold">Trailer AI (opzionale)</span>

@@ -43,7 +43,20 @@ BACKEND_PUBLIC_URL = _read_frontend_env_url()
 BACKEND_INTERNAL_URL = "http://localhost:8001"
 OUTPUT_DIR = "/app/backend/static/promo_videos"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-FFMPEG_BIN = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"
+def _resolve_ffmpeg_bin() -> str:
+    """Prefer system ffmpeg, fall back to imageio-ffmpeg static bundle (always available)."""
+    sys_bin = shutil.which("ffmpeg")
+    if sys_bin:
+        return sys_bin
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        pass
+    return "/usr/bin/ffmpeg"
+
+
+FFMPEG_BIN = _resolve_ffmpeg_bin()
 FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 if not os.path.exists(FONT_PATH):
     # Try common fallbacks
@@ -60,19 +73,82 @@ TARGET_URL = BACKEND_PUBLIC_URL or FRONTEND_BASE_URL or "http://localhost:3000"
 # duration_ms: how long the screen stays on video
 # action: optional function name to run (see _ACTIONS below)
 DEFAULT_SCREENS: List[Dict[str, Any]] = [
+    # ─── Onboarding / auth ───
     {"key": "landing", "path": "/auth", "label": "Benvenuto", "action": None, "caption_ctx": "Schermata di benvenuto: il player sceglie tra registrazione o accesso come ospite."},
     {"key": "guest_dashboard", "path": "/dashboard", "label": "Il tuo impero cinematografico", "action": "dismiss_tutorial_overlay", "caption_ctx": "Dashboard principale con saldo, statistiche, notifiche e scorciatoie verso ogni area del gioco."},
+    {"key": "home", "path": "/", "label": "Home", "action": None, "caption_ctx": "La home di CineWorld Studios, vetrina principale dei contenuti e degli eventi in corso."},
+
+    # ─── Velion / Creazione film ───
     {"key": "velion_intro", "path": "/create", "label": "Velion - Tutor AI", "action": "dismiss_tutorial_overlay", "caption_ctx": "Creazione film guidata: il tutor AI Velion spiega come iniziare."},
     {"key": "velion_genre", "path": "/create", "label": "Scegli genere & sottogeneri", "action": "focus_genre_picker", "caption_ctx": "Selezione del genere e sottogeneri del film (drama, thriller, action…)."},
     {"key": "velion_preplot", "path": "/create", "label": "Scrivi la pretrama", "action": "focus_preplot", "caption_ctx": "Il player scrive la pretrama: la direzione narrativa del film."},
     {"key": "velion_poster", "path": "/create", "label": "Locandina AI", "action": "focus_poster_phase", "caption_ctx": "Generazione della locandina del film via AI (Pollinations/Emergent)."},
     {"key": "velion_trailer", "path": "/create", "label": "Trailer cinematografico", "action": "focus_trailer_phase", "caption_ctx": "Creazione del trailer AI con TStar score e competizioni giornaliere."},
+    {"key": "pipeline_v3", "path": "/pipeline-v3", "label": "Pipeline produzione V3", "action": None, "caption_ctx": "La pipeline di produzione completa: idea, cast, sponsor, budget, release."},
+    {"key": "pipeline_v2", "path": "/pipeline-v2", "label": "Pipeline avanzata", "action": None, "caption_ctx": "Pipeline produzione versione 2 con gestione cast e sponsor."},
+    {"key": "create_series", "path": "/create-series", "label": "Crea una serie TV", "action": None, "caption_ctx": "Creazione di serie TV con più stagioni ed episodi."},
+    {"key": "create_anime", "path": "/create-anime", "label": "Crea un anime", "action": None, "caption_ctx": "Produzione di anime con stili artistici e generi dedicati."},
+    {"key": "create_sequel", "path": "/create-sequel", "label": "Produci un sequel", "action": None, "caption_ctx": "Sviluppa sequel sulla base dei tuoi successi passati."},
+    {"key": "drafts", "path": "/drafts", "label": "Bozze in lavorazione", "action": None, "caption_ctx": "Archivio bozze: progetti in sospeso pronti da riprendere."},
+    {"key": "emerging_screenplays", "path": "/emerging-screenplays", "label": "Sceneggiature emergenti", "action": None, "caption_ctx": "Mercato di sceneggiature originali generate dagli sceneggiatori AI."},
+
+    # ─── Classifiche / Eventi ───
     {"key": "leaderboard", "path": "/leaderboard", "label": "Classifiche mondiali", "action": None, "caption_ctx": "Classifiche globali: produttori, film, incassi, fama."},
     {"key": "trailer_events", "path": "/events/trailers", "label": "Trailer Events", "action": None, "caption_ctx": "Competizioni giornaliere e settimanali sui trailer con premi in CinePass."},
     {"key": "la_prima_events", "path": "/events/la-prima", "label": "La Prima", "action": None, "caption_ctx": "Gli eventi La Prima: premiere con PStar score, rivalità e jackpot."},
+    {"key": "event_history", "path": "/event-history", "label": "Storia eventi", "action": None, "caption_ctx": "Archivio di tutti gli eventi passati e risultati."},
+    {"key": "releases", "path": "/releases", "label": "Uscite in corso", "action": None, "caption_ctx": "Calendario delle uscite cinematografiche dei player mondiali."},
+    {"key": "festivals", "path": "/festivals", "label": "Festival del cinema", "action": None, "caption_ctx": "Partecipa a festival internazionali e vinci riconoscimenti prestigiosi."},
+    {"key": "contest", "path": "/contest", "label": "Concorsi PvP", "action": None, "caption_ctx": "Concorsi di creatività e competizione tra studi rivali."},
+    {"key": "medals", "path": "/medals", "label": "Medaglie & Trofei", "action": None, "caption_ctx": "Collezione di medaglie, trofei e riconoscimenti sbloccati."},
+    {"key": "statistics", "path": "/statistics", "label": "Statistiche Studio", "action": None, "caption_ctx": "Analisi dettagliata delle performance del tuo studio nel tempo."},
+
+    # ─── Arena / PvP / Sfide / Giochi ───
+    {"key": "pvp_arena", "path": "/pvp-arena", "label": "Arena PvP", "action": None, "caption_ctx": "Arena competitiva uno contro uno tra studi cinematografici."},
+    {"key": "challenges", "path": "/challenges", "label": "Sfide quotidiane", "action": None, "caption_ctx": "Sfide giornaliere con premi in soldi, CinePass e fama."},
+    {"key": "minigiochi", "path": "/minigiochi", "label": "Minigiochi", "action": None, "caption_ctx": "Minigiochi a tema cinema: sfide rapide con premi istantanei."},
+    {"key": "games", "path": "/games", "label": "Giochi arcade", "action": None, "caption_ctx": "Arcade di giochi a tema cinematografico integrati nel gameplay."},
+
+    # ─── Cast / Agenzie ───
+    {"key": "casting_agency", "path": "/casting-agency", "label": "Agenzia Casting", "action": None, "caption_ctx": "Ricerca e assunzione attori dalle agenzie di casting."},
+    {"key": "agenzia", "path": "/agenzia", "label": "Agenzia Cast", "action": None, "caption_ctx": "Gestisci cast, contratti e spese per le produzioni."},
+    {"key": "stars", "path": "/stars", "label": "Star Management", "action": None, "caption_ctx": "Scopri e ingaggia le star di Hollywood più richieste."},
+    {"key": "acting_school", "path": "/acting-school", "label": "Scuola di Recitazione", "action": None, "caption_ctx": "Allena gli attori per farli diventare star con skill avanzate."},
+
+    # ─── Infrastrutture / Studio ───
+    {"key": "infrastructure", "path": "/infrastructure", "label": "Infrastrutture Studio", "action": None, "caption_ctx": "Costruisci uffici, studios, post-produzione e location di ripresa."},
+    {"key": "strutture", "path": "/strutture", "label": "Strutture attive", "action": None, "caption_ctx": "Gestione delle strutture dello studio attive e livellate."},
+    {"key": "parco_studio", "path": "/parco-studio", "label": "Parco Studio 3D", "action": None, "caption_ctx": "Il tuo parco tematico interattivo 3D da visitare e mostrare."},
+    {"key": "tour", "path": "/tour", "label": "Tour virtuale", "action": None, "caption_ctx": "Tour virtuale dello studio cinematografico in prima persona."},
+    {"key": "hq", "path": "/hq", "label": "Quartier Generale", "action": None, "caption_ctx": "HQ dello studio: centro decisionale delle tue operazioni."},
+    {"key": "major", "path": "/major", "label": "Diventa Major Studio", "action": None, "caption_ctx": "Evolvi in major studio: più budget, più potere, più fama."},
+    {"key": "strategico", "path": "/strategico", "label": "Sezione Strategica", "action": None, "caption_ctx": "Decisioni strategiche di lungo periodo per dominare l'industria."},
+
+    # ─── Community / Social ───
+    {"key": "chat", "path": "/chat", "label": "Chat globale", "action": None, "caption_ctx": "Chat in tempo reale con tutti i player di CineWorld."},
+    {"key": "social", "path": "/social", "label": "Community Social", "action": None, "caption_ctx": "Sezione social: post, like, interazioni tra studi e player."},
+    {"key": "friends", "path": "/friends", "label": "Rete di Amici", "action": None, "caption_ctx": "Collega amici, collaboratori e rivali nella tua rete."},
+    {"key": "creator_board", "path": "/creator-board", "label": "CineBoard", "action": None, "caption_ctx": "Bacheca dei creator: scambio idee, collaborazioni, feedback."},
+    {"key": "journal", "path": "/journal", "label": "CineJournal", "action": None, "caption_ctx": "Il giornale di gioco con notizie, uscite, gossip cinematografici."},
+    {"key": "notifications", "path": "/notifications", "label": "Notifiche attive", "action": None, "caption_ctx": "Tutte le notifiche di gioco: eventi, sfide, messaggi."},
+
+    # ─── TV / Radio ───
     {"key": "my_tv", "path": "/my-tv", "label": "La tua TV", "action": None, "caption_ctx": "Emittente TV personale: palinsesto, spot, programmi, rivalità."},
-    {"key": "my_films", "path": "/films", "label": "I tuoi film", "action": None, "caption_ctx": "Archivio dei tuoi film con stato, incassi, recensioni."},
+    {"key": "tv_stations", "path": "/tv-stations", "label": "Emittenti TV mondiali", "action": None, "caption_ctx": "Panorama di tutte le emittenti TV dei player del gioco."},
+    {"key": "tv_station_setup", "path": "/tv-station-setup", "label": "Crea la tua emittente", "action": None, "caption_ctx": "Configurazione iniziale della tua stazione televisiva."},
     {"key": "radio", "path": "/dashboard", "label": "Radio in game", "action": "open_radio_popup", "caption_ctx": "Radio del gioco: ascolta musica reale mentre giochi."},
+
+    # ─── Film / Mercato ───
+    {"key": "my_films", "path": "/films", "label": "I tuoi film", "action": None, "caption_ctx": "Archivio dei tuoi film con stato, incassi, recensioni."},
+    {"key": "sagas", "path": "/sagas", "label": "Le tue Saghe", "action": None, "caption_ctx": "Saghe e universi cinematografici costruiti dai tuoi film."},
+    {"key": "marketplace", "path": "/marketplace", "label": "Marketplace", "action": None, "caption_ctx": "Mercato di asset, sceneggiature, strutture tra player."},
+    {"key": "market", "path": "/market", "label": "Mercato sponsor", "action": None, "caption_ctx": "Negozia sponsor e contratti pubblicitari per finanziare film."},
+
+    # ─── Profilo / Player ───
+    {"key": "profile", "path": "/profile", "label": "Profilo Studio", "action": None, "caption_ctx": "Il tuo profilo pubblico con badge, stats e film prodotti."},
+    {"key": "credits", "path": "/credits", "label": "CinePass & Soldi", "action": None, "caption_ctx": "Gestione saldo: soldi in gioco, CinePass, transazioni."},
+
+    # ─── CTA finale ───
     {"key": "cta", "path": "/auth", "label": "Entra gratis ora", "action": "show_cta_overlay", "caption_ctx": "Call-to-action finale invitando a registrarsi/provare gratis."},
 ]
 

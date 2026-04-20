@@ -3330,6 +3330,39 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
             film.setdefault('owner_nickname', '')
     if not film:
         raise HTTPException(status_code=404, detail="Film non trovato")
+
+    # Bug fix: V3 released films in db.films use `screenplay_text`/`preplot` but frontend
+    # reads `screenplay`/`short_plot`/`pre_trama`. Also the full trailer doc lives in the
+    # source film_projects. Backfill these from the source project when missing.
+    needs_backfill = (
+        not film.get('screenplay')
+        or not film.get('trailer')
+        or not film.get('pre_trama')
+        or not film.get('short_plot')
+    )
+    if needs_backfill:
+        src_id = film.get('source_project_id') or film.get('id')
+        src = await db.film_projects.find_one(
+            {'id': src_id},
+            {'_id': 0, 'screenplay': 1, 'screenplay_text': 1, 'pre_trama': 1,
+             'preplot': 1, 'short_plot': 1, 'description': 1, 'trailer': 1}
+        ) if src_id else None
+        if src:
+            if not film.get('screenplay'):
+                film['screenplay'] = src.get('screenplay') or src.get('screenplay_text') or ''
+            if not film.get('pre_trama'):
+                film['pre_trama'] = src.get('pre_trama') or src.get('preplot') or ''
+            if not film.get('short_plot'):
+                film['short_plot'] = src.get('short_plot') or src.get('preplot') or None
+            if not film.get('trailer') and src.get('trailer'):
+                film['trailer'] = src['trailer']
+        # Fallback directly to v3 field names on the film doc itself
+        if not film.get('screenplay'):
+            film['screenplay'] = film.get('screenplay_text') or ''
+        if not film.get('pre_trama'):
+            film['pre_trama'] = film.get('preplot') or ''
+        if not film.get('short_plot'):
+            film['short_plot'] = film.get('preplot') or None
     
     # Map pipeline_state to status for ContentTemplate
     if film.get('pipeline_state'):

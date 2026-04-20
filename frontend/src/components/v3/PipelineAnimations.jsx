@@ -1,7 +1,7 @@
 // CineWorld — Pipeline WOW Animations
 // 4 momenti: post-Idea (film roll), pre-Cast (folla), montaggio (rolling vintage), La Prima (mega event)
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -278,6 +278,18 @@ export function LaPrimaAnimation({ onComplete, film }) {
   const posterUrl = film?.poster_url;
   const premiereCity = film?.premiere?.city?.toUpperCase() || 'CITTA';
 
+  // Bug fix: ref-pattern so useEffect dep is [] — prevents timer resets on
+  // parent re-renders (inline arrow onComplete used to cancel all timers).
+  const onCompleteRef = useRef(onComplete);
+  const calledRef = useRef(false);
+  onCompleteRef.current = onComplete;
+
+  const doComplete = useCallback(() => {
+    if (calledRef.current) return;
+    calledRef.current = true;
+    onCompleteRef.current?.();
+  }, []);
+
   useEffect(() => {
     const timers = [
       setTimeout(() => setPhase(1), 400),    // Spotlight + carpet reveal
@@ -285,10 +297,13 @@ export function LaPrimaAnimation({ onComplete, film }) {
       setTimeout(() => setPhase(3), 3300),   // Cities storm + flash burst
       setTimeout(() => setPhase(4), 5200),   // 5 stars reveal
       setTimeout(() => setPhase(5), 6800),   // Final glow + LIVE badge
-      setTimeout(() => onComplete(), 8600),
+      setTimeout(doComplete, 8600),
+      // Safety: force-close after 15s no matter what
+      setTimeout(doComplete, 15000),
     ];
     return () => timers.forEach(clearTimeout);
-  }, [onComplete]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Cities bubble up
   useEffect(() => {
@@ -314,6 +329,17 @@ export function LaPrimaAnimation({ onComplete, film }) {
 
   return (
     <div className="fixed inset-0 z-[99999] overflow-hidden" data-testid="la-prima-animation">
+      {/* Skip / close button (always tappable, even during animation) */}
+      <button
+        type="button"
+        onClick={doComplete}
+        aria-label="Chiudi animazione"
+        data-testid="la-prima-skip-btn"
+        className="absolute top-4 right-4 z-[100000] w-9 h-9 rounded-full bg-black/60 border border-white/25 text-white/90 flex items-center justify-center hover:bg-black/80 active:scale-95 transition"
+      >
+        <span className="text-xl leading-none font-bold">×</span>
+      </button>
+
       {/* Deep red-black premiere background */}
       <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 50% 30%, #3a0a18 0%, #1a0508 40%, #050003 100%)' }} />
 

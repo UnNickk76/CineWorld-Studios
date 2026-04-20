@@ -549,10 +549,10 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const castInfo = extractCastInfo(film.cast, film);
   const imdb = film.imdb_rating || (film.quality_score ? (film.quality_score / 10).toFixed(1) : null);
   const durationStr = formatDuration(film, contentType);
-  const shortPlot = film.short_plot ? cleanText(film.short_plot) : null;
+  const shortPlot = (film.short_plot || film.preplot || film.pre_trama) ? cleanText(film.short_plot || film.preplot || film.pre_trama) : null;
   const trendPos = film.trend_position;
   const trendDelta = film.trend_delta;
-  const screenplay = cleanText(toStr(film.screenplay) || toStr(film.pre_screenplay) || toStr(film.description) || '');
+  const screenplay = cleanText(toStr(film.screenplay) || toStr(film.screenplay_text) || toStr(film.pre_screenplay) || toStr(film.description) || '');
   const perception = getPublicPerception(film);
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';

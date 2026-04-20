@@ -400,9 +400,10 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
             return
         genre = content.get("genre") or ""
 
-        # Reuse existing trailer frames if upgrade (idea 5)
+        # Reuse existing trailer frames if upgrade (idea 5) — BUT skip reuse on regeneration
+        is_regen = bool(job.get("is_regenerate"))
         prev = content.get("trailer") or {}
-        prev_images = [f.get("storage_path") for f in (prev.get("frames") or []) if f.get("storage_path")]
+        prev_images = [f.get("storage_path") for f in (prev.get("frames") or []) if f.get("storage_path")] if not is_regen else []
 
         async def _gen_one(i: int, fr: Dict[str, str]):
             # Upgrade reuse: frame[i] already exists
@@ -501,6 +502,26 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
             update_payload["$inc"] = {"hype_progress": inc_hype}
         await db[coll].update_one({"id": content_id}, update_payload)
 
+        # Low-quality detection: if most frames are placeholder/poster fallbacks
+        # (i.e. real AI generation failed for >= half the frames), roll back the
+        # regen_count so the user can retry without penalty. Keep the trailer saved
+        # so they at least see something.
+        try:
+            if job.get("is_regenerate"):
+                real_ai = sum(1 for f in partial_frames if f.get("provider") not in ("placeholder", "fallback", None))
+                total = max(1, len(partial_frames))
+                if real_ai / total < 0.5:
+                    cur = await db[coll].find_one({"id": content_id}, {"_id": 0, "trailer.regen_count": 1}) or {}
+                    cur_count = int(((cur.get("trailer") or {}).get("regen_count") or 1))
+                    new_count = max(0, cur_count - 1)
+                    await db[coll].update_one(
+                        {"id": content_id},
+                        {"$set": {"trailer.regen_count": new_count, "trailer.low_quality": True}}
+                    )
+                    logger.info(f"[trailer] low-quality regen ({real_ai}/{total} real AI), rolled regen_count {cur_count}→{new_count} for {content_id}")
+        except Exception:
+            logger.exception("trailer low-quality rollback failed")
+
         # Charge credits for paid tier (only if not free upgrade delta)
         prev_tier = prev.get("tier")
         prev_mode = prev.get("mode") or "pre_launch"
@@ -517,6 +538,20 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
     except Exception as e:
         logger.exception("trailer job failed")
         job.update(status="failed", error=str(e))
+        # Bug fix: if this was a regeneration that failed, roll back regen_count
+        # so user isn't penalized for a failed attempt. Old frames are already intact
+        # because regenerate_trailer no longer clears them upfront.
+        try:
+            if job.get("is_regenerate") and coll:
+                cur = await db[coll].find_one({"id": content_id}, {"_id": 0, "trailer.regen_count": 1}) or {}
+                cur_count = int(((cur.get("trailer") or {}).get("regen_count") or 1))
+                await db[coll].update_one(
+                    {"id": content_id},
+                    {"$set": {"trailer.regen_count": max(0, cur_count - 1)}}
+                )
+                logger.info(f"[trailer] rolled back regen_count {cur_count}→{max(0, cur_count - 1)} for {content_id} after failure")
+        except Exception:
+            logger.exception("trailer rollback failed")
 
 
 # ─────────────────────── Endpoints ───────────────────────
@@ -637,12 +672,12 @@ async def regenerate_trailer(content_id: str, user: dict = Depends(_dep())):
     if running and running.get("status") == "running":
         return {"job_id": running["job_id"], "status": "running", "progress": running.get("progress", 0)}
 
-    # Clear previous frames references so the run treats it as fresh (no reuse)
-    # but preserve regen_count.
+    # Increment regen_count upfront (so UI shows correct count while running).
+    # Keep previous frames intact — they'll be overwritten only when the job
+    # finishes successfully. If the job fails, we'll roll back regen_count below.
     await db[coll].update_one(
         {"id": content_id},
         {"$set": {
-            "trailer.frames": [],
             "trailer.regen_count": regen_count + 1,
             "trailer.regenerated_at": datetime.now(timezone.utc).isoformat(),
         }}
@@ -714,10 +749,17 @@ async def trailer_status(content_id: str, request: Request, user: dict = Depends
 
 @router.get("/trailers/{content_id}")
 async def get_trailer(content_id: str, request: Request, user: dict = Depends(_dep())):
-    content, _ = await _find_content(content_id)
+    content, coll = await _find_content(content_id)
     if not content:
         raise HTTPException(404, "Contenuto non trovato")
     tr = content.get("trailer")
+    # Bug fix: V3 released films in db.films don't carry the `trailer` sub-doc —
+    # it stays on the source film_projects. Fall back to it when missing.
+    if not tr and coll == "films":
+        src_id = content.get("source_project_id") or content_id
+        src = await db.film_projects.find_one({"id": src_id}, {"_id": 0, "trailer": 1})
+        if src and src.get("trailer"):
+            tr = src["trailer"]
     if not tr:
         return {"trailer": None}
 

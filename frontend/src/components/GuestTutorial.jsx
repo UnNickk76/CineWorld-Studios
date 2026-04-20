@@ -57,8 +57,8 @@ const injectStyles = () => {
     @keyframes celebrationPulse { 0%,100%{box-shadow:0 0 30px rgba(255,215,0,.3),0 0 60px rgba(255,215,0,.1)}50%{box-shadow:0 0 60px rgba(255,215,0,.6),0 0 120px rgba(255,215,0,.3)} }
     @keyframes sparkleFloat { 0%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(-80px) scale(0);opacity:0} }
     @keyframes celebrationGlow { 0%,100%{filter:drop-shadow(0 0 25px rgba(255,215,0,.6)) brightness(1.2)}50%{filter:drop-shadow(0 0 50px rgba(255,215,0,1)) drop-shadow(0 0 80px rgba(0,180,255,.5)) brightness(1.5)} }
-    .tut-target-active { position:relative!important; z-index:110!important; pointer-events:auto!important; animation:tutGlow 1.5s ease-in-out infinite!important; border-radius:12px!important }
-    .tut-parent-lifted { z-index:105!important }
+    .tut-target-active { position:relative!important; z-index:9110!important; pointer-events:auto!important; animation:tutGlow 1.5s ease-in-out infinite!important; border-radius:12px!important }
+    .tut-parent-lifted { z-index:9105!important }
   `;
   document.head.appendChild(s);
 };
@@ -240,7 +240,7 @@ export function GuestTutorial() {
   // ═══════ CONVERSION MODAL ═══════
   if (showConvert) {
     return (
-      <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm pb-4 sm:pb-0" data-testid="guest-tutorial-convert">
+      <div className="fixed inset-0 z-[9200] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm pb-4 sm:pb-0" data-testid="guest-tutorial-convert">
         <motion.div initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
           className="bg-[#0d0d0f] border border-cyan-500/20 rounded-2xl max-w-sm w-[92%] mx-4 overflow-hidden relative">
           <motion.div className="absolute -top-2 -right-3 w-28 h-28 pointer-events-none z-10"
@@ -270,7 +270,7 @@ export function GuestTutorial() {
   if (minimized) {
     return (
       <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.9 }}
-        className="fixed bottom-24 right-3 z-[120] w-16 h-16 rounded-full border-2 border-cyan-500/40 flex items-center justify-center overflow-hidden"
+        className="fixed bottom-24 right-3 z-[9120] w-16 h-16 rounded-full border-2 border-cyan-500/40 flex items-center justify-center overflow-hidden"
         style={{ boxShadow: '0 0 25px rgba(0,180,255,0.5)', background: 'radial-gradient(circle, rgba(0,20,50,0.95) 30%, #0a0a0c 100%)' }}
         onClick={() => setMinimized(false)} data-testid="tutorial-velion-minimized">
         <img src="/velion-tutorial.png" alt="Velion" className="w-14 h-14 object-cover" style={{ animation: 'velionFloat 2s ease-in-out infinite' }} />
@@ -349,13 +349,13 @@ export function GuestTutorial() {
       <>
         {/* Overlay scuro di base */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="fixed inset-0 z-[100]"
+          className="fixed inset-0 z-[9100]"
           style={{ background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.95) 100%)' }}
           data-testid="tutorial-finale-overlay"
         />
 
         {/* Sparkle particles */}
-        <div className="fixed inset-0 z-[101] pointer-events-none overflow-hidden" data-testid="tutorial-finale-sparkles">
+        <div className="fixed inset-0 z-[9101] pointer-events-none overflow-hidden" data-testid="tutorial-finale-sparkles">
           {[...Array(20)].map((_, i) => (
             <motion.div
               key={i}
@@ -384,7 +384,7 @@ export function GuestTutorial() {
         </div>
 
         {/* Contenuto centrale — scrollable safe */}
-        <div className="fixed inset-0 z-[120] flex flex-col items-center justify-start overflow-y-auto px-3 pt-6 pb-20 pointer-events-none" data-testid="tutorial-finale-content">
+        <div className="fixed inset-0 z-[9120] flex flex-col items-center justify-start overflow-y-auto px-3 pt-6 pb-20 pointer-events-none" data-testid="tutorial-finale-content">
 
           {/* Velion con glow celebrativo */}
           <motion.div
@@ -470,14 +470,14 @@ export function GuestTutorial() {
     <>
       {/* OVERLAY — lighter when target is found */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        className="fixed inset-0 z-[100] pointer-events-none"
+        className="fixed inset-0 z-[9100] pointer-events-none"
         style={{ background: targetRect ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.4)' }}
         data-testid="tutorial-overlay"
       />
 
       {/* SPOTLIGHT cutout on target */}
       {targetRect && !minimized && (
-        <div className="fixed z-[101] pointer-events-none" style={{
+        <div className="fixed z-[9101] pointer-events-none" style={{
           top: targetRect.top - 8,
           left: targetRect.left - 8,
           width: targetRect.width + 16,
@@ -498,14 +498,14 @@ export function GuestTutorial() {
         const arrowTop = pointDown ? targetRect.top - 36 : targetRect.top + targetRect.height + 4;
         const arrowLeft = targetRect.left + targetRect.width / 2 - 16;
         return (
-          <div className="fixed z-[130] pointer-events-none" style={{ top: Math.max(0, Math.min(arrowTop, window.innerHeight - 36)), left: Math.max(4, Math.min(arrowLeft, window.innerWidth - 36)), animation: 'tutArrowBounce 1s ease-in-out infinite', filter: 'drop-shadow(0 0 12px rgba(255,215,0,.9))' }} data-testid="tutorial-arrow">
+          <div className="fixed z-[9130] pointer-events-none" style={{ top: Math.max(0, Math.min(arrowTop, window.innerHeight - 36)), left: Math.max(4, Math.min(arrowLeft, window.innerWidth - 36)), animation: 'tutArrowBounce 1s ease-in-out infinite', filter: 'drop-shadow(0 0 12px rgba(255,215,0,.9))' }} data-testid="tutorial-arrow">
             {pointDown ? <ArrowDown className="w-8 h-8 text-yellow-400" strokeWidth={3} /> : <ArrowUp className="w-8 h-8 text-yellow-400" strokeWidth={3} />}
           </div>
         );
       })()}
 
       {/* VELION PANEL */}
-      <div className="fixed inset-0 z-[120] pointer-events-none" data-testid="tutorial-velion-panel">
+      <div className="fixed inset-0 z-[9120] pointer-events-none" data-testid="tutorial-velion-panel">
         {isBottom ? (
           /* ─── BOTTOM LAYOUT: large Velion right + speech left ─── */
           <motion.div

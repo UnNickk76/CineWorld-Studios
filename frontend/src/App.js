@@ -1353,7 +1353,7 @@ const TopNavbar = () => {
         </div>
       </div>
 
-      {showGameTutorial && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
+      {showGameTutorial && !(user?.is_guest && !user?.tutorial_completed) && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
 
       {/* Online Users Panel */}
       {showOnlineUsersPanel && (
@@ -2001,13 +2001,13 @@ const ProtectedRoute = ({ children }) => {
       </>
       )}
       <VelionPanel
-        open={showTutorial}
+        open={showTutorial && !(user?.is_guest && !user?.tutorial_completed)}
         onClose={() => setShowTutorial(false)}
         onNavigate={(path) => { navigate(path); setShowTutorial(false); }}
         defaultTab={velionTab}
       />
-      {showGameTutorial && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
-      {showDashboardTour && <DashboardTour onClose={() => setShowDashboardTour(false)} />}
+      {showGameTutorial && !(user?.is_guest && !user?.tutorial_completed) && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
+      {showDashboardTour && !(user?.is_guest && !user?.tutorial_completed) && <DashboardTour onClose={() => setShowDashboardTour(false)} />}
 
       {/* Autonomy Prompt */}
       <AnimatePresence>

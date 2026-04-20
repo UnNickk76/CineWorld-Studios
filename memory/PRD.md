@@ -10,6 +10,14 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Guest Tutorial V3 + Free Pipeline + Location Picker (this session)**
+  - **Guest play is FREE** during tutorial: `_spend()` in `pipeline_v3.py` returns `{guest_free: true}` without charging when `user.is_guest`. `confirm_release` skips funds/cinepass pre-check for guests. All speedup + release actions are visually strikethrough + "GRATIS" badge.
+  - **Location Picker restored in IdeaPhase V3**: replaced abstract `LOCATION_TAGS` with real `/api/locations` data — 4 category tabs (Studios / Città / Natura / Storici) + optional "Il Mio Studio" (gratis), search, multi-select up to 5, real `cost_per_day` per location. Guest sees strikethrough + GRATIS per location.
+  - **Guest Tutorial rewired for V3 pipeline** (`GuestTutorial.jsx`): 18 steps (0-17) using correct V3 testids: `top-nav-produci`, `produci-film`, `new-project-btn`, `title-input`, `preplot-input`, `location-categories`, `idea-ok-phase0`, `poster-ai-auto`, `idea-ok-poster`, `screenplay-ai-auto`, `idea-ok-screenplay`, `advance-btn`, `speedup-*`, `confirm-release-btn`. Auto-advance polling detects DOM state for each step.
+  - **Overlay clash fixed**: GuestTutorial z-index boosted to `9100-9200` so it wins over VelionPanel/TutorialModal/DashboardTour. `LoginRewardPopup` (Bonus Giornaliero) now suppressed during guest tutorial. VelionPanel/TutorialModal/DashboardTour all gated by `!(is_guest && !tutorial_completed)`.
+  - **Backend tutorial range**: `TUTORIAL_STEPS = range(0,18)`, `TUTORIAL_COMPLETE_STEP = 17`.
+  - Backend bypass test (iter163): 7/7 pass. Frontend smoke test OK: guest login → step 0..5 spotlight flow works, location picker renders with GRATIS badges visible.
+
 - **Feb 2026 — PStar System: classifica La Prima + premi giornalieri/settimanali + bonus AI**
   - **Nuovo valore PStar 0.0-100.0** calcolato dopo ogni La Prima conclusa. Formula in `backend/la_prima_scoring.py`:
     - Qualita CWSv (x2) → 0-20

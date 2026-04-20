@@ -404,24 +404,25 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
                 return prev_images[i]
             return await _generate_frame_image(fr, genre)
 
-        tasks = [asyncio.create_task(_gen_one(i, storyboard[i])) for i in range(n_to_generate)]
+        # ─── SEQUENTIAL generation (not parallel) to respect Pollinations anonymous
+        # tier rate limit of 1 in-flight request per IP. If a frame fails, fall back
+        # to the previous successful frame or the film poster to avoid black gaps.
         image_paths: List[Optional[str]] = []
-        done = 0
-        for t in asyncio.as_completed(tasks):
+        last_good: Optional[str] = None
+        for i in range(n_to_generate):
             if job.get("status") == "aborted":
-                for pending in tasks:
-                    if not pending.done():
-                        pending.cancel()
                 return
-            p = await t
+            # Stagger sequential calls so Pollinations queue has time to drain
+            if i > 0:
+                await asyncio.sleep(2.0)
+            p = await _gen_one(i, storyboard[i])
+            if not p:
+                # Fallback chain: previous good frame → poster → None
+                p = last_good or poster
+            else:
+                last_good = p
             image_paths.append(p)
-            done += 1
-            job.update(progress=15 + int(75 * done / max(1, n_to_generate)), stage="images")
-
-        # Align image_paths order with storyboard order (asyncio.as_completed doesn't preserve order → rebuild by awaiting tasks again)
-        image_paths = []
-        for t in tasks:
-            image_paths.append(t.result())
+            job.update(progress=15 + int(75 * (i + 1) / max(1, n_to_generate)), stage="images")
 
         # Compute durations
         total_ms = tier_cfg["duration_s"] * 1000

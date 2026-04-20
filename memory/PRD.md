@@ -170,6 +170,26 @@ Endpoint:
 
 Env opzionale: `POLLINATIONS_TOKEN` (per uscire dal rate limit IP anonimo, da registrare su enter.pollinations.ai)
 
+## Promo Video Generator (Apr 2026)
+Tool admin auto-generatore di video promozionali Instagram-ready (9:16 1080×1920 MP4).
+- `/app/backend/promo_video.py` — engine: Playwright headless Chromium per screenshot, Emergent LLM (GPT-4o-mini) per caption italiani, FFmpeg (libx264 + drawtext + libfreetype) per composizione video con overlay testo
+- `/app/backend/routes/promo_video_admin.py` — API: GET screens, POST generate, GET/DELETE jobs, GET download MP4
+- Collection MongoDB: `promo_video_jobs` (job state, progress real-time, captions generate, video URL)
+- AdminPage → tab "Promo Video" con: durata 30/60/90/120s, tono (energico/neutro/ironico), musica opz, prompt custom (≤400 char), picker 14 pagine, progress bar reale, download MP4, storico ultimi 10 video
+- Flow: crea guest demo → seed 2 film fake → Playwright naviga le 14 pagine → screenshot → caption AI paralleli → FFmpeg compone → upload → cleanup demo user
+- Job orphan recovery: al restart backend, job `running`/`queued` vengono marcati `failed` con stage=`orphaned`
+- Primo test end-to-end: 5 pagine, 30s, 526KB MP4 valido, duration esatta 30s, caption italiani coerenti
+
+Endpoint:
+- `GET /api/admin/promo-video/screens` — lista pagine disponibili
+- `POST /api/admin/promo-video/generate` — avvia job (body: duration_seconds, screens[], custom_prompt, tone, music)
+- `GET /api/admin/promo-video/jobs` — storico
+- `GET /api/admin/promo-video/jobs/{id}` — status + progress + log
+- `GET /api/admin/promo-video/download/{id}` — MP4 scaricabile
+- `DELETE /api/admin/promo-video/jobs/{id}` — elimina job + file
+
+Dipendenze installate: `playwright==1.48.0`, `ffmpeg` (system apt), `fonts-dejavu-core`
+
 ## Integrazioni
 - Emergent LLM Key (GPT-4o-mini + Gemini Nano Banana image gen)
 - Emergent Object Storage

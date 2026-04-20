@@ -7109,6 +7109,13 @@ async def startup_event():
 
     logging.info("[BACKUP] Auto-backup disabilitato. Usa pannello Admin per export manuale.")
 
+    # Recover orphaned promo-video jobs (tasks die with process)
+    try:
+        from promo_video import recover_orphaned_jobs as _promo_recover
+        await _promo_recover()
+    except Exception as _pe:
+        logging.warning(f"[promo] startup recovery skipped: {_pe}")
+
     # Auto-sync locale → Atlas ogni 30 minuti (solo se DB locale)
     try:
         if not is_atlas:
@@ -10139,6 +10146,13 @@ try:
     app.include_router(admin_ai_providers_router)
 except Exception as _e:
     logger.error(f"Failed to load admin_ai_providers router: {_e}")
+
+# Admin — Promo Video Generator (automated Instagram promo videos)
+try:
+    from routes.promo_video_admin import router as promo_video_admin_router
+    app.include_router(promo_video_admin_router)
+except Exception as _e:
+    logger.error(f"Failed to load promo_video_admin router: {_e}")
 # Content Likes (real + system hype-based)
 try:
     from routes.likes import router as likes_router

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart, Image as ImageIcon } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart, Image as ImageIcon, Video } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 import { PlayerBadge } from '../components/PlayerBadge';
@@ -23,6 +23,7 @@ const ADMIN_TABS = [
   { id: 'tutorial', label: 'Tutorial Manager', icon: BookOpen },
   { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
   { id: 'ai-providers', label: 'AI Providers', icon: ImageIcon },
+  { id: 'promo-video', label: 'Promo Video', icon: Video },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
   { id: 'recovery', label: 'Anti-Limbo', icon: AlertTriangle },
   { id: 'reset', label: 'Reset Gioco', icon: Trash2 },
@@ -2513,6 +2514,232 @@ function SeriesAnimeMigrationSection({ api }) {
   );
 }
 
+/* ─── Promo Video Tab — Automated Instagram promo video generator ─── */
+function PromoVideoTab({ api }) {
+  const [screens, setScreens] = useState([]);
+  const [selected, setSelected] = useState(new Set());
+  const [duration, setDuration] = useState(30);
+  const [tone, setTone] = useState('energico');
+  const [music, setMusic] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [jobs, setJobs] = useState([]);
+  const [currentJob, setCurrentJob] = useState(null);
+  const [loadingStart, setLoadingStart] = useState(false);
+  const pollRef = useRef(null);
+
+  const loadScreens = useCallback(async () => {
+    try {
+      const r = await api.get('/admin/promo-video/screens');
+      setScreens(r.data || []);
+      setSelected(new Set((r.data || []).map(s => s.key)));
+    } catch { /* noop */ }
+  }, [api]);
+
+  const loadJobs = useCallback(async () => {
+    try {
+      const r = await api.get('/admin/promo-video/jobs?limit=10');
+      setJobs(r.data?.jobs || []);
+    } catch { /* noop */ }
+  }, [api]);
+
+  useEffect(() => { loadScreens(); loadJobs(); }, [loadScreens, loadJobs]);
+
+  const toggleScreen = (key) => {
+    setSelected(prev => {
+      const s = new Set(prev);
+      s.has(key) ? s.delete(key) : s.add(key);
+      return s;
+    });
+  };
+
+  const pollJob = useCallback(async (jobId) => {
+    try {
+      const r = await api.get(`/admin/promo-video/jobs/${jobId}`);
+      setCurrentJob(r.data);
+      if (r.data.status === 'completed' || r.data.status === 'failed') {
+        clearInterval(pollRef.current); pollRef.current = null;
+        loadJobs();
+        if (r.data.status === 'completed') toast.success('Video pronto!');
+        else toast.error(`Errore: ${r.data.error || 'sconosciuto'}`);
+      }
+    } catch { /* noop */ }
+  }, [api, loadJobs]);
+
+  const startJob = async () => {
+    if (selected.size === 0) { toast.error('Seleziona almeno una pagina'); return; }
+    setLoadingStart(true);
+    try {
+      const r = await api.post('/admin/promo-video/generate', {
+        duration_seconds: duration,
+        screens: Array.from(selected),
+        custom_prompt: customPrompt.trim(),
+        tone, music,
+      });
+      const jobId = r.data.job_id;
+      setCurrentJob({ job_id: jobId, status: 'queued', progress: 0, stage: 'queued', log: [] });
+      pollRef.current = setInterval(() => pollJob(jobId), 2000);
+      toast('Generazione avviata');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setLoadingStart(false); }
+  };
+
+  const download = async (jobId) => {
+    try {
+      const r = await api.get(`/admin/promo-video/download/${jobId}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = `cineworld_promo_${jobId}.mp4`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch { toast.error('Download fallito'); }
+  };
+
+  const deleteJob = async (jobId) => {
+    if (!window.confirm('Eliminare questo video?')) return;
+    try { await api.delete(`/admin/promo-video/jobs/${jobId}`); loadJobs(); toast.success('Eliminato'); }
+    catch { toast.error('Errore'); }
+  };
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  const running = currentJob && currentJob.status !== 'completed' && currentJob.status !== 'failed';
+
+  return (
+    <Card className="bg-[#111113] border-white/5" data-testid="promo-video-tab">
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
+          <Video className="w-4 h-4 text-rose-400" /> Promo Video Generator
+        </CardTitle>
+        <p className="text-[10px] text-gray-500">Genera automaticamente un video 1080×1920 Instagram-ready con screenshot del gioco + caption AI.</p>
+      </CardHeader>
+      <CardContent className="p-4 pt-2 space-y-4">
+
+        {/* Duration */}
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Durata video</label>
+          <div className="grid grid-cols-4 gap-1.5 mt-1">
+            {[30, 60, 90, 120].map(d => (
+              <button key={d} onClick={() => setDuration(d)} disabled={running}
+                className={`text-[11px] py-2 rounded-md font-semibold border ${duration === d ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                data-testid={`duration-${d}`}>
+                {d}s
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tone */}
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Tono caption</label>
+          <div className="grid grid-cols-3 gap-1.5 mt-1">
+            {[{k:'energico',l:'🎬 Energico'},{k:'neutro',l:'📃 Neutro'},{k:'ironico',l:'😄 Ironico'}].map(o => (
+              <button key={o.k} onClick={() => setTone(o.k)} disabled={running}
+                className={`text-[10px] py-2 rounded-md font-semibold border ${tone === o.k ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                data-testid={`tone-${o.k}`}>
+                {o.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Music */}
+        <div className="flex items-center gap-2">
+          <input id="promo-music" type="checkbox" checked={music} onChange={e => setMusic(e.target.checked)} disabled={running} className="w-4 h-4" data-testid="promo-music"/>
+          <label htmlFor="promo-music" className="text-xs text-gray-300">Aggiungi musica di sottofondo (se disponibile)</label>
+        </div>
+
+        {/* Custom prompt */}
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Prompt personalizzato (opzionale)</label>
+          <textarea value={customPrompt} onChange={e => setCustomPrompt(e.target.value)} disabled={running}
+            rows={2} maxLength={400}
+            placeholder="Es. Enfatizza il lato competitivo dei trailer e la community…"
+            className="w-full mt-1 text-xs bg-black/40 border border-white/10 rounded-md p-2 text-gray-200 placeholder:text-gray-600"
+            data-testid="promo-custom-prompt"/>
+          <div className="text-[9px] text-gray-600 text-right">{customPrompt.length}/400</div>
+        </div>
+
+        {/* Screens picker */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Pagine incluse ({selected.size}/{screens.length})</label>
+            <div className="flex gap-1">
+              <button onClick={() => setSelected(new Set(screens.map(s => s.key)))} disabled={running} className="text-[9px] text-gray-400 hover:text-white">tutti</button>
+              <span className="text-gray-600 text-[9px]">·</span>
+              <button onClick={() => setSelected(new Set())} disabled={running} className="text-[9px] text-gray-400 hover:text-white">nessuno</button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-1 max-h-48 overflow-y-auto pr-1">
+            {screens.map(s => (
+              <label key={s.key} className={`text-[10px] flex items-center gap-1.5 py-1.5 px-2 rounded-md border cursor-pointer ${selected.has(s.key) ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-white/5 border-white/10 text-gray-400'}`}>
+                <input type="checkbox" checked={selected.has(s.key)} onChange={() => toggleScreen(s.key)} disabled={running} className="w-3 h-3" />
+                <span className="truncate">{s.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Start button */}
+        <button onClick={startJob} disabled={running || loadingStart}
+          className="w-full text-xs py-3 rounded-md bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold hover:bg-rose-500/30 disabled:opacity-50 flex items-center justify-center gap-2"
+          data-testid="btn-generate-promo">
+          {running ? <><Loader2 className="w-3.5 h-3.5 animate-spin"/>Generazione in corso…</> : <><Video className="w-3.5 h-3.5"/>Genera video promo</>}
+        </button>
+
+        {/* Progress / Log panel */}
+        {currentJob && (
+          <div className="bg-black/40 rounded-md border border-white/10 p-3 space-y-2" data-testid="promo-progress">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                <div className={`h-full transition-all duration-500 ${currentJob.status === 'failed' ? 'bg-red-500' : currentJob.status === 'completed' ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${currentJob.progress || 0}%` }} />
+              </div>
+              <span className="text-[10px] font-bold text-white">{currentJob.progress || 0}%</span>
+            </div>
+            <div className="text-[10px] text-gray-500">
+              Stato: <span className="text-white font-semibold">{currentJob.stage}</span>
+            </div>
+            {(currentJob.log || []).slice(-8).map((line, i) => (
+              <div key={i} className="text-[10px] text-gray-400 font-mono leading-tight">{line}</div>
+            ))}
+            {currentJob.status === 'completed' && (
+              <button onClick={() => download(currentJob.job_id)}
+                className="w-full text-[11px] py-2 mt-2 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold hover:bg-emerald-500/30 flex items-center justify-center gap-2"
+                data-testid="btn-download-promo">
+                <Download className="w-3.5 h-3.5"/>Scarica MP4
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* History */}
+        {jobs.length > 0 && (
+          <div>
+            <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">Storico ultimi video</div>
+            <div className="space-y-1 max-h-56 overflow-y-auto">
+              {jobs.map(j => (
+                <div key={j.job_id} className="flex items-center gap-2 bg-white/5 rounded-md p-2 border border-white/5">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] text-white font-semibold flex items-center gap-1.5">
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${j.status === 'completed' ? 'bg-emerald-400' : j.status === 'failed' ? 'bg-red-400' : 'bg-amber-400'}`}></span>
+                      {j.params?.duration_seconds}s · {j.params?.screens?.length || '—'} pagine · {j.status}
+                    </div>
+                    <div className="text-[9px] text-gray-500 truncate">{j.created_at?.slice(0,16)?.replace('T',' ')} — {j.video_size ? `${Math.round(j.video_size/1024)} KB` : j.stage}</div>
+                  </div>
+                  {j.status === 'completed' && (
+                    <button onClick={() => download(j.job_id)} className="text-[9px] px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30" title="Scarica"><Download className="w-3 h-3"/></button>
+                  )}
+                  <button onClick={() => deleteJob(j.job_id)} className="text-[9px] px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20" title="Elimina"><Trash2 className="w-3 h-3"/></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ─── AI Providers Tab — Pollinations vs Emergent toggle ─── */
 function AIProvidersTab({ api }) {
   const [cfg, setCfg] = useState(null);
@@ -2714,6 +2941,7 @@ export default function AdminPage() {
         )}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
         {activeTab === 'ai-providers' && isAdmin && <AIProvidersTab api={api} />}
+        {activeTab === 'promo-video' && isAdmin && <PromoVideoTab api={api} />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}
         {activeTab === 'reset' && isAdmin && <ResetGamePanel api={api} />}
         {activeTab === 'migration' && isAdmin && <MigrationTab api={api} />}

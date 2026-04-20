@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Sparkles, Film, RefreshCw } from 'lucide-react';
-import { PhaseWrapper, GENRES, GENRE_LABELS, SUBGENRE_MAP, LOCATION_TAGS, ProgressCircle, v3api } from './V3Shared';
+import React, { useState, useMemo, useRef, useEffect, useContext } from 'react';
+import { Sparkles, Film, RefreshCw, Building2, MapPin, Trees, Landmark, Home } from 'lucide-react';
+import { PhaseWrapper, GENRES, GENRE_LABELS, SUBGENRE_MAP, ProgressCircle, v3api } from './V3Shared';
+import { AuthContext } from '../../contexts';
 
 /*
   Flusso sequenziale:
@@ -10,7 +11,19 @@ import { PhaseWrapper, GENRES, GENRE_LABELS, SUBGENRE_MAP, LOCATION_TAGS, Progre
   Dopo fase 3 → bottone Avanti HYPE in alto si sfreeza
 */
 
+const LOC_CAT_META = {
+  my_studio: { label: 'Il Mio Studio', icon: Home, color: 'text-emerald-400', border: 'border-emerald-500/30', bg: 'bg-emerald-500/10' },
+  studios:   { label: 'Studios',       icon: Building2, color: 'text-cyan-400',    border: 'border-cyan-500/30',    bg: 'bg-cyan-500/10' },
+  cities:    { label: 'Citt\u00E0',    icon: MapPin,    color: 'text-amber-400',   border: 'border-amber-500/30',   bg: 'bg-amber-500/10' },
+  nature:    { label: 'Natura',        icon: Trees,     color: 'text-green-400',   border: 'border-green-500/30',   bg: 'bg-green-500/10' },
+  historical:{ label: 'Storici',       icon: Landmark,  color: 'text-purple-400',  border: 'border-purple-500/30',  bg: 'bg-purple-500/10' },
+};
+
+const MAX_LOCATIONS = 5;
+
 export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
+  const { user, api } = useContext(AuthContext) || {};
+  const isGuest = !!user?.is_guest;
   // Determine which sub-phase we're in based on saved data
   const hasSavedIdea = !!(film.genre && film.preplot && film.preplot.length >= 50 && (film.subgenres?.length > 0 || film.subgenre));
   const hasPoster = !!film.poster_url;
@@ -37,6 +50,35 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
   const zoomTimerRef = useRef(null);
   const posterInt = useRef(null);
   const scriptInt = useRef(null);
+
+  // Real locations picker
+  const [allLocations, setAllLocations] = useState([]);
+  const [ownStudio, setOwnStudio] = useState(null);
+  const [activeCat, setActiveCat] = useState('studios');
+  const [locQuery, setLocQuery] = useState('');
+
+  useEffect(() => {
+    // Fetch real locations list (studios, cities, nature, historical)
+    (async () => {
+      try {
+        const res = await api.get('/locations');
+        const list = Array.isArray(res.data) ? res.data : (res.data?.locations || []);
+        setAllLocations(list);
+      } catch {}
+      // Detect own production studio from infrastructure
+      try {
+        const res = await api.get('/infrastructure/my');
+        const items = res.data?.infrastructure || res.data || [];
+        const studio = (items || []).find(i => i?.type === 'production_studio');
+        if (studio) setOwnStudio({
+          name: studio.custom_name || studio.name || user?.production_house_name || 'Il Mio Studio',
+          cost_per_day: 0,
+          category: 'my_studio',
+          is_own: true,
+        });
+      } catch {}
+    })();
+  }, [api, user?.production_house_name]);
 
   // Auto-close zoom after 20s
   useEffect(() => {
@@ -116,11 +158,12 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
   const toggleSubgenre = (s) => { setSubgenres(v => v.includes(s) ? v.filter(x => x !== s) : v.length < 3 ? [...v, s] : v); mark(); };
 
   // OK button component
-  const OkButton = ({ enabled, onClick, loading: btnLoading }) => (
+  const OkButton = ({ enabled, onClick, loading: btnLoading, testid }) => (
     <button onClick={onClick} disabled={!enabled || !!btnLoading}
       className={`px-5 py-1.5 rounded-lg text-xs font-black transition-all ${
         enabled ? 'bg-amber-400 text-black hover:bg-amber-300 active:scale-95' : 'bg-gray-800 text-gray-600 cursor-not-allowed'
-      } disabled:opacity-50`}>
+      } disabled:opacity-50`}
+      data-testid={testid}>
       {btnLoading ? '...' : 'OK'}
     </button>
   );
@@ -169,15 +212,107 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
         </div>
 
         <div>
-          <span className="text-[8px] text-gray-500 uppercase font-bold">Ambientazione</span>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
-            {LOCATION_TAGS.map(l => (
-              <button key={l} onClick={() => subPhase === 0 && toggleLoc(l)} disabled={subPhase > 0}
-                className={`px-2 py-1 rounded-lg text-[8px] font-bold border transition-all ${
-                  locations.includes(l) ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'border-gray-800 text-gray-500 hover:border-gray-600'
-                } disabled:opacity-50`}>{l}</button>
-            ))}
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[8px] text-gray-500 uppercase font-bold">Location di Ripresa</span>
+            <span className={`text-[8px] ${locations.length > 0 ? 'text-cyan-400' : 'text-gray-600'}`}>
+              {locations.length}/{MAX_LOCATIONS}
+            </span>
           </div>
+
+          {/* Category tabs */}
+          <div className="flex gap-1 mb-2 overflow-x-auto pb-1" data-testid="location-categories">
+            {Object.entries(LOC_CAT_META)
+              .filter(([k]) => k !== 'my_studio' || !!ownStudio)
+              .map(([key, meta]) => {
+                const Icon = meta.icon;
+                const count = key === 'my_studio'
+                  ? (ownStudio && locations.includes(ownStudio.name) ? 1 : 0)
+                  : allLocations.filter(l => l.category === key && locations.includes(l.name)).length;
+                return (
+                  <button key={key} onClick={() => subPhase === 0 && setActiveCat(key)} disabled={subPhase > 0}
+                    className={`shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-bold border transition-all disabled:opacity-50 ${
+                      activeCat === key ? `${meta.bg} ${meta.border} ${meta.color}` : 'border-gray-800 text-gray-500 hover:border-gray-600'
+                    }`}
+                    data-testid={`location-cat-${key}`}>
+                    <Icon className="w-3 h-3" />
+                    <span>{meta.label}</span>
+                    {count > 0 && <span className={`${meta.color} font-black`}>{count}</span>}
+                  </button>
+                );
+              })}
+          </div>
+
+          {/* Search (not on my_studio) */}
+          {activeCat !== 'my_studio' && subPhase === 0 && (
+            <input value={locQuery} onChange={e => setLocQuery(e.target.value)}
+              placeholder="Cerca location..."
+              className="w-full rounded-lg border border-gray-800 bg-gray-950 px-2.5 py-1.5 text-[9px] text-white placeholder-gray-600 mb-1.5" />
+          )}
+
+          {/* Location list */}
+          <div className="max-h-36 overflow-y-auto space-y-1 pr-1" data-testid="location-list">
+            {activeCat === 'my_studio' && ownStudio && (() => {
+              const selected = locations.includes(ownStudio.name);
+              const meta = LOC_CAT_META.my_studio;
+              const Icon = meta.icon;
+              return (
+                <button onClick={() => subPhase === 0 && toggleLoc(ownStudio.name)} disabled={subPhase > 0}
+                  className={`w-full flex items-center justify-between p-1.5 rounded-lg border transition-all disabled:opacity-50 ${
+                    selected ? `${meta.bg} ${meta.border}` : 'border-gray-800 hover:border-gray-700 bg-gray-900/30'
+                  }`}
+                  data-testid={`location-option-${ownStudio.name}`}>
+                  <span className="flex items-center gap-1.5">
+                    <Icon className={`w-3 h-3 ${meta.color}`} />
+                    <span className={`text-[9px] font-bold ${selected ? meta.color : 'text-gray-300'}`}>{ownStudio.name}</span>
+                  </span>
+                  <span className="text-[8px] text-emerald-400 font-black">GRATIS</span>
+                </button>
+              );
+            })()}
+            {activeCat !== 'my_studio' && allLocations
+              .filter(l => l.category === activeCat)
+              .filter(l => !locQuery || l.name.toLowerCase().includes(locQuery.toLowerCase()))
+              .map(l => {
+                const selected = locations.includes(l.name);
+                const meta = LOC_CAT_META[l.category] || LOC_CAT_META.studios;
+                const atLimit = locations.length >= MAX_LOCATIONS && !selected;
+                return (
+                  <button key={l.name} onClick={() => subPhase === 0 && !atLimit && toggleLoc(l.name)}
+                    disabled={subPhase > 0 || atLimit}
+                    className={`w-full flex items-center justify-between p-1.5 rounded-lg border transition-all disabled:opacity-40 ${
+                      selected ? `${meta.bg} ${meta.border}` : 'border-gray-800 hover:border-gray-700 bg-gray-900/20'
+                    }`}
+                    data-testid={`location-option-${l.name}`}>
+                    <span className={`text-[9px] font-bold truncate ${selected ? meta.color : 'text-gray-300'}`}>{l.name}</span>
+                    {isGuest ? (
+                      <span className="shrink-0 ml-2 flex items-center gap-1">
+                        <s className="text-[7px] text-gray-500">${(l.cost_per_day / 1000).toFixed(0)}K/g</s>
+                        <span className="text-[8px] text-emerald-400 font-black">GRATIS</span>
+                      </span>
+                    ) : (
+                      <span className="shrink-0 ml-2 text-[8px] text-gray-400">${(l.cost_per_day / 1000).toFixed(0)}K<span className="text-gray-600">/g</span></span>
+                    )}
+                  </button>
+                );
+              })}
+            {activeCat !== 'my_studio' && allLocations.filter(l => l.category === activeCat).length === 0 && (
+              <p className="text-[8px] text-gray-600 text-center py-2">Caricamento location...</p>
+            )}
+          </div>
+
+          {/* Selected chips */}
+          {locations.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-gray-800/50" data-testid="selected-locations">
+              {locations.map(name => (
+                <span key={name} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-[8px] text-cyan-300 font-bold">
+                  {name}
+                  {subPhase === 0 && (
+                    <button onClick={() => toggleLoc(name)} className="hover:text-red-400">{'\u00D7'}</button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ═══ BUDGET TIER ═══ */}
@@ -208,7 +343,7 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
         {/* OK Fase 0 */}
         {subPhase === 0 && (
           <div className="flex justify-end">
-            <OkButton enabled={phase0Valid} onClick={confirmPhase0} loading={loading === 'phase0'} />
+            <OkButton enabled={phase0Valid} onClick={confirmPhase0} loading={loading === 'phase0'} testid="idea-ok-phase0" />
           </div>
         )}
 
@@ -243,7 +378,8 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
                     {!showPromptInput ? (
                       <div className="flex gap-1.5">
                         <button onClick={generatePoster} disabled={!!loading}
-                          className="flex-1 text-[8px] py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 disabled:opacity-30 font-bold">Genera da pretrama</button>
+                          className="flex-1 text-[8px] py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 disabled:opacity-30 font-bold"
+                          data-testid="poster-ai-auto">Genera da pretrama</button>
                         <button onClick={() => setShowPromptInput(true)}
                           className="flex-1 text-[8px] py-2 rounded-lg border border-gray-700 text-gray-400 hover:border-gray-600 font-bold">+ Prompt</button>
                       </div>
@@ -308,7 +444,8 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
 
                     {screenplayMode === 'ai' && (
                       <button onClick={generateScreenplay} disabled={!!loading}
-                        className="w-full text-[8px] py-2 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-400 hover:bg-purple-500/20 disabled:opacity-30 font-bold">
+                        className="w-full text-[8px] py-2 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-400 hover:bg-purple-500/20 disabled:opacity-30 font-bold"
+                        data-testid="screenplay-ai-auto">
                         Genera Sceneggiatura AI
                       </button>
                     )}
@@ -336,7 +473,7 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty }) => {
             {/* OK Fase 2 */}
             {subPhase === 2 && (
               <div className="flex justify-end pt-1">
-                <OkButton enabled={!!(film.screenplay_text && film.screenplay_text.length > 50) || manualScreenplay.length >= 100} onClick={confirmPhase2} loading={loading === 'screenplay'} />
+                <OkButton enabled={!!(film.screenplay_text && film.screenplay_text.length > 50) || manualScreenplay.length >= 100} onClick={confirmPhase2} loading={loading === 'screenplay'} testid="idea-ok-screenplay" />
               </div>
             )}
           </div>

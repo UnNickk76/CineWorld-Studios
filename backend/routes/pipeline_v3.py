@@ -263,6 +263,9 @@ async def _update_project(pid: str, user_id: str, update: dict) -> dict:
 
 async def _spend(user_id: str, funds: int = 0, cinepass: int = 0) -> dict:
     user_doc = await _get_user_doc(user_id)
+    # Guest users play the tutorial for free: skip all cost checks/deductions
+    if user_doc.get("is_guest"):
+        return {"funds": user_doc.get("funds", 0), "cinepass": user_doc.get("cinepass", 0), "guest_free": True}
     if funds > 0 and user_doc.get("funds", 0) < funds:
         raise HTTPException(400, f"Fondi insufficienti: servono ${funds:,}")
     if cinepass > 0 and user_doc.get("cinepass", 0) < cinepass:
@@ -2372,13 +2375,15 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
 
     # Deduct funds (if any cost) — with clear error message
     if total_funds > 0 or total_cp > 0:
-        user_doc = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1, 'cinepass': 1})
-        user_funds = (user_doc or {}).get('funds', 0) or 0
-        user_cp = (user_doc or {}).get('cinepass', 0) or 0
-        if user_funds < total_funds:
-            raise HTTPException(400, f"Fondi insufficienti: servono ${total_funds:,.0f} ma hai ${user_funds:,.0f}")
-        if user_cp < total_cp:
-            raise HTTPException(400, f"CinePass insufficienti: servono {total_cp} CP ma hai {user_cp}")
+        user_doc = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1, 'cinepass': 1, 'is_guest': 1})
+        # Guest users: skip the balance pre-check (they release for free)
+        if not (user_doc or {}).get('is_guest'):
+            user_funds = (user_doc or {}).get('funds', 0) or 0
+            user_cp = (user_doc or {}).get('cinepass', 0) or 0
+            if user_funds < total_funds:
+                raise HTTPException(400, f"Fondi insufficienti: servono ${total_funds:,.0f} ma hai ${user_funds:,.0f}")
+            if user_cp < total_cp:
+                raise HTTPException(400, f"CinePass insufficienti: servono {total_cp} CP ma hai {user_cp}")
         await _spend(user["id"], funds=total_funds, cinepass=total_cp)
 
     film_doc = {

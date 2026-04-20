@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check, Coins, Trash2, AlertTriangle, Handshake } from 'lucide-react';
 import { PhaseWrapper, ProgressCircle, v3api } from './V3Shared';
+import { AuthContext } from '../../contexts';
 
 const SPEEDUP_COSTS = { 25: 10, 50: 15, 75: 20, 100: 25 };
 
@@ -9,6 +10,31 @@ function getSpeedupCost(baseCost, currentProgress) {
   const remaining = (100 - currentProgress) / 100;
   return Math.max(1, Math.ceil(baseCost * remaining));
 }
+
+// Shared hook: is the current user a guest? (tutorial plays for free)
+const useIsGuest = () => {
+  const { user } = useContext(AuthContext) || {};
+  return !!user?.is_guest;
+};
+
+// Small inline badge for showing "x CP" cost, strikethrough + GRATIS for guests
+const CostCP = ({ cost, iconSize = 2.5 }) => {
+  const isGuest = useIsGuest();
+  if (isGuest) {
+    return (
+      <span className="flex items-center gap-0.5 text-[7px] ml-1" data-testid="cost-cp-guest">
+        <Coins className={`w-${iconSize} h-${iconSize} text-cyan-400/40`} />
+        <s className="text-cyan-400/40">{cost}</s>
+        <span className="text-emerald-400 font-black ml-0.5">GRATIS</span>
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-0.5 text-[7px] text-cyan-400 ml-1">
+      <Coins className={`w-${iconSize} h-${iconSize}`} />{cost}
+    </span>
+  );
+};
 
 /* ═══════ HYPE ═══════ */
 export const HypePhase = ({ film, onRefresh, toast }) => {
@@ -160,9 +186,7 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
                     data-testid={`speedup-${p}`}>
                     <Zap className="w-3 h-3" />
                     <span>+{gain}%</span>
-                    <span className="flex items-center gap-0.5 text-[7px] text-cyan-400 ml-1">
-                      <Coins className="w-2.5 h-2.5" />{cost}
-                    </span>
+                    <CostCP cost={cost} />
                   </button>
                 );
               })}
@@ -369,9 +393,7 @@ export const CiakPhase = ({ film, onRefresh, toast }) => {
                     <div className="flex items-center gap-1">
                       <Zap className="w-3 h-3" />
                       <span>{p}%</span>
-                      <span className="flex items-center gap-0.5 text-[7px] text-cyan-400">
-                        <Coins className="w-2.5 h-2.5" />{cost}
-                      </span>
+                      <CostCP cost={cost} />
                     </div>
                     <span className="text-[6px] text-gray-500">{saved}</span>
                   </button>
@@ -634,13 +656,12 @@ export const FinalCutPhase = ({ film, onRefresh, toast }) => {
                     const saved = remH > 0 ? `-${remH}h${remM}m` : `-${remM}m`;
                     return (
                       <button key={p} onClick={() => speedup(p)} disabled={loading}
-                        className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all">
+                        className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15 text-yellow-400 text-[8px] font-bold disabled:opacity-30 hover:bg-yellow-500/10 transition-all"
+                        data-testid={`finalcut-speedup-${p}`}>
                         <div className="flex items-center gap-1">
                           <Zap className="w-3 h-3" />
                           <span>{p}%</span>
-                          <span className="flex items-center gap-0.5 text-[7px] text-cyan-400">
-                            <Coins className="w-2.5 h-2.5" />{cost}
-                          </span>
+                          <CostCP cost={cost} />
                         </div>
                         <span className="text-[6px] text-gray-500">{saved}</span>
                       </button>
@@ -1424,6 +1445,7 @@ export const DistributionPhase = ({ film, onRefresh, toast, onDirty }) => {
 
 /* ═══════ STEP FINALE ═══════ */
 export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType }) => {
+  const isGuest = useIsGuest();
   const [cost, setCost] = useState(null);
   const [savingsOptions, setSavingsOptions] = useState([]);
   const [showReview, setShowReview] = useState(false);
@@ -1517,7 +1539,14 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
             ))}
             <div className="border-t border-gray-700 pt-1.5 mt-1.5 flex items-center justify-between">
               <span className="text-[9px] font-bold text-white">TOTALE</span>
-              <span className="text-[10px] font-black text-yellow-400">${totalFunds.toLocaleString()} + {totalCp} CP</span>
+              {isGuest ? (
+                <span className="text-[10px] font-black flex items-center gap-1.5" data-testid="release-total-guest">
+                  <s className="text-yellow-400/40">${totalFunds.toLocaleString()} + {totalCp} CP</s>
+                  <span className="text-emerald-400">GRATIS</span>
+                </span>
+              ) : (
+                <span className="text-[10px] font-black text-yellow-400">${totalFunds.toLocaleString()} + {totalCp} CP</span>
+              )}
             </div>
           </div>
         )}
@@ -1581,7 +1610,14 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
         {/* Confirm Button with cost */}
         <button onClick={onConfirm} disabled={loading || releaseBlocked}
           className="w-full text-sm py-3 rounded-xl bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 font-bold disabled:opacity-30 disabled:cursor-not-allowed" data-testid="confirm-release-btn">
-          {loading ? '...' : releaseBlocked ? `Bloccato: La Prima ${laPrimaBlock.state === 'live' ? 'in corso' : 'in attesa'}` : `Confermi spendendo $${totalFunds.toLocaleString()} e ${totalCp}CP?`}
+          {loading ? '...' : releaseBlocked ? `Bloccato: La Prima ${laPrimaBlock.state === 'live' ? 'in corso' : 'in attesa'}` : (
+            isGuest ? (
+              <span className="flex items-center justify-center gap-2">
+                <s className="text-emerald-300/40 font-normal">${totalFunds.toLocaleString()} + {totalCp}CP</s>
+                <span>Rilascia GRATIS!</span>
+              </span>
+            ) : `Confermi spendendo $${totalFunds.toLocaleString()} e ${totalCp}CP?`
+          )}
         </button>
         <button onClick={onDiscard} disabled={loading}
           className="w-full text-[9px] py-2 rounded-xl bg-red-500/5 border border-red-500/20 text-red-400/70 disabled:opacity-50">

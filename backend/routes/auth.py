@@ -170,7 +170,10 @@ async def convert_guest(data: GuestConvertRequest, user: dict = Depends(get_curr
 
 
 # Tutorial steps: 0=welcome, 1=click_produci, 2=select_film, 3=start_coming_soon, 4=use_speedup, 5=watch_progress, 6=complete
-TUTORIAL_STEPS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+TUTORIAL_STEPS = set(range(0, 18))  # V3 pipeline tutorial: 0..17
+
+# Tutorial is considered completed after the finale (step 16) or at convert (17)
+TUTORIAL_COMPLETE_STEP = 17
 
 
 class TutorialStepRequest(BaseModel):
@@ -191,11 +194,11 @@ async def advance_tutorial(data: TutorialStepRequest, user: dict = Depends(get_c
         return {'tutorial_step': current, 'tutorial_completed': user.get('tutorial_completed', False)}
 
     update = {'tutorial_step': data.step, 'updated_at': datetime.now(timezone.utc).isoformat()}
-    if data.step >= 12:
+    if data.step >= TUTORIAL_COMPLETE_STEP:
         update['tutorial_completed'] = True
 
     await db.users.update_one({'id': user['id']}, {'$set': update})
-    return {'tutorial_step': data.step, 'tutorial_completed': data.step >= 12}
+    return {'tutorial_step': data.step, 'tutorial_completed': data.step >= TUTORIAL_COMPLETE_STEP}
 
 
 @router.post("/auth/tutorial-skip")
@@ -205,7 +208,7 @@ async def skip_tutorial(user: dict = Depends(get_current_user)):
         return {'success': True}
     await db.users.update_one(
         {'id': user['id']},
-        {'$set': {'tutorial_step': 12, 'tutorial_completed': True, 'updated_at': datetime.now(timezone.utc).isoformat()}}
+        {'$set': {'tutorial_step': TUTORIAL_COMPLETE_STEP, 'tutorial_completed': True, 'updated_at': datetime.now(timezone.utc).isoformat()}}
     )
     return {'success': True, 'tutorial_completed': True}
 

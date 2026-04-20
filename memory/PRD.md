@@ -154,21 +154,38 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - `/app/frontend/src/components/ContentTemplate.jsx` — bottone Guarda Trailer in locandina
 - `/app/frontend/src/components/v3/FilmDetailV3.jsx` — integrazione card pipeline
 
-## AI Image Providers (Apr 2026)
-Default: **Pollinations.ai** (free, no cost). Fallback opzionale: **Emergent** (GPT-image-1 / Gemini Nano Banana).
-- `/app/backend/image_providers.py` — abstraction layer (Pollinations adapter, Emergent adapter, WebP compression via Pillow, retry + semaphore per IP rate-limit)
-- `/app/backend/routes/admin_ai_providers.py` — API admin: GET/POST config + POST test
-- Collection MongoDB: `ai_provider_config` (singleton `_id=current`)
-- Toggle UI: AdminPage → tab "AI Providers" (solo NeoMorpheus / CO_ADMIN)
-- Mobile-first: tutte le immagini convertite in WebP ≤1280px, quality 85 (~30-80KB a frame)
-- Anti-drift prompt: prompt custom player ADD a pretrama/sceneggiatura (non sostituisce), in V2 `/films/:pid/poster` e V3 `/films/:pid/generate-poster`
+## AI Image Providers — Multi-Provider Rotation (Apr 2026)
+Default: **strategia C+D** combinata.
+- **Locandine** → modalità `auto` (smart fallback): prova sempre il migliore per primo
+- **Trailer** → modalità `auto_rr` (weighted round-robin): bilancia il carico tra i 4 provider
 
-Endpoint:
-- `GET /api/admin/ai-providers` — config attuale
-- `POST /api/admin/ai-providers` — aggiorna provider (body: {poster_provider, trailer_provider, fallback_on_error})
-- `POST /api/admin/ai-providers/test` — test connettività (report {ok, latency_ms, details})
+### Provider attivi
+1. **Cloudflare Workers AI** (SDXL Lightning) — PRIMARIO, gratuito, 10.000 req/giorno, ~3-5s/img
+2. **HuggingFace FLUX.1-schnell** (via router hf-inference) — SECONDARIO, gratuito, ~2-6s/img
+3. **HuggingFace fal-ai FLUX** (via router fal) — TERZIARIO, stesso token HF, pool separato
+4. **Pollinations anonimo** — QUATERNARIO (fallback finale), gratuito ma rate-limited
+5. **Emergent LLM** — on-demand premium (richiede budget)
 
-Env opzionale: `POLLINATIONS_TOKEN` (per uscire dal rate limit IP anonimo, da registrare su enter.pollinations.ai)
+### Pesi default round-robin trailer
+- Cloudflare 40% + HF-FLUX 40% + HF-Together 15% + Pollinations 5%
+
+### Test risultati reali (trailer 6 frame)
+- Poster: CF · 5.5s · 87KB PNG  
+- 6 Frame: 4×CF + 2×HF-FLUX · 3-6s/frame · ~25s totale  
+- Fallback cross-provider automatico in caso di errore
+
+### File aggiornati
+- `/app/backend/image_providers.py` — adapter CF + HF-FLUX + HF-Together + rotation logic + quota tracker (`get_usage_report()`)
+- `/app/backend/routes/admin_ai_providers.py` — nuovi endpoint: `GET /usage`, esteso `POST /test` con tutti i provider
+- `/app/backend/routes/trailers.py` — passa `frame_idx` a `generate_image_meta` per round-robin, aggiorna `partial_frames` nel job per preview live
+- `/app/frontend/src/pages/AdminPage.jsx` — tab "AI Providers" con modalità Auto/Auto RR + quota tracker live (refresh 10s) + provider badges colorati
+- `/app/frontend/src/components/TrailerGeneratorCard.jsx` — **preview live thumbnail grid** 3×2 con provider badges (CF/HF/POLL) + cerchio progress spostato a destra
+
+### Env variables aggiunte
+- `CLOUDFLARE_ACCOUNT_ID` · `CLOUDFLARE_API_TOKEN` · `HUGGINGFACE_TOKEN`
+
+### Endpoint nuovi
+- `GET /api/admin/ai-providers/usage` — contatore giornaliero per provider
 
 ## Promo Video Generator (Apr 2026)
 Tool admin auto-generatore di video promozionali Instagram-ready (9:16 1080×1920 MP4).

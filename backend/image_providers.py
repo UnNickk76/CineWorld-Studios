@@ -19,11 +19,17 @@ ImageKind = Literal["poster", "trailer"]
 
 POLLINATIONS_BASE = "https://image.pollinations.ai/prompt/"
 POLLINATIONS_TOKEN = os.environ.get("POLLINATIONS_TOKEN", "")
+CLOUDFLARE_ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
+CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
+HUGGINGFACE_TOKEN = os.environ.get("HUGGINGFACE_TOKEN", "")
+
 DEFAULT_CONFIG = {
     "_id": "current",
-    "poster_provider": "pollinations",
-    "trailer_provider": "pollinations",
+    "poster_provider": "auto",        # auto = smart fallback (CF→HF-FLUX→HF-Together→Pollinations)
+    "trailer_provider": "auto_rr",    # auto_rr = weighted round-robin across all
     "fallback_on_error": True,
+    # Weights (0-100) used by auto_rr trailer mode; also inform auto poster priority order
+    "weights": {"cloudflare": 40, "huggingface_flux": 40, "huggingface_together": 15, "pollinations": 5},
 }
 
 
@@ -34,10 +40,17 @@ async def load_provider_config() -> dict:
 
 async def save_provider_config(cfg: dict, user_id: str) -> dict:
     from datetime import datetime, timezone
+    weights = cfg.get("weights") or {}
     payload = {
-        "poster_provider": cfg.get("poster_provider", "pollinations"),
-        "trailer_provider": cfg.get("trailer_provider", "pollinations"),
+        "poster_provider": cfg.get("poster_provider", "auto"),
+        "trailer_provider": cfg.get("trailer_provider", "auto_rr"),
         "fallback_on_error": bool(cfg.get("fallback_on_error", True)),
+        "weights": {
+            "cloudflare": int(weights.get("cloudflare", 40)),
+            "huggingface_flux": int(weights.get("huggingface_flux", 40)),
+            "huggingface_together": int(weights.get("huggingface_together", 15)),
+            "pollinations": int(weights.get("pollinations", 5)),
+        },
         "updated_by": user_id,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -149,31 +162,205 @@ PROVIDERS = {
 }
 
 
-async def generate_image_meta(prompt: str, kind: ImageKind) -> Optional[dict]:
-    """Generate image using configured provider; auto-fallback on error if enabled.
-    Returns {'bytes': webp_bytes, 'provider_used': 'pollinations'|'emergent', 'mime': 'image/webp'}
-    or None on total failure."""
-    cfg = await load_provider_config()
-    preferred = cfg["trailer_provider" if kind == "trailer" else "poster_provider"]
-    fallback_enabled = cfg["fallback_on_error"]
+# ─── Cloudflare Workers AI adapter (SDXL Lightning — FREE 10k/day) ───
+async def _cloudflare_generate(prompt: str, kind: ImageKind) -> Optional[bytes]:
+    if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
+        return None
+    # SDXL Lightning is fast (~2-3s) and produces great cinematic results
+    model = "@cf/bytedance/stable-diffusion-xl-lightning"
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/{model}"
+    # CF model outputs 1024x1024 by default; kind hint affects prompt, not dims
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(
+                url,
+                headers={"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}", "Content-Type": "application/json"},
+                json={"prompt": prompt[:2000], "num_steps": 6, "guidance": 7.5},
+            )
+            if r.status_code == 200 and r.content:
+                ct = (r.headers.get("content-type") or "").lower()
+                if "image" in ct:
+                    return r.content
+                # Some CF endpoints return base64 JSON
+                try:
+                    data = r.json()
+                    if data.get("success") and data.get("result", {}).get("image"):
+                        import base64
+                        return base64.b64decode(data["result"]["image"])
+                except Exception:
+                    pass
+            logger.warning(f"[cloudflare] HTTP {r.status_code}: {r.text[:200]}")
+    except Exception as e:
+        logger.warning(f"[cloudflare] request failed: {e}")
+    return None
 
-    raw = await PROVIDERS[preferred](prompt, kind)
-    provider_used = preferred
-    if not raw and fallback_enabled:
-        alt = "emergent" if preferred == "pollinations" else "pollinations"
-        logger.info(f"[img-providers] {preferred} failed, fallback to {alt} for {kind}")
-        raw = await PROVIDERS[alt](prompt, kind)
+
+# ─── HuggingFace Inference Providers adapter (via router) ───
+async def _huggingface_generate_flux(prompt: str, kind: ImageKind) -> Optional[bytes]:
+    """FLUX.1-schnell via HF router → hf-inference backend."""
+    if not HUGGINGFACE_TOKEN:
+        return None
+    url = "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell"
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            r = await client.post(
+                url,
+                headers={"Authorization": f"Bearer {HUGGINGFACE_TOKEN}", "Content-Type": "application/json"},
+                json={"inputs": prompt[:2000]},
+            )
+            if r.status_code == 200 and r.content:
+                ct = (r.headers.get("content-type") or "").lower()
+                if "image" in ct:
+                    return r.content
+            logger.warning(f"[hf-flux] HTTP {r.status_code}: {r.text[:200] if r.status_code != 200 else ''}")
+    except Exception as e:
+        logger.warning(f"[hf-flux] request failed: {e}")
+    return None
+
+
+async def _huggingface_generate_together(prompt: str, kind: ImageKind) -> Optional[bytes]:
+    """Stable Diffusion XL via HF router → fal-ai backend (alt load pool).
+    Note: Together backend on HF router doesn't expose images endpoint, so we
+    use fal-ai which supports FLUX.1-schnell with HF tokens."""
+    if not HUGGINGFACE_TOKEN:
+        return None
+    url = "https://router.huggingface.co/fal-ai/fal-ai/flux/schnell"
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            r = await client.post(
+                url,
+                headers={"Authorization": f"Bearer {HUGGINGFACE_TOKEN}", "Content-Type": "application/json"},
+                json={"prompt": prompt[:2000], "image_size": "landscape_16_9" if kind == "trailer" else "square_hd"},
+            )
+            if r.status_code == 200:
+                data = r.json()
+                imgs = data.get("images") or []
+                img_url = imgs[0].get("url") if imgs and isinstance(imgs[0], dict) else None
+                if img_url:
+                    rr = await client.get(img_url, timeout=30)
+                    if rr.status_code == 200 and rr.content:
+                        return rr.content
+            logger.warning(f"[hf-together] HTTP {r.status_code}: {r.text[:200] if r.status_code != 200 else ''}")
+    except Exception as e:
+        logger.warning(f"[hf-together] request failed: {e}")
+    return None
+
+
+PROVIDERS.update({
+    "cloudflare": _cloudflare_generate,
+    "huggingface_flux": _huggingface_generate_flux,
+    "huggingface_together": _huggingface_generate_together,
+})
+
+# Per-provider daily usage counter (in-memory; resets on backend restart)
+from collections import defaultdict as _dd
+import time as _time
+_usage_counter = _dd(int)
+_usage_day = _dd(str)
+_DAILY_LIMITS = {
+    "cloudflare": 10000,
+    "huggingface_flux": 300,   # HF shared rate — conservative
+    "huggingface_together": 300,
+    "pollinations": 99999,
+    "emergent": 99999,
+}
+
+
+def _track_usage(provider: str):
+    today = _time.strftime("%Y-%m-%d")
+    if _usage_day.get(provider) != today:
+        _usage_counter[provider] = 0
+        _usage_day[provider] = today
+    _usage_counter[provider] += 1
+
+
+def _has_quota(provider: str) -> bool:
+    today = _time.strftime("%Y-%m-%d")
+    if _usage_day.get(provider) != today:
+        return True
+    return _usage_counter.get(provider, 0) < _DAILY_LIMITS.get(provider, 99999)
+
+
+def get_usage_report() -> dict:
+    today = _time.strftime("%Y-%m-%d")
+    out = {}
+    for p in PROVIDERS.keys():
+        used = _usage_counter.get(p, 0) if _usage_day.get(p) == today else 0
+        out[p] = {"used": used, "limit": _DAILY_LIMITS.get(p, 0), "remaining": max(0, _DAILY_LIMITS.get(p, 0) - used)}
+    return out
+
+
+def _rotate_order(weights: dict, frame_idx: int, skip: set = None) -> list:
+    """Weighted round-robin: pick providers whose cumulative-weight bucket
+    contains (frame_idx*step) mod 100. Returns priority order (best first)."""
+    skip = skip or set()
+    pool = [(p, weights.get(p, 0)) for p in ("cloudflare", "huggingface_flux", "huggingface_together", "pollinations") if p not in skip]
+    total = sum(w for _, w in pool) or 1
+    # Compute "current" provider by frame_idx for rr
+    step = (frame_idx * 37) % 100  # 37 = pseudo-random step to avoid consecutive same-provider
+    cumulative = 0
+    picked = pool[0][0] if pool else "pollinations"
+    for p, w in pool:
+        cumulative += (w / total) * 100
+        if step < cumulative:
+            picked = p
+            break
+    # Build priority: picked first, then others by weight desc
+    rest = [p for p, _ in sorted(pool, key=lambda x: -x[1]) if p != picked]
+    return [picked] + rest
+
+
+async def generate_image_meta(prompt: str, kind: ImageKind, frame_idx: int = 0) -> Optional[dict]:
+    """Generate image using configured provider strategy.
+    Returns {'bytes': webp_bytes, 'provider_used': str, 'mime': 'image/webp'} or None."""
+    cfg = await load_provider_config()
+    mode = cfg["trailer_provider"] if kind == "trailer" else cfg["poster_provider"]
+    fallback_enabled = cfg["fallback_on_error"]
+    weights = cfg.get("weights") or DEFAULT_CONFIG["weights"]
+
+    # Build the provider order to try
+    if mode == "auto":
+        # Smart fallback — always best quality first (CF → HF-FLUX → HF-Together → Pollinations)
+        order = ["cloudflare", "huggingface_flux", "huggingface_together", "pollinations"]
+    elif mode == "auto_rr":
+        # Weighted round-robin with failover
+        order = _rotate_order(weights, frame_idx)
+    elif mode in PROVIDERS:
+        order = [mode]
+        if fallback_enabled:
+            # Add remaining as fallback in weight order
+            extras = [p for p in ["cloudflare", "huggingface_flux", "huggingface_together", "pollinations", "emergent"] if p != mode]
+            order.extend(extras)
+    else:
+        order = ["pollinations"]
+
+    # Skip providers without quota today
+    order = [p for p in order if _has_quota(p)]
+    if not order:
+        order = ["pollinations"]  # last resort even if rate-limited
+
+    provider_used = None
+    raw = None
+    for p in order:
+        adapter = PROVIDERS.get(p)
+        if not adapter:
+            continue
+        _track_usage(p)
+        raw = await adapter(prompt, kind)
         if raw:
-            provider_used = alt
+            provider_used = p
+            break
+        if not fallback_enabled:
+            break
 
     if not raw:
         return None
     return {"bytes": _to_webp(raw), "provider_used": provider_used, "mime": "image/webp"}
 
 
-async def generate_image(prompt: str, kind: ImageKind) -> Optional[bytes]:
+async def generate_image(prompt: str, kind: ImageKind, frame_idx: int = 0) -> Optional[bytes]:
     """Thin wrapper returning only the WebP bytes."""
-    meta = await generate_image_meta(prompt, kind)
+    meta = await generate_image_meta(prompt, kind, frame_idx=frame_idx)
     return meta["bytes"] if meta else None
 
 
@@ -185,21 +372,44 @@ async def test_provider(provider: str) -> dict:
     if provider == "pollinations":
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                # HEAD to a minimal prompt (many free endpoints don't support HEAD cleanly,
-                # so we use a tiny GET with range to avoid downloading full image).
                 r = await client.get(
                     f"{POLLINATIONS_BASE}ping?width=64&height=64&nologo=true",
                     headers={"Range": "bytes=0-1023"},
                     follow_redirects=True,
                 )
                 ok = r.status_code in (200, 206) and "image" in (r.headers.get("content-type") or "").lower()
-                return {
-                    "ok": ok,
-                    "latency_ms": int((_t.time() - start) * 1000),
-                    "details": f"HTTP {r.status_code}, ct={r.headers.get('content-type','?')}",
-                }
+                return {"ok": ok, "latency_ms": int((_t.time() - start) * 1000), "details": f"HTTP {r.status_code}"}
         except Exception as e:
             return {"ok": False, "latency_ms": int((_t.time() - start) * 1000), "details": f"error: {e}"}
+    if provider == "cloudflare":
+        if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
+            return {"ok": False, "latency_ms": 0, "details": "Credenziali mancanti"}
+        # The /tokens/verify endpoint requires different permissions — instead list models
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                r = await client.get(
+                    f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/models/search?task=text-to-image",
+                    headers={"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"},
+                )
+                ok = r.status_code == 200 and (r.json() or {}).get("success")
+                count = len((r.json().get("result") if ok else []) or [])
+                return {"ok": bool(ok), "latency_ms": int((_t.time() - start) * 1000),
+                        "details": f"HTTP {r.status_code} · {count} modelli text-to-image" if ok else f"HTTP {r.status_code}"}
+        except Exception as e:
+            return {"ok": False, "latency_ms": int((_t.time() - start) * 1000), "details": str(e)}
+    if provider in ("huggingface_flux", "huggingface_together"):
+        if not HUGGINGFACE_TOKEN:
+            return {"ok": False, "latency_ms": 0, "details": "HUGGINGFACE_TOKEN missing"}
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                r = await client.get("https://huggingface.co/api/whoami-v2",
+                                     headers={"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"})
+                ok = r.status_code == 200
+                name = r.json().get("name", "?") if ok else "?"
+                return {"ok": ok, "latency_ms": int((_t.time() - start) * 1000),
+                        "details": f"HTTP {r.status_code} · user {name}"}
+        except Exception as e:
+            return {"ok": False, "latency_ms": int((_t.time() - start) * 1000), "details": str(e)}
     if provider == "emergent":
         key = os.environ.get("EMERGENT_LLM_KEY", "")
         if not key:

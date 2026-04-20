@@ -2797,34 +2797,46 @@ function PromoVideoTab({ api }) {
   );
 }
 
-/* ─── AI Providers Tab — Pollinations vs Emergent toggle ─── */
+/* ─── AI Providers Tab — Multi-provider rotation (CF + HF + Pollinations + Emergent) ─── */
 function AIProvidersTab({ api }) {
   const [cfg, setCfg] = useState(null);
+  const [usage, setUsage] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState(null);
+  const pollRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api.get('/admin/ai-providers');
       setCfg(r.data || {});
-    } catch (e) { toast.error('Impossibile caricare config AI'); }
+    } catch { toast.error('Impossibile caricare config AI'); }
     finally { setLoading(false); }
   }, [api]);
 
-  useEffect(() => { load(); }, [load]);
+  const loadUsage = useCallback(async () => {
+    try {
+      const r = await api.get('/admin/ai-providers/usage');
+      setUsage(r.data || {});
+    } catch { /* noop */ }
+  }, [api]);
+
+  useEffect(() => { load(); loadUsage(); }, [load, loadUsage]);
+  useEffect(() => {
+    pollRef.current = setInterval(loadUsage, 10000);
+    return () => clearInterval(pollRef.current);
+  }, [loadUsage]);
 
   const save = async (patch) => {
     const next = { ...cfg, ...patch };
-    setCfg(next);
-    setSaving(true);
+    setCfg(next); setSaving(true);
     try {
       const r = await api.post('/admin/ai-providers', next);
       setCfg(r.data?.config || next);
       toast.success('Configurazione aggiornata');
-    } catch (e) { toast.error('Salvataggio fallito'); }
+    } catch { toast.error('Salvataggio fallito'); }
     finally { setSaving(false); }
   };
 
@@ -2833,7 +2845,7 @@ function AIProvidersTab({ api }) {
     try {
       const r = await api.post('/admin/ai-providers/test');
       setTest(r.data);
-    } catch (e) { toast.error('Test fallito'); }
+    } catch { toast.error('Test fallito'); }
     finally { setTesting(false); }
   };
 
@@ -2841,24 +2853,34 @@ function AIProvidersTab({ api }) {
     return <div className="flex items-center justify-center py-10 text-gray-500 text-xs"><Loader2 className="w-4 h-4 animate-spin mr-2"/>Caricamento…</div>;
   }
 
-  const ProviderRow = ({ label, field }) => (
+  const PROVIDER_META = {
+    cloudflare: { label: 'Cloudflare SDXL', color: 'bg-orange-500/20 border-orange-500/40 text-orange-300' },
+    huggingface_flux: { label: 'HF FLUX', color: 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300' },
+    huggingface_together: { label: 'HF·Together', color: 'bg-amber-500/20 border-amber-500/40 text-amber-300' },
+    pollinations: { label: 'Pollinations', color: 'bg-pink-500/20 border-pink-500/40 text-pink-300' },
+    emergent: { label: 'Emergent', color: 'bg-purple-500/20 border-purple-500/40 text-purple-300' },
+    auto: { label: '⚡ Auto (smart)', color: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' },
+    auto_rr: { label: '🎲 Auto RR (bilanciato)', color: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' },
+  };
+
+  const PROVIDER_OPTIONS_POSTER = ['auto', 'cloudflare', 'huggingface_flux', 'huggingface_together', 'pollinations', 'emergent'];
+  const PROVIDER_OPTIONS_TRAILER = ['auto_rr', 'auto', 'cloudflare', 'huggingface_flux', 'huggingface_together', 'pollinations', 'emergent'];
+
+  const ProviderRow = ({ label, field, options }) => (
     <div className="space-y-1.5" data-testid={`ai-provider-row-${field}`}>
       <span className="text-xs text-gray-300 block">{label}</span>
-      <div className="flex gap-1.5">
-        <button
-          onClick={() => save({ [field]: 'pollinations' })}
-          disabled={saving}
-          className={`flex-1 text-[10px] px-2 py-2 rounded-md font-semibold border transition ${cfg[field] === 'pollinations' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
-          data-testid={`btn-${field}-pollinations`}>
-          Pollinations (free)
-        </button>
-        <button
-          onClick={() => save({ [field]: 'emergent' })}
-          disabled={saving}
-          className={`flex-1 text-[10px] px-2 py-2 rounded-md font-semibold border transition ${cfg[field] === 'emergent' ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
-          data-testid={`btn-${field}-emergent`}>
-          Emergent (paid)
-        </button>
+      <div className="grid grid-cols-2 gap-1.5">
+        {options.map(p => {
+          const meta = PROVIDER_META[p] || { label: p, color: 'bg-white/5 border-white/10 text-gray-400' };
+          const active = cfg[field] === p;
+          return (
+            <button key={p} onClick={() => save({ [field]: p })} disabled={saving}
+              className={`text-[10px] px-2 py-2 rounded-md font-semibold border transition ${active ? meta.color : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+              data-testid={`btn-${field}-${p}`}>
+              {meta.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -2869,41 +2891,62 @@ function AIProvidersTab({ api }) {
         <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
           <ImageIcon className="w-4 h-4 text-emerald-400" /> AI Image Providers
         </CardTitle>
-        <p className="text-[10px] text-gray-500">Scegli il provider per locandine e trailer. Pollinations.ai è gratuito e viene compresso in WebP per ottimizzazione mobile.</p>
+        <p className="text-[10px] text-gray-500">Multi-provider rotation: Cloudflare SDXL + HuggingFace FLUX + Pollinations + Emergent. Auto = smart fallback. Auto RR = round-robin bilanciato.</p>
       </CardHeader>
       <CardContent className="p-4 pt-2 space-y-3">
-        <ProviderRow label="Locandine" field="poster_provider" />
-        <ProviderRow label="Trailer" field="trailer_provider" />
+        <ProviderRow label="Locandine" field="poster_provider" options={PROVIDER_OPTIONS_POSTER} />
+        <ProviderRow label="Trailer" field="trailer_provider" options={PROVIDER_OPTIONS_TRAILER} />
+
+        {/* Usage tracker */}
+        <div className="pt-2 border-t border-white/5" data-testid="usage-tracker">
+          <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">Quota giornaliera</div>
+          <div className="space-y-1">
+            {['cloudflare', 'huggingface_flux', 'huggingface_together', 'pollinations'].map(p => {
+              const u = usage[p] || { used: 0, limit: 0, remaining: 0 };
+              const pct = u.limit > 0 ? Math.min(100, Math.round(u.used / u.limit * 100)) : 0;
+              const meta = PROVIDER_META[p];
+              return (
+                <div key={p} className="flex items-center gap-2 text-[10px]">
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${meta.color}`}>{meta.label}</span>
+                  <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <div className={`h-full ${pct > 80 ? 'bg-red-500' : pct > 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-gray-400 tabular-nums min-w-14 text-right">{u.used}/{u.limit}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="flex items-start gap-2 pt-2 border-t border-white/5">
           <input id="fallback" type="checkbox" checked={!!cfg.fallback_on_error}
             onChange={e => save({ fallback_on_error: e.target.checked })}
-            disabled={saving}
-            className="w-4 h-4 mt-0.5"
-            data-testid="toggle-fallback"/>
-          <label htmlFor="fallback" className="text-xs text-gray-300 leading-tight">Fallback automatico se il provider primario fallisce</label>
+            disabled={saving} className="w-4 h-4 mt-0.5" data-testid="toggle-fallback"/>
+          <label htmlFor="fallback" className="text-xs text-gray-300 leading-tight">Fallback automatico su provider successivo in caso di errore</label>
         </div>
 
         <div className="text-[10px] text-gray-500 bg-white/5 rounded-md p-2 border border-white/5 leading-relaxed">
-          <strong className="text-gray-300">Nota:</strong> Pollinations.ai (anonimo) ha limite ~1 richiesta/IP in coda; la prima generazione può richiedere 30-90s. Le immagini vengono sempre compresse in <strong>WebP</strong> (≤1280px) per ridurre peso su mobile.
+          <strong className="text-gray-300">Strategia raccomandata:</strong><br/>
+          Locandine → <span className="text-emerald-300">Auto</span> (usa il migliore disponibile).<br/>
+          Trailer → <span className="text-emerald-300">Auto RR</span> (bilancia il carico tra i 4 provider).<br/>
+          Tutte le immagini convertite in <strong>WebP ≤1280px</strong> per mobile.
         </div>
 
         <div className="pt-2 border-t border-white/5">
           <button onClick={runTest} disabled={testing}
             className="w-full text-xs py-2 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold hover:bg-emerald-500/25 disabled:opacity-50"
             data-testid="btn-test-providers">
-            {testing ? <span className="inline-flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin"/>Test in corso…</span> : 'Test connettività (no image generation)'}
+            {testing ? <span className="inline-flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin"/>Test in corso…</span> : 'Test connettività tutti i provider'}
           </button>
           {test && (
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]" data-testid="test-report">
-              {['pollinations','emergent'].map(p => (
-                <div key={p} className={`rounded-md border p-2 ${test[p]?.ok ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
+            <div className="mt-3 space-y-1" data-testid="test-report">
+              {Object.entries(test).map(([p, v]) => (
+                <div key={p} className={`rounded-md border p-2 text-[10px] ${v?.ok ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-white uppercase">{p}</span>
-                    <span className={test[p]?.ok ? 'text-emerald-400' : 'text-red-400'}>{test[p]?.ok ? 'OK' : 'FAIL'}</span>
+                    <span className="font-bold text-white">{PROVIDER_META[p]?.label || p}</span>
+                    <span className={v?.ok ? 'text-emerald-400' : 'text-red-400'}>{v?.ok ? `✅ ${v.latency_ms}ms` : '❌ FAIL'}</span>
                   </div>
-                  <div className="text-gray-400 mt-1">Latency: {test[p]?.latency_ms ?? '—'} ms</div>
-                  <div className="text-gray-500 mt-0.5 break-all">{test[p]?.details}</div>
+                  <div className="text-gray-500 mt-0.5 break-all">{v?.details}</div>
                 </div>
               ))}
             </div>

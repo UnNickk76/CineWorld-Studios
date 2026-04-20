@@ -312,8 +312,8 @@ def _sanitize_image_prompt(prompt: str) -> str:
 
 
 # ─────────────────────── Image generation ───────────────────────
-async def _generate_frame_image(frame: Dict[str, str], genre: str) -> Optional[str]:
-    """Generate a single frame image via image_providers (Pollinations default, Emergent fallback)
+async def _generate_frame_image(frame: Dict[str, str], genre: str, frame_idx: int = 0) -> Optional[str]:
+    """Generate a single frame image via image_providers (multi-provider rotation)
     and upload to Object Storage. Returns storage_path or None on failure."""
     try:
         from image_providers import generate_image_meta
@@ -332,15 +332,21 @@ async def _generate_frame_image(frame: Dict[str, str], genre: str) -> Optional[s
         f"no real celebrities or well-known public figures — only generic fictional characters."
     )
     try:
-        meta = await asyncio.wait_for(generate_image_meta(prompt, "trailer"), timeout=60)
+        meta = await asyncio.wait_for(generate_image_meta(prompt, "trailer", frame_idx=frame_idx), timeout=60)
         if not meta or not meta.get("bytes"):
             logger.warning("No image returned by providers for trailer frame")
             return None
         result = upload_image_bytes(meta["bytes"], mime="image/webp", prefix="trailers")
+        # Store provider metadata in a sidecar dict the caller can read from _LAST_PROVIDER
+        _LAST_PROVIDER[result["storage_path"]] = meta.get("provider_used") or "unknown"
         return result["storage_path"]
     except Exception as e:
         logger.error(f"frame generation failed: {e}")
         return None
+
+
+# Sidecar for tracking which provider generated each storage_path (for live preview badges)
+_LAST_PROVIDER: Dict[str, str] = {}
 
 
 def _compute_durations(n: int, total_ms: int) -> List[int]:
@@ -402,13 +408,14 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
             # Upgrade reuse: frame[i] already exists
             if i < len(prev_images) - (1 if prev.get("title_card_storage_path") else 0):
                 return prev_images[i]
-            return await _generate_frame_image(fr, genre)
+            return await _generate_frame_image(fr, genre, frame_idx=i)
 
         # ─── SEQUENTIAL generation (not parallel) to respect Pollinations anonymous
         # tier rate limit of 1 in-flight request per IP. If a frame fails, fall back
         # to the previous successful frame or the film poster to avoid black gaps.
         image_paths: List[Optional[str]] = []
         last_good: Optional[str] = None
+        partial_frames: List[Dict[str, Any]] = []
         for i in range(n_to_generate):
             if job.get("status") == "aborted":
                 return
@@ -416,13 +423,21 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
             if i > 0:
                 await asyncio.sleep(2.0)
             p = await _gen_one(i, storyboard[i])
+            provider = _LAST_PROVIDER.get(p or "", "fallback") if p else "placeholder"
             if not p:
                 # Fallback chain: previous good frame → poster → None
                 p = last_good or poster
+                provider = "placeholder"
             else:
                 last_good = p
             image_paths.append(p)
-            job.update(progress=15 + int(75 * (i + 1) / max(1, n_to_generate)), stage="images")
+            # Track partial frame for live preview
+            partial_frames.append({"idx": i, "storage_path": p, "provider": provider})
+            job.update(
+                progress=15 + int(75 * (i + 1) / max(1, n_to_generate)),
+                stage="images",
+                partial_frames=list(partial_frames),  # copy so subsequent mutations don't mutate job view
+            )
 
         # Compute durations
         total_ms = tier_cfg["duration_s"] * 1000
@@ -663,7 +678,7 @@ async def regenerate_trailer(content_id: str, user: dict = Depends(_dep())):
 
 
 @router.get("/trailers/{content_id}/status")
-async def trailer_status(content_id: str, user: dict = Depends(_dep())):
+async def trailer_status(content_id: str, request: Request, user: dict = Depends(_dep())):
     j = _JOBS.get(content_id)
     if not j:
         content, _ = await _find_content(content_id)
@@ -672,6 +687,20 @@ async def trailer_status(content_id: str, user: dict = Depends(_dep())):
         if content.get("trailer"):
             return {"status": "completed", "progress": 100, "stage": "done"}
         return {"status": "idle", "progress": 0, "stage": "none"}
+    # Resolve partial frame storage_paths to public URLs for live preview
+    def _resolve_sp(sp: Optional[str]) -> Optional[str]:
+        if not sp:
+            return None
+        if sp.startswith("http") or sp.startswith("data:") or sp.startswith("/api/"):
+            return sp
+        return f"/api/trailers/files/{sp}"
+    partials = []
+    for f in (j.get("partial_frames") or []):
+        partials.append({
+            "idx": f.get("idx"),
+            "image_url": _resolve_sp(f.get("storage_path")),
+            "provider": f.get("provider"),
+        })
     return {
         "job_id": j.get("job_id"),
         "status": j.get("status"),
@@ -679,6 +708,7 @@ async def trailer_status(content_id: str, user: dict = Depends(_dep())):
         "stage": j.get("stage"),
         "error": j.get("error"),
         "estimated_seconds": j.get("estimated_seconds"),
+        "partial_frames": partials,
     }
 
 

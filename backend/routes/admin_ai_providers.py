@@ -5,7 +5,7 @@ and run a lightweight connectivity test.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from typing import Literal
+from typing import Literal, Optional
 from routes.auth import get_current_user
 from image_providers import (
     load_provider_config,
@@ -22,9 +22,10 @@ def _require_admin(user: dict):
 
 
 class ProviderConfig(BaseModel):
-    poster_provider: Literal["pollinations", "emergent"] = "pollinations"
-    trailer_provider: Literal["pollinations", "emergent"] = "pollinations"
+    poster_provider: Literal["auto", "auto_rr", "cloudflare", "huggingface_flux", "huggingface_together", "pollinations", "emergent"] = "auto"
+    trailer_provider: Literal["auto", "auto_rr", "cloudflare", "huggingface_flux", "huggingface_together", "pollinations", "emergent"] = "auto_rr"
     fallback_on_error: bool = True
+    weights: Optional[dict] = None
 
 
 @router.get("")
@@ -40,13 +41,26 @@ async def update_config(cfg: ProviderConfig, user: dict = Depends(get_current_us
     return {"success": True, "config": updated}
 
 
+@router.get("/usage")
+async def get_usage(user: dict = Depends(get_current_user)):
+    _require_admin(user)
+    from image_providers import get_usage_report
+    return get_usage_report()
+
+
 @router.post("/test")
 async def test_providers(user: dict = Depends(get_current_user)):
-    """Run lightweight connectivity checks for both providers. Report-only, no image generated."""
+    """Run lightweight connectivity checks for all providers. Report-only, no image generated."""
     _require_admin(user)
     pollinations = await test_provider("pollinations")
     emergent = await test_provider("emergent")
+    cloudflare = await test_provider("cloudflare")
+    huggingface_flux = await test_provider("huggingface_flux")
+    huggingface_together = await test_provider("huggingface_together")
     return {
+        "cloudflare": cloudflare,
+        "huggingface_flux": huggingface_flux,
+        "huggingface_together": huggingface_together,
         "pollinations": pollinations,
         "emergent": emergent,
     }

@@ -313,12 +313,12 @@ def _sanitize_image_prompt(prompt: str) -> str:
 
 # ─────────────────────── Image generation ───────────────────────
 async def _generate_frame_image(frame: Dict[str, str], genre: str) -> Optional[str]:
-    """Generate a single frame image via Gemini Nano Banana and upload to Object Storage.
-    Returns storage_path or None on failure (caller substitutes placeholder)."""
+    """Generate a single frame image via image_providers (Pollinations default, Emergent fallback)
+    and upload to Object Storage. Returns storage_path or None on failure."""
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        from image_providers import generate_image_meta
     except Exception as e:
-        logger.error(f"emergentintegrations unavailable: {e}")
+        logger.error(f"image_providers unavailable: {e}")
         return None
 
     genre_style = GENRE_STYLES.get((genre or "").lower().strip(), "cinematic movie still, professional lighting")
@@ -332,16 +332,11 @@ async def _generate_frame_image(frame: Dict[str, str], genre: str) -> Optional[s
         f"no real celebrities or well-known public figures — only generic fictional characters."
     )
     try:
-        chat = LlmChat(api_key=os.environ["EMERGENT_LLM_KEY"], session_id=f"img-{uuid.uuid4()}", system_message="You generate cinematic movie trailer frames.")
-        chat.with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
-        _text, images = await asyncio.wait_for(chat.send_message_multimodal_response(UserMessage(text=prompt)), timeout=30)
-        if not images:
-            logger.warning("No images returned by Gemini")
+        meta = await asyncio.wait_for(generate_image_meta(prompt, "trailer"), timeout=60)
+        if not meta or not meta.get("bytes"):
+            logger.warning("No image returned by providers for trailer frame")
             return None
-        first = images[0]
-        image_bytes = base64.b64decode(first["data"])
-        mime = first.get("mime_type", "image/png")
-        result = upload_image_bytes(image_bytes, mime=mime, prefix="trailers")
+        result = upload_image_bytes(meta["bytes"], mime="image/webp", prefix="trailers")
         return result["storage_path"]
     except Exception as e:
         logger.error(f"frame generation failed: {e}")

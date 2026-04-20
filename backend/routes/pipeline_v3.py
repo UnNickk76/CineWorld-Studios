@@ -760,47 +760,55 @@ async def generate_poster(pid: str, req: PromptRequest, user: dict = Depends(get
     title = project.get("title", "Film")
     genre = project.get("genre", "drama")
 
+    # Player's custom prompt ADDS to preplot, never replaces it.
+    # This prevents nonsense posters unrelated to the film's story.
+    base_ctx = preplot or f"A {genre} movie called {title}"
     if req.source == "custom_prompt" and req.custom_prompt:
-        prompt_text = req.custom_prompt.strip()
+        prompt_text = f"{base_ctx}. Additional player direction: {req.custom_prompt.strip()[:400]}"
     else:
-        prompt_text = preplot or f"A {genre} movie called {title}"
+        prompt_text = base_ctx
 
-    # Build full AI prompt
+    # Build full AI prompt (includes story context always)
     full_prompt = (
         f"Professional cinematic movie poster, portrait orientation 2:3 ratio, for the film '{title}'. "
         f"Genre: {genre}. "
-        f"Story context: {prompt_text[:500]}. "
+        f"Story context: {prompt_text[:700]}. "
         f"Film title '{title}' displayed prominently with professional typography. "
-        f"Dramatic lighting, Hollywood quality, style matching the genre."
+        f"Dramatic lighting, Hollywood quality, style matching the genre. "
+        f"No real celebrities, no brands, no trademarks, no watermarks."
     )
 
     poster_url = None
+    provider_used = None
     try:
-        import os
         import uuid as _uuid
         import poster_storage
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-        api_key = os.environ.get('EMERGENT_LLM_KEY', '')
-        img_gen = OpenAIImageGeneration(api_key=api_key)
-        images = await img_gen.generate_images(prompt=full_prompt, model="gpt-image-1", number_of_images=1)
-        if images and len(images) > 0:
-            fname = f"v3_{pid}_{_uuid.uuid4().hex[:6]}.jpg"
-            await poster_storage.save_poster(fname, images[0], 'image/png')
+        from image_providers import generate_image_meta
+
+        meta = await generate_image_meta(full_prompt, "poster")
+        if meta and meta.get("bytes"):
+            fname = f"v3_{pid}_{_uuid.uuid4().hex[:6]}.webp"
+            await poster_storage.save_poster(fname, meta["bytes"], 'image/webp')
             poster_url = f"/api/posters/{fname}"
+            provider_used = meta.get("provider_used")
     except Exception as e:
         import logging
         logging.warning(f"[V3] AI poster failed: {e}")
-        poster_url = f"/posters/placeholder_{genre}.jpg"
 
     if not poster_url:
-        poster_url = f"/posters/placeholder_{genre}.jpg"
+        # Hard-failed: signal the frontend with 503 so it can show retry UI
+        raise HTTPException(status_code=503, detail={
+            "code": "image_provider_failed",
+            "message": "Generazione immagine non riuscita. Riprova tra qualche secondo.",
+        })
 
     project = await _update_project(pid, user["id"], {
         "poster_url": poster_url,
         "poster_source": req.source,
         "poster_prompt": prompt_text,
+        "poster_provider": provider_used,
     })
-    return {"success": True, "project": project, "poster_url": poster_url}
+    return {"success": True, "project": project, "poster_url": poster_url, "provider_used": provider_used}
 
 
 @router.post("/films/{pid}/generate-screenplay")

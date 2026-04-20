@@ -60,7 +60,15 @@ export async function v3api(path, method = 'GET', body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || data.error || 'Errore API');
+  if (!res.ok) {
+    // `detail` can be a dict (e.g. provider_failed) or a string
+    const detail = data.detail;
+    const msg = typeof detail === 'object' ? (detail.message || detail.code || 'Errore API') : (detail || data.error || 'Errore API');
+    const err = new Error(msg);
+    err.status = res.status;
+    err.code = typeof detail === 'object' ? detail.code : undefined;
+    throw err;
+  }
   // Deep copy to ensure no non-cloneable references survive into React state
   try { return JSON.parse(JSON.stringify(data)); } catch { return data; }
 }

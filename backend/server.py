@@ -10132,6 +10132,13 @@ try:
     app.include_router(trailer_events_router, prefix="/api")
 except Exception as _e:
     logger.error(f"Failed to load trailer events router: {_e}")
+
+# Admin — AI Image Providers (Pollinations vs Emergent toggle)
+try:
+    from routes.admin_ai_providers import router as admin_ai_providers_router
+    app.include_router(admin_ai_providers_router)
+except Exception as _e:
+    logger.error(f"Failed to load admin_ai_providers router: {_e}")
 # Content Likes (real + system hype-based)
 try:
     from routes.likes import router as likes_router

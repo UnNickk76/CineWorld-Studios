@@ -154,6 +154,22 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - `/app/frontend/src/components/ContentTemplate.jsx` — bottone Guarda Trailer in locandina
 - `/app/frontend/src/components/v3/FilmDetailV3.jsx` — integrazione card pipeline
 
+## AI Image Providers (Apr 2026)
+Default: **Pollinations.ai** (free, no cost). Fallback opzionale: **Emergent** (GPT-image-1 / Gemini Nano Banana).
+- `/app/backend/image_providers.py` — abstraction layer (Pollinations adapter, Emergent adapter, WebP compression via Pillow, retry + semaphore per IP rate-limit)
+- `/app/backend/routes/admin_ai_providers.py` — API admin: GET/POST config + POST test
+- Collection MongoDB: `ai_provider_config` (singleton `_id=current`)
+- Toggle UI: AdminPage → tab "AI Providers" (solo NeoMorpheus / CO_ADMIN)
+- Mobile-first: tutte le immagini convertite in WebP ≤1280px, quality 85 (~30-80KB a frame)
+- Anti-drift prompt: prompt custom player ADD a pretrama/sceneggiatura (non sostituisce), in V2 `/films/:pid/poster` e V3 `/films/:pid/generate-poster`
+
+Endpoint:
+- `GET /api/admin/ai-providers` — config attuale
+- `POST /api/admin/ai-providers` — aggiorna provider (body: {poster_provider, trailer_provider, fallback_on_error})
+- `POST /api/admin/ai-providers/test` — test connettività (report {ok, latency_ms, details})
+
+Env opzionale: `POLLINATIONS_TOKEN` (per uscire dal rate limit IP anonimo, da registrare su enter.pollinations.ai)
+
 ## Integrazioni
 - Emergent LLM Key (GPT-4o-mini + Gemini Nano Banana image gen)
 - Emergent Object Storage

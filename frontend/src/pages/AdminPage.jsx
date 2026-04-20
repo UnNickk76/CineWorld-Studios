@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart, Image as ImageIcon } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 import { PlayerBadge } from '../components/PlayerBadge';
@@ -22,6 +22,7 @@ const ADMIN_TABS = [
   { id: 'donations', label: 'Donazioni', icon: Heart },
   { id: 'tutorial', label: 'Tutorial Manager', icon: BookOpen },
   { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
+  { id: 'ai-providers', label: 'AI Providers', icon: ImageIcon },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
   { id: 'recovery', label: 'Anti-Limbo', icon: AlertTriangle },
   { id: 'reset', label: 'Reset Gioco', icon: Trash2 },
@@ -2512,6 +2513,123 @@ function SeriesAnimeMigrationSection({ api }) {
   );
 }
 
+/* ─── AI Providers Tab — Pollinations vs Emergent toggle ─── */
+function AIProvidersTab({ api }) {
+  const [cfg, setCfg] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [test, setTest] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/admin/ai-providers');
+      setCfg(r.data || {});
+    } catch (e) { toast.error('Impossibile caricare config AI'); }
+    finally { setLoading(false); }
+  }, [api]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const save = async (patch) => {
+    const next = { ...cfg, ...patch };
+    setCfg(next);
+    setSaving(true);
+    try {
+      const r = await api.post('/admin/ai-providers', next);
+      setCfg(r.data?.config || next);
+      toast.success('Configurazione aggiornata');
+    } catch (e) { toast.error('Salvataggio fallito'); }
+    finally { setSaving(false); }
+  };
+
+  const runTest = async () => {
+    setTesting(true); setTest(null);
+    try {
+      const r = await api.post('/admin/ai-providers/test');
+      setTest(r.data);
+    } catch (e) { toast.error('Test fallito'); }
+    finally { setTesting(false); }
+  };
+
+  if (loading || !cfg) {
+    return <div className="flex items-center justify-center py-10 text-gray-500 text-xs"><Loader2 className="w-4 h-4 animate-spin mr-2"/>Caricamento…</div>;
+  }
+
+  const ProviderRow = ({ label, field }) => (
+    <div className="space-y-1.5" data-testid={`ai-provider-row-${field}`}>
+      <span className="text-xs text-gray-300 block">{label}</span>
+      <div className="flex gap-1.5">
+        <button
+          onClick={() => save({ [field]: 'pollinations' })}
+          disabled={saving}
+          className={`flex-1 text-[10px] px-2 py-2 rounded-md font-semibold border transition ${cfg[field] === 'pollinations' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+          data-testid={`btn-${field}-pollinations`}>
+          Pollinations (free)
+        </button>
+        <button
+          onClick={() => save({ [field]: 'emergent' })}
+          disabled={saving}
+          className={`flex-1 text-[10px] px-2 py-2 rounded-md font-semibold border transition ${cfg[field] === 'emergent' ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+          data-testid={`btn-${field}-emergent`}>
+          Emergent (paid)
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <Card className="bg-[#111113] border-white/5" data-testid="ai-providers-tab">
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
+          <ImageIcon className="w-4 h-4 text-emerald-400" /> AI Image Providers
+        </CardTitle>
+        <p className="text-[10px] text-gray-500">Scegli il provider per locandine e trailer. Pollinations.ai è gratuito e viene compresso in WebP per ottimizzazione mobile.</p>
+      </CardHeader>
+      <CardContent className="p-4 pt-2 space-y-3">
+        <ProviderRow label="Locandine" field="poster_provider" />
+        <ProviderRow label="Trailer" field="trailer_provider" />
+
+        <div className="flex items-start gap-2 pt-2 border-t border-white/5">
+          <input id="fallback" type="checkbox" checked={!!cfg.fallback_on_error}
+            onChange={e => save({ fallback_on_error: e.target.checked })}
+            disabled={saving}
+            className="w-4 h-4 mt-0.5"
+            data-testid="toggle-fallback"/>
+          <label htmlFor="fallback" className="text-xs text-gray-300 leading-tight">Fallback automatico se il provider primario fallisce</label>
+        </div>
+
+        <div className="text-[10px] text-gray-500 bg-white/5 rounded-md p-2 border border-white/5 leading-relaxed">
+          <strong className="text-gray-300">Nota:</strong> Pollinations.ai (anonimo) ha limite ~1 richiesta/IP in coda; la prima generazione può richiedere 30-90s. Le immagini vengono sempre compresse in <strong>WebP</strong> (≤1280px) per ridurre peso su mobile.
+        </div>
+
+        <div className="pt-2 border-t border-white/5">
+          <button onClick={runTest} disabled={testing}
+            className="w-full text-xs py-2 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold hover:bg-emerald-500/25 disabled:opacity-50"
+            data-testid="btn-test-providers">
+            {testing ? <span className="inline-flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin"/>Test in corso…</span> : 'Test connettività (no image generation)'}
+          </button>
+          {test && (
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]" data-testid="test-report">
+              {['pollinations','emergent'].map(p => (
+                <div key={p} className={`rounded-md border p-2 ${test[p]?.ok ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white uppercase">{p}</span>
+                    <span className={test[p]?.ok ? 'text-emerald-400' : 'text-red-400'}>{test[p]?.ok ? 'OK' : 'FAIL'}</span>
+                  </div>
+                  <div className="text-gray-400 mt-1">Latency: {test[p]?.latency_ms ?? '—'} ms</div>
+                  <div className="text-gray-500 mt-0.5 break-all">{test[p]?.details}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ─── Main Admin Page ─── */
 export default function AdminPage() {
   const { api, user } = useContext(AuthContext);
@@ -2595,6 +2713,7 @@ export default function AdminPage() {
           </CardContent></Card>
         )}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
+        {activeTab === 'ai-providers' && isAdmin && <AIProvidersTab api={api} />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}
         {activeTab === 'reset' && isAdmin && <ResetGamePanel api={api} />}
         {activeTab === 'migration' && isAdmin && <MigrationTab api={api} />}

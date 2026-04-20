@@ -118,7 +118,25 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
       setPosterProgress(100); clearInterval(posterInt.current);
       await onRefresh();
       toast?.('Locandina creata!');
-    } catch (e) { clearInterval(posterInt.current); setPosterProgress(0); toast?.(e.message, 'error'); }
+    } catch (e) {
+      clearInterval(posterInt.current); setPosterProgress(0);
+      // Provider-failed → show friendly retry toast
+      const isProviderFail = e?.status === 503 || /image_provider_failed|provider/i.test(e?.message || '');
+      if (isProviderFail && typeof window !== 'undefined' && window.sonner) {
+        // fallback path handled below via toast API
+      }
+      try {
+        // Try sonner-style toast with action if available
+        const { toast: sonnerToast } = await import('sonner');
+        sonnerToast.error(isProviderFail ? 'Generazione immagine non riuscita' : (e.message || 'Errore'), {
+          description: isProviderFail ? 'Il provider AI non ha risposto. Puoi riprovare o tornare indietro.' : undefined,
+          action: isProviderFail ? { label: 'Riprova', onClick: () => generatePoster() } : undefined,
+          cancel: isProviderFail ? { label: 'Indietro', onClick: () => {} } : undefined,
+        });
+      } catch {
+        toast?.(e.message || 'Errore locandina', 'error');
+      }
+    }
     setLoading('');
   };
 

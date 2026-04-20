@@ -1,70 +1,72 @@
-<analysis>**original_problem_statement**: 
-The user requested massive UI/UX enhancements and bug fixes. Core requirements included: unifying the Player Profile Popup system to match the movie poster click behavior, adding clickable studio names and follower counts, implementing a massive AI Cinematic Trailer feature (using Gemini Nano Banana and GPT-4o-mini) with tiers/fullscreen player/WebAudio SFX/emoji reactions, and adding an Instagram-style Likes system for posters, screenplays, and trailers. 
-**Latest Pending Requirements**: 
-1. Improve the Like system to show the last 20 likes via a long tap on the heart icon.
-2. Fix a bug where films in the La Prima phase incorrectly appear in the Prossimamente (Coming Soon) section of the dashboard instead of the dedicated La Prima section.
-3. Remove the choice between La Prima and Diretto from the Sponsor & Marketing pipeline step, as it causes state bugs in the subsequent steps (e.g., claiming no film is in La Prima if Diretto was clicked).
+<analysis><handoff summary>
+**original_problem_statement**: 
+The user requested multiple major updates to the cinema management game: 
+1) Fix the V3 Guest Tutorial (Velion) and make all guest actions (speedups, releases) visually free.
+2) Restore the detailed Location Picker (Studios, Cities, Nature, etc.) in the V3 pipeline.
+3) Implement a massive Trailer System overhaul: Add a dedicated Trailer Events page with TStar scoring (0-100), daily/weekly prizes, a Recent Trailers strip on the Dashboard, and integrate the trailer generation as an optional sub-phase 4 in the V3 IdeaPhase (allowing skip or delayed post-release creation).
+4) Fix bugs related to trailer image loading (auth tokens) and AI hallucinations (Jack Black appearing due to wrong DB field mapping). 
+5) Add a Regenerate Trailer button.
+6) **CURRENT GOAL:** Migrate all AI image generation (posters and trailers) to **Pollinations.ai** by default (with WebP compression for mobile performance) to avoid API costs, while keeping the Emergent LLM Key as a fallback toggleable via a new Admin Panel tab.
 
-**User's preferred language**: Italian (INSTRUCT NEXT AGENT: You MUST respond in Italian only)
+**User's preferred language**: Italian (You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only)
 
 **what currently exists?** 
-A highly complex, fully functional full-stack cinema management game. It now features a unified Player Profile Popup (with clickable studio/avatar, follower counts, follow buttons, and collapsible filmography), a complete AI Cinematic Trailer generator (Base/Cinematic/Pro tiers, fullscreen player with gestures, procedural WebAudio SFX, emoji reactions), and an Instagram-style Likes system (red/user and blue/system hearts) for Posters, Screenplays, and Trailers.
+A highly complex cinema management game. The Guest tutorial is now fixed for V3 and guest costs are bypassed. The TStar Trailer Events system is fully built (leaderboards, cron jobs for payouts). The trailer generation card is integrated into  and works post-release as well. However, the Emergent LLM Key ran out of budget, causing AI image generation to fail. The user agreed to switch entirely to  as the default provider to make the game 100% free to run, with a backend abstraction layer to handle image fetching and WebP compression.
 
-**Last working item**:
-    - Last item agent was working: Investigating the dashboard bug where a film in the La Prima phase appears in the Prossimamente section. The agent started searching through  and  but the context window ended before any changes were made.
+**Last working item**: 
+    - Last item agent was working: The agent just started implementing the Pollinations.ai integration. The agent created the  file to build the abstraction layer (router) between Pollinations.ai (default) and Emergent LLM Key (fallback). The plan includes fetching images from Pollinations, compressing them to WebP using Pillow, uploading to Object Storage, and adding an Admin Panel toggle.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? Screenshot tool
+    - Which testing method agent to use?: backend testing agent/ manual testing by curl (to verify the new  logic and Pollinations generation).
     - User Testing Done: N
 
-**All Pending/In progress Issue list**:
-  Issue 1: La Prima phase film showing in Prossimamente section on Dashboard (P0)
-     - Attempted fixes: Investigated  and . No code written yet.
-     - Next debug checklist: Check how  filters films by status/phase. Ensure films with phase  are explicitly excluded from the standard upcoming list and only rendered in the dedicated La Prima section.
-     - Why fix this issue and what will be achieved with the fix? UI/UX correctness; users get confused when La Prima films show up in the standard coming soon list.
+**All Pending/In progress Issue list**:  
+  Issue 1: Emergent LLM Key Out of Budget - Switch to Pollinations.ai (P0)
+     - Attempted fixes: Agent verified the budget is exhausted. Proposed a 4-phase plan to switch to Pollinations.ai. Created .
+     - Next debug checklist: 
+       1. Complete  (Add Pollinations HTTP fetch, Pillow WebP compression, and Object Storage upload).
+       2. Update  () and  () to use the new .
+       3. Create  for the Admin toggle.
+       4. Update  with an AI Providers tab to toggle between Pollinations and Emergent.
+     - Why fix this issue and what will be achieved with the fix? The app currently cannot generate posters or trailers because the OpenAI/Gemini budget is exhausted. Pollinations.ai will make the app free to operate. WebP compression will prevent mobile lag.
      - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend
-     - Blocked on other issue: None
-
-  Issue 2: Remove La Prima vs Diretto choice in Sponsor/Marketing step (P0)
-     - Attempted fixes: None.
-     - Next debug checklist: Find the Sponsor & Marketing step component in  or related files. Remove the manual radio/button choice. Ensure the pipeline correctly progresses to the next logical step without requiring this choice (or route it automatically).
-     - Why fix this issue and what will be achieved with the fix? It causes a state bug where clicking diretto and then later looking for La Prima says there is no film.
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend
-     - Blocked on other issue: None
+     - Should Test frontend/backend/both after fix? Both (Verify images generate, compress to WebP, and render correctly in UI).
+     - Blocked on other issue: None.
 
 **In progress Task List**:
-  Task 1: Long tap on Like button to view last 20 likes (P1)
-     - Where to resume:  and backend .
-     - What will be achieved with this? Social proof; users can see exactly who liked their content via a breakdown quick-view.
-     - Status: NOT STARTED
+  Task 1: AI Provider Admin Toggle & WebP Compression
+     - Where to resume: Continue building  and the associated Admin routes/UI.
+     - What will be achieved with this? Gives the admin control over the AI generation provider and ensures mobile optimization via WebP.
+     - Status: IN PROGRESS
      - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: None
+     - Blocked on something: None.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
     - (P1) Refactoring  (File has become bloated, needs splitting into specialized background workers).
-    - (P1) Definire permessi specifici operativi per il ruolo MOD (Moderator).
     
     Future Tasks:
-    - (P2) Notifiche push per i follower.
-    - (P2) Personalizzazione avatar produttore (UI builder for avatars).
+    - (P2) Monetizzazione AI Premium: Integrate Stripe Pack Qualità Cinema when the user has VAT/P.IVA, allowing players to pay real money for Emergent/Gemini high-quality generation.
+    - (P2) Whitelist admin users (NeoMorpheus, UnNickk) with a monthly cap for Emergent LLM Key usage.
+    - (P2) Add FREE/PREMIUM badges on trailers if monetization activates.
+    - (P2) Compilation annuale AI (Backlog: un trailer mashup di fine anno per l'intero studio).
     - (P2) Tornei PvP mensili con bracket a eliminazione diretta.
 
 **Completed work in this session**
-- Pipeline V3 Hype ETA countdown added (DONE).
--  z-index black screen bug fixed (DONE).
-- Le mie TV crash caused by missing  fixed (DONE).
-- ESLint  sweep: Fixed 8 undefined variable bugs across the app and added standard  config (DONE).
-- Unified Player Profile popup: Merged TopNav logic with Movie Poster logic, added clickable studio name, recent filmography, follow/unfollow toggle, and follower/following counts (DONE).
-- AI Cinematic Trailer Generator (Phases 1 & 2): Added 3 tiers, fullscreen player, GPT-4o-mini storyboard, Nano Banana image gen, procedural WebAudio SFX, emoji reactions, and Series/Anime integration (DONE).
-- Likes System: Added user (red) and system (blue) likes to Posters, Screenplays, and Trailers. Implemented double-tap to like, snapshotting on release, and fixed state merge bug (DONE).
+- Guest costs bypassed: Speedup and Release now show GRATIS for guests and skip backend deductions (DONE).
+- V3 Location Picker restored: Integrated real locations with costs into  (DONE).
+- Guest Tutorial fixed: Updated selectors for V3, suppressed conflicting overlays (DONE).
+- Trailer Events System: Added TStar scoring, daily/weekly leaderboards, payouts, and  page (DONE).
+- Trailer integration: Added as Sub-phase 4 in  and allowed delayed creation in read-only mode (DONE).
+-  added to Dashboard with empty states (DONE).
+- Trailer progress bar animation smoothed out (virtual progress up to 95%) (DONE).
+- Fixed trailer image loading bug (was using  instead of ) (DONE).
+- Fixed trailer prompt context: Mapped  and  correctly, added anti-celebrity guardrails (DONE).
+- Added Regenerate Trailer feature (max 3 times) (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-   - None
+  - None (All user feedback was systematically addressed up to the budget exhaustion).
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: None
@@ -74,74 +76,79 @@ A highly complex, fully functional full-stack cinema management game. It now fea
 **Code Architecture**
 - Frontend:  (React, Tailwind).
 - Backend:  (FastAPI, MongoDB, APScheduler).
-- AI & Storage:  used for Object Storage and LLM Generation.
+- AI & Storage: Moving towards  for images,  for WebP compression, Emergent Object Storage for hosting.
 
 **Key Technical Concepts**
-React Contexts, WebAudio API (for procedural trailer SFX), APScheduler (background tasks for hype/likes snapshots), Emergent Object Storage (to prevent saving base64 to DB).
+APScheduler (Cron jobs for TStar/PStar events), React Contexts, Asynchronous image fetching and compression pipeline.
 
 **key DB schema**
-  - : stores , , , etc.
-  - : newly added schema 
-  -  / : now contain nested  dict and  for likes.
+  - : .
+  - : New singleton collection to be created for storing the active image provider ( vs ).
 
 **changes in tech stack**
-  - None
+  - Introducing  for WebP compression in the backend. 
+  - Using  as a free third-party HTTP endpoint for images.
 
 **All files of reference** 
-  -  (CURRENT TARGET FOR BUG 1)
-  -  (CURRENT TARGET FOR BUG 1 & 2)
-  -  (TARGET FOR TASK 1)
-  - 
-  - 
-  - 
+  -  (Created JUST NOW, needs implementation)
+  -  (Needs updating to use )
+  -  (Needs updating to use  for posters)
+  -  (Needs new AI Providers tab)
+  -  (Created: TStar logic)
+  -  (Created: Payout cron jobs)
+  -  (Updated with Location Picker and Trailer sub-phase)
+  -  (Updated with smooth progress and Regenerate button)
 
 **Areas that need refactoring**: 
-  -  is critically large and handles too many autonomous game operations.
+  -  (Bloated)
 
 **key api endpoints**
   - 
   - 
-  - 
-  - 
+  -  (and weekly/hall-of-fame)
 
 **Critical Info for New Agent** 
 - **Italian Language Requirement!** You MUST communicate with the user entirely in Italian.
-- Nano Banana (Image Gen) and GPT-4o-mini (Text Gen) are fully integrated using the  library. Use the existing utility patterns if you need to touch the trailer logic.
-- Do NOT save base64 images to the database. Use Emergent Object Storage (already configured in ).
+- The immediate next step is to implement the **Pollinations.ai integration** as agreed upon in the last messages. The plan is explicitly detailed in Message 691:
+  1. Complete  (fetch from , compress to WebP quality 85, upload to Object Storage).
+  2. Swap out the direct LLM calls in  and  to use this new module.
+  3. Build the Admin toggle UI/routes.
+- The Emergent LLM Key is out of budget, so any direct calls to Gemini Nano Banana or  will currently fail with a 400 Budget Exceeded error. Testing must rely on Pollinations.
 
 **documents and test reports created in this job** 
-  - 
-  - 
+  -  (Updated)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Provided approvals for Phase 1 trailer ideas (tiers, auto-trending, bug fix in theater).
-2. *Agent*: Implemented Phase 1 of Trailer AI generator.
-3. *User*: Requested Phase 2 (Reactions + SFX) and extending Trailer generator to Series/Anime.
-4. *Agent*: Implemented Reactions and WebAudio SFX.
-5. *User*: Requested Instagram-style Likes system (red user hearts, blue system hearts) on Posters, Screenplays, and Trailers.
-6. *Agent*: Implemented the Likes system across the app.
-7. *User*: Reported a bug where clicking like on Il Sospetto makes it turn red and immediately go back to zero.
-8. *Agent*: Fixed ownership check and parent state  merging bug that caused the immediate reset.
-9. *User*: Requested 3 items: Long tap on heart to see last 20 likes. Bug 1: La Prima film shows up in Prossimamente section on Dashboard. Bug 2: Remove La Prima vs Diretto choice in Sponsor/Marketing step because it breaks the next step. (PENDING)
-10. *Agent*: Started looking into  and  for Bug 1 but context ended.
+1. *User*: Pointed out that images had nothing to do with the plot and included celebrities (Jack Black). Asked for a regenerate button.
+2. *Agent*: Fixed prompt context ( mapping), added anti-celebrity guardrails, added regenerate endpoint. Hit LLM Key budget limit during testing.
+3. *User*: Asked how much API credits are used for posters/trailers and if a 100% free system exists.
+4. *Agent*: Detailed costs. Proposed Pollinations.ai (Free) vs Third-party providers vs Self-hosted. Recommended a Freemium Hybrid approach.
+5. *User*: Chose to use Pollinations for everyone (free), but asked if players could pay via the game for high quality, and if admin whitelist is possible.
+6. *Agent*: Explained how Stripe Quality Packs or in-game CinePass conversions could work alongside an Admin Whitelist.
+7. *User*: Facciamo pollination per tutti e basta. Mantieni il mio in stand by... Attualmente non posso fare partita iva. Asked for the action plan.
+8. *Agent*: Provided a 4-phase plan: 1) , 2) Swap in routes, 3) Admin panel toggle, 4) Testing. Estimated 75 mins.
+9. *User*: Asked to ensure images are very lightweight (WebP/URLs) so the game doesn't slow down on mobile. Confirmed the plan.
+10. *Agent*: Confirmed the WebP compression strategy via Pillow. Created . (Context ended). (PENDING IMPLEMENTATION)
 
 **Project Health Check:**
-- Broken: Dashboard La Prima filtering, Sponsor & Marketing pipeline step choice logic.
+- Broken: AI Image Generation (Due to Emergent LLM Key budget exhaustion).
 - Mocked: None
 
 **3rd Party Integrations** 
   - Emergent LlmChat (GPT-4o-mini) — uses Emergent LLM Key
-  - Gemini Nano Banana (Image Generation) — uses Emergent LLM Key
+  - Gemini Nano Banana (Image Generation) — uses Emergent LLM Key (CURRENTLY OUT OF BUDGET)
+  - Pollinations.ai (Image Generation) — FREE, no key required (PENDING INTEGRATION)
   - Emergent Object Storage — uses Emergent integrations
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Self-testing via screenshots)
+  - Testing agent used after significant changes: YES (Earlier in session)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None
+  - Known regressions: AI image generation failing due to budget.
 
 **Credentials to test flow:**
-Check  (Note: User has two separate accounts: UnNickk and NeoMorpheus).
+Check 
 
 **What agent forgot to execute**
-The agent was right in the middle of executing the user's latest 3 requests (Long tap likes, La Prima dashboard bug, La Prima/Diretto pipeline choice removal) when the context ran out. Pick up exactly from resolving these three UI/logic tasks.</analysis>
+The agent planned the Pollinations.ai integration and created the first file (), but the context window expired before the code could be written. You must implement the 4-phase plan detailed in the context.
+</handoff summary></analysis>

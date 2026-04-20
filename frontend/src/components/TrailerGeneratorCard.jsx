@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Film, Sparkles, Crown, Play, Lock, TrendingUp, Trophy, X, Check, SkipForward } from 'lucide-react';
+import { Film, Sparkles, Crown, Play, Lock, TrendingUp, Trophy, X, Check, SkipForward, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import TrailerPlayerModal from './TrailerPlayerModal';
 
@@ -112,6 +112,27 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
     }
   };
 
+  const handleRegenerate = async () => {
+    const regenCount = trailer?.regen_count ?? 0;
+    const maxRegen = trailer?.max_regen ?? 3;
+    const regenLeft = Math.max(0, maxRegen - regenCount);
+    if (regenLeft <= 0) {
+      toast.error('Hai esaurito le rigenerazioni per questo trailer.');
+      return;
+    }
+    if (!window.confirm(`Ricreare il trailer ${trailer?.tier?.toUpperCase?.() || ''}? Il trailer attuale verrà sostituito. Rigenerazioni rimaste: ${regenLeft - 1}/${maxRegen} dopo questa.`)) return;
+    try {
+      const r = await api.post(`/trailers/${contentId}/regenerate`);
+      setJob({ ...r.data, tier: r.data.tier });
+      jobStartRef.current = Date.now();
+      setElapsed(0);
+      toast.success(`Rigenerazione ${r.data.tier?.toUpperCase?.() || ''} avviata (~${r.data.estimated_seconds}s)`);
+      startPolling();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore rigenerazione');
+    }
+  };
+
   const effectiveCost = (baseCost) => {
     if (isGuest) return 0;
     return isReleased ? Math.round(baseCost * 0.5) : baseCost;
@@ -213,6 +234,31 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
             data-testid="trailer-watch-btn">
             <Play className="w-4 h-4 fill-black" /> Guarda Preview
           </button>
+
+          {/* ─── RICREA TRAILER — disponibile fino a 3 volte per contenuto ─── */}
+          {(() => {
+            const regenCount = trailer?.regen_count ?? 0;
+            const maxRegen = trailer?.max_regen ?? 3;
+            const regenLeft = Math.max(0, maxRegen - regenCount);
+            if (regenLeft <= 0) {
+              return (
+                <div className="mt-2 px-3 py-2 rounded-xl bg-gray-800/40 border border-gray-700/50 text-center" data-testid="trailer-regen-exhausted">
+                  <p className="text-[9px] text-gray-400">Hai usato tutte le {maxRegen} rigenerazioni per questo trailer.</p>
+                </div>
+              );
+            }
+            return (
+              <button
+                onClick={handleRegenerate}
+                className="mt-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-orange-500/15 to-red-500/15 border border-orange-500/40 text-orange-300 font-bold flex items-center justify-center gap-2 hover:bg-orange-500/25 transition-colors text-[11px]"
+                data-testid="trailer-regenerate-btn">
+                <RefreshCw className="w-4 h-4" />
+                <span>Ricrea trailer</span>
+                <span className="ml-auto text-[9px] font-normal text-orange-200/80">{regenLeft}/{maxRegen} disponibili</span>
+              </button>
+            );
+          })()}
+
           {onConfirm && (
             <button
               onClick={onConfirm}

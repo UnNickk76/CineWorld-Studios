@@ -133,51 +133,112 @@ async def _generate_storyboard(content: dict, tier_cfg: dict) -> List[Dict[str, 
     n = tier_cfg["frames"]
     title = content.get("title", "")
     genre = (content.get("genre") or "").strip()
-    plot = content.get("pre_plot") or content.get("plot") or content.get("synopsis") or ""
-    script = content.get("script") or ""
-    script_excerpt = (script[:600] + "...") if len(script) > 600 else script
+    # V3 usa "preplot" + "screenplay_text", legacy usa "pre_plot" + "script"
+    plot = (content.get("preplot") or content.get("pre_plot")
+            or content.get("plot") or content.get("synopsis")
+            or content.get("description") or "")
+    script = (content.get("screenplay_text") or content.get("script") or "")
+    # Truncate script to reasonable context (LLM cap)
+    script_excerpt = (script[:1200] + "...") if len(script) > 1200 else script
+    subgenres = content.get("subgenres") or []
+    locations = content.get("locations") or []
 
     system = (
         "Sei un regista e sceneggiatore di trailer cinematografici. "
         "Produci una sequenza narrativa IN ITALIANO strutturata in 4 atti: "
-        "SETUP (protagonista, ambiente), CONFLITTO (tensione, antagonista), CLIMAX (rivelazione, azione), TITLE CARD (solo titolo). "
-        "Ogni frame ha una tagline cinematografica (max 40 caratteri, d'impatto, evocativa — NO hashtag, NO emoji) e un image_prompt visivo in INGLESE per generare un'immagine. "
+        "SETUP (protagonista, ambiente), CONFLITTO (tensione, antagonista), CLIMAX (rivelazione, azione), TITLE CARD (solo titolo).\n\n"
+        "REGOLE VISIVE VINCOLANTI (violazione = rifiuto del lavoro):\n"
+        "1) L'image_prompt deve restare FEDELE SOLO alla pretrama e sceneggiatura fornite dall'utente, non inventare sottotrame non presenti.\n"
+        "2) VIETATO nominare persone reali, attori, registi, celebrità (Jack Black, Tom Cruise, Marco Mengoni, ecc.). Usa solo descrizioni generiche: 'un uomo sulla trentina', 'una donna con capelli rossi', 'un anziano con barba'.\n"
+        "3) VIETATO citare brand, loghi, marchi (Nike, Ferrari, McDonald's, Coca-Cola, Apple, ecc.) — usa 'sneakers generiche', 'auto sportiva', 'ristorante fast food'.\n"
+        "4) VIETATO citare opere esistenti (Star Wars, Harry Potter, Marvel, ecc.) — usa descrizioni di scena.\n"
+        "5) VIETATO text, lettere, scritte, sottotitoli DENTRO l'immagine (li aggiungiamo noi).\n"
+        "6) Ogni image_prompt deve iniziare con 'Cinematic scene from an original fictional movie:' e terminare con ', 16:9, film grain, anamorphic lens, no text, no logos, no real people, no trademarks.'\n\n"
+        "Ogni frame ha una tagline cinematografica (max 40 caratteri, d'impatto, evocativa — NO hashtag, NO emoji, ITALIANO) e un image_prompt visivo in INGLESE. "
         "Rispondi SOLO con JSON valido, niente altro testo."
     )
     user_msg = (
         f"Titolo: {title}\n"
         f"Genere: {genre}\n"
-        f"Pre-trama: {plot}\n"
-        f"Sceneggiatura (estratto): {script_excerpt}\n\n"
+        f"Sottogeneri: {', '.join(subgenres) if subgenres else '-'}\n"
+        f"Location: {', '.join(locations[:3]) if locations else '-'}\n"
+        f"Pre-trama: {plot or '(non fornita — inventa uno scenario GENERICO coerente con il genere)'}\n"
+        f"Sceneggiatura (estratto): {script_excerpt or '(non fornita)'}\n\n"
         f"Produci {n} frame in JSON con schema: "
-        f'{{"frames":[{{"tagline":"...","image_prompt":"...","mood":"setup|tension|climax|reveal"}}]}} '
-        f"L'ultimo frame DEVE essere title card con tagline = il titolo esatto \"{title}\" in stile poster. "
-        f"NON ripetere la stessa tagline. Varia ritmo e intensità."
+        f'{{"frames":[{{"tagline":"...","image_prompt":"Cinematic scene from an original fictional movie: ... , 16:9, film grain, anamorphic lens, no text, no logos, no real people, no trademarks.","mood":"setup|tension|climax|reveal"}}]}} '
+        f"L'ultimo frame DEVE essere title card con tagline = il titolo esatto \"{title}\" e image_prompt = 'Cinematic dark movie title card background, abstract cinematic lighting, no text, 16:9'. "
+        f"NON ripetere la stessa tagline. Varia ritmo e intensità. Usa SOLO elementi presenti nella pretrama/sceneggiatura."
     )
     try:
         chat = LlmChat(api_key=os.environ["EMERGENT_LLM_KEY"], session_id=f"trailer-{uuid.uuid4()}", system_message=system)
         chat.with_model("openai", "gpt-4o-mini")
         resp = await asyncio.wait_for(chat.send_message(UserMessage(text=user_msg)), timeout=25)
-        # Extract JSON (may be wrapped in ```json)
-        text = resp.strip()
-        if "```" in text:
-            text = text.split("```json", 1)[-1].split("```", 1)[-1] if "```json" in text else text.split("```", 1)[1].split("```", 1)[0]
-        data = json.loads(text)
+        # Robust JSON extraction: strip markdown fences, preambles, trailing text
+        text = (resp or "").strip()
+        # Remove leading/trailing markdown fences
+        if text.startswith("```"):
+            # drop first line (``` or ```json)
+            parts = text.split("\n", 1)
+            text = parts[1] if len(parts) > 1 else text
+            if text.endswith("```"):
+                text = text[:-3]
+        # Find first { and matching } by brace counting (handles nested objects)
+        first = text.find("{")
+        if first == -1:
+            raise ValueError("no JSON object found in LLM response")
+        depth = 0
+        end = -1
+        in_str = False
+        esc = False
+        for i in range(first, len(text)):
+            c = text[i]
+            if esc:
+                esc = False
+                continue
+            if c == "\\":
+                esc = True
+                continue
+            if c == '"':
+                in_str = not in_str
+                continue
+            if in_str:
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        if end == -1:
+            raise ValueError("unmatched braces in LLM response")
+        json_str = text[first:end]
+        data = json.loads(json_str)
         frames = data.get("frames", [])
         if not isinstance(frames, list) or len(frames) < 2:
             raise ValueError("invalid storyboard")
         # Pad / trim to n
         while len(frames) < n:
-            frames.append({"tagline": title, "image_prompt": f"cinematic movie scene: {title}", "mood": "reveal"})
+            frames.append({
+                "tagline": title,
+                "image_prompt": "Cinematic dark movie title card background, abstract cinematic lighting, no text, 16:9",
+                "mood": "reveal",
+            })
         return frames[:n]
     except Exception as e:
-        logger.error(f"storyboard generation failed: {e}")
+        logger.error(f"storyboard generation failed: {e}; raw={(resp or '')[:200] if 'resp' in dir() else 'N/A'}")
         return _fallback_storyboard(content, tier_cfg)
 
 
 def _fallback_storyboard(content: dict, tier_cfg: dict) -> List[Dict[str, str]]:
     title = content.get("title") or "Il Film"
     genre = (content.get("genre") or "drama").lower()
+    plot = (content.get("preplot") or content.get("pre_plot")
+            or content.get("plot") or content.get("synopsis") or "")
+    locations = content.get("locations") or []
+    # Build a simple scene description from the actual story context
+    loc_str = locations[0] if locations else ""
+    context_hint = (plot[:120] if plot else f"a {genre} story").replace('"', '')
     n = tier_cfg["frames"]
     base_taglines = [
         "Una scelta può cambiare tutto...",
@@ -190,12 +251,64 @@ def _fallback_storyboard(content: dict, tier_cfg: dict) -> List[Dict[str, str]]:
         "Il momento della verità.",
         "Quando ogni certezza svanisce.",
     ]
+    moods_seq = ["setup", "setup", "tension", "tension", "climax", "climax", "reveal"]
     frames = []
     for i in range(n - 1):
         tag = base_taglines[i % len(base_taglines)]
-        frames.append({"tagline": tag, "image_prompt": f"cinematic {genre} scene, movie still, dramatic lighting", "mood": "setup" if i < n//3 else "tension" if i < 2*n//3 else "climax"})
-    frames.append({"tagline": title, "image_prompt": f"movie title card, {title}, cinematic", "mood": "reveal"})
+        mood = moods_seq[min(i, len(moods_seq) - 1)]
+        frames.append({
+            "tagline": tag,
+            "image_prompt": (
+                f"Cinematic scene from an original fictional movie: {context_hint}. "
+                f"Genre: {genre}. Setting: {loc_str or 'cinematic environment'}. "
+                f"Mood: {mood}. 16:9, film grain, anamorphic lens, "
+                f"no text, no logos, no real people, no trademarks."
+            ),
+            "mood": mood,
+        })
+    frames.append({
+        "tagline": title,
+        "image_prompt": "Cinematic dark movie title card background, abstract cinematic lighting, no text, 16:9",
+        "mood": "reveal",
+    })
     return frames
+
+
+def _sanitize_image_prompt(prompt: str) -> str:
+    """Rimuove nomi di persone reali, brand, franchise noti dal prompt immagine.
+    Ultima linea di difesa contro il LLM che disobbedisce alle regole di storyboard."""
+    import re
+    # Black-list celebrità note (aggiorna se necessario)
+    BLOCKED = [
+        # Hollywood
+        r"\bJack\s+Black\b", r"\bTom\s+Cruise\b", r"\bBrad\s+Pitt\b", r"\bLeonardo\s+DiCaprio\b",
+        r"\bScarlett\s+Johansson\b", r"\bRobert\s+Downey\b", r"\bDwayne\s+Johnson\b", r"\bThe\s+Rock\b",
+        r"\bKeanu\s+Reeves\b", r"\bChris\s+(Evans|Hemsworth|Pratt|Pine)\b", r"\bRyan\s+(Reynolds|Gosling)\b",
+        r"\bTimothée\s+Chalamet\b", r"\bZendaya\b", r"\bEmma\s+(Stone|Watson)\b", r"\bMargot\s+Robbie\b",
+        r"\bAngelina\s+Jolie\b", r"\bJohnny\s+Depp\b", r"\bAl\s+Pacino\b", r"\bRobert\s+De\s+Niro\b",
+        r"\bDenzel\s+Washington\b", r"\bWill\s+Smith\b", r"\bMorgan\s+Freeman\b",
+        # Italia
+        r"\bMarco\s+Mengoni\b", r"\bVasco\s+Rossi\b", r"\bSophia\s+Loren\b", r"\bMonica\s+Bellucci\b",
+        r"\bPierfrancesco\s+Favino\b", r"\bPaolo\s+Sorrentino\b", r"\bToni\s+Servillo\b",
+        # Brand (rimossi e rimpiazzati)
+        r"\bNike\b", r"\bAdidas\b", r"\bFerrari\b", r"\bLamborghini\b", r"\bMcDonald'?s\b",
+        r"\bCoca[\s-]?Cola\b", r"\bApple\b", r"\bGoogle\b", r"\bAmazon\b", r"\bTesla\b",
+        r"\bStarbucks\b", r"\bMicrosoft\b",
+        # Franchise / IP
+        r"\bStar\s+Wars\b", r"\bHarry\s+Potter\b", r"\bMarvel\b", r"\bDC\s+Comics\b",
+        r"\bJedi\b", r"\bSith\b", r"\bHogwarts\b", r"\bAvengers\b", r"\bJames\s+Bond\b",
+    ]
+    out = prompt
+    for pat in BLOCKED:
+        out = re.sub(pat, "a fictional character", out, flags=re.IGNORECASE)
+    # Ensure the guard suffix is present
+    guards = "no text, no logos, no real people, no trademarks, no brand names"
+    if guards not in out:
+        out = out.rstrip(".") + f". {guards}."
+    # Ensure prefix
+    if "original fictional movie" not in out.lower():
+        out = "Cinematic scene from an original fictional movie: " + out
+    return out
 
 
 # ─────────────────────── Image generation ───────────────────────
@@ -209,10 +322,14 @@ async def _generate_frame_image(frame: Dict[str, str], genre: str) -> Optional[s
         return None
 
     genre_style = GENRE_STYLES.get((genre or "").lower().strip(), "cinematic movie still, professional lighting")
+    raw_prompt = frame.get("image_prompt", "") or ""
+    clean_prompt = _sanitize_image_prompt(raw_prompt)
     prompt = (
-        f"{frame.get('image_prompt','')}. "
+        f"{clean_prompt}. "
         f"Style: {genre_style}. "
-        f"16:9 aspect ratio, cinematic composition, movie trailer quality, no text, no logos, no watermarks."
+        f"16:9 aspect ratio, cinematic composition, movie trailer quality, film grain, anamorphic lens. "
+        f"STRICT: no text in the image, no letters, no subtitles, no watermarks, no logos, no brands, no trademarks, "
+        f"no real celebrities or well-known public figures — only generic fictional characters."
     )
     try:
         chat = LlmChat(api_key=os.environ["EMERGENT_LLM_KEY"], session_id=f"img-{uuid.uuid4()}", system_message="You generate cinematic movie trailer frames.")
@@ -352,6 +469,8 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
                 "trending_boost_until": None,
                 "views_count": (prev.get("views_count") or 0),
                 "trending": False,
+                # Preserve regeneration count across regenerations
+                "regen_count": int(prev.get("regen_count", 0) or 0),
             }
         }
         if allow_hype_boost and hype_bonus:
@@ -474,6 +593,79 @@ async def generate_trailer(content_id: str, tier: str = Query("base"), mode: str
     return {"job_id": job_id, "status": "running", "progress": 0, "estimated_seconds": _JOBS[content_id]["estimated_seconds"], "mode": mode}
 
 
+MAX_REGEN_PER_CONTENT = 3
+
+
+@router.post("/trailers/{content_id}/regenerate")
+async def regenerate_trailer(content_id: str, user: dict = Depends(_dep())):
+    """Rigenera il trailer allo stesso tier dell'ultimo. Nessun costo (già pagato).
+    Limite: MAX_REGEN_PER_CONTENT rigenerazioni per contenuto, per evitare spam.
+    Il trailer precedente viene sovrascritto."""
+    content, coll = await _find_content(content_id)
+    if not content:
+        raise HTTPException(404, "Contenuto non trovato")
+    _ensure_user_owns(content, user)
+
+    prev = content.get("trailer") or {}
+    prev_tier = prev.get("tier")
+    prev_mode = prev.get("mode") or "pre_launch"
+    if not prev_tier:
+        raise HTTPException(400, "Nessun trailer da rigenerare. Genera prima un trailer.")
+
+    regen_count = int(prev.get("regen_count", 0) or 0)
+    if regen_count >= MAX_REGEN_PER_CONTENT:
+        raise HTTPException(
+            400,
+            f"Hai raggiunto il limite di {MAX_REGEN_PER_CONTENT} rigenerazioni per questo contenuto."
+        )
+
+    _rate_limit_check(user["id"])
+
+    # Block if already running
+    running = _JOBS.get(content_id)
+    if running and running.get("status") == "running":
+        return {"job_id": running["job_id"], "status": "running", "progress": running.get("progress", 0)}
+
+    # Clear previous frames references so the run treats it as fresh (no reuse)
+    # but preserve regen_count.
+    await db[coll].update_one(
+        {"id": content_id},
+        {"$set": {
+            "trailer.frames": [],
+            "trailer.regen_count": regen_count + 1,
+            "trailer.regenerated_at": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+
+    tier = prev_tier
+    mode = prev_mode
+
+    job_id = str(uuid.uuid4())
+    _JOBS[content_id] = {
+        "job_id": job_id,
+        "content_id": content_id,
+        "tier": tier,
+        "mode": mode,
+        "status": "running",
+        "progress": 0,
+        "stage": "queued",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "estimated_seconds": {"base": 25, "cinematic": 50, "pro": 80}.get(tier, 35),
+        "is_regenerate": True,
+    }
+    asyncio.create_task(_run_trailer_job(content_id, tier, user["id"], mode))
+    return {
+        "job_id": job_id,
+        "status": "running",
+        "progress": 0,
+        "estimated_seconds": _JOBS[content_id]["estimated_seconds"],
+        "tier": tier,
+        "mode": mode,
+        "regen_count": regen_count + 1,
+        "max_regen": MAX_REGEN_PER_CONTENT,
+    }
+
+
 @router.get("/trailers/{content_id}/status")
 async def trailer_status(content_id: str, user: dict = Depends(_dep())):
     j = _JOBS.get(content_id)
@@ -533,6 +725,7 @@ async def get_trailer(content_id: str, request: Request, user: dict = Depends(_d
     return {
         "trailer": {
             "tier": tr.get("tier"),
+            "mode": tr.get("mode", "pre_launch"),
             "duration_seconds": tr.get("duration_seconds"),
             "frames": out_frames,
             "generated_at": tr.get("generated_at"),
@@ -541,6 +734,8 @@ async def get_trailer(content_id: str, request: Request, user: dict = Depends(_d
             "boosted": is_boosted,
             "highly_anticipated": bool(tr.get("highly_anticipated")),
             "hype_bonus_applied": tr.get("hype_bonus_applied", 0),
+            "regen_count": int(tr.get("regen_count", 0) or 0),
+            "max_regen": MAX_REGEN_PER_CONTENT,
         }
     }
 

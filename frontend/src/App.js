@@ -14,6 +14,7 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff, Play,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
+  Palette, Briefcase, Rocket,
   KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, RadioTower, Disc, Video, Loader2
 } from 'lucide-react';
 import { Button } from './components/ui/button';
@@ -809,12 +810,18 @@ const TitoliDiCoda = ({ open, setOpen, navItems, user, navigate, logout, languag
             <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold mb-2 px-1">Navigazione</p>
             <div className="grid grid-cols-4 gap-1.5">
               {navItems.filter(i => !i.locked).map(item => (
-                <button key={item.path}
-                  className="flex flex-col items-center gap-1 py-2.5 rounded-lg border border-white/5 text-gray-400 text-[8px] hover:bg-white/5 hover:text-white transition-all"
+                <button key={`${item.path}-${item.label}`}
+                  className="relative flex flex-col items-center gap-1 py-2 px-1 rounded-lg border border-white/5 text-gray-400 text-[8px] hover:bg-white/5 hover:text-white transition-all"
                   onClick={() => { navigate(item.path); setOpen(false); }}
+                  data-testid={`tdc-${item.label}`}
                 >
-                  <item.icon className="w-4 h-4" />
-                  <span className="truncate w-full text-center px-0.5">{typeof item.label === 'string' && item.label.length > 12 ? item.label.slice(0, 12) + '..' : item.label}</span>
+                  <item.icon className="w-3.5 h-3.5" />
+                  <span className="truncate w-full text-center px-0.5 leading-tight">{typeof item.label === 'string' && item.label.length > 11 ? item.label.slice(0, 11) + '..' : item.label}</span>
+                  {item.notificationCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-red-500 rounded-full text-[8px] font-bold text-white flex items-center justify-center">
+                      {item.notificationCount > 9 ? '9+' : item.notificationCount}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -1183,6 +1190,21 @@ const TopNavbar = () => {
     { path: '/minigiochi', icon: Gamepad2, label: language === 'it' ? 'Minigiochi + Sfide' : 'Minigames + VS' },
     { path: '/leaderboard', icon: BarChart3, label: 'leaderboard' },
     { path: '/pvp-arena', icon: Target, label: 'Arena' },
+    { path: '/major', icon: Crown, label: language === 'it' ? 'Major' : 'Major' },
+    { path: '/events/la-prima', icon: Trophy, label: language === 'it' ? 'La Prima' : 'La Prima' },
+    { path: '/events/trailers', icon: Sparkles, label: language === 'it' ? 'Ev. Trailer' : 'Trailer Ev.' },
+    { path: '/event-history', icon: Zap, label: language === 'it' ? 'Eventi' : 'Events' },
+    { path: '/creator-board', icon: Palette, label: language === 'it' ? 'Creator' : 'Creator' },
+    { path: '/statistics', icon: BarChart3, label: language === 'it' ? 'Statistiche' : 'Statistics' },
+    { path: '/friends', icon: Users, label: language === 'it' ? 'Amici' : 'Friends' },
+    { path: '/notifications', icon: Bell, label: language === 'it' ? 'Notifiche' : 'Notifications' },
+    { path: '/parco-studio', icon: Camera, label: language === 'it' ? 'Parco Studio' : 'Studio Lot' },
+    { path: '/strutture', icon: Briefcase, label: language === 'it' ? 'Strutture' : 'Buildings' },
+    { path: '/agenzia', icon: Users, label: language === 'it' ? 'Agenzia' : 'Agency' },
+    { path: '/strategico', icon: Rocket, label: language === 'it' ? 'Strategia' : 'Strategy' },
+    { path: '/drafts', icon: Pen, label: language === 'it' ? 'Bozze' : 'Drafts' },
+    { path: '/tv-stations', icon: Radio, label: language === 'it' ? 'TV Stations' : 'TV Stations' },
+    { path: '/medals', icon: Medal, label: language === 'it' ? 'Medaglie' : 'Medals' },
     { path: '/chat', icon: MessageSquare, label: 'chat' },
     { path: '/releases', icon: Megaphone, label: 'release_notes', frozen: true },
     { path: '/feedback', icon: Lightbulb, label: 'feedback' },

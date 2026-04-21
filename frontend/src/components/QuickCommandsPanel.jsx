@@ -57,6 +57,34 @@ const DEFAULT_SLOTS = [
   'contest', 'sagas', 'stars', 'profile',
 ];
 
+// Preset profiles users can apply with one tap in edit mode
+export const QUICK_COMMAND_PRESETS = [
+  {
+    key: 'producer',
+    label: 'Producer',
+    emoji: '🎬',
+    slots: ['produce', 'my-films', 'screenplays', 'my-tv', 'infrastructure', 'sagas', 'stars', 'profile'],
+  },
+  {
+    key: 'networker',
+    label: 'Networker',
+    emoji: '🤝',
+    slots: ['cineboard', 'journal', 'events', 'la-prima', 'leaderboard', 'marketplace', 'festivals', 'profile'],
+  },
+  {
+    key: 'fighter',
+    label: 'Arena',
+    emoji: '⚔️',
+    slots: ['arena', 'contest', 'minigames', 'leaderboard', 'missions', 'rewards', 'stars', 'profile'],
+  },
+  {
+    key: 'star',
+    label: 'Star',
+    emoji: '⭐',
+    slots: ['stars', 'awards', 'festivals', 'la-prima', 'leaderboard', 'my-films', 'trending', 'profile'],
+  },
+];
+
 const STORAGE_KEY = 'cw_quick_commands_v1';
 
 function loadSlots() {
@@ -152,7 +180,8 @@ export default function QuickCommandsPanel({ onClose }) {
 
   const openHamburger = () => {
     onClose?.();
-    window.dispatchEvent(new Event('global-sidemenu-toggle'));
+    // Open Titoli di Coda (the full "credits-style" menu) — NOT the SideMenu
+    window.dispatchEvent(new Event('open-titoli-di-coda'));
     if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {}
   };
 
@@ -179,6 +208,34 @@ export default function QuickCommandsPanel({ onClose }) {
           </button>
         )}
       </div>
+
+      {/* Preset profiles (only visible in edit mode) */}
+      {editMode && (
+        <div className="flex gap-1 mb-2 px-1 overflow-x-auto pb-1" data-testid="qc-presets">
+          <span className="text-[8px] text-gray-500 uppercase shrink-0 self-center mr-1">Preset:</span>
+          {QUICK_COMMAND_PRESETS.map(p => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => setSlots([...p.slots])}
+              data-testid={`qc-preset-${p.key}`}
+              aria-label={`Applica preset ${p.label}`}
+              className="shrink-0 flex items-center gap-0.5 px-2 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 text-[9px] font-bold hover:bg-yellow-500/20 active:scale-95 transition"
+            >
+              <span>{p.emoji}</span>
+              <span>{p.label}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setSlots([...DEFAULT_SLOTS])}
+            data-testid="qc-preset-default"
+            className="shrink-0 flex items-center gap-0.5 px-2 py-1 rounded-full bg-white/5 border border-white/10 text-gray-400 text-[9px] font-bold hover:bg-white/10 active:scale-95 transition"
+          >
+            ↺ Default
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-4 gap-1">
         {slots.map((key, idx) => {

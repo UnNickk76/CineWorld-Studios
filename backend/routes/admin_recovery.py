@@ -320,3 +320,332 @@ async def clear_my_events(user: dict = Depends(get_current_user)):
     """User: clear own event history."""
     r = await db.event_history.delete_many({'user_id': user['id']})
     return {'deleted': r.deleted_count}
+
+
+
+# ═══════════════════════════════════════════════════════════════
+# STUCK CONTENT RESCUE — anime/series/films without poster in early states
+# ═══════════════════════════════════════════════════════════════
+
+STUCK_STATES = ['idea', 'proposed', 'concept', 'draft', 'screenplay']
+
+
+@router.get("/stuck-content")
+async def list_stuck_content(user: dict = Depends(get_current_user)):
+    """Scan user's content across collections for anime/series/films stuck
+    in early pipeline states without a poster_url. Returns a preview so the
+    user can choose what to rescue.
+    """
+    uid = user['id']
+    items = []
+
+    # tv_series (V1/V2)
+    ts = await db.tv_series.find(
+        {'user_id': uid, 'poster_url': {'$in': [None, '']},
+         '$or': [{'status': {'$in': STUCK_STATES}}, {'pipeline_state': {'$in': STUCK_STATES}}]},
+        {'_id': 0, 'id': 1, 'title': 1, 'type': 1, 'status': 1, 'pipeline_state': 1, 'created_at': 1}
+    ).to_list(100)
+    for s in ts:
+        items.append({
+            'id': s['id'],
+            'title': s.get('title', 'Senza titolo'),
+            'content_type': 'anime' if s.get('type') == 'anime' else 'tv_series',
+            'collection': 'tv_series',
+            'state': s.get('pipeline_state') or s.get('status') or 'idea',
+            'created_at': s.get('created_at'),
+        })
+
+    # series_projects_v3 (V3 series/anime)
+    v3 = await db.series_projects_v3.find(
+        {'user_id': uid, 'poster_url': {'$in': [None, '']},
+         'pipeline_state': {'$in': STUCK_STATES}},
+        {'_id': 0, 'id': 1, 'title': 1, 'type': 1, 'pipeline_state': 1, 'created_at': 1}
+    ).to_list(100)
+    for s in v3:
+        items.append({
+            'id': s['id'],
+            'title': s.get('title', 'Senza titolo'),
+            'content_type': 'anime' if s.get('type') == 'anime' else 'tv_series',
+            'collection': 'series_projects_v3',
+            'state': s.get('pipeline_state', 'idea'),
+            'created_at': s.get('created_at'),
+        })
+
+    # film_projects (V2 films + anime/serie alternativi)
+    fp = await db.film_projects.find(
+        {'user_id': uid, 'poster_url': {'$in': [None, '']},
+         'pipeline_state': {'$in': STUCK_STATES}},
+        {'_id': 0, 'id': 1, 'title': 1, 'content_type': 1, 'pipeline_state': 1, 'created_at': 1}
+    ).to_list(200)
+    for f in fp:
+        ct = f.get('content_type', 'film')
+        items.append({
+            'id': f['id'],
+            'title': f.get('title', 'Senza titolo'),
+            'content_type': 'anime' if ct == 'anime' else ('tv_series' if ct == 'serie_tv' else 'film'),
+            'collection': 'film_projects',
+            'state': f.get('pipeline_state', 'idea'),
+            'created_at': f.get('created_at'),
+        })
+
+    # films (V1 films)
+    fm = await db.films.find(
+        {'user_id': uid, 'poster_url': {'$in': [None, '']},
+         'status': {'$in': STUCK_STATES}},
+        {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'created_at': 1}
+    ).to_list(200)
+    for f in fm:
+        items.append({
+            'id': f['id'],
+            'title': f.get('title', 'Senza titolo'),
+            'content_type': 'film',
+            'collection': 'films',
+            'state': f.get('status', 'idea'),
+            'created_at': f.get('created_at'),
+        })
+
+    return {"items": items, "count": len(items)}
+
+
+from pydantic import BaseModel  # local import for admin rescue
+
+
+class RescueStuckRequest(BaseModel):
+    ids: list = []  # list of {id, collection} dicts or just ids
+
+
+@router.post("/rescue-stuck-content")
+async def rescue_stuck_content(req: RescueStuckRequest, user: dict = Depends(get_current_user)):
+    """Apply the recovery placeholder poster to stuck content so the player can
+    continue the pipeline manually (regenerate from IdeaPhase) instead of being
+    soft-locked. If no ids are provided, rescues all stuck items for the user.
+    """
+    uid = user['id']
+    items_to_fix = req.ids or []
+
+    if not items_to_fix:
+        # Auto-discover all stuck items owned by user
+        listing = await list_stuck_content(user)
+        items_to_fix = [{'id': i['id'], 'collection': i['collection']} for i in listing['items']]
+
+    now = datetime.now(timezone.utc).isoformat()
+    fixed = 0
+    for entry in items_to_fix:
+        # Accept both {"id": "...", "collection": "..."} and plain id strings
+        if isinstance(entry, str):
+            target_id, target_coll = entry, None
+        else:
+            target_id = entry.get('id')
+            target_coll = entry.get('collection')
+        if not target_id:
+            continue
+
+        collections = [target_coll] if target_coll else ['tv_series', 'series_projects_v3', 'film_projects', 'films']
+        updated = False
+        for coll_name in collections:
+            if not coll_name:
+                continue
+            coll = db[coll_name]
+            doc = await coll.find_one({'id': target_id, 'user_id': uid}, {'_id': 0, 'id': 1, 'poster_url': 1})
+            if not doc:
+                continue
+            if doc.get('poster_url'):
+                # already has poster — skip
+                break
+            await coll.update_one(
+                {'id': target_id, 'user_id': uid},
+                {'$set': {
+                    'poster_url': DEFAULT_POSTER,
+                    'poster_is_placeholder': True,
+                    'rescued_at': now,
+                }}
+            )
+            updated = True
+            fixed += 1
+            break
+        _ = updated
+
+    return {'rescued': fixed, 'requested': len(items_to_fix)}
+
+
+# ═══════════════════════════════════════════════════════════════
+# FIX LEGACY FILM DATA — recalculate missing duration/quality/hype
+# ═══════════════════════════════════════════════════════════════
+
+def _is_missing(v):
+    return v is None or v == 0 or v == '' or v == '-' or v == '—'
+
+
+def _infer_duration_minutes(film: dict) -> int | None:
+    """Infer duration from available signals. Returns None if cannot infer."""
+    # 1) Category mapping
+    cat = (film.get('duration_category') or '').lower()
+    if cat == 'short':
+        return 45
+    if cat == 'standard':
+        return 100
+    if cat == 'long':
+        return 135
+    if cat == 'epic':
+        return 170
+    # 2) Budget tier fallback
+    tier = (film.get('budget_tier') or '').lower()
+    if tier == 'low':
+        return 85
+    if tier == 'mid':
+        return 105
+    if tier == 'high':
+        return 125
+    if tier == 'blockbuster':
+        return 145
+    # 3) Weeks_in_theater heuristic (longer films tend to stay longer)
+    weeks = film.get('weeks_in_theater')
+    if weeks and isinstance(weeks, (int, float)):
+        if weeks >= 6:
+            return 130
+        if weeks >= 4:
+            return 110
+        if weeks >= 2:
+            return 95
+    return None
+
+
+def _infer_quality(film: dict) -> int | None:
+    """Infer quality_score from other signals."""
+    # Try imdb_rating (0-10)
+    imdb = film.get('imdb_rating')
+    if imdb and isinstance(imdb, (int, float)) and imdb > 0:
+        return int(round(imdb * 10))
+    # Try pre_imdb_score
+    pre = film.get('pre_imdb_score')
+    if pre and isinstance(pre, (int, float)) and pre > 0:
+        return int(round(pre * 10))
+    # Try audience_satisfaction (0-100)
+    aud = film.get('audience_satisfaction')
+    if aud and isinstance(aud, (int, float)) and aud > 0:
+        return int(round(aud))
+    # Try average quality_breakdown
+    qb = film.get('quality_breakdown')
+    if isinstance(qb, dict) and qb:
+        vals = [v for v in qb.values() if isinstance(v, (int, float)) and v > 0]
+        if vals:
+            return int(round(sum(vals) / len(vals)))
+    return None
+
+
+def _infer_hype(film: dict) -> int | None:
+    """Infer hype from virtual_likes, likes, trend."""
+    likes = (film.get('virtual_likes') or 0) + (film.get('likes_count') or 0)
+    if likes > 0:
+        # Scale likes into 0..100 (log-ish)
+        import math
+        return int(min(100, round(math.log10(max(1, likes)) * 30)))
+    trend = film.get('trend_score')
+    if trend and isinstance(trend, (int, float)) and trend > 0:
+        return int(min(100, trend))
+    return None
+
+
+@router.get("/legacy-film-preview")
+async def preview_legacy_film_fixes(user: dict = Depends(get_current_user)):
+    """Admin: preview films that would be patched by the legacy fix job.
+    Lists films with missing duration_minutes / quality_score / hype that CAN be inferred.
+    """
+    if user.get('nickname') != 'NeoMorpheus' and user.get('role') not in ('admin', 'CO_ADMIN'):
+        raise HTTPException(403, "Solo admin")
+
+    films = await db.films.find(
+        {'$or': [
+            {'duration_minutes': {'$in': [None, 0]}},
+            {'quality_score': {'$in': [None, 0]}},
+            {'hype': {'$in': [None, 0]}},
+        ]},
+        {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'duration_minutes': 1, 'quality_score': 1,
+         'hype': 1, 'duration_category': 1, 'budget_tier': 1, 'weeks_in_theater': 1,
+         'imdb_rating': 1, 'pre_imdb_score': 1, 'audience_satisfaction': 1,
+         'quality_breakdown': 1, 'virtual_likes': 1, 'likes_count': 1, 'trend_score': 1}
+    ).to_list(2000)
+
+    preview = []
+    for f in films:
+        patch = {}
+        if _is_missing(f.get('duration_minutes')):
+            inferred = _infer_duration_minutes(f)
+            if inferred:
+                patch['duration_minutes'] = inferred
+        if _is_missing(f.get('quality_score')):
+            inferred = _infer_quality(f)
+            if inferred:
+                patch['quality_score'] = inferred
+        if _is_missing(f.get('hype')):
+            inferred = _infer_hype(f)
+            if inferred:
+                patch['hype'] = inferred
+        if patch:
+            preview.append({
+                'id': f['id'],
+                'title': f.get('title', '???'),
+                'user_id': f.get('user_id'),
+                'changes': patch,
+                'current': {
+                    'duration_minutes': f.get('duration_minutes'),
+                    'quality_score': f.get('quality_score'),
+                    'hype': f.get('hype'),
+                },
+            })
+
+    return {
+        'count': len(preview),
+        'fields_to_fix': {
+            'duration_minutes': sum(1 for p in preview if 'duration_minutes' in p['changes']),
+            'quality_score': sum(1 for p in preview if 'quality_score' in p['changes']),
+            'hype': sum(1 for p in preview if 'hype' in p['changes']),
+        },
+        'items': preview[:50],  # cap list for UI
+    }
+
+
+@router.post("/legacy-film-fix")
+async def apply_legacy_film_fixes(user: dict = Depends(get_current_user)):
+    """Admin: apply the inferred fixes computed by the preview endpoint."""
+    if user.get('nickname') != 'NeoMorpheus' and user.get('role') not in ('admin', 'CO_ADMIN'):
+        raise HTTPException(403, "Solo admin")
+
+    films = await db.films.find(
+        {'$or': [
+            {'duration_minutes': {'$in': [None, 0]}},
+            {'quality_score': {'$in': [None, 0]}},
+            {'hype': {'$in': [None, 0]}},
+        ]},
+        {'_id': 0, 'id': 1, 'title': 1, 'duration_minutes': 1, 'quality_score': 1,
+         'hype': 1, 'duration_category': 1, 'budget_tier': 1, 'weeks_in_theater': 1,
+         'imdb_rating': 1, 'pre_imdb_score': 1, 'audience_satisfaction': 1,
+         'quality_breakdown': 1, 'virtual_likes': 1, 'likes_count': 1, 'trend_score': 1}
+    ).to_list(5000)
+
+    patched = 0
+    now = datetime.now(timezone.utc).isoformat()
+    summary = {'duration_minutes': 0, 'quality_score': 0, 'hype': 0}
+    for f in films:
+        patch = {}
+        if _is_missing(f.get('duration_minutes')):
+            v = _infer_duration_minutes(f)
+            if v:
+                patch['duration_minutes'] = v
+                summary['duration_minutes'] += 1
+        if _is_missing(f.get('quality_score')):
+            v = _infer_quality(f)
+            if v:
+                patch['quality_score'] = v
+                summary['quality_score'] += 1
+        if _is_missing(f.get('hype')):
+            v = _infer_hype(f)
+            if v:
+                patch['hype'] = v
+                summary['hype'] += 1
+        if patch:
+            patch['legacy_fix_at'] = now
+            await db.films.update_one({'id': f['id']}, {'$set': patch})
+            patched += 1
+
+    return {'patched': patched, 'summary': summary}

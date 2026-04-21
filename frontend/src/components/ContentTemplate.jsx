@@ -476,6 +476,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const navigate = useNavigate();
   const [film, setFilm] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [virtualAudience, setVirtualAudience] = useState(null);
   const [showCast, setShowCast] = useState(false);
   const [showCinemaModal, setShowCinemaModal] = useState(false);
@@ -490,6 +491,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const loadFilm = useCallback(async () => {
     if (!filmId) return;
     setLoading(true);
+    setNotFound(false);
     try {
       const endpoint = isSeries ? `/series/${filmId}` : `/films/${filmId}`;
       const controller = new AbortController();
@@ -503,14 +505,21 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       if (data && !data.detail) {
         setFilm(data);
         setVirtualAudience(vaRes.data);
+      } else {
+        setNotFound(true);
       }
-    } catch {
-      // Fallback: try getting just the basic film data
+    } catch (err) {
+      // Fallback: try getting just the basic film data (retry without timeout)
       try {
         const endpoint = isSeries ? `/series/${filmId}` : `/films/${filmId}`;
         const res = await api.get(endpoint);
         if (res.data && !res.data.detail) setFilm(res.data);
-      } catch { /* truly failed */ }
+        else setNotFound(true);
+      } catch (err2) {
+        // Truly failed → mark as not found (stops infinite spinner soft-lock)
+        if (err2?.response?.status === 404) setNotFound(true);
+        else setNotFound(true);
+      }
     }
     finally { setLoading(false); }
   }, [api, filmId, isSeries]);
@@ -532,12 +541,37 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
     }).catch(() => {});
   }, [filmId, api]);
 
-  if (loading || !film) {
+  if (loading || (!film && !notFound)) {
     return (
       <div className="ct2-root" data-testid="content-template">
         <div className="ct2-loading">
           <div className="ct2-spinner" />
           <p className="ct2-loading-text">Caricamento...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (notFound || !film) {
+    return (
+      <div className="ct2-root" data-testid="content-template-not-found">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+          <div className="w-20 h-28 rounded-lg bg-gray-900/80 border border-amber-500/20 flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(212,175,55,0.08)]">
+            <span className="text-[9px] tracking-[0.3em] text-amber-400/60 font-bold">NO IMAGE</span>
+          </div>
+          <h3 className="text-base font-bold text-white mb-1">Contenuto non disponibile</h3>
+          <p className="text-[11px] text-gray-400 mb-4 max-w-xs">
+            Questo {isSeries ? (isAnime ? 'anime' : 'serie') : 'film'} non è stato trovato.
+            Potrebbe essere rimasto bloccato durante la generazione della locandina o essere stato rimosso.
+          </p>
+          <div className="flex gap-2">
+            <button onClick={() => navigate(-1)} className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-[11px] text-gray-300 hover:bg-white/10 active:scale-95 transition-transform" data-testid="ct-notfound-back">
+              Torna indietro
+            </button>
+            <button onClick={loadFilm} className="px-4 py-2 rounded-lg bg-amber-500 text-black text-[11px] font-bold hover:bg-amber-400 active:scale-95 transition-transform" data-testid="ct-notfound-retry">
+              Riprova
+            </button>
+          </div>
         </div>
       </div>
     );

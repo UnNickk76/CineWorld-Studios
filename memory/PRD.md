@@ -10,6 +10,19 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Soft-lock Fix + Admin Rescue + Legacy Data Fix (this session)**
+  - **Bug fix Emilians Anime stuck**: root cause = `/api/series/{id}` cercava SOLO in `db.tv_series`, ignorando V3 (`series_projects_v3`) e V2 (`film_projects` con `content_type='anime'/'serie_tv'`). Quando un anime V3 veniva cliccato, 404 → ContentTemplate loop infinito "Caricamento...".
+  - **Backend patch**: esteso `/api/series/{series_id}` con fallback a `series_projects_v3` e `film_projects`, normalizzando i campi (title, type, pipeline_state, num_episodes, ecc.).
+  - **Frontend patch** (`ContentTemplate.jsx`): nuovo state `notFound` + UI dedicata con messaggio "Contenuto non disponibile" + pulsanti "Torna indietro" / "Riprova" — mai più infinite loader.
+  - **Admin rescue stuck content** (nuova sezione in `AdminFilmRecovery`):
+    - `GET /api/admin/recovery/stuck-content`: scansiona tutte le collection (`tv_series`, `series_projects_v3`, `film_projects`, `films`) per anime/serie/film in stati iniziali (idea/proposed/concept/draft/screenplay) senza `poster_url`.
+    - `POST /api/admin/recovery/rescue-stuck-content`: applica placeholder poster (`/posters/ai/placeholder_recovery.png`) + flag `poster_is_placeholder=true`, sbloccando il player.
+  - **Admin "Fix dati legacy film"** (nuova sezione):
+    - `GET /api/admin/recovery/legacy-film-preview`: report dry-run con conteggio campi da fixare (duration_minutes / quality_score / hype) + preview di max 50 film con i valori inferiti.
+    - `POST /api/admin/recovery/legacy-film-fix`: applica i fix. Inferenza da: categoria durata → minuti, budget tier → minuti, weeks_in_theater → minuti; imdb_rating/pre_imdb_score/audience_satisfaction → quality; virtual_likes+likes_count (log10) + trend_score → hype.
+  - Test via curl: `stuck-content` ritorna 1 film legacy, `legacy-film-preview` ritorna 0 (DB già pulito in questa istanza), `rescue-stuck-content` batch rescues OK.
+  - Files: `/app/backend/routes/admin_recovery.py`, `/app/backend/routes/series_pipeline.py`, `/app/frontend/src/components/ContentTemplate.jsx`, `/app/frontend/src/components/AdminFilmRecovery.jsx`.
+
 - **Feb 2026 — Film Actions Sheet + La Mia TV + Al Cinema Dashboard (this session)**
   - **Nuovo componente `FilmActionsSheet.jsx`**: bottom-sheet unificato cinematico (dark + accenti oro/rosso sala) che si apre ovunque (tranne I Miei) cliccando un poster proprio. Sezioni: Dettaglio, ADV, Rigenera Locandina, Ritira dal Cinema, Vendi, Elimina, **La Mia TV** (CTA oro primaria).
   - **Hook globale**: mount in `App.js` + listener `open-film-actions` con payload `{ film }`. Guardia: se `film.user_id !== user.id` → naviga al dettaglio. Dashboard `recent-releases` e `a-breve-cinema` usano il nuovo hook.

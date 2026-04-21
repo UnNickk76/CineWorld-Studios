@@ -2065,11 +2065,55 @@ async def get_my_series(user: dict = Depends(get_current_user)):
 
 @router.get("/series/{series_id}")
 async def get_series_detail(series_id: str, user: dict = Depends(get_current_user)):
-    """Get a single series/anime detail. Accessible by any authenticated user."""
+    """Get a single series/anime detail. Accessible by any authenticated user.
+    Looks in tv_series (V1/V2), then falls back to series_projects_v3 and film_projects (V3).
+    """
     series = await db.tv_series.find_one({'id': series_id}, {'_id': 0})
+
+    # Fallback 1: V3 series projects (series_projects_v3)
+    if not series:
+        v3 = await db.series_projects_v3.find_one({'id': series_id}, {'_id': 0})
+        if v3:
+            series = {
+                **v3,
+                'type': v3.get('type') or ('anime' if v3.get('type') == 'anime' else 'tv_series'),
+                'status': v3.get('pipeline_state') or 'proposed',
+                'title': v3.get('title') or 'Senza titolo',
+                'genre': v3.get('genre'),
+                'genre_name': v3.get('genre_name') or v3.get('genre', ''),
+                'num_episodes': v3.get('num_episodes', 0),
+                'screenplay': v3.get('screenplay_text') or v3.get('screenplay'),
+                'short_plot': v3.get('preplot') or v3.get('short_plot'),
+                'description': v3.get('preplot') or '',
+                'pipeline_state': v3.get('pipeline_state'),
+                'pipeline_version': 3,
+                'quality_score': v3.get('quality_score', 0),
+                'cast': v3.get('cast', []),
+                'episodes': v3.get('episodes', []),
+            }
+
+    # Fallback 2: film_projects with content_type anime/serie_tv (older V2 path)
+    if not series:
+        fp = await db.film_projects.find_one(
+            {'id': series_id, 'content_type': {'$in': ['anime', 'serie_tv']}},
+            {'_id': 0}
+        )
+        if fp:
+            ctype = fp.get('content_type', 'serie_tv')
+            series = {
+                **fp,
+                'type': 'anime' if ctype == 'anime' else 'tv_series',
+                'status': fp.get('pipeline_state') or 'proposed',
+                'title': fp.get('title') or 'Senza titolo',
+                'num_episodes': fp.get('episode_count', 0),
+                'genre_name': fp.get('genre_name') or fp.get('genre', ''),
+                'pipeline_state': fp.get('pipeline_state'),
+                'pipeline_version': 2,
+            }
+
     if not series:
         raise HTTPException(status_code=404, detail="Serie non trovata")
-    
+
     series.setdefault('poster_url', None)
     series.setdefault('cast', [])
     series.setdefault('quality_score', 0)
@@ -2096,9 +2140,10 @@ async def get_series_detail(series_id: str, user: dict = Depends(get_current_use
     series.setdefault('trend_last', None)
 
     # Get owner info
-    owner = await db.users.find_one({'id': series['user_id']}, {'_id': 0, 'nickname': 1, 'level': 1, 'avatar_url': 1})
-    series['owner'] = owner
-    
+    if series.get('user_id'):
+        owner = await db.users.find_one({'id': series['user_id']}, {'_id': 0, 'nickname': 1, 'level': 1, 'avatar_url': 1})
+        series['owner'] = owner
+
     return series
 
 

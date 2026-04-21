@@ -178,6 +178,14 @@ export function LaPrimaSection({ compact = false }) {
                 <MapPin className={`w-2 h-2 flex-shrink-0 ${isWaiting ? 'text-cyan-400' : 'text-amber-400'}`} />
                 <span className={`text-[7px] truncate ${isWaiting ? 'text-cyan-400' : 'text-amber-400'}`}>{ev.city}</span>
               </div>
+              {ev.official_cinema && (
+                <div className="flex items-center gap-0.5 mt-0.5" data-testid="live-official-cinema">
+                  <span className="text-[6px]">🎬</span>
+                  <span className={`text-[7px] truncate italic ${isWaiting ? 'text-cyan-300/80' : 'text-amber-300/80'}`} title={ev.official_cinema}>
+                    {ev.official_cinema}
+                  </span>
+                </div>
+              )}
               {isWaiting ? (
                 <div className="mt-1 text-center">
                   <p className="text-[7px] text-cyan-400 font-bold tracking-wider">-{ev.countdown_to_start || '—'}</p>

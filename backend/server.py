@@ -3339,13 +3339,16 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
         or not film.get('trailer')
         or not film.get('pre_trama')
         or not film.get('short_plot')
+        or not film.get('theater_stats')
     )
     if needs_backfill:
         src_id = film.get('source_project_id') or film.get('id')
         src = await db.film_projects.find_one(
             {'id': src_id},
             {'_id': 0, 'screenplay': 1, 'screenplay_text': 1, 'pre_trama': 1,
-             'preplot': 1, 'short_plot': 1, 'description': 1, 'trailer': 1}
+             'preplot': 1, 'short_plot': 1, 'description': 1, 'trailer': 1,
+             'theater_stats': 1, 'theater_weeks': 1, 'theater_end_date': 1,
+             'released_at': 1, 'premiere': 1}
         ) if src_id else None
         if src:
             if not film.get('screenplay'):
@@ -3356,6 +3359,13 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
                 film['short_plot'] = src.get('short_plot') or src.get('preplot') or None
             if not film.get('trailer') and src.get('trailer'):
                 film['trailer'] = src['trailer']
+            # Bug fix: backfill theater_stats so the "IN SALA · Xg · Yg rimasti" list view
+            # uses real counters instead of falling back to the default 21-day calc.
+            if not film.get('theater_stats') and src.get('theater_stats'):
+                film['theater_stats'] = src['theater_stats']
+            for k in ('theater_weeks', 'theater_end_date', 'released_at', 'premiere'):
+                if not film.get(k) and src.get(k):
+                    film[k] = src[k]
         # Fallback directly to v3 field names on the film doc itself
         if not film.get('screenplay'):
             film['screenplay'] = film.get('screenplay_text') or ''

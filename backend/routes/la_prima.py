@@ -12,6 +12,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/la-prima", tags=["la-prima"])
 
+
+def _pick_official_cinema_lazy(city: str, film_id: str) -> str:
+    """Lazy import to avoid circular dependency."""
+    try:
+        from la_prima_report import pick_official_cinema
+        return pick_official_cinema(city, film_id)
+    except Exception:
+        return f"Cinema Royal {city}" if city else "Cinema Royal"
+
 # Status in cui è possibile attivare La Prima
 PREMIERE_ELIGIBLE_STATUSES = {'prima', 'coming_soon', 'completed', 'pending_release', 'uscita'}
 
@@ -829,6 +838,7 @@ async def get_active_la_prima(user: dict = Depends(get_current_user)):
             'pre_imdb_score': p.get('pre_imdb_score', 0),
             'pre_screenplay': p.get('pre_screenplay', ''),
             'city': premiere.get('city', ''),
+            'official_cinema': premiere.get('official_cinema') or _pick_official_cinema_lazy(premiere.get('city', ''), p['id']),
             'hype_live': live_hype,
             'spectators_current': spectators['spectators_current'],
             'spectators_total': spectators['spectators_total'],

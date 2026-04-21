@@ -88,6 +88,37 @@ def _seed_int(seed_str: str) -> int:
     return int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
 
 
+# Official premiere host cinemas by city (deterministic pool).
+# The "one" cinema that hosts the very first screening of La Prima.
+OFFICIAL_PREMIERE_CINEMAS = {
+    'roma': ['Cinema Adriano', 'The Space Moderno', 'Cinema Quirinetta', 'Cinema Barberini — Sala 1', 'Nuovo Sacher'],
+    'milano': ['Odeon — Sala Cattedrale', 'Anteo Palazzo del Cinema', 'UCI Certosa', 'Arcadia Bicocca', 'Colosseo Sala 1'],
+    'los angeles': ['TCL Chinese Theatre', 'El Capitan', 'Dolby Theatre', 'The Grove Stadium 14', 'ArcLight Hollywood'],
+    'new york': ['Ziegfeld Theatre', 'Lincoln Square IMAX', 'Angelika Film Center', 'AMC Empire 25', 'Regal Union Square'],
+    'londra': ['Leicester Square Odeon Luxe', 'BFI IMAX', 'Prince Charles Cinema', 'Curzon Mayfair', 'Everyman Screen on the Green'],
+    'parigi': ['Le Grand Rex', 'Gaumont Opera', 'MK2 Bibliotheque', 'UGC Cine Cite Les Halles', 'Pathe Wepler'],
+    'berlino': ['Zoo Palast', 'Kino International', 'CineStar Cubix', 'Delphi Filmpalast', 'Babylon Mitte'],
+    'madrid': ['Cine Capitol', 'Yelmo Ideal', 'Palacio de la Prensa', 'Cines Callao', 'Renoir Princesa'],
+    'tokyo': ['TOHO Cinemas Roppongi Hills', 'Shinjuku Piccadilly', 'Marunouchi Piccadilly', 'United Cinemas Toyosu', 'Park Cinema Kichijoji'],
+    'seoul': ['CGV Yongsan IMAX', 'Lotte Cinema World Tower', 'Megabox COEX', 'CGV Apgujeong', 'Arthouse Momo'],
+    'cannes': ['Palais des Festivals — Grand Lumiere', 'Theatre Debussy', 'Arcades', 'Olympia', 'Les Arcades Salle 2'],
+    'venezia': ['Sala Darsena — Lido', 'Palabiennale', 'PalaGalileo', 'Cinema Rossini', 'Cinema Giorgione Movie D\'Essai'],
+    'mumbai': ['Regal Cinema Colaba', 'PVR Juhu', 'INOX Nariman Point', 'Metro Big Cinemas', 'Liberty Cinema'],
+    'sydney': ['State Theatre', 'Event Cinemas George Street', 'Hayden Orpheum Cremorne', 'Ritz Cinema Randwick', 'Dendy Newtown'],
+}
+
+
+def pick_official_cinema(city: str, film_id: str) -> str:
+    """Deterministic choice of the cinema hosting the very first premiere screening."""
+    key = (city or '').strip().lower()
+    pool = OFFICIAL_PREMIERE_CINEMAS.get(key)
+    if not pool:
+        # Fallback: generic name
+        return f"Cinema Royal {city}" if city else "Cinema Royal"
+    idx = _seed_int(f"official:{film_id}") % len(pool)
+    return pool[idx]
+
+
 def compute_participating_cinemas(project: dict) -> dict:
     """Given a film project (must have .premiere.city), return:
     { total, participating, opening_showtime }
@@ -256,6 +287,7 @@ def build_premiere_report(project: dict) -> dict:
         'city': city,
         'datetime': premiere.get('datetime'),
         'opening_showtime': parts['opening_showtime'],
+        'official_cinema': pick_official_cinema(city, project.get('id', '')),
         'total_cinemas': parts['total_cinemas'],
         'participating_cinemas': parts['participating_cinemas'],
         'participation_ratio': round(parts['participating_cinemas'] / max(1, parts['total_cinemas']), 2),

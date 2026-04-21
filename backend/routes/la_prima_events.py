@@ -279,6 +279,7 @@ async def film_premiere_report(film_id: str, user: dict = Depends(get_current_us
                     "premiere.cinemas_count": report["participating_cinemas"],
                     "premiere.total_cinemas_in_city": report["total_cinemas"],
                     "premiere.opening_showtime": report["opening_showtime"],
+                    "premiere.official_cinema": report.get("official_cinema"),
                 }}
             )
     except Exception:

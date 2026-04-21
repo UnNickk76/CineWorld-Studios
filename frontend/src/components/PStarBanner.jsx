@@ -76,6 +76,9 @@ export default function PStarBanner({ film }) {
             <p className="text-[10px] font-black uppercase tracking-[2px]" style={{ color: scoreColor, fontFamily: "'Bebas Neue', sans-serif" }}>
               {state === 'live' ? 'LA PRIMA LIVE' : state === 'ended' ? 'LA PRIMA CONCLUSA' : 'LA PRIMA A BREVE'} · {premiere.city}
             </p>
+            {report?.official_cinema && (
+              <p className="text-[8px] text-yellow-200/70 truncate italic -mt-0.5" data-testid="pstar-banner-cinema">🎬 {report.official_cinema}</p>
+            )}
             <div className="flex items-center gap-2 mt-0.5 text-[9px] text-yellow-200/80 flex-wrap">
               <span className="inline-flex items-center gap-0.5">
                 <MapPin className="w-2 h-2" />
@@ -144,11 +147,18 @@ export default function PStarBanner({ film }) {
                 </div>
               </div>
               {openingShow && (
-                <div className="mt-2 pt-2 border-t border-yellow-500/10 flex items-center gap-1.5 text-[10px]">
-                  <Clapperboard className="w-3 h-3 text-yellow-400" />
-                  <span className="text-gray-400">Prima proiezione ore</span>
-                  <span className="text-yellow-300 font-bold">{openingShow}</span>
-                  <span className="text-gray-500">— 1 cinema per il debutto ufficiale</span>
+                <div className="mt-2 pt-2 border-t border-yellow-500/10 text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    <Clapperboard className="w-3 h-3 text-yellow-400 shrink-0" />
+                    <span className="text-gray-400 shrink-0">Prima proiezione ore</span>
+                    <span className="text-yellow-300 font-bold">{openingShow}</span>
+                  </div>
+                  {report?.official_cinema && (
+                    <div className="mt-1 pl-4 text-yellow-200/90 italic" data-testid="pstar-official-cinema">
+                      al <span className="font-bold not-italic">{report.official_cinema}</span>
+                      <span className="text-gray-500"> — 1 cinema per il debutto ufficiale</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

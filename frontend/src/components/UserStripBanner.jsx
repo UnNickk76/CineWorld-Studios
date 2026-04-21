@@ -1,7 +1,7 @@
 import React, { useContext, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts';
-import { DollarSign, Ticket, Trophy, Star } from 'lucide-react';
+import { DollarSign, Ticket, Trophy, Star, ArrowLeft } from 'lucide-react';
 
 /**
  * UserStripBanner
@@ -58,6 +58,11 @@ export default function UserStripBanner() {
     return `$${n}`;
   };
 
+  const handleBack = (e) => {
+    e.stopPropagation();
+    navigate(-1);
+  };
+
   return (
     <button
       type="button"
@@ -72,6 +77,19 @@ export default function UserStripBanner() {
         WebkitBackdropFilter: 'blur(8px)',
       }}
     >
+      {/* Back arrow (replaces the old StickyPageHeader back button) */}
+      <span
+        onClick={handleBack}
+        role="button"
+        tabIndex={0}
+        data-testid="user-strip-back-btn"
+        aria-label="Torna indietro"
+        className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center active:scale-90 transition hover:bg-yellow-500/20 cursor-pointer"
+        style={{ animation: 'headerArrowPulse 2s ease-in-out infinite' }}
+      >
+        <ArrowLeft className="w-4 h-4 text-yellow-400" />
+      </span>
+
       {/* Double overlapping avatars */}
       <div className="flex items-center shrink-0" style={{ width: 28 }}>
         <div

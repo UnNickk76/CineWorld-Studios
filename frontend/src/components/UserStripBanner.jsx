@@ -109,16 +109,17 @@ export default function UserStripBanner() {
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {user?.is_guest && (
           <span
-            onClick={(e) => { e.stopPropagation(); navigate('/auth?mode=register'); }}
+            onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new Event('open-guest-convert')); }}
             role="button"
             tabIndex={0}
             data-testid="user-strip-guest-register"
-            aria-label="Registrati ora"
-            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[8px] font-black uppercase tracking-wider shadow shadow-red-900/50 animate-pulse cursor-pointer"
+            aria-label="Salva progressi — Registrati"
+            title="Salva progressi — Registrati"
+            className="flex items-center gap-0.5 px-1 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[8px] font-black uppercase tracking-wider shadow shadow-red-900/50 animate-pulse cursor-pointer"
             style={{ animationDuration: '2s' }}
           >
             <span className="w-1 h-1 rounded-full bg-white animate-ping" style={{ animationDuration: '1.2s' }} />
-            <span>REC · Registrati!</span>
+            <span>REC</span>
           </span>
         )}
         <span className="flex items-center gap-0.5 text-[9px] font-bold text-green-300" title="Soldi">

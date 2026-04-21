@@ -377,14 +377,15 @@ const Dashboard = () => {
               {user?.is_guest && (
                 <button
                   type="button"
-                  onClick={() => navigate('/auth?mode=register')}
+                  onClick={() => window.dispatchEvent(new Event('open-guest-convert'))}
                   data-testid="guest-register-rec-btn"
-                  aria-label="Registrati ora"
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-red-900/60 animate-pulse"
+                  aria-label="Salva progressi — Registrati"
+                  title="Salva progressi — Registrati"
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-red-900/60 animate-pulse"
                   style={{ animationDuration: '2s' }}
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" style={{ animationDuration: '1.2s' }} />
-                  <span>REC · Registrati!</span>
+                  <span>REC</span>
                 </button>
               )}
             </div>

@@ -966,6 +966,13 @@ const TopNavbar = () => {
     return () => clearTimeout(timer);
   }, [user?.is_guest, user?.tutorial_completed]);
 
+  // Allow any component to open the guest convert modal via custom event
+  useEffect(() => {
+    const handler = () => setShowGuestConvertModal(true);
+    window.addEventListener('open-guest-convert', handler);
+    return () => window.removeEventListener('open-guest-convert', handler);
+  }, []);
+
   // Core data - fetch once on mount + poll
   useEffect(() => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});

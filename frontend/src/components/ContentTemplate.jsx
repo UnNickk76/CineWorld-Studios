@@ -339,9 +339,8 @@ function formatDuration(film, contentType) {
   const cat = film?.duration_category;
   const catLabels = { cortometraggio: '~30m', feature_breve: '~60m', standard: '~110m', extended: '~170m', kolossal: '~240m' };
   if (cat && catLabels[cat]) return catLabels[cat];
-  // Default fallback for films without duration data
-  if (film?.pipeline_state && film.pipeline_state !== 'draft') return '~110m';
-  return null;
+    if (film?.pipeline_state && film.pipeline_state !== 'draft') return null;
+    return null;
 }
 
 // === CAST EXTRACTOR (top 4-5, sorted by fame then value) ===
@@ -547,7 +546,14 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const statusInfo = getStatusInfo(film, contentType);
   const reviews = generateReviews(film.quality_score, film.popularity_score, contentType);
   const castInfo = extractCastInfo(film.cast, film);
-  const imdb = film.imdb_rating || (film.quality_score ? (film.quality_score / 10).toFixed(1) : null);
+  // IMDb / CW Score: scale 0-10. Prefer imdb_rating, then pre_imdb_score (already 0-10),
+  // finally quality_score (0-100, needs /10). Never divide a 0-10 value by 10 again.
+  const _rawQs = Number(film.quality_score);
+  const _imdb = Number.isFinite(Number(film.imdb_rating)) ? Number(film.imdb_rating).toFixed(1)
+    : Number.isFinite(Number(film.pre_imdb_score)) ? Number(film.pre_imdb_score).toFixed(1)
+    : Number.isFinite(_rawQs) ? (_rawQs > 10 ? (_rawQs / 10) : _rawQs).toFixed(1)
+    : null;
+  const imdb = _imdb;
   const durationStr = formatDuration(film, contentType);
   const shortPlot = (film.short_plot || film.preplot || film.pre_trama) ? cleanText(film.short_plot || film.preplot || film.pre_trama) : null;
   const trendPos = film.trend_position;
@@ -683,7 +689,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </>
         )}
         <Clock size={13} />
-        <span className="ct2-data-duration">{durationStr || '~110m'}</span>
+        <span className="ct2-data-duration">{durationStr || '—'}</span>
         {trendPos && (
           <>
             <span className="ct2-data-sep">|</span>

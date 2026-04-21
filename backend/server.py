@@ -3340,6 +3340,8 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
         or not film.get('pre_trama')
         or not film.get('short_plot')
         or not film.get('theater_stats')
+        or not film.get('duration_minutes')
+        or not film.get('quality_score')
     )
     if needs_backfill:
         src_id = film.get('source_project_id') or film.get('id')
@@ -3348,7 +3350,10 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
             {'_id': 0, 'screenplay': 1, 'screenplay_text': 1, 'pre_trama': 1,
              'preplot': 1, 'short_plot': 1, 'description': 1, 'trailer': 1,
              'theater_stats': 1, 'theater_weeks': 1, 'theater_end_date': 1,
-             'released_at': 1, 'premiere': 1}
+             'released_at': 1, 'premiere': 1,
+             'duration_minutes': 1, 'duration_category': 1,
+             'quality_score': 1, 'pre_imdb_score': 1, 'imdb_rating': 1,
+             'hype_score': 1, 'popularity_score': 1}
         ) if src_id else None
         if src:
             if not film.get('screenplay'):
@@ -3363,7 +3368,10 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
             # uses real counters instead of falling back to the default 21-day calc.
             if not film.get('theater_stats') and src.get('theater_stats'):
                 film['theater_stats'] = src['theater_stats']
-            for k in ('theater_weeks', 'theater_end_date', 'released_at', 'premiere'):
+            for k in ('theater_weeks', 'theater_end_date', 'released_at', 'premiere',
+                      'duration_minutes', 'duration_category',
+                      'quality_score', 'pre_imdb_score', 'imdb_rating',
+                      'hype_score', 'popularity_score'):
                 if not film.get(k) and src.get(k):
                     film[k] = src[k]
         # Fallback directly to v3 field names on the film doc itself

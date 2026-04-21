@@ -78,6 +78,7 @@ const CreatorBoard = React.lazy(() => import('./pages/CreatorBoard'));
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const DiscoveredStars = React.lazy(() => import('./pages/DiscoveredStars'));
 import { PWAInstallBanner } from './components/PWAInstallBanner';
+import UserStripBanner from './components/UserStripBanner';
 const DownloadAppPage = React.lazy(() => import('./pages/DownloadAppPage'));
 const FeedbackBoard = React.lazy(() => import('./pages/FeedbackBoard'));
 const FestivalsPage = React.lazy(() => import('./pages/FestivalsPage'));
@@ -1929,6 +1930,7 @@ const ProtectedRoute = ({ children }) => {
     <ProductionMenuContext.Provider value={{ isOpen: productionMenuOpen, setIsOpen: setProductionMenuOpen }}>
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
+      <UserStripBanner />
       <GlobalSideMenu />
       <SwipeNavigator />
       <LoginRewardPopup />

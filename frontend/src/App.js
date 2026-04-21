@@ -81,6 +81,7 @@ const DiscoveredStars = React.lazy(() => import('./pages/DiscoveredStars'));
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import UserStripBanner from './components/UserStripBanner';
 import QuickCommandsPanel from './components/QuickCommandsPanel';
+import GuestRegisterDialog from './components/GuestRegisterDialog';
 const DownloadAppPage = React.lazy(() => import('./pages/DownloadAppPage'));
 const FeedbackBoard = React.lazy(() => import('./pages/FeedbackBoard'));
 const FestivalsPage = React.lazy(() => import('./pages/FestivalsPage'));
@@ -965,13 +966,6 @@ const TopNavbar = () => {
 
     return () => clearTimeout(timer);
   }, [user?.is_guest, user?.tutorial_completed]);
-
-  // Allow any component to open the guest convert modal via custom event
-  useEffect(() => {
-    const handler = () => setShowGuestConvertModal(true);
-    window.addEventListener('open-guest-convert', handler);
-    return () => window.removeEventListener('open-guest-convert', handler);
-  }, []);
 
   // Core data - fetch once on mount + poll
   useEffect(() => {
@@ -1919,6 +1913,7 @@ const ProtectedRoute = ({ children }) => {
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
       <GlobalSideMenu />
+      <GuestRegisterDialog />
       <SwipeNavigator />
       <LoginRewardPopup />
       <AutoTickNotifications api={api} />
@@ -1934,27 +1929,6 @@ const ProtectedRoute = ({ children }) => {
         </PageTransition>
       </AnimatePresence>
       </div>
-
-      {/* Guest Convert Modal — opens via `open-guest-convert` event, triggered by REC button */}
-      {user?.is_guest && (
-        <Dialog open={showGuestConvertModal} onOpenChange={(o) => setShowGuestConvertModal(o)}>
-          <DialogContent className="bg-[#0f0f10] border border-red-500/30 max-w-sm p-0 overflow-hidden" data-testid="guest-convert-dialog">
-            <GuestConvertModalContent
-              user={user}
-              api={api}
-              form={guestConvertForm}
-              setForm={setGuestConvertForm}
-              converting={guestConverting}
-              setConverting={setGuestConverting}
-              onSuccess={() => {
-                setShowGuestConvertModal(false);
-                setTimeout(() => { try { refreshUser?.(); } catch {} window.location.reload(); }, 800);
-              }}
-              onDismiss={() => setShowGuestConvertModal(false)}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
 
       {/* Challenge Invite Popup */}
       {pendingChallengePopup && (

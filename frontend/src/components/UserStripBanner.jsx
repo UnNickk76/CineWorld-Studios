@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts';
 import { DollarSign, Ticket, Trophy, Star, ArrowLeft } from 'lucide-react';
+import { AvatarWithLogo } from './StudioName';
 
 /**
  * UserStripBanner
@@ -21,7 +22,6 @@ export default function UserStripBanner() {
 
   if (!user || onDashboard || onAuth) return null;
 
-  const avatar = user.avatar_url || user.avatar || null;
   const nickname = user.nickname || user.name || 'Player';
   const studio = user.studio_name || user.studio || user.production_house || `Studio ${nickname}`;
   const funds = user.funds ?? 0;
@@ -68,30 +68,14 @@ export default function UserStripBanner() {
         <ArrowLeft className="w-4 h-4 text-yellow-400" />
       </span>
 
-      {/* Double overlapping avatars */}
-      <div className="flex items-center shrink-0" style={{ width: 28 }}>
-        <div
-          className="w-4 h-4 rounded-full border border-yellow-500/50 bg-gray-900 overflow-hidden"
-          style={{ zIndex: 1 }}
-          aria-hidden="true"
-        >
-          {avatar ? (
-            <img src={avatar} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-yellow-600/40 to-amber-700/40" />
-          )}
-        </div>
-        <div
-          className="w-4 h-4 rounded-full border border-amber-400/60 bg-gray-900 overflow-hidden -ml-2"
-          style={{ zIndex: 2 }}
-          aria-hidden="true"
-        >
-          {avatar ? (
-            <img src={avatar} alt="" className="w-full h-full object-cover opacity-80" />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-amber-500/50 to-yellow-700/50" />
-          )}
-        </div>
+      {/* Avatar (utente dietro) + logo casa di produzione (davanti) — come in Dashboard */}
+      <div className="shrink-0" data-testid="user-strip-avatars">
+        <AvatarWithLogo
+          avatarUrl={user.avatar_url || user.avatar}
+          logoUrl={user.logo_url || user.studio_logo_url || user.production_house_logo}
+          nickname={user.nickname}
+          size="xs"
+        />
       </div>
 
       {/* User info — one row */}

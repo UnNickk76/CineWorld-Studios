@@ -1,4 +1,4 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useContext } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts';
 import { DollarSign, Ticket, Trophy, Star, ArrowLeft } from 'lucide-react';
@@ -29,29 +29,6 @@ export default function UserStripBanner() {
   const pstar = user.pstar ?? 0;
   const tstar = user.tstar ?? 0;
 
-  // Add a body class while the banner is visible so content pages can add top padding.
-  // Also measure the real TopNavbar height once and expose as --topnav-h.
-  useEffect(() => {
-    document.body.classList.add('has-user-strip');
-    let rafId;
-    const measure = () => {
-      const nav = document.querySelector('nav.fixed.top-0');
-      if (nav) {
-        const h = nav.getBoundingClientRect().height;
-        if (h > 0) document.documentElement.style.setProperty('--topnav-h', `${Math.round(h)}px`);
-      } else {
-        rafId = requestAnimationFrame(measure);
-      }
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => {
-      document.body.classList.remove('has-user-strip');
-      cancelAnimationFrame(rafId);
-      window.removeEventListener('resize', measure);
-    };
-  }, []);
-
   const fmtMoney = (n) => {
     if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
     if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
@@ -69,12 +46,13 @@ export default function UserStripBanner() {
       onClick={() => navigate('/dashboard')}
       data-testid="user-strip-banner"
       aria-label="Vai alla Dashboard per vedere tutte le stats"
-      className="user-strip-banner fixed left-0 right-0 z-[45] w-full flex items-center gap-2 px-3 py-1.5 border-b border-yellow-500/25 active:scale-[0.995] transition"
+      className="user-strip-banner sticky z-[45] w-full flex items-center gap-2 px-3 py-1.5 border-b border-yellow-500/25 active:scale-[0.995] transition"
       style={{
         top: 'calc(var(--topnav-h, 56px) + env(safe-area-inset-top, 0px))',
         background: 'linear-gradient(90deg, rgba(250,204,21,0.18) 0%, rgba(180,140,30,0.10) 50%, rgba(250,204,21,0.16) 100%)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
+        marginTop: 'var(--topnav-h, 56px)',
       }}
     >
       {/* Back arrow (replaces the old StickyPageHeader back button) */}

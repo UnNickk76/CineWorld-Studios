@@ -537,13 +537,6 @@ body[data-sidemenu="open"] .main-content-push {
   width: 100vw;
 }
 
-/* UserStripBanner — fixed strip below the top navbar (all pages except Dashboard).
-   Adds extra top padding on content when visible. */
-:root { --topnav-h: 56px; --user-strip-h: 32px; }
-body.has-user-strip .main-content-push {
-  padding-top: calc(var(--user-strip-h, 32px) + env(safe-area-inset-top, 0px)) !important;
-}
-
 /* ═══ Sticky page header back arrow pulse ═══ */
 @keyframes headerArrowPulse {
   0%, 100% { transform: scale(1); opacity: 0.85; }

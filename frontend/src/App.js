@@ -1225,10 +1225,10 @@ const TopNavbar = () => {
       <div className="max-w-7xl mx-auto h-11 px-0.5 flex items-center justify-between">
         {/* 8 icone principali: CIACK HOME PRODUCI ARENA LE MIE TV MAJOR CHAT NOTIFICHE */}
         <div className="flex items-center gap-0 w-full justify-between">
-          {/* CIACK — apre TitoliDiCoda (menù stile "credits" con tutte le pagine) */}
+          {/* CIACK — apre SideMenu (foto 3: drawer con filmstrip, Produci/Sceneggiature/Mercato/...) */}
           <Button variant="ghost" size="sm" className="relative flex flex-col h-10 w-8 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
-            onClick={() => { setMobileMenuOpen(true); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
-            data-testid="ciack-btn" aria-label="Menu Titoli di Coda">
+            onClick={() => { window.dispatchEvent(new Event('global-sidemenu-toggle')); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
+            data-testid="ciack-btn" aria-label="Menu">
             <Clapperboard className="w-3.5 h-3.5" />
             <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Menù</span>
             {(prodCounts.total > 0) && <span className="absolute top-0 -right-0.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
@@ -1911,12 +1911,12 @@ const ProtectedRoute = ({ children }) => {
     <ProductionMenuContext.Provider value={{ isOpen: productionMenuOpen, setIsOpen: setProductionMenuOpen }}>
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
-      <UserStripBanner />
       <GlobalSideMenu />
       <SwipeNavigator />
       <LoginRewardPopup />
       <AutoTickNotifications api={api} />
       <div className="main-content-push" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <UserStripBanner />
       <AnimatePresence>
         <PageTransition key={location.pathname}>
           <ErrorBoundary>

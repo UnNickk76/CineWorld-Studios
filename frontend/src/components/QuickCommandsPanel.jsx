@@ -180,8 +180,8 @@ export default function QuickCommandsPanel({ onClose }) {
 
   const openHamburger = () => {
     onClose?.();
-    // Open Titoli di Coda (the full "credits-style" menu) — NOT the SideMenu
-    window.dispatchEvent(new Event('open-titoli-di-coda'));
+    // Open SideMenu (foto 3 — drawer laterale con filmstrip, Produci/Sceneggiature/Mercato/ecc.)
+    window.dispatchEvent(new Event('global-sidemenu-toggle'));
     if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {}
   };
 

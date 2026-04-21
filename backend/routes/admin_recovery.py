@@ -478,59 +478,72 @@ def _is_missing(v):
 
 def _infer_duration_minutes(film: dict) -> int | None:
     """Infer duration from available signals. Returns None if cannot infer."""
-    # 1) Category mapping
-    cat = (film.get('duration_category') or '').lower()
-    if cat == 'short':
-        return 45
-    if cat == 'standard':
-        return 100
-    if cat == 'long':
-        return 135
-    if cat == 'epic':
-        return 170
+    # 0) V3 alias — if film_duration_minutes was saved but duration_minutes is missing
+    fdm = film.get('film_duration_minutes')
+    if fdm and isinstance(fdm, (int, float)) and fdm > 0:
+        return int(fdm)
+    # 1) Category mapping (covers V3 labels + V1/V2 categories)
+    cat = (film.get('duration_category') or film.get('film_duration_label') or '').lower()
+    cat_map = {
+        'short': 45, 'standard': 100, 'long': 135, 'epic': 170,
+        'cortometraggio': 30, 'feature_breve': 60, 'extended': 170, 'kolossal': 240,
+    }
+    if cat in cat_map:
+        return cat_map[cat]
     # 2) Budget tier fallback
     tier = (film.get('budget_tier') or '').lower()
-    if tier == 'low':
-        return 85
-    if tier == 'mid':
-        return 105
-    if tier == 'high':
-        return 125
-    if tier == 'blockbuster':
-        return 145
-    # 3) Weeks_in_theater heuristic (longer films tend to stay longer)
+    tier_map = {'low': 85, 'mid': 105, 'high': 125, 'blockbuster': 145}
+    if tier in tier_map:
+        return tier_map[tier]
+    # 3) Weeks_in_theater heuristic
     weeks = film.get('weeks_in_theater')
     if weeks and isinstance(weeks, (int, float)):
-        if weeks >= 6:
-            return 130
-        if weeks >= 4:
-            return 110
-        if weeks >= 2:
-            return 95
-    return None
+        if weeks >= 6: return 130
+        if weeks >= 4: return 110
+        if weeks >= 2: return 95
+    # 4) Default safe: 100 minutes (standard)
+    return 100
 
 
 def _infer_quality(film: dict) -> int | None:
-    """Infer quality_score from other signals."""
-    # Try imdb_rating (0-10)
+    """Infer quality_score from other signals. Returns 0-100 scale."""
+    # V3 alias: final_quality
+    fq = film.get('final_quality')
+    if fq and isinstance(fq, (int, float)) and fq > 0:
+        # V3 saves final_quality as 1.0-10.0 → rescale to 0-100
+        return int(round(fq * 10)) if fq <= 10 else int(round(fq))
+    # cwsv_display (string or number)
+    cw = film.get('cwsv_display')
+    if cw:
+        try:
+            cv = float(cw)
+            if cv > 0:
+                return int(round(cv * 10)) if cv <= 10 else int(round(cv))
+        except (ValueError, TypeError):
+            pass
+    # imdb_rating (0-10)
     imdb = film.get('imdb_rating')
     if imdb and isinstance(imdb, (int, float)) and imdb > 0:
         return int(round(imdb * 10))
-    # Try pre_imdb_score
     pre = film.get('pre_imdb_score')
     if pre and isinstance(pre, (int, float)) and pre > 0:
         return int(round(pre * 10))
-    # Try audience_satisfaction (0-100)
     aud = film.get('audience_satisfaction')
     if aud and isinstance(aud, (int, float)) and aud > 0:
         return int(round(aud))
-    # Try average quality_breakdown
     qb = film.get('quality_breakdown')
     if isinstance(qb, dict) and qb:
         vals = [v for v in qb.values() if isinstance(v, (int, float)) and v > 0]
         if vals:
             return int(round(sum(vals) / len(vals)))
-    return None
+    # Revenue-based rough proxy: if film made money, give it at least mid-range quality
+    rev = film.get('total_revenue') or film.get('realistic_box_office') or 0
+    if rev and rev > 0:
+        import math
+        # 10K = 35, 100K = 55, 1M = 75, 10M = 85
+        return max(35, min(85, int(20 + math.log10(max(1, rev)) * 10)))
+    # Default: give 50 (neutral) so it doesn't show "0.0"
+    return 50
 
 
 def _infer_hype(film: dict) -> int | None:
@@ -548,23 +561,20 @@ def _infer_hype(film: dict) -> int | None:
 
 @router.get("/legacy-film-preview")
 async def preview_legacy_film_fixes(user: dict = Depends(get_current_user)):
-    """Admin: preview films that would be patched by the legacy fix job.
-    Lists films with missing duration_minutes / quality_score / hype that CAN be inferred.
-    """
+    """Admin: preview films that would be patched by the legacy fix job."""
     if user.get('nickname') != 'NeoMorpheus' and user.get('role') not in ('admin', 'CO_ADMIN'):
         raise HTTPException(403, "Solo admin")
 
+    _missing = lambda field: {'$or': [{field: None}, {field: 0}, {field: ''}, {field: {'$exists': False}}]}
     films = await db.films.find(
-        {'$or': [
-            {'duration_minutes': {'$in': [None, 0]}},
-            {'quality_score': {'$in': [None, 0]}},
-            {'hype': {'$in': [None, 0]}},
-        ]},
+        {'$or': [_missing('duration_minutes'), _missing('quality_score'), _missing('hype')]},
         {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'duration_minutes': 1, 'quality_score': 1,
          'hype': 1, 'duration_category': 1, 'budget_tier': 1, 'weeks_in_theater': 1,
          'imdb_rating': 1, 'pre_imdb_score': 1, 'audience_satisfaction': 1,
-         'quality_breakdown': 1, 'virtual_likes': 1, 'likes_count': 1, 'trend_score': 1}
-    ).to_list(2000)
+         'quality_breakdown': 1, 'virtual_likes': 1, 'likes_count': 1, 'trend_score': 1,
+         'film_duration_minutes': 1, 'film_duration_label': 1, 'cwsv_display': 1, 'final_quality': 1,
+         'total_revenue': 1, 'realistic_box_office': 1, 'current_cinemas': 1}
+    ).to_list(5000)
 
     preview = []
     for f in films:
@@ -611,16 +621,15 @@ async def apply_legacy_film_fixes(user: dict = Depends(get_current_user)):
     if user.get('nickname') != 'NeoMorpheus' and user.get('role') not in ('admin', 'CO_ADMIN'):
         raise HTTPException(403, "Solo admin")
 
+    _missing = lambda field: {'$or': [{field: None}, {field: 0}, {field: ''}, {field: {'$exists': False}}]}
     films = await db.films.find(
-        {'$or': [
-            {'duration_minutes': {'$in': [None, 0]}},
-            {'quality_score': {'$in': [None, 0]}},
-            {'hype': {'$in': [None, 0]}},
-        ]},
+        {'$or': [_missing('duration_minutes'), _missing('quality_score'), _missing('hype')]},
         {'_id': 0, 'id': 1, 'title': 1, 'duration_minutes': 1, 'quality_score': 1,
          'hype': 1, 'duration_category': 1, 'budget_tier': 1, 'weeks_in_theater': 1,
          'imdb_rating': 1, 'pre_imdb_score': 1, 'audience_satisfaction': 1,
-         'quality_breakdown': 1, 'virtual_likes': 1, 'likes_count': 1, 'trend_score': 1}
+         'quality_breakdown': 1, 'virtual_likes': 1, 'likes_count': 1, 'trend_score': 1,
+         'film_duration_minutes': 1, 'film_duration_label': 1, 'cwsv_display': 1, 'final_quality': 1,
+         'total_revenue': 1, 'realistic_box_office': 1}
     ).to_list(5000)
 
     patched = 0

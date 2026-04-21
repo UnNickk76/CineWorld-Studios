@@ -1935,6 +1935,27 @@ const ProtectedRoute = ({ children }) => {
       </AnimatePresence>
       </div>
 
+      {/* Guest Convert Modal — opens via `open-guest-convert` event, triggered by REC button */}
+      {user?.is_guest && (
+        <Dialog open={showGuestConvertModal} onOpenChange={(o) => setShowGuestConvertModal(o)}>
+          <DialogContent className="bg-[#0f0f10] border border-red-500/30 max-w-sm p-0 overflow-hidden" data-testid="guest-convert-dialog">
+            <GuestConvertModalContent
+              user={user}
+              api={api}
+              form={guestConvertForm}
+              setForm={setGuestConvertForm}
+              converting={guestConverting}
+              setConverting={setGuestConverting}
+              onSuccess={() => {
+                setShowGuestConvertModal(false);
+                setTimeout(() => { try { refreshUser?.(); } catch {} window.location.reload(); }, 800);
+              }}
+              onDismiss={() => setShowGuestConvertModal(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Challenge Invite Popup */}
       {pendingChallengePopup && (
         <Dialog open={!!pendingChallengePopup} onOpenChange={(o) => { if(!o) setPendingChallengePopup(null); }}>

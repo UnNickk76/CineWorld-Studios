@@ -372,7 +372,22 @@ const Dashboard = () => {
 
           {/* Welcome header */}
           <div className="mb-4" data-testid="dashboard-welcome">
-            <p className="text-gray-400 text-xs">Benvenuto in CineWorld Studio's,</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-gray-400 text-xs">Benvenuto in CineWorld Studio's,</p>
+              {user?.is_guest && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/auth?mode=register')}
+                  data-testid="guest-register-rec-btn"
+                  aria-label="Registrati ora"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-red-900/60 animate-pulse"
+                  style={{ animationDuration: '2s' }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" style={{ animationDuration: '1.2s' }} />
+                  <span>REC · Registrati!</span>
+                </button>
+              )}
+            </div>
             <button className="text-left w-full" onClick={() => setShowWelcomeStats(p => !p)} data-testid="welcome-nickname-btn">
               <div className="flex items-center gap-2 mt-1">
                 {/* Avatar + Logo sovrapposti */}

@@ -70,32 +70,32 @@ export default function UltimiTrailerStrip({ limit = 10 }) {
             <button
               key={it.content_id}
               onClick={() => openTrailer(it)}
-              className={`snap-start flex-shrink-0 w-32 rounded-xl overflow-hidden border bg-black/40 text-left hover:scale-[1.03] transition-transform ${isHighlights ? 'border-amber-500/40' : 'border-sky-500/25'}`}
+              className={`snap-start flex-shrink-0 w-16 rounded-lg overflow-hidden border bg-black/40 text-left hover:scale-[1.03] transition-transform ${isHighlights ? 'border-amber-500/40' : 'border-sky-500/25'}`}
               data-testid={`recent-trailer-${it.content_id}`}>
               <div className="relative aspect-[2/3] bg-gray-900">
                 {posterUrl(it.poster_url) && (
                   <img src={posterUrl(it.poster_url)} alt="" className="absolute inset-0 w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent" />
-                <div className={`absolute top-1 right-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gradient-to-br ${tierColor}`}>
-                  <TierIcon className="w-2.5 h-2.5 text-white" />
-                  <span className="text-[8px] font-black text-white uppercase">{it.tier}</span>
+                <div className={`absolute top-0.5 right-0.5 flex items-center gap-0.5 px-1 py-0 rounded-full bg-gradient-to-br ${tierColor}`}>
+                  <TierIcon className="w-2 h-2 text-white" />
+                  <span className="text-[5px] font-black text-white uppercase">{it.tier}</span>
                 </div>
                 {isHighlights && (
-                  <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded-full bg-amber-500/80 text-[7px] font-black text-black">🏆 HL</span>
+                  <span className="absolute top-0.5 left-0.5 px-1 py-0 rounded-full bg-amber-500/80 text-[5px] font-black text-black">🏆</span>
                 )}
                 {!!it.tstar && (
-                  <span className="absolute bottom-11 right-1 px-1.5 py-0.5 rounded-full bg-black/60 border border-yellow-400/40 text-[8px] font-bold text-yellow-300">TStar {Math.round(it.tstar)}</span>
+                  <span className="absolute bottom-6 right-0.5 px-1 py-0 rounded-full bg-black/60 border border-yellow-400/40 text-[5px] font-bold text-yellow-300">T{Math.round(it.tstar)}</span>
                 )}
-                <div className="absolute bottom-1 left-1 right-1">
-                  <p className="text-[10px] font-bold text-white truncate">{it.title}</p>
-                  <p className="text-[8px] text-gray-400 truncate flex items-center gap-1">
-                    <Clock className="w-2 h-2" /> {timeAgo(it.generated_at)}
+                <div className="absolute bottom-0.5 left-0.5 right-0.5">
+                  <p className="text-[6px] font-bold text-white truncate">{it.title}</p>
+                  <p className="text-[5px] text-gray-400 truncate flex items-center gap-0.5">
+                    <Clock className="w-1.5 h-1.5" /> {timeAgo(it.generated_at)}
                   </p>
                 </div>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center">
-                    <Play className="w-4 h-4 text-black fill-black" />
+                  <div className="w-4 h-4 rounded-full bg-white/90 flex items-center justify-center">
+                    <Play className="w-2 h-2 text-black fill-black" />
                   </div>
                 </div>
               </div>

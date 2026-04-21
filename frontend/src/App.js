@@ -79,6 +79,7 @@ const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const DiscoveredStars = React.lazy(() => import('./pages/DiscoveredStars'));
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import UserStripBanner from './components/UserStripBanner';
+import QuickCommandsPanel from './components/QuickCommandsPanel';
 const DownloadAppPage = React.lazy(() => import('./pages/DownloadAppPage'));
 const FeedbackBoard = React.lazy(() => import('./pages/FeedbackBoard'));
 const FestivalsPage = React.lazy(() => import('./pages/FestivalsPage'));
@@ -506,49 +507,7 @@ const MobileBottomNav = () => {
               transition={{ type: 'spring', damping: 25, stiffness: 400 }}
               className="fixed bottom-[52px] left-1 right-1 z-[56] sm:hidden" data-testid="quick-commands-panel"
             >
-              <div className="bg-[#111113] border border-white/10 rounded-xl p-2 shadow-2xl relative">
-                <p className="text-[9px] text-yellow-500/60 uppercase tracking-widest font-semibold px-2 mb-1.5">Comandi Rapidi</p>
-                <div className="grid grid-cols-4 gap-1">
-                  {quickCommands.map(c => (
-                    <button key={c.path}
-                      className={`flex flex-col items-center gap-0.5 py-2 rounded-lg transition-all ${location.pathname === c.path ? 'bg-yellow-500/15 text-yellow-400' : 'text-gray-400 hover:bg-white/5'}`}
-                      onClick={() => { navigate(c.path); setShowQuickCommands(false); }}
-                      data-testid={`qc-${c.label.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <c.icon className="w-4 h-4" />
-                      <span className="text-[7px] leading-tight">{c.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* 🍔 Titoli di Coda — hamburger centrale blu: apre il SideMenu */}
-                <button
-                  onClick={() => {
-                    setShowQuickCommands(false);
-                    window.dispatchEvent(new Event('global-sidemenu-toggle'));
-                    if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {}
-                  }}
-                  data-testid="qc-titoli-di-coda"
-                  title="Titoli di Coda (menu completo)"
-                  aria-label="Apri menu Titoli di Coda"
-                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 translate-y-[7px] w-11 h-11 rounded-full
-                             bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700
-                             hover:brightness-110 border-2 border-white/30
-                             shadow-xl shadow-blue-900/60
-                             flex items-center justify-center
-                             active:scale-90 transition
-                             animate-[sideMenuPulse_2.4s_ease-in-out_infinite]"
-                >
-                  <Menu className="w-5 h-5 text-white" strokeWidth={2.5} />
-                </button>
-
-                <style>{`
-                  @keyframes sideMenuPulse {
-                    0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.7), 0 8px 20px rgba(30,64,175,0.5); }
-                    50% { box-shadow: 0 0 0 8px rgba(59,130,246,0), 0 8px 20px rgba(30,64,175,0.5); }
-                  }
-                `}</style>
-              </div>
+              <QuickCommandsPanel onClose={() => setShowQuickCommands(false)} />
             </motion.div>
           </>
         )}
@@ -1244,10 +1203,10 @@ const TopNavbar = () => {
       <div className="max-w-7xl mx-auto h-11 px-0.5 flex items-center justify-between">
         {/* 8 icone principali: CIACK HOME PRODUCI ARENA LE MIE TV MAJOR CHAT NOTIFICHE */}
         <div className="flex items-center gap-0 w-full justify-between">
-          {/* CIACK */}
+          {/* CIACK — apre TitoliDiCoda (menù stile "credits" con tutte le pagine) */}
           <Button variant="ghost" size="sm" className="relative flex flex-col h-10 w-8 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
-            onClick={() => { window.dispatchEvent(new Event('global-sidemenu-toggle')); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
-            data-testid="ciack-btn" aria-label="Menu">
+            onClick={() => { setMobileMenuOpen(true); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
+            data-testid="ciack-btn" aria-label="Menu Titoli di Coda">
             <Clapperboard className="w-3.5 h-3.5" />
             <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Menù</span>
             {(prodCounts.total > 0) && <span className="absolute top-0 -right-0.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}

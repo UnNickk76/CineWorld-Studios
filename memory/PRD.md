@@ -10,7 +10,15 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
-- **Feb 2026 — Soft-lock Fix + Admin Rescue + Legacy Data Fix (this session)**
+- **Feb 2026 — UI Coherence Overhaul (this session)**
+  - **Root cause "★ 0.0 · ⏱ —" (dati rotti)**: `formatDuration()` leggeva solo `duration_minutes`, mentre i film V3 salvano `film_duration_minutes`. **Fix**: `formatDuration` ora legge entrambi + fallback budget_tier; `confirm-release` V3 salva anche `duration_minutes` + `duration_category`. Imdb display nasconde lo star quando quality è 0/null.
+  - **La Prima countdown**: chip animato con Clock dentro `PStarBanner` che mostra hh:mm rimanenti. Pulse dorato + glow.
+  - **La Prima + Prossimamente in "I Miei"**: `/api/films/my` unifica `db.films` con `db.film_projects` (stati non-released) e mappa pipeline_state → status.
+  - **PosterCard glow**: oro per LA PRIMA, azure per PROSSIMAMENTE, verde CINEMA, indigo IN TV. Label Bebas in fondo.
+  - **FilmActionsSheet ovunque**: MyFilms dispatcha `open-film-actions` per i film (non più popup legacy). Include "Invia alla mia TV" + nuovo **Trailer banner** (play arancione se generato, lock grigio se freezato).
+  - Files: `server.py` (/films/my), `pipeline_v3.py` (duration_minutes alias), `ContentTemplate.jsx` (formatDuration + imdb guard), `PStarBanner.jsx` (LaPrimaCountdown), `MyFilms.jsx` (PosterCard glow + dispatch), `FilmActionsSheet.jsx` (TrailerBanner).
+
+- **Feb 2026 — Soft-lock Fix + Admin Rescue + Legacy Data Fix**
   - **Bug fix Emilians Anime stuck**: root cause = `/api/series/{id}` cercava SOLO in `db.tv_series`, ignorando V3 (`series_projects_v3`) e V2 (`film_projects` con `content_type='anime'/'serie_tv'`). Quando un anime V3 veniva cliccato, 404 → ContentTemplate loop infinito "Caricamento...".
   - **Backend patch**: esteso `/api/series/{series_id}` con fallback a `series_projects_v3` e `film_projects`, normalizzando i campi (title, type, pipeline_state, num_episodes, ecc.).
   - **Frontend patch** (`ContentTemplate.jsx`): nuovo state `notFound` + UI dedicata con messaggio "Contenuto non disponibile" + pulsanti "Torna indietro" / "Riprova" — mai più infinite loader.

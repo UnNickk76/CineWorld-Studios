@@ -2417,6 +2417,8 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "film_format": project.get("film_format", "standard"),
         "film_duration_minutes": project.get("film_duration_minutes"),
         "film_duration_label": project.get("film_duration_label"),
+        "duration_minutes": project.get("film_duration_minutes") or project.get("duration_minutes"),
+        "duration_category": project.get("film_duration_label") or project.get("duration_category"),
         "shooting_days": project.get("shooting_days"),
         "selected_sponsors": project.get("selected_sponsors", []),
         "marketing_packages": project.get("marketing_packages", []),

@@ -2268,9 +2268,60 @@ async def get_my_films(user: dict = Depends(get_current_user)):
         'audience_satisfaction': 1, 'budget': 1, 'total_budget': 1,
         'created_at': 1, 'released_at': 1, 'release_date': 1, 'studio_id': 1,
         'is_sequel': 1, 'sequel_parent_id': 1, 'current_week': 1,
-        'opening_day_revenue': 1, 'last_revenue_collected': 1
+        'opening_day_revenue': 1, 'last_revenue_collected': 1,
+        'pipeline_state': 1, 'pipeline_version': 1, 'premiere': 1, 'release_type': 1,
     }
     films = await db.films.find({'user_id': user['id']}, list_fields).sort('created_at', -1).to_list(100)
+
+    # Extend: include V3 film_projects (content_type=film) that are NOT yet in db.films
+    # (states: la_prima/premiere_live/hype/coming_soon/marketing/distribution/release_pending/idea/...)
+    existing_ids = {f['id'] for f in films}
+    fp_fields = {
+        '_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'subtitle': 1, 'poster_url': 1,
+        'genre': 1, 'quality_score': 1, 'virtual_likes': 1, 'likes_count': 1,
+        'created_at': 1, 'released_at': 1, 'pipeline_state': 1, 'premiere': 1,
+        'release_type': 1, 'total_revenue': 1, 'source_project_id': 1,
+        'budget_tier': 1, 'num_cinemas': 1,
+    }
+    v3_films = await db.film_projects.find(
+        {
+            'user_id': user['id'],
+            'content_type': 'film',
+            'pipeline_state': {'$nin': ['released', 'discarded', 'completed']},
+        },
+        fp_fields
+    ).sort('created_at', -1).to_list(100)
+    for fp in v3_films:
+        if fp['id'] in existing_ids:
+            continue
+        # Map pipeline_state → status for badge compatibility
+        ps = fp.get('pipeline_state', 'idea')
+        if ps == 'la_prima':
+            prem = fp.get('premiere') or {}
+            pdt = prem.get('datetime')
+            if pdt:
+                try:
+                    dt = datetime.fromisoformat(str(pdt).replace('Z', '+00:00'))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    now = datetime.now(timezone.utc)
+                    if now >= dt and now < dt + timedelta(hours=24):
+                        fp['status'] = 'premiere_live'
+                    elif now < dt:
+                        fp['status'] = 'la_prima_waiting'
+                    else:
+                        fp['status'] = 'la_prima'
+                except Exception:
+                    fp['status'] = 'la_prima'
+            else:
+                fp['status'] = 'la_prima'
+        elif ps in ('hype', 'hype_setup', 'hype_live', 'marketing', 'distribution', 'release_pending'):
+            fp['status'] = 'coming_soon'
+        else:
+            fp['status'] = ps
+        fp['pipeline_version'] = 3
+        films.append(fp)
+
     return films
 
 @api_router.get("/films/pending")

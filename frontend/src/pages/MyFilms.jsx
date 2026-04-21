@@ -237,11 +237,17 @@ export default function MyFilms({ playerId, playerName, isPublicView }) {
                   isOwner={isOwner}
                   regenLoading={regenLoading}
                   onClick={() => {
-                    if (isOwner) {
-                      setActionPopup(enriched);
+                  if (isOwner) {
+                    const isFilmType = contentType === 'film';
+                    if (isFilmType) {
+                      // Open unified FilmActionsSheet
+                      window.dispatchEvent(new CustomEvent('open-film-actions', { detail: { film: enriched } }));
                     } else {
-                      handleView(enriched);
+                      setActionPopup(enriched);
                     }
+                  } else {
+                    handleView(enriched);
+                  }
                   }}
                 />
               );
@@ -355,22 +361,20 @@ function getPhaseBadge(item) {
   const onTv = item?.on_tv || item?.tv_broadcast || false;
   const isSeriesLike = item?._contentType === 'tv_series' || item?._contentType === 'anime';
 
-  if (cinemas > 0 || s === 'in_theaters') return { label: isSeriesLike ? 'IN TV' : 'CINEMA', cls: 'bg-emerald-500/90 text-white shadow-[0_0_6px_rgba(96,220,110,0.6)]' };
-  if (onTv) return { label: 'IN TV', cls: 'bg-indigo-500/90 text-white shadow-[0_0_6px_rgba(110,150,255,0.6)]' };
-  if (ps === 'la_prima' || ps === 'premiere_live' || ps === 'premiere_setup' || s.includes('prima')) return { label: 'LA PRIMA', cls: 'bg-yellow-500/90 text-black shadow-[0_0_6px_rgba(240,208,96,0.7)]' };
+  if (cinemas > 0 || s === 'in_theaters') return { label: isSeriesLike ? 'IN TV' : 'CINEMA', cls: 'bg-emerald-500/90 text-white shadow-[0_0_6px_rgba(96,220,110,0.6)]', glow: 'emerald' };
+  if (onTv) return { label: 'IN TV', cls: 'bg-indigo-500/90 text-white shadow-[0_0_6px_rgba(110,150,255,0.6)]', glow: 'indigo' };
+  if (ps === 'la_prima' || ps === 'premiere_live' || ps === 'premiere_setup' || s === 'premiere_live' || s === 'la_prima' || s === 'la_prima_waiting' || s.includes('prima'))
+    return { label: 'LA PRIMA', cls: 'bg-yellow-400 text-black shadow-[0_0_8px_rgba(240,208,96,0.9)]', glow: 'gold' };
+  if (s === 'coming_soon' || s === 'pending_release' || ps === 'release_pending' || ps === 'hype' || ps === 'hype_setup' || ps === 'hype_live' || ps === 'marketing' || ps === 'distribution' || s.includes('hype'))
+    return { label: 'PROSSIMAMENTE', cls: 'bg-sky-400 text-black shadow-[0_0_8px_rgba(96,200,255,0.9)]', glow: 'sky' };
   const V3 = {
     idea: { label: 'SCEN', cls: 'bg-violet-500/90 text-white' },
-    hype: { label: 'HYPE', cls: 'bg-cyan-500/90 text-white shadow-[0_0_6px_rgba(96,205,255,0.6)]' },
     cast: { label: 'CAST', cls: 'bg-yellow-400/90 text-black' },
     prep: { label: 'PREP', cls: 'bg-sky-400/90 text-black' },
     ciak: { label: 'CIAK', cls: 'bg-red-500/90 text-white' },
     finalcut: { label: 'F.CUT', cls: 'bg-orange-500/90 text-white shadow-[0_0_6px_rgba(255,156,72,0.6)]' },
-    marketing: { label: 'MKT', cls: 'bg-teal-500/90 text-white' },
-    distribution: { label: 'DIST', cls: 'bg-blue-400/90 text-black' },
-    release_pending: { label: 'USCITA', cls: 'bg-cyan-400/90 text-black' },
   };
   if (V3[ps]) return V3[ps];
-  if (s === 'coming_soon' || s === 'pending_release' || s === 'release_pending' || s.includes('hype')) return { label: 'HYPE', cls: 'bg-cyan-500/90 text-white' };
   if (s === 'shooting' || s === 'in_production' || s === 'production') return { label: 'CIAK', cls: 'bg-red-500/90 text-white' };
   if (s === 'casting' || s === 'ready_for_casting') return { label: 'CAST', cls: 'bg-yellow-400/90 text-black' };
   if (s === 'screenplay' || s === 'draft' || s === 'proposed' || s === 'concept' || s === 'idea') return { label: 'SCEN', cls: 'bg-violet-500/90 text-white' };
@@ -386,10 +390,19 @@ function PosterCard({ item, isOwner, regenLoading, onClick }) {
   const url = posterSrc(item.poster_url);
   const isRegen = regenLoading === item.id;
   const phase = getPhaseBadge(item);
+  const glowStyle = phase.glow === 'gold' ? { boxShadow: '0 0 14px rgba(255,215,96,0.55), 0 0 4px rgba(255,215,96,0.8) inset' }
+    : phase.glow === 'sky' ? { boxShadow: '0 0 12px rgba(96,200,255,0.5), 0 0 4px rgba(96,200,255,0.7) inset' }
+    : phase.glow === 'emerald' ? { boxShadow: '0 0 10px rgba(80,220,110,0.4)' }
+    : phase.glow === 'indigo' ? { boxShadow: '0 0 10px rgba(110,150,255,0.4)' }
+    : undefined;
+  const borderCls = phase.glow === 'gold' ? 'border-yellow-400/70'
+    : phase.glow === 'sky' ? 'border-sky-400/70'
+    : phase.glow === 'emerald' ? 'border-emerald-500/50'
+    : 'border-white/5';
 
   return (
     <div className="relative cursor-pointer active:scale-95 transition-transform" onClick={onClick} data-testid={`poster-${item.id}`}>
-      <div className="aspect-[2/3] rounded-md overflow-hidden bg-[#111113] border border-white/5">
+      <div className={`aspect-[2/3] rounded-md overflow-hidden bg-[#111113] border ${borderCls}`} style={glowStyle}>
         {url ? (
           <img src={url} alt={item.title} className="w-full h-full object-cover" loading="lazy"
             onError={(e) => { e.target.style.display = 'none'; }} />

@@ -10,7 +10,7 @@ import { AuthContext } from '../contexts';
 import {
   Eye, Megaphone, Wand2, ChevronDown, Store, Trash2, X,
   Tv, Zap, Clock, Film as FilmIcon, Loader2, AlertTriangle,
-  TrendingDown, TrendingUp, Minus, Info
+  TrendingDown, TrendingUp, Minus, Info, Play, Lock
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -42,6 +42,8 @@ export default function FilmActionsSheet() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmSell, setConfirmSell] = useState(false);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
+  const [trailer, setTrailer] = useState(null);
+  const [trailerLoading, setTrailerLoading] = useState(false);
 
   // Listener
   useEffect(() => {
@@ -58,6 +60,10 @@ export default function FilmActionsSheet() {
       setTvSection(false);
       setPickStation(null);
       setDelayHours(24);
+      // fetch trailer status (non-blocking)
+      setTrailer(null);
+      setTrailerLoading(true);
+      api.get(`/trailers/${f.id}`).then(r => setTrailer(r.data?.trailer || null)).catch(() => setTrailer(null)).finally(() => setTrailerLoading(false));
     };
     window.addEventListener('open-film-actions', handler);
     return () => window.removeEventListener('open-film-actions', handler);
@@ -228,6 +234,8 @@ export default function FilmActionsSheet() {
             {/* Body: main menu or La Mia TV panel */}
             {!tvSection ? (
               <div className="p-3 space-y-1 max-h-[65vh] overflow-y-auto">
+                {/* Trailer banner */}
+                <TrailerBanner film={film} trailer={trailer} trailerLoading={trailerLoading} onGo={() => { navigate(`/films/${film.id}?panel=trailer`); close(); }} />
                 <ActionRow icon={<Eye className="w-4 h-4" />} color="text-cyan-400" label="Dettaglio Film" hint="Pipeline, stats, locandina" onClick={handleView} testId="fa-view" />
                 {isInTheaters && (
                   <ActionRow icon={<Megaphone className="w-4 h-4" />} color="text-yellow-400" label="Campagna ADV" hint="Promuovi il film al cinema" onClick={handleAdv} testId="fa-adv" />
@@ -321,6 +329,53 @@ export default function FilmActionsSheet() {
       )}
     </AnimatePresence>,
     document.body
+  );
+}
+
+/* ─── Trailer Banner ─── */
+function TrailerBanner({ film, trailer, trailerLoading, onGo }) {
+  const hasTrailer = Boolean(trailer);
+  const frames = trailer?.frames?.length || 0;
+  const thumb = trailer?.frames?.[0]?.image_url || trailer?.frames?.[0]?.storage_path || film.poster_url;
+  const thumbSrc = thumb && thumb.startsWith('http') ? thumb : (thumb ? `${API}${thumb}` : null);
+  return (
+    <button
+      onClick={onGo}
+      className={`w-full relative overflow-hidden rounded-xl border transition-all active:scale-[0.98] mb-1
+        ${hasTrailer
+          ? 'bg-gradient-to-r from-[#1a0f08] via-[#140b06] to-[#0f0804] border-orange-500/40 shadow-[0_0_18px_rgba(245,166,35,0.22)] hover:border-orange-400/70'
+          : 'bg-[#0b0a09] border-white/10 opacity-95'}`}
+      data-testid="fa-trailer-banner"
+    >
+      <div className="flex items-center gap-2 p-2">
+        {/* Thumb */}
+        <div className={`relative w-14 h-10 rounded-md overflow-hidden flex-shrink-0 bg-black border
+          ${hasTrailer ? 'border-orange-400/50' : 'border-white/10 grayscale'}`}>
+          {thumbSrc ? (
+            <img src={thumbSrc} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center"><FilmIcon className="w-4 h-4 text-gray-600" /></div>
+          )}
+          <div className="absolute inset-0 flex items-center justify-center bg-black/35">
+            {trailerLoading ? <Loader2 className="w-4 h-4 text-white animate-spin" />
+              : hasTrailer ? <Play className="w-4 h-4 text-white fill-current drop-shadow" />
+              : <Lock className="w-4 h-4 text-gray-500" />}
+          </div>
+        </div>
+        <div className="flex-1 min-w-0 text-left">
+          <p className={`text-[11px] font-black tracking-[0.15em] uppercase ${hasTrailer ? 'text-orange-300' : 'text-gray-500'}`}>
+            Trailer
+          </p>
+          <p className={`text-[9px] ${hasTrailer ? 'text-orange-100/80' : 'text-gray-500'}`}>
+            {trailerLoading ? 'Carico stato...' : hasTrailer ? `${frames} fotogrammi · ${trailer.duration_seconds || '—'}s` : 'Non ancora generato — clicca per crearlo'}
+          </p>
+        </div>
+        <ChevronDown className={`w-4 h-4 rotate-[-90deg] flex-shrink-0 ${hasTrailer ? 'text-orange-400' : 'text-gray-600'}`} />
+      </div>
+      {!hasTrailer && (
+        <div className="h-[2px] w-full bg-gradient-to-r from-gray-700 via-gray-500 to-gray-700 opacity-30" />
+      )}
+    </button>
   );
 }
 

@@ -95,6 +95,12 @@ export default function PStarBanner({ film }) {
               <span className="text-[11px] font-black" style={{ color: scoreColor }}>{entry.score.toFixed(1)}</span>
             </div>
           )}
+          {state === 'live' && end && (
+            <LaPrimaCountdown endTs={end} color={scoreColor} />
+          )}
+          {state === 'waiting' && pdt && (
+            <LaPrimaCountdown endTs={pdt} color={scoreColor} waiting />
+          )}
         </div>
         <style>{`
           @keyframes pstar-shine { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
@@ -239,3 +245,35 @@ export default function PStarBanner({ film }) {
     </>
   );
 }
+
+/* ─── La Prima Countdown chip ─── */
+function LaPrimaCountdown({ endTs, color, waiting = false }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, []);
+  const remaining = Math.max(0, Math.floor((endTs - now) / 1000));
+  if (remaining <= 0) return null;
+  const hours = Math.floor(remaining / 3600);
+  const mins = Math.floor((remaining % 3600) / 60);
+  const secs = remaining % 60;
+  const label = hours > 0 ? `${hours}h ${String(mins).padStart(2, '0')}m` : `${mins}:${String(secs).padStart(2, '0')}`;
+  return (
+    <div
+      className="flex items-center gap-1 px-2 py-1 rounded-full flex-shrink-0 animate-pulse"
+      style={{
+        background: `linear-gradient(135deg, ${color}35, ${color}10)`,
+        border: `1px solid ${color}70`,
+        boxShadow: `0 0 10px ${color}40`,
+      }}
+      data-testid="la-prima-countdown"
+    >
+      <Clock className="w-3 h-3" style={{ color }} />
+      <span className="text-[10px] font-black tracking-wide" style={{ color, fontFamily: "'Bebas Neue', sans-serif" }}>
+        {waiting ? '-' : ''}{label}
+      </span>
+    </div>
+  );
+}
+

@@ -2771,6 +2771,175 @@ async def get_my_featured_films(user: dict = Depends(get_current_user), limit: i
     
     return films[:limit]
 
+
+# ═══════════════════════════════════════════════════════════════
+# AL CINEMA — Tracking dashboard endpoint for "I Miei > Al Cinema"
+# ═══════════════════════════════════════════════════════════════
+def _ac_trend(spark: list) -> str:
+    if not spark or len(spark) < 3:
+        return 'new'
+    recent = sum(spark[-3:]) / 3
+    older = sum(spark[-6:-3]) / 3 if len(spark) >= 6 else (sum(spark[:-3]) / max(1, len(spark) - 3) if len(spark) > 3 else recent)
+    if older <= 0:
+        return 'growing' if recent > 0 else 'new'
+    delta = (recent - older) / older
+    if delta >= 0.10:
+        return 'growing'
+    if delta <= -0.10:
+        return 'declining'
+    return 'stable'
+
+
+def _ac_pct_delta(spark: list) -> float:
+    if not spark or len(spark) < 2:
+        return 0.0
+    recent = sum(spark[-3:]) / max(1, min(3, len(spark)))
+    older = sum(spark[-6:-3]) / max(1, min(3, len(spark) - 3)) if len(spark) >= 4 else spark[0]
+    if older <= 0:
+        return 0.0
+    return round(((recent - older) / older) * 100, 1)
+
+
+def _ac_advice(trend: str, days_in: int, days_rem: int, two_day_drop: bool) -> dict:
+    if days_in < 3:
+        return {'level': 'gray', 'title': 'Appena uscito', 'body': 'Aspetta qualche giorno per una valutazione strategica.'}
+    if two_day_drop and trend == 'declining':
+        return {'level': 'gold', 'title': 'Trasferisci in TV ORA',
+                'body': "Il film e' in calo da 2+ giorni. Trasferirlo subito sulla tua TV cattura lo slancio residuo con bonus hype (+6..+14)."}
+    if trend == 'declining' and days_rem <= 3:
+        return {'level': 'gold', 'title': 'Anticipa il ritiro',
+                'body': 'Trend negativo + pochi giorni rimasti. Trasferiscilo in TV per non perdere il pubblico residuo.'}
+    if trend == 'growing' and days_rem <= 2:
+        return {'level': 'amber', 'title': 'Valuta estensione',
+                'body': 'Sta crescendo ma stai per uscire. Estendi di qualche giorno per massimizzare gli incassi.'}
+    if trend == 'growing':
+        return {'level': 'green', 'title': 'Lascialo in sala', 'body': 'Sta crescendo: sfrutta il momento al cinema.'}
+    if trend == 'stable' and days_in >= 10:
+        return {'level': 'amber', 'title': 'Finestra TV ottimale',
+                'body': "Dopo 10+ giorni l'effetto novita' si esaurisce. Considerare la TV a breve."}
+    return {'level': 'green', 'title': 'Nessuna azione urgente', 'body': "Tieni d'occhio il trend nei prossimi giorni."}
+
+
+@api_router.get("/films/my/al-cinema")
+async def get_my_films_al_cinema(user: dict = Depends(get_current_user)):
+    """Tracking dashboard for user's films currently in theaters.
+    Returns enriched data: sparklines, residual value, trend, AI advice, personal records.
+    """
+    films = await db.films.find(
+        {'user_id': user['id'], 'status': 'in_theaters'},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre': 1,
+         'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'likes_count': 1,
+         'release_date': 1, 'theater_start': 1, 'theater_days': 1, 'weeks_in_theater': 1,
+         'daily_revenues': 1, 'attendance_history': 1, 'current_cinemas': 1,
+         'cumulative_attendance': 1, 'extension_count': 1, 'released_at': 1}
+    ).sort('released_at', -1).to_list(50)
+
+    now = datetime.now(timezone.utc)
+
+    # Personal records helpers (all user's historical daily revenues)
+    all_user_films = await db.films.find(
+        {'user_id': user['id']},
+        {'_id': 0, 'id': 1, 'total_revenue': 1, 'daily_revenues': 1}
+    ).to_list(500)
+    all_daily_vals = []
+    for fx in all_user_films:
+        for d in (fx.get('daily_revenues', []) or []):
+            v = d.get('revenue') if isinstance(d, dict) else d
+            if v:
+                try:
+                    all_daily_vals.append(float(v))
+                except Exception:
+                    pass
+    all_daily_vals.sort(reverse=True)
+    record_threshold = (all_daily_vals[2] if len(all_daily_vals) >= 3 else (all_daily_vals[0] if all_daily_vals else 0))
+
+    items = []
+    for f in films:
+        # days_in
+        try:
+            rd = f.get('release_date') or f.get('released_at')
+            if isinstance(rd, str):
+                rel = datetime.fromisoformat(rd.replace('Z', '+00:00'))
+                if rel.tzinfo is None:
+                    rel = rel.replace(tzinfo=timezone.utc)
+            elif isinstance(rd, datetime):
+                rel = rd.astimezone(timezone.utc) if rd.tzinfo else rd.replace(tzinfo=timezone.utc)
+            else:
+                rel = now
+            days_in = max(1, (now - rel).days)
+        except Exception:
+            days_in = f.get('theater_days', 1) or 1
+        planned = int((f.get('weeks_in_theater') or 2) * 7)
+        days_remaining = max(0, planned - days_in)
+
+        dr = f.get('daily_revenues', []) or []
+        spark = []
+        for d in dr[-7:]:
+            v = d.get('revenue') if isinstance(d, dict) else d
+            try:
+                spark.append(float(v or 0))
+            except Exception:
+                spark.append(0.0)
+        while len(spark) < 7:
+            spark.insert(0, 0.0)
+
+        trend = _ac_trend(spark)
+        hist = f.get('attendance_history', []) or []
+        cinema_spark = [int((h.get('total_cinemas') or 0)) for h in hist[-8:]]
+        while len(cinema_spark) < 8:
+            cinema_spark.insert(0, 0)
+
+        last3_avg = sum(spark[-3:]) / 3 if spark else 0
+        decay = 0.85 if trend == 'declining' else (1.05 if trend == 'growing' else 0.95)
+        residual_value = int(max(0, last3_avg * max(0, days_remaining) * decay))
+
+        today_rev = spark[-1] if spark else 0
+        yesterday_rev = spark[-2] if len(spark) >= 2 else today_rev
+        two_day_drop = (len(spark) >= 3 and spark[-1] < spark[-2] < spark[-3] and spark[-3] > 0)
+        recommended_for_tv = trend == 'declining' and (days_in >= 5 or two_day_drop)
+        advice = _ac_advice(trend, days_in, days_remaining, two_day_drop)
+
+        is_personal_record = bool(today_rev > 0 and record_threshold > 0 and today_rev >= record_threshold)
+
+        items.append({
+            'id': f['id'],
+            'title': f.get('title'),
+            'poster_url': f.get('poster_url'),
+            'genre': f.get('genre'),
+            'quality_score': f.get('quality_score'),
+            'total_revenue': f.get('total_revenue', 0),
+            'virtual_likes': f.get('virtual_likes', 0),
+            'days_in': days_in,
+            'days_remaining': days_remaining,
+            'planned_days': planned,
+            'current_cinemas': f.get('current_cinemas', 0),
+            'cumulative_attendance': f.get('cumulative_attendance', 0),
+            'daily_revenues_sparkline': spark,
+            'cinema_sparkline': cinema_spark,
+            'trend': trend,
+            'trend_delta_pct': _ac_pct_delta(spark),
+            'residual_value': residual_value,
+            'recommended_for_tv': recommended_for_tv,
+            'ai_advice': advice,
+            'today_revenue': today_rev,
+            'yesterday_revenue': yesterday_rev,
+            'is_personal_record': is_personal_record,
+            'extension_count': f.get('extension_count', 0),
+            'status': 'in_theaters',
+            'user_id': user['id'],
+        })
+
+    return {
+        'films': items,
+        'summary': {
+            'count': len(items),
+            'total_today_revenue': sum(i['today_revenue'] for i in items),
+            'total_residual_value': sum(i['residual_value'] for i in items),
+            'recommended_for_tv_count': sum(1 for i in items if i['recommended_for_tv']),
+        },
+    }
+
+
 @api_router.get("/films/my/for-sequel")
 async def get_my_films_for_sequel(user: dict = Depends(get_current_user)):
     """Get list of user's films that can be used as parent for a sequel.

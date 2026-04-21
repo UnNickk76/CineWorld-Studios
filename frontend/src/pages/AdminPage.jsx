@@ -2619,7 +2619,7 @@ function PromoVideoTab({ api }) {
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3 text-[10px] text-amber-200 leading-relaxed" data-testid="promo-preview-notice">
           <div className="font-bold text-amber-300 mb-1">⚠️ Raccomandato: usa la Preview</div>
           Questa funzione richiede Chromium + FFmpeg e funziona in modo affidabile solo su preview. In produzione alcune dipendenze potrebbero non essere disponibili.
-          <a href="https://cinema-ai-suite.preview.emergentagent.com/admin" target="_blank" rel="noopener noreferrer"
+          <a href="https://film-dashboard-pro.preview.emergentagent.com/admin" target="_blank" rel="noopener noreferrer"
              className="block mt-1.5 text-amber-300 underline font-semibold break-all"
              data-testid="promo-preview-link">
             → Apri Admin su Preview

@@ -82,6 +82,7 @@ import { PWAInstallBanner } from './components/PWAInstallBanner';
 import UserStripBanner from './components/UserStripBanner';
 import QuickCommandsPanel from './components/QuickCommandsPanel';
 import GuestRegisterDialog from './components/GuestRegisterDialog';
+import FilmActionsSheet from './components/FilmActionsSheet';
 const DownloadAppPage = React.lazy(() => import('./pages/DownloadAppPage'));
 const FeedbackBoard = React.lazy(() => import('./pages/FeedbackBoard'));
 const FestivalsPage = React.lazy(() => import('./pages/FestivalsPage'));
@@ -1914,6 +1915,7 @@ const ProtectedRoute = ({ children }) => {
       <TopNavbar />
       <GlobalSideMenu />
       <GuestRegisterDialog />
+      <FilmActionsSheet />
       <SwipeNavigator />
       <LoginRewardPopup />
       <AutoTickNotifications api={api} />

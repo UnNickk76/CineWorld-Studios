@@ -14,7 +14,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://cinema-ai-suite.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://film-dashboard-pro.preview.emergentagent.com').rstrip('/')
 
 @pytest.fixture(scope="module")
 def auth_token():

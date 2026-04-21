@@ -1053,6 +1053,7 @@ async def get_my_featured_films(user: dict = Depends(get_current_user), limit: i
     return films[:limit]
 
 
+
 @router.get("/films/my/for-sequel")
 async def get_my_films_for_sequel(user: dict = Depends(get_current_user)):
     """Get list of user's films that can be used as parent for a sequel."""

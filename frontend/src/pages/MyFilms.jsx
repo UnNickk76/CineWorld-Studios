@@ -11,9 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from '../components/ui/button';
 import {
   Film, Tv, Sparkles, BookOpen, Eye, Megaphone, Store, Trash2, Wand2,
-  X, Loader2, AlertTriangle, ChevronDown
+  X, Loader2, AlertTriangle, ChevronDown, Clapperboard
 } from 'lucide-react';
 import { toast } from 'sonner';
+import AlCinemaTab from '../components/AlCinemaTab';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -24,6 +25,7 @@ const posterSrc = (url) => {
 
 const TABS = [
   { id: 'film', label: 'Film', icon: Film, color: 'text-yellow-400', bg: 'bg-yellow-500/15' },
+  { id: 'al_cinema', label: 'Al Cinema', icon: Clapperboard, color: 'text-amber-300', bg: 'bg-amber-500/15' },
   { id: 'saghe', label: 'Saghe', icon: BookOpen, color: 'text-purple-400', bg: 'bg-purple-500/15' },
   { id: 'serie', label: 'Serie TV', icon: Tv, color: 'text-blue-400', bg: 'bg-blue-500/15' },
   { id: 'anime', label: 'Anime', icon: Sparkles, color: 'text-orange-400', bg: 'bg-orange-500/15' },
@@ -86,6 +88,8 @@ export default function MyFilms({ playerId, playerName, isPublicView }) {
     ? films.filter(f => f.is_sequel)
     : activeTab === 'serie'
     ? series
+    : activeTab === 'al_cinema'
+    ? [] // handled by AlCinemaTab component below
     : anime;
 
   const setTab = (tab) => setSearchParams({ tab });
@@ -188,16 +192,17 @@ export default function MyFilms({ playerId, playerName, isPublicView }) {
       <div className="sticky top-14 z-20 bg-[#0A0A0B]/95 backdrop-blur-sm px-2 py-2">
         <h1 className="font-['Bebas_Neue'] text-xl text-center mb-2 tracking-wide">{title}</h1>
         {/* Tabs */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 overflow-x-auto scrollbar-hide">
           {TABS.map(tab => {
             const count = tab.id === 'film' ? films.filter(f => !f.is_sequel).length
               : tab.id === 'saghe' ? films.filter(f => f.is_sequel).length
               : tab.id === 'serie' ? series.length
+              : tab.id === 'al_cinema' ? films.filter(f => f.status === 'in_theaters' && !f.is_sequel).length
               : anime.length;
             return (
               <button key={tab.id}
                 onClick={() => setTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all
+                className={`flex-shrink-0 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all
                   ${activeTab === tab.id ? `${tab.bg} ${tab.color} border border-current/20` : 'text-gray-500 bg-[#111113] border border-transparent'}`}
                 data-testid={`tab-${tab.id}`}
               >
@@ -216,6 +221,8 @@ export default function MyFilms({ playerId, playerName, isPublicView }) {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-6 h-6 text-gray-500 animate-spin" />
           </div>
+        ) : activeTab === 'al_cinema' ? (
+          isOwner ? <AlCinemaTab /> : <EmptyState tab="al_cinema" isOwner={false} navigate={navigate} />
         ) : currentItems.length === 0 ? (
           <EmptyState tab={activeTab} isOwner={isOwner} navigate={navigate} />
         ) : (
@@ -427,6 +434,7 @@ function ActionBtn({ icon, label, color, onClick, loading, testId }) {
 function EmptyState({ tab, isOwner, navigate }) {
   const msgs = {
     film: { icon: Film, text: 'Nessun film', btn: isOwner ? 'Crea Film' : null, route: '/create-film', color: 'bg-yellow-500 text-black' },
+    al_cinema: { icon: Clapperboard, text: 'Nessun film al cinema di questo player', btn: null, route: null, color: 'bg-amber-500 text-black' },
     saghe: { icon: BookOpen, text: 'Nessun sequel', btn: isOwner ? 'Crea Sequel' : null, route: '/sagas', color: 'bg-purple-600 text-white' },
     serie: { icon: Tv, text: 'Nessuna serie TV', btn: isOwner ? 'Crea Serie TV' : null, route: '/create-series', color: 'bg-blue-600 text-white' },
     anime: { icon: Sparkles, text: 'Nessun anime', btn: isOwner ? 'Crea Anime' : null, route: '/create-anime', color: 'bg-orange-600 text-white' },

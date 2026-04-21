@@ -10,6 +10,19 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Film Actions Sheet + La Mia TV + Al Cinema Dashboard (this session)**
+  - **Nuovo componente `FilmActionsSheet.jsx`**: bottom-sheet unificato cinematico (dark + accenti oro/rosso sala) che si apre ovunque (tranne I Miei) cliccando un poster proprio. Sezioni: Dettaglio, ADV, Rigenera Locandina, Ritira dal Cinema, Vendi, Elimina, **La Mia TV** (CTA oro primaria).
+  - **Hook globale**: mount in `App.js` + listener `open-film-actions` con payload `{ film }`. Guardia: se `film.user_id !== user.id` → naviga al dettaglio. Dashboard `recent-releases` e `a-breve-cinema` usano il nuovo hook.
+  - **La Mia TV panel**: picker stazioni proprie, 2 modalità:
+    - **Subito**: ritira dal cinema + messa in onda immediata. GRATIS. Se il film era in calo (trend declining), hype bonus +6..+14 su share TV.
+    - **Prossimamente**: film resta in sala, programmato in TV tra 6/12/24/48/96h.
+  - **Backend `POST /api/tv-stations/transfer-from-cinema`** con logica B3 (bonus se calo) + C1 (gratis se TV posseduta). Salva `tv_transfer_from_cinema` o `tv_scheduled_transfer` sul film.
+  - **Backend `GET /api/my-owned-tv-stations`** (path univoco per evitare collisione con `/tv-stations/{station_id}`): lista minima stazioni possedute + capacity info.
+  - **Backend `GET /api/films/my/al-cinema`**: dashboard tracking film in sala. Ritorna per ciascun film: `daily_revenues_sparkline` (7gg), `cinema_sparkline`, `trend` (growing/declining/stable), `trend_delta_pct`, `residual_value` stimato, `ai_advice` ({level: gold/amber/green/gray, title, body}), `recommended_for_tv` flag, `is_personal_record` badge. Summary totale (today_revenue, residual, count).
+  - **Nuovo componente `AlCinemaTab.jsx`**: mobile-first tab con summary 3-col (oggi / residuo / count), filtro "Consigliati per TV", lista film con sparkline SVG gradient oro, ribbon RECORD, consigli AI dorati pulsanti, CTA "AZIONI FILM" che apre il FilmActionsSheet.
+  - **Nuovo tab "Al Cinema"** in MyFilms (`/films?tab=al_cinema`), icona Clapperboard. Tabs ora scrollabili orizzontalmente.
+  - File: `/app/frontend/src/components/FilmActionsSheet.jsx`, `/app/frontend/src/components/AlCinemaTab.jsx`, `/app/backend/routes/tv_stations.py` (endpoint transfer + my-owned), `/app/backend/server.py` (endpoint al-cinema), `/app/frontend/src/App.js` (mount sheet), `/app/frontend/src/pages/Dashboard.jsx` (hook click), `/app/frontend/src/pages/MyFilms.jsx` (tab).
+
 - **Apr 2026 — Pixazo + WaveSpeed AI Integration (Multi-provider extension)**
   - **Pixazo (FREE)**: Integrato Flux 1 Schnell tramite `gateway.pixazo.ai/flux-1-schnell/v1/getData` (header `Ocp-Apim-Subscription-Key`, sync, cost $0). Key in `PIXAZO_API_KEY`.
   - **WaveSpeed AI ($0.003/img)**: Integrato `wavespeed-ai/flux-schnell` tramite `api.wavespeed.ai/api/v3/...` (Bearer auth, `enable_sync_mode: true`). Key in `WAVESPEED_API_KEY`. Budget verificato via `/balance`.

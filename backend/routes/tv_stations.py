@@ -825,6 +825,211 @@ async def remove_upcoming(req: RemoveContentRequest, user: dict = Depends(get_cu
     return {"message": "Rimosso dai Prossimamente"}
 
 
+# ═══════════════════════════════════════════════════════════════
+# CINEMA → TV TRANSFER (unified endpoint for Film Actions Sheet)
+# ═══════════════════════════════════════════════════════════════
+
+class CinemaToTVRequest(BaseModel):
+    film_id: str
+    station_id: str
+    mode: str  # 'subito' (immediate) | 'prossimamente' (scheduled)
+    delay_hours: Optional[int] = 24  # only for 'prossimamente'
+
+
+def _compute_cinema_trend(film: dict) -> dict:
+    """Analyze recent attendance/revenue to detect if film is dropping. Returns {direction, delta_pct}."""
+    daily = film.get('daily_revenues', []) or []
+    history = film.get('attendance_history', []) or []
+    # Prefer attendance_history (cinema count per tick)
+    if len(history) >= 4:
+        recent = history[-4:]
+        older = history[-8:-4] if len(history) >= 8 else history[:-4]
+        if older:
+            r_avg = sum((h.get('total_cinemas') or 0) for h in recent) / max(1, len(recent))
+            o_avg = sum((h.get('total_cinemas') or 0) for h in older) / max(1, len(older))
+            if o_avg > 0:
+                delta = (r_avg - o_avg) / o_avg
+                if delta <= -0.08:
+                    return {"direction": "declining", "delta_pct": round(delta * 100, 1)}
+                if delta >= 0.08:
+                    return {"direction": "growing", "delta_pct": round(delta * 100, 1)}
+                return {"direction": "stable", "delta_pct": round(delta * 100, 1)}
+    # Fallback: last 3 daily revenues
+    if len(daily) >= 3:
+        last = daily[-1].get('revenue', 0) if isinstance(daily[-1], dict) else 0
+        prev = daily[-3].get('revenue', 0) if isinstance(daily[-3], dict) else 0
+        if prev > 0:
+            delta = (last - prev) / prev
+            if delta <= -0.15:
+                return {"direction": "declining", "delta_pct": round(delta * 100, 1)}
+            if delta >= 0.15:
+                return {"direction": "growing", "delta_pct": round(delta * 100, 1)}
+    return {"direction": "stable", "delta_pct": 0.0}
+
+
+@router.post("/tv-stations/transfer-from-cinema")
+async def transfer_film_from_cinema(req: CinemaToTVRequest, user: dict = Depends(get_current_user)):
+    """Transfer a film from the cinema to one of the user's TV stations.
+    - 'subito' = withdraw from cinema NOW and add to station palinsesto immediately. FREE (station owned).
+      If the cinema trend was 'declining', gives a TV hype bonus (+6..+14) to seed premiere audience.
+    - 'prossimamente' = schedule the film on the TV station's 'Prossimamente' with a delay (default 24h).
+      Film stays in cinema until the TV air date (or can be withdrawn later manually).
+    """
+    station = await db.tv_stations.find_one({'id': req.station_id, 'user_id': user['id']}, {'_id': 0})
+    if not station:
+        raise HTTPException(404, "Stazione TV non trovata o non di tua proprieta'")
+    if not station.get('setup_complete'):
+        raise HTTPException(400, "Completa prima il setup della stazione")
+
+    film = await db.films.find_one({'id': req.film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(404, "Film non trovato o non di tua proprieta'")
+
+    now = datetime.now(timezone.utc)
+    trend = _compute_cinema_trend(film)
+
+    if req.mode == 'subito':
+        # Capacity check
+        contents = station.get('contents', {})
+        infra = await db.infrastructure.find_one({'id': station.get('infra_id')}, {'_id': 0, 'level': 1})
+        cap = get_schedule_capacity((infra or {}).get('level', 1))
+        if len(contents.get('films', [])) >= cap['films']:
+            raise HTTPException(400, f"Palinsesto film pieno ({cap['films']}). Migliora l'infrastruttura per aggiungerne di piu'.")
+        existing = [c['content_id'] for c in contents.get('films', [])]
+        if req.film_id in existing:
+            raise HTTPException(400, "Questo film e' gia' nel palinsesto della stazione")
+
+        # Compute hype bonus
+        hype_bonus = 0
+        if trend['direction'] == 'declining':
+            # The more it dropped, the bigger the boost (cap +14)
+            magnitude = min(abs(trend['delta_pct']), 40.0)
+            hype_bonus = int(6 + round(magnitude * 0.2))  # 6..14
+            hype_bonus = max(6, min(14, hype_bonus))
+
+        # Withdraw film from cinema
+        await db.films.update_one(
+            {'id': req.film_id},
+            {'$set': {
+                'status': 'withdrawn',
+                'tv_transfer_from_cinema': {
+                    'at': now.isoformat(),
+                    'station_id': req.station_id,
+                    'trend_at_transfer': trend,
+                    'hype_bonus_applied': hype_bonus,
+                },
+                'updated_at': now.isoformat(),
+            }}
+        )
+
+        # Add to station with optional hype seed
+        content_entry = {
+            'content_id': req.film_id,
+            'added_at': now.isoformat(),
+            'transferred_from_cinema': True,
+            'cinema_hype_bonus': hype_bonus,
+        }
+        await db.tv_stations.update_one(
+            {'id': req.station_id},
+            {'$push': {'contents.films': content_entry},
+             '$inc': {'current_share': hype_bonus * 0.1},  # small immediate share boost
+             '$set': {'updated_at': now.isoformat()}}
+        )
+
+        # Notification
+        bonus_msg = f" (+{hype_bonus} hype TV perche' era in calo al cinema)" if hype_bonus > 0 else ""
+        await send_notification(
+            user_id=user['id'],
+            title="Film in TV",
+            body=f"'{film.get('title', 'Film')}' trasferito su {station.get('station_name')}{bonus_msg}",
+            category="tv",
+        )
+
+        return {
+            "message": f"'{film.get('title')}' ora trasmesso su {station.get('station_name')}!",
+            "mode": "subito",
+            "cost": 0,
+            "hype_bonus": hype_bonus,
+            "trend_at_transfer": trend,
+        }
+
+    elif req.mode == 'prossimamente':
+        delay = int(req.delay_hours or 24)
+        if delay < 6 or delay > 168:
+            raise HTTPException(400, "Delay fuori intervallo (6h - 168h)")
+        upcoming = station.get('upcoming_content', []) or []
+        if any(u.get('content_id') == req.film_id for u in upcoming):
+            raise HTTPException(400, "Questo film e' gia' nei Prossimamente della stazione")
+
+        scheduled_at = now + timedelta(hours=delay)
+        entry = {
+            'id': str(uuid.uuid4()),
+            'content_id': req.film_id,
+            'content_type': 'film',
+            'title': film.get('title', '???'),
+            'poster_url': film.get('poster_url'),
+            'status': film.get('status', 'unknown'),
+            'num_episodes': 0,
+            'added_at': now.isoformat(),
+            'scheduled_air_at': scheduled_at.isoformat(),
+            'delay_hours': delay,
+            'schedule_config': None,
+            'frozen': False,
+            'from_cinema': True,
+            'trend_at_schedule': trend,
+        }
+        await db.tv_stations.update_one(
+            {'id': req.station_id},
+            {'$push': {'upcoming_content': entry}, '$set': {'updated_at': now.isoformat()}}
+        )
+
+        # Also mark film with scheduled TV transfer (does not withdraw yet)
+        await db.films.update_one(
+            {'id': req.film_id},
+            {'$set': {
+                'tv_scheduled_transfer': {
+                    'station_id': req.station_id,
+                    'scheduled_air_at': scheduled_at.isoformat(),
+                    'delay_hours': delay,
+                    'set_at': now.isoformat(),
+                }
+            }}
+        )
+
+        delay_label = f"{delay}h" if delay < 48 else f"{delay // 24}g"
+        return {
+            "message": f"'{film.get('title')}' programmato su {station.get('station_name')} tra {delay_label}",
+            "mode": "prossimamente",
+            "cost": 0,
+            "scheduled_air_at": scheduled_at.isoformat(),
+        }
+    else:
+        raise HTTPException(400, "Modalita' non valida (usa 'subito' o 'prossimamente')")
+
+
+@router.get("/my-owned-tv-stations")
+async def get_my_stations_minimal(user: dict = Depends(get_current_user)):
+    """Lightweight list of user's owned TV stations for the Film Actions Sheet picker."""
+    stations = await db.tv_stations.find(
+        {'user_id': user['id'], 'setup_complete': True},
+        {'_id': 0, 'id': 1, 'station_name': 1, 'nation': 1, 'infra_id': 1, 'contents': 1, 'upcoming_content': 1, 'current_share': 1}
+    ).sort('created_at', 1).to_list(20)
+    # Compute load
+    for s in stations:
+        infra = await db.infrastructure.find_one({'id': s.get('infra_id')}, {'_id': 0, 'level': 1})
+        lvl = (infra or {}).get('level', 1)
+        cap = get_schedule_capacity(lvl)
+        contents = s.get('contents', {})
+        s['infra_level'] = lvl
+        s['film_count'] = len(contents.get('films', []))
+        s['film_cap'] = cap['films']
+        s['upcoming_count'] = len(s.get('upcoming_content', []) or [])
+        # don't return full contents payload
+        s.pop('contents', None)
+        s.pop('upcoming_content', None)
+    return {"stations": stations}
+
+
 @router.get("/tv-stations/available-upcoming/{station_id}")
 async def get_available_upcoming(station_id: str, user: dict = Depends(get_current_user)):
     """Get ALL user content (including in-production) available for Prossimamente."""

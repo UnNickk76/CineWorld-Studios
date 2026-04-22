@@ -79,17 +79,33 @@ async def admin_diagnose_screenplay(user: dict = Depends(get_current_user)):
 
 @router.get("/emerging-screenplays")
 async def get_emerging_screenplays(user: dict = Depends(get_current_user)):
-    """Get all available emerging screenplays."""
+    """Get all available emerging screenplays, decorated with bestseller info."""
     now = datetime.now(timezone.utc).isoformat()
-    
+
     # Expire old ones first
     await expire_old_screenplays()
-    
+
     screenplays = await db.emerging_screenplays.find(
         {'status': 'available', 'expires_at': {'$gt': now}},
         {'_id': 0}
     ).sort('created_at', -1).to_list(length=50)
-    
+
+    # ── Bestseller computation: count accepted purchases in last 7 days per title
+    seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    recent_accepted = db.emerging_screenplays.aggregate([
+        {'$match': {'status': 'accepted', 'accepted_at': {'$gt': seven_days_ago}}},
+        {'$group': {'_id': '$title', 'count': {'$sum': 1}}},
+    ])
+    sales_by_title = {}
+    async for doc in recent_accepted:
+        sales_by_title[doc['_id']] = doc['count']
+
+    for sp in screenplays:
+        sales = sales_by_title.get(sp.get('title'), 0)
+        # Bestseller threshold: ≥3 purchases in the last 7 days
+        sp['recent_purchases_7d'] = sales
+        sp['is_bestseller'] = sales >= 3
+
     return screenplays
 
 

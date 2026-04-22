@@ -371,9 +371,17 @@ function ScoutScreenplaysTab({ api }) {
       });
       toast.success(res.data.message);
       setPendingSp(null);
-      // Navigate into Pipeline V3 with the project auto-selected
+      // Cinematic curtain reveal
+      try {
+        window.dispatchEvent(new CustomEvent('cineworld:curtain-reveal', {
+          detail: {
+            title: res.data.project?.title || pendingSp.title,
+            subtitle: mode === 'veloce' ? 'Scout Agenzia · fast track' : 'Scout Agenzia · pipeline guidata',
+          },
+        }));
+      } catch {}
       const pid = res.data.project_id;
-      if (pid) navigate(`/create-film?p=${pid}`);
+      setTimeout(() => { if (pid) navigate(`/create-film?p=${pid}`); }, 2400);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore');
     } finally {

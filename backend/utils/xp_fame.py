@@ -166,15 +166,22 @@ MILESTONE_REWARDS = {
 
 async def _apply_user_update(db, user_id: str, xp_delta: int, fame_delta: int,
                              milestone: str = 'manual', title: Optional[str] = None):
-    """Internal: atomic update with derived level + mirror xp<->total_xp."""
+    """Internal: atomic update with derived level + mirror xp<->total_xp.
+    Also detects prestige tier changes and queues a celebratory notification."""
     user = await db.users.find_one({'id': user_id}, {'_id': 0, 'total_xp': 1, 'xp': 1, 'fame': 1})
     if not user:
         return None
 
     prev_total = max(int(user.get('total_xp', 0) or 0), int(user.get('xp', 0) or 0))
+    prev_fame = int(user.get('fame', 0) or 0)
     new_total = max(0, prev_total + int(xp_delta))
     new_level = get_level_from_xp(new_total)
-    new_fame = max(0, int(user.get('fame', 0) or 0) + int(fame_delta))
+    new_fame = max(0, prev_fame + int(fame_delta))
+
+    # Detect prestige tier transition (fame crossed a PRESTIGE_TIERS threshold)
+    prev_tier = get_prestige_tier(prev_fame)
+    new_tier = get_prestige_tier(new_fame)
+    tier_changed = prev_tier.get('label') != new_tier.get('label')
 
     await db.users.update_one(
         {'id': user_id},
@@ -202,8 +209,30 @@ async def _apply_user_update(db, user_id: str, xp_delta: int, fame_delta: int,
     except Exception:
         pass
 
+    # Prestige tier transition notification (non-fatal)
+    if tier_changed:
+        try:
+            await db.notifications.insert_one({
+                'id': f"prestige-{user_id}-{new_tier['label']}-{new_fame}",
+                'user_id': user_id,
+                'type': 'prestige_tier_up',
+                'title': f"Nuovo rango: {new_tier['label']}",
+                'message': f"La tua fama è cresciuta: da {prev_tier['label']} a {new_tier['label']}.",
+                'prev_tier': prev_tier.get('label'),
+                'new_tier': new_tier.get('label'),
+                'new_tier_color': new_tier.get('color'),
+                'fame': new_fame,
+                'read': False,
+                'created_at': datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+
     return {'xp_gain': int(xp_delta), 'fame_gain': int(fame_delta),
-            'new_xp': new_total, 'new_level': new_level, 'new_fame': new_fame}
+            'new_xp': new_total, 'new_level': new_level, 'new_fame': new_fame,
+            'prestige_tier_changed': tier_changed,
+            'prev_tier': prev_tier.get('label') if tier_changed else None,
+            'new_tier': new_tier.get('label') if tier_changed else None}
 
 
 async def award_xp(db, user_id: str, xp: int, source: str = 'manual', title: Optional[str] = None):

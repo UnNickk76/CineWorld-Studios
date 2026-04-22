@@ -13,9 +13,34 @@ router = APIRouter()
 
 @router.post("/progression/heartbeat")
 async def progression_heartbeat(user: dict = Depends(get_current_user)):
-    """Called by frontend every ~10 min of active session. Grants +1 XP (rate-limited)."""
+    """Called by frontend every ~10 min of active session. Grants +1 XP (rate-limited).
+    Also returns any unread prestige-tier-up notifications and marks them read,
+    so the frontend can fire the celebratory toast.
+    """
     result = await award_session_heartbeat(db, user['id'])
-    return {'awarded': result is not None, 'result': result}
+
+    # Surface prestige tier notifications (built by utils.xp_fame._apply_user_update)
+    prestige_notifs = []
+    try:
+        async for n in db.notifications.find(
+            {'user_id': user['id'], 'type': 'prestige_tier_up', 'read': False},
+            {'_id': 0}
+        ).limit(3):
+            prestige_notifs.append(n)
+        if prestige_notifs:
+            ids = [n['id'] for n in prestige_notifs if n.get('id')]
+            if ids:
+                await db.notifications.update_many(
+                    {'id': {'$in': ids}}, {'$set': {'read': True}}
+                )
+    except Exception:
+        prestige_notifs = []
+
+    return {
+        'awarded': result is not None,
+        'result': result,
+        'prestige_events': prestige_notifs,
+    }
 
 
 @router.get("/progression/info")

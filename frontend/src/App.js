@@ -108,6 +108,8 @@ const MiniGamesPage = React.lazy(() => import('./pages/MiniGamesPage'));
 import LoginRewardPopup from './components/LoginRewardPopup';
 import { AutoTickNotifications } from './components/AutoTickNotifications';
 import { LevelUpToast } from './components/LevelUpToast';
+import { PrestigeTierToast } from './components/PrestigeTierToast';
+import { CinematicCurtainReveal } from './components/CinematicCurtainReveal';
 import TutorialModal from './components/TutorialModal';
 import DashboardTour from './components/DashboardTour';
 const MyFilms = React.lazy(() => import('./pages/MyFilms'));
@@ -1919,6 +1921,8 @@ const ProtectedRoute = ({ children }) => {
       <LoginRewardPopup />
       <AutoTickNotifications api={api} />
       <LevelUpToast />
+      <PrestigeTierToast />
+      <CinematicCurtainReveal />
       <div className="main-content-push" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <UserStripBanner />
       <AnimatePresence>

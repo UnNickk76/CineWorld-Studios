@@ -29,6 +29,14 @@ const InlineProgressCircle = ({ value = 0, color = '#fff' }) => {
   );
 };
 
+/* ─── Episode duration estimator (based on type + genre) ─── */
+const estimateEpisodeDuration = (type, genre) => {
+  if (type === 'anime') return 22;
+  const longGenres = ['drama', 'thriller', 'mystery', 'sci_fi', 'historical', 'fantasy'];
+  if (longGenres.includes(genre)) return 55;
+  return 45;
+};
+
 /* ─── API helper (uses series-v3 prefix) ─── */
 async function sapi(path, method = 'GET', body) {
   const token = localStorage.getItem('cineworld_token');
@@ -319,28 +327,41 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
       )}
 
       {/* Episode titles grid — 12 per column, click to show mini-plot */}
-      {project.episodes?.length > 0 && (
-        <div className="p-2 rounded-lg bg-white/[0.02] border border-white/5">
-          <p className="text-[8px] text-gray-500 mb-1.5 font-bold uppercase">Titoli Episodi ({project.episodes.length})</p>
-          <div
-            className="grid gap-x-3 gap-y-0.5 overflow-x-auto"
-            style={{ gridAutoFlow: 'column', gridTemplateRows: 'repeat(12, auto)', gridAutoColumns: 'minmax(130px, 1fr)' }}
-            data-testid="series-episodes-grid"
-          >
-            {project.episodes.map((ep, i) => (
-              <button
-                key={i}
-                onClick={() => setSelectedEp(ep)}
-                className="text-left text-[8.5px] text-gray-400 hover:text-amber-300 active:text-amber-400 transition-colors truncate leading-tight py-0.5"
-                title={ep.title}
-                data-testid={`ep-title-${ep.number}`}
-              >
-                <span className="text-gray-600 mr-1">{ep.number}.</span>{ep.title}
-              </button>
-            ))}
+      {project.episodes?.length > 0 && (() => {
+        const epDur = estimateEpisodeDuration(project.type, project.genre);
+        const totalMin = project.episodes.length * epDur;
+        const totalH = Math.floor(totalMin / 60);
+        const totalR = totalMin % 60;
+        return (
+          <div className="p-2 rounded-lg bg-white/[0.02] border border-white/5">
+            <div className="flex items-baseline justify-between mb-1.5">
+              <p className="text-[8px] text-gray-500 font-bold uppercase">Titoli Episodi ({project.episodes.length})</p>
+              <p className="text-[8px] text-amber-400/70 font-bold" data-testid="series-total-duration">
+                ~{epDur}m · tot {totalH > 0 ? `${totalH}h ${totalR}m` : `${totalR}m`}
+              </p>
+            </div>
+            <div
+              className="grid gap-x-3 gap-y-0.5 overflow-x-auto"
+              style={{ gridAutoFlow: 'column', gridTemplateRows: 'repeat(12, auto)', gridAutoColumns: 'minmax(160px, 1fr)' }}
+              data-testid="series-episodes-grid"
+            >
+              {project.episodes.map((ep, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedEp(ep)}
+                  className="text-left text-[8.5px] text-gray-400 hover:text-amber-300 active:text-amber-400 transition-colors truncate leading-tight py-0.5 flex items-baseline gap-1"
+                  title={ep.title}
+                  data-testid={`ep-title-${ep.number}`}
+                >
+                  <span className="text-gray-600">{ep.number}.</span>
+                  <span className="truncate flex-1">{ep.title}</span>
+                  <span className="text-gray-600 text-[7px] flex-shrink-0">{epDur}m</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Episode mini-plot modal */}
       {selectedEp && (

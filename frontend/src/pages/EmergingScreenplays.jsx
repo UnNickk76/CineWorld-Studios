@@ -105,13 +105,21 @@ export default function EmergingScreenplays() {
       toast.success(res.data.message);
       await refreshUser();
       setShowDetail(false);
-      // Navigate into Pipeline V3 with the new project auto-selected
+      // Fire cinematic curtain reveal
+      try {
+        window.dispatchEvent(new CustomEvent('cineworld:curtain-reveal', {
+          detail: {
+            title: res.data.project?.title || selectedScreenplay.title,
+            subtitle: mode === 'veloce' ? 'Modalità Veloce · fast track' : 'Modalità Avanzata · pipeline guidata',
+          },
+        }));
+      } catch {}
+      // Navigate into Pipeline V3 with the new project auto-selected (after curtain)
       const pid = res.data.project_id;
-      if (pid) {
-        navigate(`/create-film?p=${pid}`);
-      } else {
-        navigate('/produci');
-      }
+      setTimeout(() => {
+        if (pid) navigate(`/create-film?p=${pid}`);
+        else navigate('/produci');
+      }, 2400);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Errore nell\'acquisto');
     } finally {
@@ -182,9 +190,20 @@ export default function EmergingScreenplays() {
                       {/* Title + Genre */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <h3 className="font-['Playfair_Display'] text-lg font-bold truncate group-hover:text-yellow-400 transition-colors">
-                            {sp.title}
-                          </h3>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h3 className="font-['Playfair_Display'] text-lg font-bold truncate group-hover:text-yellow-400 transition-colors">
+                              {sp.title}
+                            </h3>
+                            {sp.is_bestseller && (
+                              <span
+                                className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-[0_0_12px_rgba(255,120,40,0.5)] animate-pulse"
+                                title={`${sp.recent_purchases_7d} studi l'hanno scelta negli ultimi 7 giorni`}
+                                data-testid={`bestseller-badge-${sp.id}`}
+                              >
+                                🔥 Bestseller
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <Badge className={`text-xs ${genreColors[sp.genre] || 'bg-white/10 text-white/60'}`}>
                               {sp.genre}

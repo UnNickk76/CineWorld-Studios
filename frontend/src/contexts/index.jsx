@@ -303,7 +303,15 @@ export const AuthProvider = ({ children }) => {
     let intervalId = null;
     const ping = async () => {
       if (document.visibilityState !== 'visible') return;
-      try { await api.post('/progression/heartbeat'); } catch (_) { /* ignore */ }
+      try {
+        const res = await api.post('/progression/heartbeat');
+        const evts = res?.data?.prestige_events || [];
+        for (const evt of evts) {
+          try {
+            window.dispatchEvent(new CustomEvent('cw:prestige-tier-up', { detail: evt }));
+          } catch (_) { /* ignore */ }
+        }
+      } catch (_) { /* ignore */ }
     };
     // First ping after 10 min (don't award immediately on mount)
     const timeoutId = setTimeout(() => {

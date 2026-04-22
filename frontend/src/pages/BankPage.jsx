@@ -198,17 +198,24 @@ export default function BankPage() {
                 <p className="text-[10px] font-bold text-emerald-200 tracking-wider uppercase">Richiedi Prestito</p>
               </div>
               <p className="text-[9px] text-gray-400 mb-2">Importo ($)</p>
-              <input
-                type="range"
-                min={10000}
-                max={Math.max(10000, status.can_borrow)}
-                step={10000}
-                value={Math.min(loanAmount, Math.max(10000, status.can_borrow))}
-                onChange={(e) => setLoanAmount(Number(e.target.value))}
-                disabled={status.can_borrow < 10000}
-                className="w-full accent-emerald-400 disabled:opacity-40"
-                data-testid="loan-amount-slider"
-              />
+              <div className="px-3">
+                <input
+                  type="range"
+                  min={10000}
+                  max={Math.max(10000, status.can_borrow)}
+                  step={10000}
+                  value={Math.min(loanAmount, Math.max(10000, status.can_borrow))}
+                  onChange={(e) => setLoanAmount(Number(e.target.value))}
+                  disabled={status.can_borrow < 10000}
+                  className="w-full accent-emerald-400 disabled:opacity-40 block"
+                  style={{ maxWidth: '100%' }}
+                  data-testid="loan-amount-slider"
+                />
+                <div className="flex justify-between text-[8px] text-gray-500 mt-0.5 px-0.5">
+                  <span>{fmt(10000)}</span>
+                  <span>{fmt(Math.max(10000, status.can_borrow))}</span>
+                </div>
+              </div>
               <p className="text-center text-xl font-bold text-emerald-200 my-1" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>{fmt(loanAmount)}</p>
 
               <p className="text-[9px] text-gray-400 mt-3 mb-1">Durata (giorni)</p>

@@ -39,13 +39,15 @@ export default function SpectatorsPage() {
 
   const totalCumulative = films.reduce((acc, f) => acc + (f.total_spectators || 0), 0);
   const totalToday = films.reduce((acc, f) => acc + (f.today_spectators || 0), 0);
+  const totalLaPrima = films.reduce((acc, f) => acc + (f.la_prima_spectators || 0), 0);
+  const laPrimaCount = films.filter(f => f.has_la_prima && (f.la_prima_spectators || 0) > 0).length;
 
   return (
     <div className="min-h-screen bg-[#0a080b] text-white pb-24" data-testid="spectators-page">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-[#0a080b]/95 backdrop-blur-sm border-b border-white/5">
         <div className="flex items-center justify-between px-3 py-3">
-          <button onClick={() => navigate(-1)} className="text-white/70 hover:text-white active:scale-90 transition" data-testid="spectators-back-btn">
+          <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))} className="text-white/70 hover:text-white active:scale-90 transition" data-testid="spectators-back-btn">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-base font-black text-white tracking-wider" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>SPETTATORI</h1>
@@ -53,7 +55,7 @@ export default function SpectatorsPage() {
         </div>
 
         {/* Summary strip */}
-        <div className="grid grid-cols-2 gap-1.5 px-3 pb-3">
+        <div className="grid grid-cols-3 gap-1.5 px-3 pb-3">
           <div className="p-2.5 rounded-lg bg-cyan-500/5 border border-cyan-500/25">
             <p className="text-[9px] text-cyan-300/70 uppercase tracking-wider">Totale</p>
             <p className="text-sm font-bold text-cyan-200" data-testid="spectators-total">{fmtShort(totalCumulative)}</p>
@@ -61,6 +63,13 @@ export default function SpectatorsPage() {
           <div className="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/25">
             <p className="text-[9px] text-emerald-300/70 uppercase tracking-wider">Ultime 24h</p>
             <p className="text-sm font-bold text-emerald-200" data-testid="spectators-today">{fmtShort(totalToday)}</p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/25" data-testid="spectators-la-prima-total">
+            <div className="flex items-center gap-1">
+              <p className="text-[9px] text-amber-300/70 uppercase tracking-wider">La Prima</p>
+              {laPrimaCount > 0 && <span className="text-[7px] text-amber-200/50">·{laPrimaCount}</span>}
+            </div>
+            <p className="text-sm font-bold text-amber-200">{fmtShort(totalLaPrima)}</p>
           </div>
         </div>
       </div>

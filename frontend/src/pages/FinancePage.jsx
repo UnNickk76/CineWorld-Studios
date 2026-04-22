@@ -93,7 +93,7 @@ export default function FinancePage() {
   return (
     <div className="min-h-screen bg-[#07060a] text-white pb-10" data-testid="finance-page">
       <div className="px-3 pt-3 pb-2 flex items-center gap-2">
-        <button onClick={() => navigate(-1)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-amber-300 active:scale-90 transition-transform" data-testid="finance-back">
+        <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-amber-300 active:scale-90 transition-transform" data-testid="finance-back">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex-1">
@@ -447,8 +447,25 @@ function HistoryTab({ films, onOpen }) {
       </div>
     );
   }
+  const boxOfficeTotal = films.reduce((acc, f) => acc + Math.max(0, (f.total_revenue || 0) - (f.la_prima_revenue || 0)), 0);
+  const laPrimaTotal = films.reduce((acc, f) => acc + (f.la_prima_revenue || 0), 0);
+  const laPrimaCount = films.filter(f => f.has_la_prima && (f.la_prima_revenue || 0) > 0).length;
   return (
     <div className="space-y-2" data-testid="history-films-grid">
+      {/* Global breakdown: Box Office + La Prima */}
+      <div className="grid grid-cols-2 gap-1.5 mb-1">
+        <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20" data-testid="history-total-box-office">
+          <p className="text-[8px] text-emerald-300/70 uppercase tracking-wider">Box Office</p>
+          <p className="text-sm font-bold text-emerald-200">{fmt(boxOfficeTotal)}</p>
+        </div>
+        <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/25" data-testid="history-total-la-prima">
+          <div className="flex items-center gap-1">
+            <p className="text-[8px] text-amber-300/70 uppercase tracking-wider">La Prima</p>
+            {laPrimaCount > 0 && <span className="text-[7px] text-amber-200/50">·{laPrimaCount}</span>}
+          </div>
+          <p className="text-sm font-bold text-amber-200">{fmt(laPrimaTotal)}</p>
+        </div>
+      </div>
       <p className="text-[9px] text-gray-500 uppercase tracking-wider">Tap su una locandina per i dettagli</p>
       <div className="grid grid-cols-5 gap-1.5" data-testid="films-poster-grid">
         {films.map(f => (

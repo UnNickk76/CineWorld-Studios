@@ -272,6 +272,28 @@ async def finance_films_history(user: dict = Depends(get_current_user)):
             by_day.setdefault(day, 0)
             by_day[day] += int(d.get('total', 0) or 0)
 
+        # Retrofit La Prima data from source film_project if film_doc lacks it.
+        # This covers legacy films released before we stored la_prima_revenue on the film doc.
+        if (la_prima_total == 0 and not la_prima_city) or int(f.get('la_prima_revenue') or 0) == 0:
+            try:
+                sp_id = f.get('source_project_id')
+                if sp_id:
+                    proj = await db.film_projects.find_one(
+                        {'id': sp_id},
+                        {'_id': 0, 'release_type': 1, 'premiere': 1, 'total_revenue': 1}
+                    )
+                    if proj and proj.get('release_type') == 'premiere':
+                        prem = proj.get('premiere') or {}
+                        rt_rev = int(f.get('la_prima_revenue') or proj.get('total_revenue') or 0)
+                        if rt_rev > 0 and la_prima_total == 0:
+                            la_prima_total = rt_rev
+                        if not la_prima_city:
+                            la_prima_city = prem.get('city') or ''
+                        if not la_prima_nation:
+                            la_prima_nation = prem.get('nation') or ''
+            except Exception:
+                pass
+
         # Compute day index relative to theater_start
         theater_start = f.get('theater_start') or f.get('released_at')
         start_day = None
@@ -429,7 +451,7 @@ async def spectators_films_history(user: dict = Depends(get_current_user)):
          'current_attendance': 1, 'cumulative_attendance': 1, 'attendance_history': 1,
          'attendance_trend': 1, 'theater_start': 1, 'released_at': 1, 'daily_attendance': 1,
          'release_type': 1, 'la_prima_spectators': 1, 'la_prima_revenue': 1,
-         'la_prima_city': 1, 'la_prima_nation': 1, 'day_in_theaters': 1}
+         'la_prima_city': 1, 'la_prima_nation': 1, 'day_in_theaters': 1, 'source_project_id': 1}
     ).sort('released_at', -1).to_list(500)
 
     if not films:
@@ -478,6 +500,28 @@ async def spectators_films_history(user: dict = Depends(get_current_user)):
         total_spectators = int(f.get('cumulative_attendance', 0) or 0)
         today_spectators = int(f.get('current_attendance', 0) or 0)
         la_prima_spectators = int(f.get('la_prima_spectators', 0) or 0)
+        la_prima_city = f.get('la_prima_city') or ''
+        la_prima_nation = f.get('la_prima_nation') or ''
+
+        # Retrofit La Prima from source film_project for legacy films
+        if la_prima_spectators == 0 or not la_prima_city:
+            try:
+                sp_id = f.get('source_project_id')
+                if sp_id:
+                    proj = await db.film_projects.find_one(
+                        {'id': sp_id},
+                        {'_id': 0, 'release_type': 1, 'premiere': 1}
+                    )
+                    if proj and proj.get('release_type') == 'premiere':
+                        prem = proj.get('premiere') or {}
+                        if la_prima_spectators == 0:
+                            la_prima_spectators = int(prem.get('spectators_total', 0) or 0)
+                        if not la_prima_city:
+                            la_prima_city = prem.get('city') or ''
+                        if not la_prima_nation:
+                            la_prima_nation = prem.get('nation') or ''
+            except Exception:
+                pass
 
         result.append({
             'id': f['id'],
@@ -491,8 +535,8 @@ async def spectators_films_history(user: dict = Depends(get_current_user)):
             'today_spectators': today_spectators,
             'has_la_prima': (f.get('release_type') == 'premiere') or la_prima_spectators > 0,
             'la_prima_spectators': la_prima_spectators,
-            'la_prima_city': f.get('la_prima_city') or '',
-            'la_prima_nation': f.get('la_prima_nation') or '',
+            'la_prima_city': la_prima_city,
+            'la_prima_nation': la_prima_nation,
             'daily_spectators': daily_spectators,
         })
 

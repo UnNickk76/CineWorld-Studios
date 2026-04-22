@@ -10,6 +10,14 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — La Prima voce globale + Retrofit film legacy + Back navigation**
+  - **🐛 La Prima mancante nei totali globali**: Finanza tab Storico e Spettatori page non mostravano il totale La Prima come voce separata. **Fix**:
+    - `HistoryTab` (Finanze): nuovo strip a 2 colonne in cima "Box Office / La Prima" (con count dei film con LP). Entrate Box Office = `sum(total_revenue - la_prima_revenue)`, La Prima = `sum(la_prima_revenue)`.
+    - `SpectatorsPage`: summary strip passato da 2 a 3 colonne (Totale / Ultime 24h / La Prima con count). Entrambe mobile-first.
+  - **🐛 Retrofit La Prima per film legacy**: `Seeeee` aveva `release_type='premiere'` su `film_projects` ma il campo `la_prima_revenue/spectators/city/nation` non era stato copiato al `confirm-release` (pre-fix). **Fix**: sia `/finance/films-history` che `/spectators/films-history` ora fanno retrofit dal `film_projects.premiere` se i campi del film doc sono vuoti. Legge `premiere.spectators_total`, `premiere.city`, `premiere.nation`, `project.total_revenue` e usa come fallback.
+  - **🐛 Freccia back**: `navigate(-1)` non fa nulla se l'utente arriva direttamente via URL (no history). **Fix**: sia `FinancePage` che `SpectatorsPage` ora usano `(window.history.length > 1 ? navigate(-1) : navigate('/'))` garantendo sempre un back fallback alla Dashboard.
+  - Files: `routes/finance_bank.py` (retrofit logic + source_project_id projection), `pages/FinancePage.jsx` (HistoryTab strip + back hybrid), `pages/SpectatorsPage.jsx` (strip 3-col + back hybrid).
+
 - **Feb 2026 — Fix definitivo Costo film (pipeline V3 calculator)**
   - **🐛 Costo $0 film legacy + nuovi**: il fallback via `wallet_transactions` non funzionava perché molti film sono stati creati senza log transazionali taggati con `ref_id=project_id`. **Fix definitivo**: usato direttamente `calculate_production_cost(project)` da `utils/calc_production_cost.py` — la stessa funzione usata nell'ultimo step della pipeline V3 per mostrare il costo al produttore. Restituisce `total_funds` già **al netto degli sponsor** (`sponsor_offset`) includendo: base produzione (per budget_tier), cast, equipment, CGI, VFX, extras, riprese, marketing, distribuzione, meno rientro sponsor.
   - **`confirm-release`** (`routes/pipeline_v3.py`): ora calcola `total_cost` con `calculate_production_cost` + fallback a wallet_transactions se il calcolatore fallisce.

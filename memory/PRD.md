@@ -10,6 +10,12 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Hotfix Dashboard Incassi $0 + crash "selectedFilmDetail"**
+  - **🐛 CRASH**: `FinancePage.jsx` aveva un edit perso (probabilmente dovuto al git restore precedente di scheduler_tasks.py): state `filmsHistory`/`selectedFilmDetail` non erano dichiarati, ma il JSX li referenziava → runtime error `Can't find variable: selectedFilmDetail` all'apertura di `/finanze` (schermata "La pellicola si è inceppata"). **Fix**: reintegrato `useState` per `filmsHistory` e `selectedFilmDetail`, rimosso lo state legacy `txs`.
+  - **🐛 BUG INCASSI $0**: `auto_revenue_tick` (film `in_theaters`) incrementava `users.funds` e loggava `wallet_transactions` ma NON aggiornava `films.total_revenue`. La Dashboard Home aggregava `sum(films.total_revenue)` → sempre $0 anche con ricavi reali registrati sul wallet. **Fix**: aggiunto `$inc: {'total_revenue': tick_rev}` su `films` dentro il tick (solo per `_source='films'` per non toccare tv_series/anime). Convive correttamente con `update_all_films_revenue` che usa `max(current, realistic_box_office)` preservando il valore più alto.
+  - Zero regressioni: tutti i meccanismi esistenti (realistic_box_office, cumulative_attendance, wallet_transactions) restano intatti.
+  - Files: `pages/FinancePage.jsx`, `scheduler_tasks.py`.
+
 - **Feb 2026 — Spettatori per-film + Badge trend affluenza**
   - **Sistema affluenza esistente analizzato (zero breaking)**: `update_film_attendance()` in `scheduler_tasks.py` già traccia `cumulative_attendance`, `current_attendance`, `attendance_history` (last 144 tick ≈ 24h) con decay basato su qualità, IMDB, new-film-boost e random ±20%. Revenue e attendance sono sistemi paralleli indipendenti. La Prima già incrementa `premiere.spectators_total` su ogni tick.
   - **Nuovi campi backend (additivi, zero regressioni)**:

@@ -1901,6 +1901,16 @@ async def auto_revenue_tick():
                     daily_rev *= _budget_multiplier(budget_tier)
                     tick_rev = max(0, int(daily_rev / 144))
                     total_revenue += tick_rev
+                    # Increment film's own total_revenue so Dashboard aggregates reflect live earnings.
+                    # `update_all_films_revenue` uses max(current, realistic_box_office) so this is safe.
+                    if tick_rev > 0 and film.get('_source') == 'films':
+                        try:
+                            await scheduler_db.films.update_one(
+                                {'id': film_id},
+                                {'$inc': {'total_revenue': tick_rev}}
+                            )
+                        except Exception:
+                            pass
                     # Per-film wallet tx log with film's primary geo
                     if tick_rev > 0:
                         try:

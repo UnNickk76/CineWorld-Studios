@@ -46,7 +46,8 @@ export default function FinancePage() {
   const [statements, setStatements] = useState(null);
   const [cashflow, setCashflow] = useState([]);
   const [breakdown, setBreakdown] = useState({ items: [], scope: 'continent' });
-  const [txs, setTxs] = useState([]);
+  const [filmsHistory, setFilmsHistory] = useState([]);
+  const [selectedFilmDetail, setSelectedFilmDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState(30);
 

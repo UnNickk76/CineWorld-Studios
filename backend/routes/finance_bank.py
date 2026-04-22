@@ -307,17 +307,27 @@ async def bank_status(user: dict = Depends(get_current_user)):
 
 class TakeLoanRequest(BaseModel):
     amount: int
-    installments: int = 7  # 3 | 7 | 14 | 30
+    installments: int = 7  # 3 | 7 | 14 | 30 | 60 | 90
+
+
+# Minimum bank infra level required to unlock each loan duration.
+LOAN_DURATION_MIN_LEVEL = {3: 0, 7: 0, 14: 0, 30: 0, 60: 3, 90: 5}
+# Interest duration multiplier — longer loan = more total interest.
+LOAN_DURATION_MULT = {3: 0.3, 7: 0.6, 14: 1.0, 30: 1.6, 60: 2.7, 90: 3.8}
 
 
 @router.post("/bank/take-loan")
 async def take_loan(req: TakeLoanRequest, user: dict = Depends(get_current_user)):
     uid = user['id']
-    if req.installments not in (3, 7, 14, 30):
-        raise HTTPException(400, "Rate consentite: 3, 7, 14, 30 giorni")
+    if req.installments not in LOAN_DURATION_MULT:
+        raise HTTPException(400, "Rate consentite: 3, 7, 14, 30, 60, 90 giorni")
     if req.amount <= 0:
         raise HTTPException(400, "Importo non valido")
     status = await bank_status(user)
+    infra_lvl = status['infra']['level']
+    min_lvl = LOAN_DURATION_MIN_LEVEL.get(req.installments, 0)
+    if infra_lvl < min_lvl:
+        raise HTTPException(400, f"Durata {req.installments}g richiede Banca Lv.{min_lvl}+ (hai Lv.{infra_lvl})")
     if req.amount < status['infra']['min_loan']:
         raise HTTPException(400, f"Importo minimo: ${status['infra']['min_loan']:,.0f}")
     if req.amount > status['can_borrow']:
@@ -325,7 +335,7 @@ async def take_loan(req: TakeLoanRequest, user: dict = Depends(get_current_user)
 
     interest_pct = status['infra']['interest_pct']
     # Shorter installments = less interest
-    duration_mult = {3: 0.3, 7: 0.6, 14: 1.0, 30: 1.6}[req.installments]
+    duration_mult = LOAN_DURATION_MULT[req.installments]
     total_interest = int(req.amount * (interest_pct / 100) * duration_mult)
     total_payable = req.amount + total_interest
     daily_payment = total_payable // req.installments

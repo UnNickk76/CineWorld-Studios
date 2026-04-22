@@ -7,7 +7,7 @@ import { AuthContext } from '../contexts';
 import { toast } from 'sonner';
 import {
   ArrowLeft, Landmark, Ticket, DollarSign, Loader2, TrendingUp,
-  Building2, Coins, CreditCard, CheckCircle, AlertTriangle, ArrowRight, Clock
+  Building2, Coins, CreditCard, CheckCircle, AlertTriangle, ArrowRight, Clock, Lock
 } from 'lucide-react';
 import UserStripBanner from '../components/UserStripBanner';  // not used — handled globally
 
@@ -100,7 +100,7 @@ export default function BankPage() {
   const nextTier = status.next_level;
 
   // Calculate loan interest preview
-  const durationMult = { 3: 0.3, 7: 0.6, 14: 1.0, 30: 1.6 }[loanDuration] || 0.6;
+  const durationMult = { 3: 0.3, 7: 0.6, 14: 1.0, 30: 1.6, 60: 2.7, 90: 3.8 }[loanDuration] || 0.6;
   const estInterest = Math.round(loanAmount * (infra.interest_pct / 100) * durationMult);
   const estTotal = loanAmount + estInterest;
   const estDaily = Math.round(estTotal / loanDuration);
@@ -219,14 +219,30 @@ export default function BankPage() {
               <p className="text-center text-xl font-bold text-emerald-200 my-1" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>{fmt(loanAmount)}</p>
 
               <p className="text-[9px] text-gray-400 mt-3 mb-1">Durata (giorni)</p>
-              <div className="grid grid-cols-4 gap-1">
-                {[3, 7, 14, 30].map(d => (
-                  <button key={d} onClick={() => setLoanDuration(d)}
-                    className={`py-2 rounded text-[11px] font-bold ${loanDuration === d ? 'bg-emerald-500 text-black' : 'bg-white/5 text-gray-300 border border-white/10'}`}
-                    data-testid={`loan-duration-${d}`}>
-                    {d}g
-                  </button>
-                ))}
+              <div className="flex gap-1.5 overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1" style={{ scrollbarWidth: 'none' }} data-testid="loan-duration-scroller">
+                {[
+                  { d: 3, lvl: 0 },
+                  { d: 7, lvl: 0 },
+                  { d: 14, lvl: 0 },
+                  { d: 30, lvl: 0 },
+                  { d: 60, lvl: 3 },
+                  { d: 90, lvl: 5 },
+                ].map(({ d, lvl }) => {
+                  const locked = (infra.level || 0) < lvl;
+                  const active = loanDuration === d;
+                  return (
+                    <button key={d}
+                      onClick={() => { if (locked) { toast.info(`Richiede Banca Lv.${lvl}+`); return; } setLoanDuration(d); }}
+                      className={`flex-shrink-0 snap-start min-w-[60px] py-2 px-2.5 rounded text-[11px] font-bold flex flex-col items-center justify-center gap-0.5
+                        ${active && !locked ? 'bg-emerald-500 text-black shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                          : locked ? 'bg-white/5 text-gray-600 border border-white/5'
+                          : 'bg-white/5 text-gray-300 border border-white/10 hover:border-emerald-500/30'}`}
+                      data-testid={`loan-duration-${d}`}>
+                      <span className="flex items-center gap-0.5">{locked && <Lock className="w-2.5 h-2.5" />} {d}g</span>
+                      {locked && <span className="text-[7px] text-gray-500">Lv.{lvl}</span>}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="mt-3 p-2 rounded-lg bg-black/30 border border-emerald-500/10">

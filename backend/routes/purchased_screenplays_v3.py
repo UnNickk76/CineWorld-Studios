@@ -293,14 +293,11 @@ async def create_v3_from_screenplay(
     base_cost = _base_cost(screenplay, req.source)
     final_cost = _calc_price(base_cost, req.mode, req.source)
 
-    # Check funds
+    # Check funds (but don't deduct yet — only after project is safely created)
     fresh_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1})
     funds = int(fresh_user.get('funds', 0) or 0)
     if funds < final_cost:
         raise HTTPException(400, f'Fondi insufficienti. Servono ${final_cost:,}')
-
-    # Deduct funds
-    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -final_cost}})
 
     # Extract screenplay data (normalize from both sources)
     title = screenplay.get('title', 'Film Senza Titolo')
@@ -385,6 +382,10 @@ async def create_v3_from_screenplay(
     # Mark source screenplay as consumed
     await _mark_screenplay_consumed(req.screenplay_id, req.source, user['id'], pid,
                                       req.mode, final_cost)
+
+    # Deduct funds LAST — only now that project + consume are both committed.
+    # If anything above fails, no money was deducted (fail-safe).
+    await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -final_cost}})
 
     # XP reward — halved for veloce (easier path = less progression)
     try:

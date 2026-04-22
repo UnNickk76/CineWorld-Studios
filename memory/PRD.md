@@ -10,6 +10,31 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 22, 2026 — Sceneggiature Pronte → Pipeline V3 (nuovo flusso unificato)**
+  - **Nuovo modulo** `/app/backend/routes/purchased_screenplays_v3.py` con 2 endpoint:
+    - `POST /api/purchased-screenplays/create-v3-project` — acquista sceneggiatura (emerging pubblico o agency privata) e crea direttamente un `film_projects` V3 con `pipeline_state='hype'` (idea già completato). Modes: `avanzata` | `veloce`. Prezzi: veloce=2x, agency=60% sconto. Auto-fill cast (hired_stars user + NPC medium stars), prep preset, marketing preset per Veloce. Seeding dei flag `from_purchased_screenplay`, `purchased_screenplay_mode`, `purchased_screenplay_source`, `purchased_writer_name`, `idea_locked`, `cast_locked`, `prep_locked`, `auto_advance_veloce`. Atomic: fondi dedotti SOLO dopo insert+consume riusciti (no money loss su eccezioni).
+    - `POST /api/purchased-screenplays/veloce-fast-track/{pid}` — solo Veloce, da stato `hype` salta a `distribution` settando ciak/finalcut come completati e `release_type='direct'` (salta La Prima). Richiede `poster_url` creato dal player.
+  - **Deprecazione soft** del vecchio flusso V2 in `emerging_screenplays.py /accept` (non rimosso per safety).
+  - **Propagazione flag**:
+    - `pipeline_v3.confirm-release` copia `from_purchased_screenplay` + mode + source + writer_name su `films`.
+    - `economy.recent_releases` expose i campi al frontend.
+    - `la_prima.coming-to-cinemas` idem su items "A Breve".
+  - **Reward -50%** per Veloce (+5xp/0fame vs +15xp/1fame Avanzata) — implementato via `utils.xp_fame.award_milestone`.
+  - **Frontend**:
+    - `EmergingScreenplays.jsx`: modale sceglie Avanzata (emerald) / Veloce (orange) con prezzi calcolati client-side.
+    - `CastingAgencyPage.jsx (ScoutScreenplaysTab)`: modale modale analoga con badge "Sconto Agenzia -60%".
+    - Dopo acquisto → `navigate('/create-film?p={pid}')` → PipelineV3 auto-seleziona.
+    - **`PurchasedScreenplayBadge.jsx`** (nuovo componente): book-page icon overlay, colore mode-dependent (emerald=avanzata, orange=veloce), tooltip con sorgente.
+    - Badge integrato in Dashboard (A Breve cards + Ultimi Film al Cinema), ComingSoonSection.
+    - PipelineV3 header: pill 📖 AVANZATA/VELOCE accanto a CWSv + budget_tier.
+    - PipelineV3 sticky advance: in Veloce mode a stato `hype`, mostra bottone **⚡ Fast-Track → Distribuzione** che chiama l'endpoint fast-track.
+  - **Test**: 17/17 pytest passano (`/app/backend/tests/test_iter164_purchased_screenplays_v3.py`) — copre pricing, auto-cast, fund deduction safety, error cases, marketing presets veloce, la_prima integration, regressione endpoint esistenti.
+
+- **Feb 22, 2026 — UI Navbar: "I Miei" al centro + colore blu**
+  - Bottone "I Miei" spostato dalla prima posizione al centro (index 6/12) in `App.js`.
+  - Colore da giallo/grigio a **blu** (`text-blue-400` default, `text-blue-300` attivo).
+  - Popup "I Miei Contenuti" ri-ancorato al centro (`left-1/2 -translate-x-1/2`).
+
 - **Feb 22, 2026 — P0 Blocker Fix: Backend Import + XP Migration Re-run**
   - **🐛 Backend KO per import errato**: `routes/progression.py` importava `from utils.deps import get_current_user, db` ma `utils/deps.py` non esiste. Fix: sostituito con `from database import db` + `from auth_utils import get_current_user` (pattern usato da tutti gli altri route).
   - **🐛 Migration XP/Fame v2 incompleta**: il primo run ha resettato 72 utenti ma ha granted solo 72 XP totali (1 XP/utente). Cause:

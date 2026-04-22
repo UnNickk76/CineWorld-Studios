@@ -10,6 +10,13 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Fix Uscite $0 nel saldo strip + Uscite by-type**
+  - **🐛 Uscite da wallet_transactions vuote su film legacy**: sia il saldo strip (foto 2 "Uscite $0") sia `/finance/expenses-by-type` (foto 3 Tutti/Film/0) aggregavano da `wallet_transactions direction=out` che non esiste per film legacy (spese pre-sistema finanziario). **Fix seguendo il principio utente "X+X+X… dove presenti"**:
+    - **`/finance/expenses-by-type`** riscritto: ora somma direttamente `films.total_cost` + `tv_series.total_cost` (differenziato per `type='anime'` vs `type='tv_series'`). Retrofit via `calculate_production_cost` + persistenza lazy quando `total_cost=0` sul doc (stessa logica di `/finance/films-history`).
+    - **`/finance/overview`** (saldo strip): aggiunge fallback `real_content_cost = sum(films.total_cost) + sum(tv_series.total_cost)` con retrofit. Se `expenses_30d < real_content_cost`, override con quest'ultimo — garantisce che il saldo strip mostri l'effettivo speso complessivo anche quando mancano tx.
+  - Ora le Uscite Tutti/Film/Serie TV/Anime mostrano i veri totali (es. Seeeee $11.73M appare in Film), e il saldo strip è coerente con lo Storico.
+  - Files: `routes/finance_bank.py`.
+
 - **Feb 2026 — La Prima voce globale + Retrofit film legacy + Back navigation**
   - **🐛 La Prima mancante nei totali globali**: Finanza tab Storico e Spettatori page non mostravano il totale La Prima come voce separata. **Fix**:
     - `HistoryTab` (Finanze): nuovo strip a 2 colonne in cima "Box Office / La Prima" (con count dei film con LP). Entrate Box Office = `sum(total_revenue - la_prima_revenue)`, La Prima = `sum(la_prima_revenue)`.

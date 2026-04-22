@@ -81,6 +81,43 @@ async def finance_overview(user: dict = Depends(get_current_user)):
     expenses_7d = await _sum(week_ago, 'out')
     expenses_30d = await _sum(month_ago, 'out')
 
+    # Authoritative expenses fallback: sum of real `total_cost` across films/series/anime
+    # when wallet_transactions has no outgoing data (legacy content). This ensures the
+    # Saldo strip shows realistic numbers instead of $0.
+    try:
+        from utils.calc_production_cost import calculate_production_cost
+        real_content_cost = 0
+        # Films
+        async for doc in db.films.find(
+            {'user_id': uid, 'status': {'$in': ['in_theaters', 'released', 'coming_soon']}},
+            {'_id': 0, 'id': 1, 'total_cost': 1, 'source_project_id': 1}
+        ):
+            cost = int(doc.get('total_cost') or 0)
+            if cost == 0 and doc.get('source_project_id'):
+                try:
+                    proj = await db.film_projects.find_one({'id': doc['source_project_id']}, {'_id': 0})
+                    if proj:
+                        cost = int(calculate_production_cost(proj).get('total_funds', 0) or 0)
+                        if cost > 0:
+                            await db.films.update_one({'id': doc['id']}, {'$set': {'total_cost': cost}})
+                except Exception:
+                    pass
+            real_content_cost += cost
+        # Series + Anime
+        async for doc in db.tv_series.find(
+            {'user_id': uid, 'status': {'$nin': ['discarded', 'abandoned']}},
+            {'_id': 0, 'id': 1, 'total_cost': 1, 'total_budget': 1, 'budget': 1}
+        ):
+            cost = int(doc.get('total_cost') or doc.get('total_budget') or doc.get('budget') or 0)
+            real_content_cost += cost
+        # Override expenses if wallet_transactions shows 0 but real content cost exists
+        if expenses_30d < real_content_cost:
+            expenses_30d = real_content_cost
+        if expenses_7d < real_content_cost:
+            expenses_7d = real_content_cost
+    except Exception:
+        pass
+
     u = await db.users.find_one({'id': uid}, {'_id': 0, 'funds': 1, 'total_earnings': 1, 'cinepass': 1, 'fame': 1, 'level': 1})
 
     # Trend delta for arrows
@@ -389,32 +426,66 @@ async def finance_films_history(user: dict = Depends(get_current_user)):
 @router.get("/finance/expenses-by-type")
 async def finance_expenses_by_type(user: dict = Depends(get_current_user)):
     """Return lifetime expenses grouped by content type:
-    Tutti (total), Film, Serie TV, Anime. Based on wallet_transactions outgoing
-    grouped by ref_type and cross-referenced with content_type.
+    Tutti (total), Film, Serie TV, Anime. Based on the REAL `total_cost` on each film/series/anime
+    document (same authoritative source as /finance/films-history, computed via calculate_production_cost).
     """
     uid = user['id']
-    # Aggregate by ref_type
-    pipeline = [
-        {'$match': {'user_id': uid, 'direction': 'out'}},
-        {'$group': {'_id': '$ref_type', 'total': {'$sum': '$abs_amount'}, 'count': {'$sum': 1}}},
-    ]
-    by_ref = {}
-    async for d in db.wallet_transactions.aggregate(pipeline):
-        by_ref[d['_id'] or 'other'] = {'total': int(d.get('total', 0)), 'count': d.get('count', 0)}
+    from utils.calc_production_cost import calculate_production_cost
 
-    # Classify into the 4 buckets
-    film_keys = ['film', 'film_project']
-    series_keys = ['tv_series', 'series', 'series_project']
-    anime_keys = ['anime', 'anime_project']
-    films_total = sum(by_ref.get(k, {}).get('total', 0) for k in film_keys)
-    films_count = sum(by_ref.get(k, {}).get('count', 0) for k in film_keys)
-    series_total = sum(by_ref.get(k, {}).get('total', 0) for k in series_keys)
-    series_count = sum(by_ref.get(k, {}).get('count', 0) for k in series_keys)
-    anime_total = sum(by_ref.get(k, {}).get('total', 0) for k in anime_keys)
-    anime_count = sum(by_ref.get(k, {}).get('count', 0) for k in anime_keys)
-    total_all = sum(v.get('total', 0) for v in by_ref.values())
-    count_all = sum(v.get('count', 0) for v in by_ref.values())
+    films_total = films_count = 0
+    series_total = series_count = 0
+    anime_total = anime_count = 0
 
+    # FILMS
+    async for doc in db.films.find(
+        {'user_id': uid, 'status': {'$in': ['in_theaters', 'released', 'coming_soon']}},
+        {'_id': 0, 'id': 1, 'total_cost': 1, 'source_project_id': 1}
+    ):
+        cost = int(doc.get('total_cost') or 0)
+        if cost == 0 and doc.get('source_project_id'):
+            try:
+                proj = await db.film_projects.find_one({'id': doc['source_project_id']}, {'_id': 0})
+                if proj:
+                    cb = calculate_production_cost(proj)
+                    cost = int(cb.get('total_funds', 0) or 0)
+                    if cost > 0:
+                        await db.films.update_one({'id': doc['id']}, {'$set': {'total_cost': cost}})
+            except Exception:
+                pass
+        if cost > 0:
+            films_total += cost
+            films_count += 1
+
+    # SERIE TV + ANIME (tv_series collection, differentiate by type)
+    async for doc in db.tv_series.find(
+        {'user_id': uid, 'status': {'$nin': ['discarded', 'abandoned']}},
+        {'_id': 0, 'id': 1, 'type': 1, 'total_cost': 1, 'source_project_id': 1, 'total_budget': 1, 'budget': 1}
+    ):
+        cost = int(doc.get('total_cost') or 0)
+        if cost == 0:
+            # Fallback: sum budget fields if no source project
+            cost = int(doc.get('total_budget') or doc.get('budget') or 0)
+        if cost == 0 and doc.get('source_project_id'):
+            try:
+                proj = await db.series_projects.find_one({'id': doc['source_project_id']}, {'_id': 0})
+                if proj:
+                    cb = calculate_production_cost(proj)
+                    cost = int(cb.get('total_funds', 0) or 0)
+                    if cost > 0:
+                        await db.tv_series.update_one({'id': doc['id']}, {'$set': {'total_cost': cost}})
+            except Exception:
+                pass
+        if cost > 0:
+            t = doc.get('type') or 'tv_series'
+            if t == 'anime':
+                anime_total += cost
+                anime_count += 1
+            else:
+                series_total += cost
+                series_count += 1
+
+    total_all = films_total + series_total + anime_total
+    count_all = films_count + series_count + anime_count
     return {
         'all': {'total': total_all, 'count': count_all, 'label': 'Tutti'},
         'film': {'total': films_total, 'count': films_count, 'label': 'Film'},

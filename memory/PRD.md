@@ -10,6 +10,16 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 22, 2026 — P0 Blocker Fix: Backend Import + XP Migration Re-run**
+  - **🐛 Backend KO per import errato**: `routes/progression.py` importava `from utils.deps import get_current_user, db` ma `utils/deps.py` non esiste. Fix: sostituito con `from database import db` + `from auth_utils import get_current_user` (pattern usato da tutti gli altri route).
+  - **🐛 Migration XP/Fame v2 incompleta**: il primo run ha resettato 72 utenti ma ha granted solo 72 XP totali (1 XP/utente). Cause:
+    - Filtro stati film `['in_theaters','released']` mancava `'market'` (release su home video, la maggior parte dei film rilasciati).
+    - `db.infrastructure` usa campo `owner_id`, non `user_id`.
+    - Collections `festival_winners` e `stars` non esistono → corrette a `festival_awards` e `hired_stars`.
+  - **Re-run post-fix**: 72 utenti, 697 XP totali, 7 Fame totali distribuiti. Utente test `fandrex1@gmail.com` ora ha Level 1, total_xp=600, fame=6 (prestige "Sconosciuto", next threshold 50 "Emergente").
+  - **Verifica endpoint**: `GET /api/progression/info`, `POST /api/progression/heartbeat`, `GET /api/progression/tiers` tutti funzionanti.
+  - Files: `routes/progression.py`, `utils/xp_migration_v2.py`.
+
 - **Feb 2026 — Status Badge Pulse Glow (tutti gli stati pipeline/release)**
   - **Nuovo keyframe CSS `status-pulse-glow`** in `index.css`: animazione 1.8s infinita che alterna `box-shadow 0-14px` + `transform scale 1.0-1.06` usando `currentColor` così il glow riprende il colore del badge. Rispetta `prefers-reduced-motion`.
   - **Applicato a tutti i badge di stato** in Dashboard (sezioni Film/Serie TV/Anime):

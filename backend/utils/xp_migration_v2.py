@@ -36,9 +36,9 @@ async def run_xp_migration_v2(db):
         xp = 0
         fame = 0
 
-        # Films released
+        # Films released (both in theaters AND on home video market)
         films = await db.films.find(
-            {'user_id': uid, 'status': {'$in': ['in_theaters', 'released']}},
+            {'user_id': uid, 'status': {'$in': ['in_theaters', 'released', 'market']}},
             {'_id': 0, 'quality_score': 1, 'total_revenue': 1, 'release_type': 1}
         ).to_list(1000)
         for f in films:
@@ -79,12 +79,12 @@ async def run_xp_migration_v2(db):
                 xp += 15
                 fame += 1
 
-        # Infrastructure built
-        infra_count = await db.infrastructure.count_documents({'user_id': uid})
+        # Infrastructure built (collection uses `owner_id`, not `user_id`)
+        infra_count = await db.infrastructure.count_documents({'owner_id': uid})
         xp += infra_count * MILESTONE_REWARDS.get('infra_built', {'xp': 0})['xp']
 
-        # Festival wins (top 3 — from festival_results or similar collection)
-        async for fw in db.festival_winners.find({'user_id': uid}, {'_id': 0, 'position': 1}):
+        # Festival wins (top 3 — real collection is `festival_awards`)
+        async for fw in db.festival_awards.find({'user_id': uid}, {'_id': 0, 'position': 1}):
             pos = int(fw.get('position') or 0)
             if pos == 1:
                 r = MILESTONE_REWARDS.get('festival_win_1', {'xp': 0, 'fame': 0})
@@ -97,8 +97,8 @@ async def run_xp_migration_v2(db):
             xp += r['xp']
             fame += r['fame']
 
-        # Stars discovered (awarded to creator)
-        stars_count = await db.stars.count_documents({'discovered_by': uid})
+        # Stars hired (real collection is `hired_stars`, owner field is `user_id`)
+        stars_count = await db.hired_stars.count_documents({'user_id': uid})
         cs = MILESTONE_REWARDS.get('create_star', {'xp': 0, 'fame': 0})
         xp += stars_count * cs['xp']
         fame += stars_count * cs['fame']

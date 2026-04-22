@@ -1,7 +1,8 @@
 """XP / Fame / Level routes — session heartbeat, progression info, migration."""
 
 from fastapi import APIRouter, Depends
-from utils.deps import get_current_user, db
+from database import db
+from auth_utils import get_current_user
 from utils.xp_fame import (
     award_session_heartbeat, get_prestige_tier,
     LEVEL_THRESHOLDS, xp_for_next_level, get_level_from_xp, PRESTIGE_TIERS

@@ -445,13 +445,13 @@ const MobileBottomNav = () => {
   };
 
   const items = [
-    { path: null, icon: Film, label: 'I Miei', testid: 'bn-films', action: () => { setShowIMiei(!showIMiei); setShowQuickCommands(false); }, imiei: true },
     { path: '/social', icon: Globe, label: 'CineBoard', testid: 'bn-cineboard' },
     { path: '/leaderboard', icon: BarChart3, label: 'Classifiche', testid: 'bn-classifiche' },
     { path: '/festivals', icon: Medal, label: 'Festival', testid: 'bn-festival' },
     { path: null, icon: Heart, label: 'Dona', testid: 'bn-dona', action: () => window.open('https://www.paypal.me/UnNickk', '_blank'), donate: true },
     { path: '/journal', icon: Newspaper, label: 'CineJournal', testid: 'bn-journal' },
     { path: '/marketplace', icon: Store, label: 'Mercato', testid: 'bn-mercato' },
+    { path: null, icon: Film, label: 'I Miei', testid: 'bn-films', action: () => { setShowIMiei(!showIMiei); setShowQuickCommands(false); }, imiei: true },
     { path: '/banca', icon: Landmark, label: 'Banca', testid: 'bn-banca' },
     { path: null, icon: RadioTower, label: 'Radio', testid: 'bn-radio', action: handleRadioClick, radio: true, locked: radioLocked },
     { path: '/minigiochi', icon: Gamepad2, label: 'Minigiochi', testid: 'bn-minigiochi' },
@@ -480,7 +480,7 @@ const MobileBottomNav = () => {
               className="fixed inset-0 bg-black/40 z-[55] sm:hidden" onClick={() => setShowIMiei(false)} />
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-              className="fixed bottom-[52px] left-1 z-[56] sm:hidden w-36" data-testid="imiei-panel"
+              className="fixed bottom-[52px] left-1/2 -translate-x-1/2 z-[56] sm:hidden w-36" data-testid="imiei-panel"
             >
               <div className="bg-[#111113] border border-white/10 rounded-xl overflow-hidden shadow-2xl">
                 <p className="text-[9px] text-yellow-500/60 uppercase tracking-widest font-semibold px-3 pt-2 pb-1">I Miei Contenuti</p>
@@ -535,7 +535,7 @@ const MobileBottomNav = () => {
                   item.donate ? 'text-pink-400 animate-pulse' :
                   item.highlight ? 'text-yellow-400' :
                   item.quick ? (showQuickCommands ? 'text-yellow-400' : 'text-orange-400/70') :
-                  item.imiei ? (showIMiei ? 'text-yellow-400' : (isActive ? 'text-yellow-400' : 'text-gray-500')) :
+                  item.imiei ? (showIMiei ? 'text-blue-300' : (isActive ? 'text-blue-300' : 'text-blue-400')) :
                   item.radio ? (item.locked ? 'text-gray-600 opacity-60' : 'text-red-400 hover:text-red-300') :
                   isActive ? 'text-yellow-400' : 'text-gray-500'
                 }`}

@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../contexts';
 import {
   ArrowLeft, TrendingUp, TrendingDown, DollarSign, Ticket, Landmark,
-  Wallet, PieChart as PieIcon, BarChart3, History, ChevronRight, Loader2, Globe, MapPin, Building2
+  Wallet, PieChart as PieIcon, BarChart3, History, ChevronRight, Loader2, Globe, MapPin, Building2, X
 } from 'lucide-react';
 import UserStripBanner from '../components/UserStripBanner';  // not used — handled globally
 
@@ -72,8 +72,12 @@ export default function FinancePage() {
   }, [api, period]);
 
   const loadHistory = async () => {
-    const r = await api.get('/wallet/transactions?limit=100');
-    setTxs(r.data?.transactions || []);
+    try {
+      const r = await api.get('/finance/films-history');
+      setFilmsHistory(r.data?.films || []);
+    } catch {
+      setFilmsHistory([]);
+    }
   };
 
   useEffect(() => {
@@ -136,9 +140,12 @@ export default function FinancePage() {
         ) : tab === 'breakdown' ? (
           <BreakdownTab breakdown={breakdown} changeScope={changeBreakdownScope} />
         ) : (
-          <HistoryTab txs={txs} />
+          <HistoryTab films={filmsHistory} onOpen={(f) => setSelectedFilmDetail(f)} />
         )}
       </div>
+
+      {/* Film Detail Modal */}
+      {selectedFilmDetail && <FilmDetailModal film={selectedFilmDetail} onClose={() => setSelectedFilmDetail(null)} />}
     </div>
   );
 }
@@ -248,24 +255,61 @@ function SourceRow({ item, total, direction }) {
 }
 
 function CashflowChart({ series }) {
-  const w = 320, h = 60, pad = 2;
+  if (!series || series.length === 0) {
+    return <p className="text-[10px] text-gray-600 text-center py-3">Nessun dato di flusso</p>;
+  }
+  const w = 320, h = 80, padTop = 6, padBottom = 14, padX = 4;
+  const chartH = h - padTop - padBottom;
   const maxVal = Math.max(1, ...series.map(d => Math.max(d.income || 0, d.expense || 0)));
-  const barW = Math.max(3, (w - pad * 2) / series.length - 2);
+  const slotW = (w - padX * 2) / series.length;
+  const barW = Math.max(2, slotW - 2);
+  // X-axis: show first / middle / last labels to avoid clutter on mobile
+  const tickIdx = series.length <= 3
+    ? series.map((_, i) => i)
+    : [0, Math.floor(series.length / 2), series.length - 1];
+  const fmtDay = (d) => {
+    try {
+      const dt = new Date(d);
+      return `${dt.getDate()}/${dt.getMonth() + 1}`;
+    } catch { return d; }
+  };
+  const fmtK = (v) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${Math.round(v / 1_000)}K` : `${v}`;
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[60px]">
-      {series.map((d, i) => {
-        const x = pad + i * ((w - pad * 2) / series.length);
-        const inH = (d.income / maxVal) * (h / 2 - 2);
-        const exH = (d.expense / maxVal) * (h / 2 - 2);
-        return (
-          <g key={d.day}>
-            <rect x={x} y={h / 2 - inH} width={barW} height={inH} fill="rgba(72,220,120,0.75)" rx="1" />
-            <rect x={x} y={h / 2 + 1} width={barW} height={exH} fill="rgba(240,100,100,0.75)" rx="1" />
-          </g>
-        );
-      })}
-      <line x1={0} y1={h / 2} x2={w} y2={h / 2} stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" />
-    </svg>
+    <div>
+      <div className="flex items-center justify-between mb-1 text-[8px] text-gray-500 uppercase tracking-wider">
+        <span>Max: <b className="text-emerald-300">{fmtK(maxVal)}</b></span>
+        <span>{series.length} {series.length === 1 ? 'giorno' : 'giorni'}</span>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: h }} data-testid="cashflow-chart">
+        {/* Zero line */}
+        <line x1={padX} y1={padTop + chartH / 2} x2={w - padX} y2={padTop + chartH / 2} stroke="rgba(255,255,255,0.08)" strokeDasharray="2 2" />
+        {series.map((d, i) => {
+          const x = padX + i * slotW + (slotW - barW) / 2;
+          const inH = ((d.income || 0) / maxVal) * (chartH / 2 - 1);
+          const exH = ((d.expense || 0) / maxVal) * (chartH / 2 - 1);
+          const midY = padTop + chartH / 2;
+          return (
+            <g key={d.day}>
+              <rect x={x} y={midY - inH} width={barW} height={Math.max(inH, (d.income > 0 ? 0.8 : 0))} fill="rgba(72,220,120,0.85)" rx="1" />
+              <rect x={x} y={midY + 1} width={barW} height={Math.max(exH, (d.expense > 0 ? 0.8 : 0))} fill="rgba(240,100,100,0.85)" rx="1" />
+            </g>
+          );
+        })}
+        {/* X-axis labels */}
+        {tickIdx.map(i => {
+          const x = padX + i * slotW + slotW / 2;
+          return (
+            <text key={i} x={x} y={h - 3} fill="rgba(200,200,200,0.55)" fontSize="8" textAnchor="middle">
+              {fmtDay(series[i].day)}
+            </text>
+          );
+        })}
+      </svg>
+      <div className="flex items-center justify-center gap-3 mt-0.5">
+        <span className="flex items-center gap-1 text-[8px] text-gray-400"><span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" /> Entrate</span>
+        <span className="flex items-center gap-1 text-[8px] text-gray-400"><span className="w-1.5 h-1.5 rounded-sm bg-rose-400" /> Uscite</span>
+      </div>
+    </div>
   );
 }
 
@@ -356,30 +400,144 @@ function AccordionGeoRow({ item, scope }) {
   );
 }
 
-function HistoryTab({ txs }) {
-  if (txs.length === 0) return <div className="text-center py-14"><History className="w-8 h-8 text-gray-700 mx-auto mb-2" /><p className="text-[11px] text-gray-500">Nessuna transazione</p></div>;
+function HistoryTab({ films, onOpen }) {
+  if (!films || films.length === 0) {
+    return (
+      <div className="text-center py-14" data-testid="history-empty">
+        <History className="w-8 h-8 text-gray-700 mx-auto mb-2" />
+        <p className="text-[11px] text-gray-500">Nessun film rilasciato</p>
+        <p className="text-[9px] text-gray-600 mt-1">Distribuisci un film per vederlo qui</p>
+      </div>
+    );
+  }
   return (
-    <div className="space-y-1">
-      {txs.map(t => {
-        const meta = SRC_LABELS[t.source] || SRC_LABELS.other;
-        const isIn = t.direction === 'in';
-        return (
-          <div key={t.id} className="flex items-center gap-2 p-2 bg-[#0f0d10] rounded-lg border border-white/5" data-testid={`tx-${t.id}`}>
-            <div className="w-7 h-7 rounded-md flex items-center justify-center text-[10px] flex-shrink-0" style={{ background: `${meta.color}25`, border: `1px solid ${meta.color}50` }}>
-              {meta.icon}
+    <div className="space-y-2" data-testid="history-films-grid">
+      <p className="text-[9px] text-gray-500 uppercase tracking-wider">Tap su una locandina per i dettagli</p>
+      <div className="grid grid-cols-5 gap-1.5" data-testid="films-poster-grid">
+        {films.map(f => (
+          <FilmPosterMini key={f.id} film={f} onClick={() => onOpen(f)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FilmPosterMini({ film, onClick }) {
+  const profitColor = film.profit >= 0 ? 'text-emerald-300' : 'text-rose-300';
+  return (
+    <button onClick={onClick} className="flex flex-col items-center gap-0.5 active:scale-95 transition-transform" data-testid={`film-poster-${film.id}`}>
+      <div className="relative w-full aspect-[2/3] rounded-md overflow-hidden bg-black border border-white/10 hover:border-amber-500/40">
+        {film.poster_url ? (
+          <img src={film.poster_url} alt={film.title} className="w-full h-full object-cover" loading="lazy"
+               onError={(e) => { e.target.style.display = 'none'; }} />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-amber-900/30 to-black flex items-center justify-center">
+            <History className="w-4 h-4 text-amber-400/50" />
+          </div>
+        )}
+        {film.has_la_prima && (
+          <div className="absolute top-0.5 left-0.5 bg-amber-500/90 text-black text-[6px] font-black px-1 py-px rounded leading-none tracking-wide">LP</div>
+        )}
+      </div>
+      <p className="text-[8px] text-white font-semibold truncate w-full leading-tight">{film.title}</p>
+      <p className={`text-[7px] font-bold ${profitColor}`} data-testid={`film-profit-${film.id}`}>
+        {film.profit >= 0 ? '+' : ''}{fmtShort(film.profit)}
+      </p>
+    </button>
+  );
+}
+
+function FilmDetailModal({ film, onClose }) {
+  if (!film) return null;
+  const profitColor = film.profit >= 0 ? 'text-emerald-300' : 'text-rose-300';
+  const profitBg = film.profit >= 0 ? 'bg-emerald-500/10 border-emerald-500/25' : 'bg-rose-500/10 border-rose-500/25';
+  return (
+    <div className="fixed inset-0 z-[2000] bg-black/80 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose} data-testid="film-detail-modal">
+      <div onClick={(e) => e.stopPropagation()}
+           className="w-full sm:max-w-md bg-[#0f0d10] border-t sm:border border-amber-500/30 rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto">
+        {/* Header with poster */}
+        <div className="relative p-3 border-b border-white/10">
+          <button onClick={onClose} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white active:scale-90 transition-transform z-10" data-testid="film-detail-close">
+            <X className="w-4 h-4" />
+          </button>
+          <div className="flex gap-3">
+            <div className="w-16 aspect-[2/3] rounded-md overflow-hidden bg-black border border-white/10 flex-shrink-0">
+              {film.poster_url ? (
+                <img src={film.poster_url} alt={film.title} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-amber-900/30 to-black" />
+              )}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-white font-semibold truncate">{t.title || meta.label}</p>
-              <p className="text-[8px] text-gray-500">
-                {meta.label}{t.geo?.city ? ` · ${t.geo.city}` : t.geo?.continent ? ` · ${t.geo.continent}` : ''} · {new Date(t.created_at).toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            <div className="flex-1 min-w-0 pr-7">
+              <p className="text-[9px] text-amber-400/70 tracking-wider uppercase">Film</p>
+              <h3 className="text-lg font-black text-white leading-tight truncate" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>{film.title}</h3>
+              <p className="text-[9px] text-gray-500 mt-0.5">{film.days_in_theaters} {film.days_in_theaters === 1 ? 'giorno' : 'giorni'} al cinema</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Fixed stats */}
+        <div className="p-3 space-y-2">
+          <div className="grid grid-cols-3 gap-1.5">
+            <div className="p-2 rounded-lg bg-rose-500/5 border border-rose-500/15">
+              <p className="text-[8px] text-rose-300/80 uppercase tracking-wider">Costo</p>
+              <p className="text-[11px] font-bold text-rose-200" data-testid="film-detail-cost">{fmt(film.total_cost)}</p>
+            </div>
+            <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/15">
+              <p className="text-[8px] text-amber-300/80 uppercase tracking-wider">Totale</p>
+              <p className="text-[11px] font-bold text-amber-200" data-testid="film-detail-total">{fmt(film.total_revenue)}</p>
+            </div>
+            <div className={`p-2 rounded-lg border ${profitBg}`}>
+              <p className="text-[8px] uppercase tracking-wider opacity-80">Profit</p>
+              <p className={`text-[11px] font-bold ${profitColor}`} data-testid="film-detail-profit">
+                {film.profit >= 0 ? '+' : ''}{fmt(film.profit)}
               </p>
             </div>
-            <p className={`text-[11px] font-bold ${isIn ? 'text-emerald-300' : 'text-rose-300'}`}>
-              {isIn ? '+' : '-'}{fmtShort(Math.abs(t.amount))}
-            </p>
           </div>
-        );
-      })}
+
+          {/* La Prima section */}
+          {film.has_la_prima && (
+            <div className="p-2.5 rounded-lg bg-gradient-to-r from-amber-500/10 to-transparent border border-amber-500/25" data-testid="film-detail-la-prima">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-black text-amber-300 tracking-[0.2em] uppercase">La Prima</span>
+                  {film.la_prima_city && <span className="text-[9px] text-amber-200/70">· {film.la_prima_city}{film.la_prima_nation ? `, ${film.la_prima_nation}` : ''}</span>}
+                </div>
+                <span className="text-[11px] font-bold text-amber-300">{fmt(film.la_prima_revenue)}</span>
+              </div>
+              <p className="text-[8px] text-amber-200/60 mt-0.5">Incasso delle 24h di premiere</p>
+            </div>
+          )}
+
+          {/* Daily timeline */}
+          <div className="mt-1">
+            <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-1.5">Incassi giornalieri al cinema</p>
+            {(!film.daily_revenues || film.daily_revenues.length === 0) ? (
+              <p className="text-[10px] text-gray-600 text-center py-6">Nessun incasso giornaliero ancora registrato.<br/>Aggiornato ogni 24h dal debutto.</p>
+            ) : (
+              <div className="space-y-1">
+                {film.daily_revenues.map((d, i) => {
+                  const maxVal = Math.max(...film.daily_revenues.map(x => x.total));
+                  const pct = maxVal > 0 ? (d.total / maxVal) * 100 : 0;
+                  const dayLabel = d.day ? `Giorno ${d.day}` : d.date;
+                  return (
+                    <div key={i} className="p-2 rounded bg-[#0a080b] border border-white/5" data-testid={`film-day-${i}`}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold text-white">{dayLabel}</p>
+                        <p className="text-[11px] font-bold text-emerald-300">+{fmt(d.total)}</p>
+                      </div>
+                      <div className="h-1 bg-white/5 rounded-full overflow-hidden mt-1">
+                        <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400" style={{ width: `${pct}%` }} />
+                      </div>
+                      <p className="text-[8px] text-gray-600 mt-0.5">{d.date}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

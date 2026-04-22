@@ -2428,6 +2428,24 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
                 raise HTTPException(400, f"CinePass insufficienti: servono {total_cp} CP ma hai {user_cp}")
         await _spend(user["id"], funds=total_funds, cinepass=total_cp)
 
+    # ─── Calculate REAL total production cost from wallet_transactions ───
+    # Sum all outgoing transactions tied to this film project (production, marketing, trailer, sponsors,
+    # shooting, distribution, cast, screenplay, infrastructure...).
+    try:
+        cost_pipeline = db.wallet_transactions.aggregate([
+            {"$match": {"user_id": user["id"], "direction": "out",
+                        "$or": [
+                            {"ref_id": project["id"]},
+                            {"ref_id": pid},
+                        ]}},
+            {"$group": {"_id": None, "total": {"$sum": "$abs_amount"}}},
+        ])
+        total_cost = 0
+        async for d in cost_pipeline:
+            total_cost = int(d.get("total", 0) or 0)
+    except Exception:
+        total_cost = 0
+
     film_doc = {
         "id": str(uuid.uuid4()),
         "film_id": str(uuid.uuid4()),
@@ -2447,6 +2465,8 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "release_date_label": project.get("release_date_label") or "Immediato",
         "distribution_world": project.get("distribution_mondiale", True),
         "distribution_zones": project.get("distribution_continents", []),
+        "distribution_nations": project.get("distribution_nations", {}),
+        "distribution_cities": project.get("distribution_cities", {}),
         "distribution_cost": project.get("distribution_cost", {}),
         "film_format": project.get("film_format", "standard"),
         "film_duration_minutes": project.get("film_duration_minutes"),
@@ -2469,6 +2489,10 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "likes_count": 0,
         "liked_by": [],
         "total_revenue": 0,
+        "total_cost": total_cost,
+        "la_prima_revenue": int(project.get("total_revenue", 0) or 0) if (project.get("release_type") == "premiere") else 0,
+        "la_prima_city": (project.get("premiere") or {}).get("city") if (project.get("release_type") == "premiere") else None,
+        "la_prima_nation": (project.get("premiere") or {}).get("nation") if (project.get("release_type") == "premiere") else None,
         "opening_day_revenue": _calc_opening_day(quality_score, project),
         "current_cinemas": max(1, len(project.get("distribution_continents", []))),
         "created_at": _now(),

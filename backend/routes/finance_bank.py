@@ -120,7 +120,11 @@ async def finance_breakdown(scope: str = 'continent', days: int = 30, parent: Op
     ]
     items = []
     async for d in db.wallet_transactions.aggregate(pipeline):
-        items.append({'name': d['_id'] or 'Sconosciuto', 'total': d.get('total', 0), 'count': d.get('count', 0)})
+        name = d['_id']
+        # Normalize labels: empty/None/"Global" → "Totale" (Italian unified label for world-wide)
+        if not name or str(name).strip() == '' or str(name).lower() in ('global', 'sconosciuto'):
+            name = 'Totale'
+        items.append({'name': name, 'total': d.get('total', 0), 'count': d.get('count', 0)})
     # Fill with known continents even if 0 (only when scope=continent and no parent)
     if scope == 'continent' and not parent:
         KNOWN = ['Europa', 'Nord America', 'Sud America', 'Asia', 'Africa', 'Oceania', 'Globale']
@@ -193,6 +197,126 @@ async def finance_cashflow(days: int = 30, user: dict = Depends(get_current_user
     for r in series:
         r['net'] = r['income'] - r['expense']
     return {'series': series}
+
+
+# ═══════════════════════════════════════════════════════════════
+# FILMS HISTORY — Aggregated per-film revenue with daily breakdown
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/finance/films-history")
+async def finance_films_history(user: dict = Depends(get_current_user)):
+    """Return all user's films with aggregated cost / revenue / daily revenue timeline.
+    Shape:
+      {
+        films: [
+          { id, title, poster_url, status, total_cost, total_revenue, profit,
+            has_la_prima, la_prima_revenue, la_prima_city, la_prima_nation,
+            theater_start, days_in_theaters,
+            daily_revenues: [{day: 1, date: 'YYYY-MM-DD', total: 1234}, ...]
+          }
+        ]
+      }
+    All films the user has released (in_theaters, released, coming_soon) ordered by most recent first.
+    """
+    uid = user['id']
+    films = await db.films.find(
+        {'user_id': uid, 'status': {'$in': ['in_theaters', 'released', 'coming_soon']}},
+        {'_id': 0, 'id': 1, 'film_id': 1, 'source_project_id': 1, 'title': 1, 'poster_url': 1,
+         'status': 1, 'total_cost': 1, 'total_revenue': 1, 'theater_start': 1, 'released_at': 1,
+         'release_type': 1, 'la_prima_revenue': 1, 'la_prima_city': 1, 'la_prima_nation': 1,
+         'opening_day_revenue': 1}
+    ).sort('released_at', -1).to_list(500)
+
+    if not films:
+        return {'films': []}
+
+    # For each film aggregate daily revenue from wallet_transactions
+    result = []
+    for f in films:
+        fid = f['id']
+        pipeline = [
+            {'$match': {'user_id': uid, 'direction': 'in', 'ref_id': fid, 'ref_type': 'film',
+                        'source': {'$in': ['box_office', 'la_prima']}}},
+            {'$addFields': {'day': {'$substr': ['$created_at', 0, 10]}}},
+            {'$group': {
+                '_id': {'day': '$day', 'source': '$source'},
+                'total': {'$sum': '$abs_amount'},
+            }},
+            {'$sort': {'_id.day': 1}},
+        ]
+        by_day = {}
+        la_prima_total = 0
+        la_prima_city = f.get('la_prima_city') or ''
+        la_prima_nation = f.get('la_prima_nation') or ''
+        async for d in db.wallet_transactions.aggregate(pipeline):
+            day = d['_id']['day']
+            src = d['_id']['source']
+            if src == 'la_prima':
+                la_prima_total += int(d.get('total', 0) or 0)
+                continue
+            by_day.setdefault(day, 0)
+            by_day[day] += int(d.get('total', 0) or 0)
+
+        # Compute day index relative to theater_start
+        theater_start = f.get('theater_start') or f.get('released_at')
+        start_day = None
+        if theater_start:
+            try:
+                start_day = str(theater_start)[:10]
+            except Exception:
+                start_day = None
+
+        daily_revenues = []
+        sorted_days = sorted(by_day.keys())
+        for day_str in sorted_days:
+            # compute day index
+            idx = None
+            if start_day:
+                try:
+                    from datetime import date
+                    d1 = date.fromisoformat(day_str)
+                    d0 = date.fromisoformat(start_day)
+                    idx = (d1 - d0).days + 1  # Day 1 = theater_start day
+                except Exception:
+                    idx = None
+            daily_revenues.append({'day': idx, 'date': day_str, 'total': by_day[day_str]})
+
+        total_revenue = sum(by_day.values()) + la_prima_total
+        total_cost = int(f.get('total_cost') or 0)
+        # If film_doc is older and has no total_cost, fallback to sum of outgoing tx
+        if total_cost == 0:
+            sp_id = f.get('source_project_id')
+            if sp_id:
+                cost_pipe = db.wallet_transactions.aggregate([
+                    {'$match': {'user_id': uid, 'direction': 'out',
+                                'ref_id': sp_id}},
+                    {'$group': {'_id': None, 'total': {'$sum': '$abs_amount'}}},
+                ])
+                async for d in cost_pipe:
+                    total_cost = int(d.get('total', 0) or 0)
+
+        # Theater days count
+        days_in_theaters = len(sorted_days)
+
+        result.append({
+            'id': fid,
+            'title': f.get('title', ''),
+            'poster_url': f.get('poster_url', ''),
+            'status': f.get('status'),
+            'release_type': f.get('release_type'),
+            'theater_start': theater_start,
+            'days_in_theaters': days_in_theaters,
+            'total_cost': total_cost,
+            'total_revenue': total_revenue,
+            'profit': total_revenue - total_cost,
+            'has_la_prima': (f.get('release_type') == 'premiere') or la_prima_total > 0,
+            'la_prima_revenue': la_prima_total or int(f.get('la_prima_revenue') or 0),
+            'la_prima_city': la_prima_city,
+            'la_prima_nation': la_prima_nation,
+            'daily_revenues': daily_revenues,
+        })
+
+    return {'films': result}
 
 
 # ═══════════════════════════════════════════════════════════════

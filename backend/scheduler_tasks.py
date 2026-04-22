@@ -1490,6 +1490,139 @@ def _budget_multiplier(budget_tier: str) -> float:
     return _BUDGET_REV_MULTIPLIER.get(str(budget_tier).lower(), 1.0)
 
 
+# ═══════════════════════════════════════════════════════════════
+# DISTRIBUTION-AWARE GEO PICKER
+# Picks a realistic (city, nation, continent) for each revenue tick
+# based on the film's distribution choices at pipeline V3 time.
+# ═══════════════════════════════════════════════════════════════
+import random as _random
+
+# Top world markets (weighted by theatrical share). Used when distribution_world=True or no specific data.
+_WORLD_TOP_MARKETS = [
+    # (city, nation, continent, weight)
+    ('New York', 'USA', 'Nord America', 14),
+    ('Los Angeles', 'USA', 'Nord America', 14),
+    ('Chicago', 'USA', 'Nord America', 5),
+    ('Toronto', 'Canada', 'Nord America', 4),
+    ('Londra', 'Regno Unito', 'Europa', 8),
+    ('Parigi', 'Francia', 'Europa', 7),
+    ('Berlino', 'Germania', 'Europa', 5),
+    ('Milano', 'Italia', 'Europa', 4),
+    ('Roma', 'Italia', 'Europa', 3),
+    ('Madrid', 'Spagna', 'Europa', 3),
+    ('Tokyo', 'Giappone', 'Asia', 7),
+    ('Seoul', 'Corea del Sud', 'Asia', 4),
+    ('Shanghai', 'Cina', 'Asia', 6),
+    ('Pechino', 'Cina', 'Asia', 5),
+    ('Mumbai', 'India', 'Asia', 4),
+    ('San Paolo', 'Brasile', 'Sud America', 3),
+    ('Buenos Aires', 'Argentina', 'Sud America', 2),
+    ('Città del Messico', 'Messico', 'Nord America', 3),
+    ('Sydney', 'Australia', 'Oceania', 2),
+    ('Il Cairo', 'Egitto', 'Africa', 1),
+    ('Lagos', 'Nigeria', 'Africa', 1),
+]
+
+# Fallback cities per continent (when continent-only distribution is chosen)
+_CONTINENT_CITIES = {
+    'Europa': [('Londra', 'Regno Unito'), ('Parigi', 'Francia'), ('Berlino', 'Germania'), ('Milano', 'Italia'), ('Roma', 'Italia'), ('Madrid', 'Spagna'), ('Barcellona', 'Spagna'), ('Amsterdam', 'Paesi Bassi')],
+    'Nord America': [('New York', 'USA'), ('Los Angeles', 'USA'), ('Chicago', 'USA'), ('Toronto', 'Canada'), ('Città del Messico', 'Messico')],
+    'Sud America': [('San Paolo', 'Brasile'), ('Buenos Aires', 'Argentina'), ('Rio de Janeiro', 'Brasile'), ('Lima', 'Perù'), ('Bogotá', 'Colombia')],
+    'Asia': [('Tokyo', 'Giappone'), ('Seoul', 'Corea del Sud'), ('Shanghai', 'Cina'), ('Pechino', 'Cina'), ('Mumbai', 'India'), ('Bangkok', 'Thailandia'), ('Singapore', 'Singapore')],
+    'Africa': [('Il Cairo', 'Egitto'), ('Lagos', 'Nigeria'), ('Città del Capo', 'Sudafrica'), ('Nairobi', 'Kenya')],
+    'Oceania': [('Sydney', 'Australia'), ('Melbourne', 'Australia'), ('Auckland', 'Nuova Zelanda')],
+}
+
+# Continent lookup by nation (broad mapping for auto-classification).
+_NATION_TO_CONTINENT = {
+    'USA': 'Nord America', 'Stati Uniti': 'Nord America', 'Canada': 'Nord America', 'Messico': 'Nord America',
+    'Italia': 'Europa', 'Francia': 'Europa', 'Germania': 'Europa', 'Regno Unito': 'Europa', 'Spagna': 'Europa',
+    'Portogallo': 'Europa', 'Paesi Bassi': 'Europa', 'Belgio': 'Europa', 'Svezia': 'Europa', 'Norvegia': 'Europa',
+    'Polonia': 'Europa', 'Grecia': 'Europa', 'Russia': 'Europa',
+    'Giappone': 'Asia', 'Cina': 'Asia', 'Corea del Sud': 'Asia', 'India': 'Asia', 'Thailandia': 'Asia',
+    'Singapore': 'Asia', 'Indonesia': 'Asia', 'Filippine': 'Asia', 'Vietnam': 'Asia',
+    'Brasile': 'Sud America', 'Argentina': 'Sud America', 'Cile': 'Sud America', 'Perù': 'Sud America', 'Colombia': 'Sud America',
+    'Egitto': 'Africa', 'Nigeria': 'Africa', 'Sudafrica': 'Africa', 'Marocco': 'Africa', 'Kenya': 'Africa',
+    'Australia': 'Oceania', 'Nuova Zelanda': 'Oceania',
+}
+
+
+def _continent_for_nation(nation: str) -> str:
+    return _NATION_TO_CONTINENT.get(nation, 'Globale') if nation else 'Globale'
+
+
+def _flatten_distribution_cities(distribution_cities) -> list:
+    """Flatten dict-of-nation→list[city] or list[city] into list[(city, nation)]."""
+    out = []
+    if isinstance(distribution_cities, dict):
+        for nation, cities in distribution_cities.items():
+            if isinstance(cities, list):
+                for c in cities:
+                    out.append((c, nation))
+    elif isinstance(distribution_cities, list):
+        for c in distribution_cities:
+            out.append((c, ''))
+    return out
+
+
+def _flatten_distribution_nations(distribution_nations) -> list:
+    if isinstance(distribution_nations, dict):
+        vals = []
+        for k, v in distribution_nations.items():
+            if isinstance(v, list):
+                vals.extend(v)
+            elif isinstance(v, str):
+                vals.append(v)
+        return vals
+    if isinstance(distribution_nations, list):
+        return list(distribution_nations)
+    return []
+
+
+def pick_revenue_geo(film: dict) -> dict:
+    """Pick a realistic {city, nation, continent} for this revenue tick based on the film's
+    distribution choices at pipeline V3 time.
+    Priority: distribution_cities > distribution_nations > distribution_continents > distribution_world.
+    """
+    # 1) Specific cities chosen
+    cities = _flatten_distribution_cities(film.get('distribution_cities'))
+    if cities:
+        city, nation = _random.choice(cities)
+        return {'city': city, 'nation': nation, 'continent': _continent_for_nation(nation)}
+
+    # 2) Specific nations chosen (pick a city from known cities in those nations, fallback to nation-only)
+    nations = _flatten_distribution_nations(film.get('distribution_nations'))
+    if nations:
+        nation = _random.choice(nations)
+        continent = _continent_for_nation(nation)
+        # Try to pick a known city in that continent matching the nation
+        candidate_cities = [c for c, n in _CONTINENT_CITIES.get(continent, []) if n == nation]
+        city = _random.choice(candidate_cities) if candidate_cities else ''
+        return {'city': city, 'nation': nation, 'continent': continent}
+
+    # 3) Continents chosen only
+    continents = film.get('distribution_continents') or film.get('distribution_zones') or []
+    if isinstance(continents, list) and continents:
+        continent = _random.choice(continents)
+        pool = _CONTINENT_CITIES.get(continent, [])
+        if pool:
+            city, nation = _random.choice(pool)
+            return {'city': city, 'nation': nation, 'continent': continent}
+        return {'city': '', 'nation': '', 'continent': continent}
+
+    # 4) World-wide: pick a top market weighted
+    total_w = sum(w for *_, w in _WORLD_TOP_MARKETS)
+    pick = _random.uniform(0, total_w)
+    acc = 0
+    for city, nation, continent, w in _WORLD_TOP_MARKETS:
+        acc += w
+        if pick <= acc:
+            return {'city': city, 'nation': nation, 'continent': continent}
+    # Safety fallback
+    c, n, cont, _ = _WORLD_TOP_MARKETS[0]
+    return {'city': c, 'nation': n, 'continent': cont}
+
+
 async def auto_revenue_tick():
     """
     Automatic tick every 10 minutes:
@@ -1744,22 +1877,8 @@ async def auto_revenue_tick():
                     if tick_rev > 0:
                         try:
                             from utils.wallet import log_wallet_tx
-                            # Extract primary geo from release_event or distribution
-                            rev_geo = {}
-                            re = film.get('release_event') or {}
-                            if isinstance(re, dict):
-                                rev_geo = {
-                                    'city': re.get('city') or re.get('host_city') or '',
-                                    'nation': re.get('nation') or re.get('country') or '',
-                                    'continent': re.get('continent') or 'Globale',
-                                }
-                            # Fallback: distribution_continents
-                            if not rev_geo.get('continent'):
-                                dc = film.get('distribution_continents') or []
-                                if dc:
-                                    rev_geo['continent'] = dc[0] if isinstance(dc, list) else str(dc)
-                                else:
-                                    rev_geo['continent'] = 'Globale'
+                            # Pick a realistic geo for this tick based on distribution choices (V3)
+                            rev_geo = pick_revenue_geo(film)
                             await log_wallet_tx(
                                 scheduler_db, user_id, tick_rev, 'in',
                                 source='box_office' if film.get('_source') == 'films' else 'tv_broadcast',

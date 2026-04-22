@@ -2428,23 +2428,26 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
                 raise HTTPException(400, f"CinePass insufficienti: servono {total_cp} CP ma hai {user_cp}")
         await _spend(user["id"], funds=total_funds, cinepass=total_cp)
 
-    # ─── Calculate REAL total production cost from wallet_transactions ───
-    # Sum all outgoing transactions tied to this film project (production, marketing, trailer, sponsors,
-    # shooting, distribution, cast, screenplay, infrastructure...).
+    # ─── Calculate REAL total production cost from pipeline V3 cost calculator ───
+    # This is the authoritative net cost (incl. sponsor offset, marketing, cast, distribution, ...).
     try:
-        cost_pipeline = db.wallet_transactions.aggregate([
-            {"$match": {"user_id": user["id"], "direction": "out",
-                        "$or": [
-                            {"ref_id": project["id"]},
-                            {"ref_id": pid},
-                        ]}},
-            {"$group": {"_id": None, "total": {"$sum": "$abs_amount"}}},
-        ])
-        total_cost = 0
-        async for d in cost_pipeline:
-            total_cost = int(d.get("total", 0) or 0)
+        from utils.calc_production_cost import calculate_production_cost
+        cost_breakdown = calculate_production_cost(project)
+        total_cost = int(cost_breakdown.get("total_funds", 0) or 0)
     except Exception:
         total_cost = 0
+    # Fallback: sum wallet_transactions outgoing if calculator fails
+    if total_cost == 0:
+        try:
+            cost_pipeline = db.wallet_transactions.aggregate([
+                {"$match": {"user_id": user["id"], "direction": "out",
+                            "$or": [{"ref_id": project["id"]}, {"ref_id": pid}]}},
+                {"$group": {"_id": None, "total": {"$sum": "$abs_amount"}}},
+            ])
+            async for d in cost_pipeline:
+                total_cost = int(d.get("total", 0) or 0)
+        except Exception:
+            total_cost = 0
 
     film_doc = {
         "id": str(uuid.uuid4()),

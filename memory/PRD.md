@@ -10,6 +10,16 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Fix definitivo Costo film (pipeline V3 calculator)**
+  - **🐛 Costo $0 film legacy + nuovi**: il fallback via `wallet_transactions` non funzionava perché molti film sono stati creati senza log transazionali taggati con `ref_id=project_id`. **Fix definitivo**: usato direttamente `calculate_production_cost(project)` da `utils/calc_production_cost.py` — la stessa funzione usata nell'ultimo step della pipeline V3 per mostrare il costo al produttore. Restituisce `total_funds` già **al netto degli sponsor** (`sponsor_offset`) includendo: base produzione (per budget_tier), cast, equipment, CGI, VFX, extras, riprese, marketing, distribuzione, meno rientro sponsor.
+  - **`confirm-release`** (`routes/pipeline_v3.py`): ora calcola `total_cost` con `calculate_production_cost` + fallback a wallet_transactions se il calcolatore fallisce.
+  - **`/finance/films-history`** (`routes/finance_bank.py`): 3 fallback a cascata per `total_cost` quando il film doc ha $0:
+    1. **Retrofit via pipeline V3 calculator** dal `source_project_id` → persiste il valore nel DB così la prossima volta è già lì (lazy migration).
+    2. Aggregate da `wallet_transactions` outgoing (film V3 nuovi).
+    3. Somma campi budget diretti (`total_budget/marketing_cost/production_cost/trailer_cost/distribution_cost`) come ultima spiaggia.
+  - Questo risolve "Costo $0" su Seeeee e tutti i film legacy mostrando il costo reale usato in pipeline.
+  - Files: `routes/pipeline_v3.py`, `routes/finance_bank.py`.
+
 - **Feb 2026 — Hotfix 4 bug Finanze/Dashboard**
   - **🐛 Foto 1 — Geo "Globale" vs "Totale" duplicati**: il breakdown mostrava DUE righe separate ("Globale" $14.1K + "Totale" $5.3K) per le tx legacy. **Fix**: normalizzazione estesa a `globale` (it), `global` (en), `sconosciuto`, `''` → bucket unico "Totale" + merge duplicati dopo normalizzazione (`routes/finance_bank.py /finance/breakdown`). Ora si vede una sola riga "Totale" che raggruppa tutte le tx catch-all.
   - **🐛 Foto 2 — Costo $0 film legacy + giorni 1,2 mancanti**: `/finance/films-history` mostrava "Costo $0" su Seeeee (legacy V2 senza wallet_transactions outgoing) e timeline saltava i giorni senza entries. **Fix**:

@@ -302,18 +302,32 @@ async def finance_films_history(user: dict = Depends(get_current_user)):
 
         total_revenue = sum(by_day.values()) + la_prima_total
         total_cost = int(f.get('total_cost') or 0)
-        # Fallback costo per film legacy (senza wallet_transactions out tagged with project id)
+        # Fallback 1: retrofit from pipeline V3 calculator on the source film_project
+        if total_cost == 0:
+            sp_id = f.get('source_project_id')
+            if sp_id:
+                try:
+                    project = await db.film_projects.find_one({'id': sp_id}, {'_id': 0})
+                    if project:
+                        from utils.calc_production_cost import calculate_production_cost
+                        cb = calculate_production_cost(project)
+                        total_cost = int(cb.get('total_funds', 0) or 0)
+                        # Also persist it for future reads so next time it's instant
+                        if total_cost > 0:
+                            await db.films.update_one({'id': fid}, {'$set': {'total_cost': total_cost}})
+                except Exception:
+                    pass
+        # Fallback 2: aggregate outgoing wallet_transactions (new V3 system only)
         if total_cost == 0:
             sp_id = f.get('source_project_id')
             if sp_id:
                 cost_pipe = db.wallet_transactions.aggregate([
-                    {'$match': {'user_id': uid, 'direction': 'out',
-                                'ref_id': sp_id}},
+                    {'$match': {'user_id': uid, 'direction': 'out', 'ref_id': sp_id}},
                     {'$group': {'_id': None, 'total': {'$sum': '$abs_amount'}}},
                 ])
                 async for d in cost_pipe:
                     total_cost = int(d.get('total', 0) or 0)
-        # Secondo fallback: somma campi budget noti sul film doc
+        # Fallback 3: sum budget fields directly from film doc (last resort)
         if total_cost == 0:
             sb = int(f.get('total_budget') or 0) or int(f.get('budget') or 0)
             mk = int(f.get('marketing_cost') or 0)

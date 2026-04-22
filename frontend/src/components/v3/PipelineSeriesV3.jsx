@@ -50,12 +50,11 @@ async function sapi(path, method = 'GET', body) {
   return data;
 }
 
-/* ─── Steps (same as film but no LaPrima) ─── */
+/* ─── Steps (prep merged into idea; flow: idea→hype→cast→ciak→finalcut→marketing→distribution→uscita) ─── */
 const SERIES_STEPS = [
   { id: 'idea', label: 'IDEA', icon: Sparkles, color: 'amber' },
   { id: 'hype', label: 'HYPE', icon: TrendingUp, color: 'orange' },
   { id: 'cast', label: 'CAST', icon: Users, color: 'cyan' },
-  { id: 'prep', label: 'PREP', icon: Camera, color: 'blue' },
   { id: 'ciak', label: 'CIAK', icon: Clapperboard, color: 'red' },
   { id: 'finalcut', label: 'FINAL CUT', icon: Scissors, color: 'purple' },
   { id: 'marketing', label: 'MARKETING', icon: Megaphone, color: 'green' },
@@ -119,6 +118,10 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
   const [preplot, setPreplot] = useState(project.preplot || '');
   const [numEp, setNumEp] = useState(project.num_episodes || 10);
   const [locations, setLocations] = useState(project.locations || []);
+  // Prep fields merged into idea
+  const [fmt, setFmt] = useState(project.series_format || 'stagionale');
+  const [dur, setDur] = useState(project.episode_duration_min || (seriesType === 'anime' ? 22 : 45));
+  const [equip, setEquip] = useState(project.equipment_level || 'medium');
   const [genres, setGenres] = useState({});
   const [saving, setSaving] = useState(false);
   const [genTitles, setGenTitles] = useState(false);
@@ -126,7 +129,7 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
   const [genScreen, setGenScreen] = useState(false);
   const [posterProgress, setPosterProgress] = useState(0);
   const [screenProgress, setScreenProgress] = useState(0);
-  const [selectedEp, setSelectedEp] = useState(null);  // episode clicked → show mini_plot
+  const [selectedEp, setSelectedEp] = useState(null);
   const posterIntRef = useRef(null);
   const screenIntRef = useRef(null);
 
@@ -134,16 +137,48 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
     sapi(`/genres?series_type=${seriesType}`).then(d => setGenres(d.genres || {})).catch(() => {});
   }, [seriesType]);
 
+  // Episode ranges by format (applied ONLY after user picks a format)
+  const FORMAT_RANGES = {
+    miniserie: [4, 6], stagionale: [8, 13], lunga: [20, 26], maratona: [40, 52],
+  };
   const genreInfo = genres[genre] || {};
-  const epRange = genreInfo.ep_range || [4, 26];
+  const baseRange = genreInfo.ep_range || [4, 52];
+  const formatRange = FORMAT_RANGES[fmt] || baseRange;
+  // Intersect format with genre's ep_range
+  const epMin = Math.max(baseRange[0], formatRange[0]);
+  const epMax = Math.min(baseRange[1], formatRange[1]);
   const subOpts = SUBGENRE_MAP[genre] || [];
-  const valid = title.trim().length >= 2 && genre && preplot.trim().length >= 30;
+  const validIdea = title.trim().length >= 2 && genre && preplot.trim().length >= 30;
+  const hasPoster = !!project.poster_url;
+  const hasTitles = (project.episodes || []).length > 0;
+
+  // Clamp numEp into the allowed range whenever format changes
+  useEffect(() => {
+    if (numEp < epMin) setNumEp(epMin);
+    else if (numEp > epMax) setNumEp(epMax);
+  }, [fmt, epMin, epMax]);   // eslint-disable-line
+
+  const durations = seriesType === 'anime' ? [22, 24, 30] : [30, 45, 60];
+  const formats = [
+    { id: 'miniserie', label: 'Miniserie', desc: '4-6 ep' },
+    { id: 'stagionale', label: 'Stagionale', desc: '8-13 ep' },
+    { id: 'lunga', label: 'Lunga', desc: '20-26 ep' },
+    { id: 'maratona', label: 'Maratona', desc: '40+ ep' },
+  ];
+  const equipLevels = [
+    { id: 'low', label: 'Economico', cost: '$' },
+    { id: 'medium', label: 'Medio', cost: '$$' },
+    { id: 'high', label: 'Premium', cost: '$$$' },
+  ];
 
   const save = async () => {
     setSaving(true);
     try {
-      await sapi(`/projects/${project.id}/save-idea`, 'POST', { title, genre, subgenres, preplot, num_episodes: numEp, locations });
-      toast.success('Idea salvata!');
+      await sapi(`/projects/${project.id}/save-idea`, 'POST', {
+        title, genre, subgenres, preplot, num_episodes: numEp, locations,
+        series_format: fmt, episode_duration_min: dur, equipment_level: equip,
+      });
+      toast.success('Idea & Pre-Produzione salvate!');
       onRefresh?.();
     } catch (e) { toast.error(e.message); }
     setSaving(false);
@@ -160,9 +195,7 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
   };
 
   const generatePoster = async () => {
-    setGenPoster(true);
-    setPosterProgress(0);
-    // Simulate progress 0→95 over ~18s until the real response arrives
+    setGenPoster(true); setPosterProgress(0);
     if (posterIntRef.current) clearInterval(posterIntRef.current);
     const start = Date.now();
     posterIntRef.current = setInterval(() => {
@@ -180,26 +213,23 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
   };
 
   const generateScreenplay = async () => {
-    setGenScreen(true);
-    setScreenProgress(0);
+    setGenScreen(true); setScreenProgress(0);
     if (screenIntRef.current) clearInterval(screenIntRef.current);
     const start = Date.now();
     screenIntRef.current = setInterval(() => {
       const elapsed = (Date.now() - start) / 1000;
-      // Longer because 2 LLM calls (script + mini-plots), ~25s
       setScreenProgress(Math.min(95, Math.round(elapsed * 3.8)));
     }, 400);
     try {
       const r = await sapi(`/projects/${project.id}/generate-screenplay`, 'POST');
       setScreenProgress(100);
-      toast.success(r.message || 'Sceneggiatura generata!');
+      toast.success(r.message || 'Sceneggiatura + mini trame generate!');
       onRefresh?.();
     } catch (e) { toast.error(e.message); }
     if (screenIntRef.current) { clearInterval(screenIntRef.current); screenIntRef.current = null; }
     setTimeout(() => { setGenScreen(false); setScreenProgress(0); }, 600);
   };
 
-  // Cleanup intervals on unmount
   useEffect(() => () => {
     if (posterIntRef.current) clearInterval(posterIntRef.current);
     if (screenIntRef.current) clearInterval(screenIntRef.current);
@@ -213,7 +243,7 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
         </div>
         <div>
           <h3 className="text-sm font-bold text-white">Concept {seriesType === 'anime' ? 'Anime' : 'Serie TV'}</h3>
-          <p className="text-[8px] text-gray-500">Titolo, genere, episodi, sinossi</p>
+          <p className="text-[8px] text-gray-500">Titolo → Genere → Pre-Produzione → Episodi → Locandina → Titoli → Sceneggiatura</p>
         </div>
       </div>
 
@@ -246,15 +276,54 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
         </div>
       )}
 
-      {/* Num Episodes */}
-      <div>
-        <p className="text-[8px] text-gray-500 mb-1">Numero Episodi ({epRange[0]}-{epRange[1]})</p>
-        <div className="flex items-center gap-2">
-          <input type="range" min={epRange[0]} max={epRange[1]} value={numEp} onChange={e => setNumEp(+e.target.value)}
-            className="flex-1 accent-amber-500" data-testid="num-episodes-slider" />
-          <span className="text-sm font-bold text-amber-400 w-8 text-center">{numEp}</span>
+      {/* ═══ PRE-PRODUZIONE integrata ═══ */}
+      {genre && (
+        <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 space-y-2">
+          <p className="text-[8px] text-blue-300 font-bold uppercase tracking-wider flex items-center gap-1">
+            <Camera className="w-3 h-3" /> Pre-Produzione
+          </p>
+          <div className="grid grid-cols-2 gap-1" data-testid="idea-fmt-grid">
+            {formats.map(f => (
+              <button key={f.id} onClick={() => setFmt(f.id)}
+                className={`p-1.5 rounded-lg border text-left ${fmt === f.id ? 'border-blue-500/40 bg-blue-500/10' : 'border-gray-800'}`}
+                data-testid={`idea-fmt-${f.id}`}>
+                <p className="text-[9px] font-bold text-white">{f.label}</p>
+                <p className="text-[7px] text-gray-500">{f.desc}</p>
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1">
+            {durations.map(d => (
+              <button key={d} onClick={() => setDur(d)}
+                className={`flex-1 py-1 rounded text-[8px] font-bold border ${dur === d ? 'border-blue-500/40 bg-blue-500/10 text-blue-300' : 'border-gray-800 text-gray-500'}`}
+                data-testid={`idea-dur-${d}`}>
+                {d} min
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-1">
+            {equipLevels.map(e => (
+              <button key={e.id} onClick={() => setEquip(e.id)}
+                className={`py-1 rounded text-[8px] border ${equip === e.id ? 'border-blue-500/40 bg-blue-500/10 text-blue-300' : 'border-gray-800 text-gray-500'}`}
+                data-testid={`idea-equip-${e.id}`}>
+                <span className="font-bold">{e.label}</span> <span className="opacity-60">{e.cost}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Num Episodes (range derivato dal formato) */}
+      {genre && (
+        <div>
+          <p className="text-[8px] text-gray-500 mb-1">Numero Episodi <span className="text-amber-400/70">({epMin}-{epMax}, formato: {fmt})</span></p>
+          <div className="flex items-center gap-2">
+            <input type="range" min={epMin} max={epMax} value={Math.max(epMin, Math.min(epMax, numEp))} onChange={e => setNumEp(+e.target.value)}
+              className="flex-1 accent-amber-500" data-testid="num-episodes-slider" />
+            <span className="text-sm font-bold text-amber-400 w-8 text-center">{numEp}</span>
+          </div>
+        </div>
+      )}
 
       {/* Synopsis */}
       <textarea value={preplot} onChange={e => setPreplot(e.target.value)} rows={3}
@@ -275,42 +344,39 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
         </div>
       </div>
 
-      {/* Save + Generate Titles */}
-      <div className="flex gap-2">
-        <button onClick={save} disabled={!valid || saving}
-          className="flex-1 py-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-bold disabled:opacity-30" data-testid="save-idea-btn">
-          {saving ? '...' : 'Salva Idea'}
-        </button>
-        {valid && (
-          <button onClick={generateTitles} disabled={genTitles}
-            className="px-3 py-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold disabled:opacity-30" data-testid="gen-titles-btn">
-            {genTitles ? '...' : 'Titoli EP'}
-          </button>
-        )}
-      </div>
+      {/* Save Idea + Prep */}
+      <button onClick={save} disabled={!validIdea || saving}
+        className="w-full py-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-bold disabled:opacity-30" data-testid="save-idea-btn">
+        {saving ? '...' : 'Salva Idea + Pre-Produzione'}
+      </button>
 
-      {/* AI Poster + Screenplay (like film V3) */}
-      {valid && project.id && (
-        <div className="grid grid-cols-2 gap-2" data-testid="series-ai-tools">
+      {/* AI Tools — gated sequence: 1.Locandina → 2.Titoli EP → 3.Sceneggiatura AI */}
+      {validIdea && project.id && project.prep_completed && (
+        <div className="space-y-2">
+          {/* Step 1: Poster */}
           <button onClick={generatePoster} disabled={genPoster}
-            className="py-2 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[10px] font-bold active:scale-95 transition-transform disabled:opacity-70 flex items-center justify-center gap-1.5 relative" data-testid="gen-series-poster-btn">
-            {genPoster && (
-              <InlineProgressCircle value={posterProgress} color="#c084fc" />
-            )}
-            <span>{genPoster
-              ? `${posterProgress}%`
-              : (project.poster_url ? 'Rigenera Locandina' : 'Locandina AI')}</span>
+            className="w-full py-2 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[10px] font-bold disabled:opacity-70 flex items-center justify-center gap-1.5" data-testid="gen-series-poster-btn">
+            {genPoster && <InlineProgressCircle value={posterProgress} color="#c084fc" />}
+            <span>{genPoster ? `${posterProgress}%` : (hasPoster ? '1. Rigenera Locandina' : '1. Genera Locandina AI')}</span>
           </button>
-          <button onClick={generateScreenplay} disabled={genScreen}
-            className="py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold active:scale-95 transition-transform disabled:opacity-70 flex items-center justify-center gap-1.5 relative" data-testid="gen-series-screenplay-btn">
-            {genScreen && (
-              <InlineProgressCircle value={screenProgress} color="#34d399" />
-            )}
-            <span>{genScreen
-              ? `${screenProgress}%`
-              : (project.screenplay_text ? 'Rigenera Sceneggiatura' : 'Sceneggiatura AI')}</span>
+
+          {/* Step 2: Episode titles — gated on poster */}
+          <button onClick={generateTitles} disabled={genTitles || !hasPoster}
+            className="w-full py-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-bold disabled:opacity-30" data-testid="gen-titles-btn">
+            {genTitles ? '...' : !hasPoster ? '2. Prima la locandina' : (hasTitles ? `2. Rigenera ${numEp} Titoli Episodi` : `2. Genera ${numEp} Titoli Episodi`)}
+          </button>
+
+          {/* Step 3: Screenplay — gated on titles */}
+          <button onClick={generateScreenplay} disabled={genScreen || !hasTitles}
+            className="w-full py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold disabled:opacity-30 flex items-center justify-center gap-1.5" data-testid="gen-series-screenplay-btn">
+            {genScreen && <InlineProgressCircle value={screenProgress} color="#34d399" />}
+            <span>{genScreen ? `${screenProgress}%` : !hasTitles ? '3. Prima i titoli episodi' : (project.screenplay_text ? '3. Rigenera Sceneggiatura + Mini Trame' : '3. Genera Sceneggiatura + Mini Trame')}</span>
           </button>
         </div>
+      )}
+
+      {!project.prep_completed && validIdea && (
+        <p className="text-[9px] text-amber-400/80 text-center font-bold">⚠️ Salva prima Idea + Pre-Produzione per sbloccare Locandina, Titoli e Sceneggiatura</p>
       )}
 
       {project.poster_url && (
@@ -1057,7 +1123,6 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
       case 'idea': return <IdeaPhase {...phaseProps} />;
       case 'hype': return <HypePhase {...phaseProps} />;
       case 'cast': return <CastPhase {...phaseProps} />;
-      case 'prep': return <PrepPhase {...phaseProps} />;
       case 'ciak': return <CiakPhase {...phaseProps} />;
       case 'finalcut': return <FinalCutPhase {...phaseProps} />;
       case 'marketing': return <MarketingPhase {...phaseProps} />;
@@ -1106,8 +1171,12 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
           };
           const reason = (() => {
             if (currentStep === 'idea') {
-              if (!selected.title || !selected.genre) return 'Completa Titolo e Genere prima di avanzare';
-              if (!selected.preplot || selected.preplot.length < 30) return 'Scrivi una sinossi (min 30 caratteri)';
+              if (!selected.title || !selected.genre) return 'Completa Titolo e Genere';
+              if (!selected.preplot || selected.preplot.length < 30) return 'Sinossi min 30 caratteri';
+              if (!selected.prep_completed) return 'Salva Idea + Pre-Produzione';
+              if (!selected.poster_url) return 'Genera la Locandina';
+              if (!(selected.episodes && selected.episodes.length > 0)) return 'Genera i Titoli Episodi';
+              if (!selected.screenplay_text) return 'Genera la Sceneggiatura';
               return null;
             }
             if (currentStep === 'hype') {
@@ -1119,10 +1188,6 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
             if (currentStep === 'cast') {
               const cast = selected.cast || {};
               if (!cast.actors || cast.actors.length < 1) return 'Genera prima il Cast';
-              return null;
-            }
-            if (currentStep === 'prep') {
-              if (!selected.prep_completed) return 'Salva prima le scelte di Pre-Produzione';
               return null;
             }
             if (currentStep === 'ciak') {

@@ -61,7 +61,7 @@ ANIME_GENRES = {
 }
 
 V3_STEPS = [
-    "idea", "hype", "cast", "prep", "ciak", "finalcut",
+    "idea", "hype", "cast", "ciak", "finalcut",
     "marketing", "distribution", "release_pending",
 ]
 
@@ -110,6 +110,10 @@ class IdeaSaveRequest(BaseModel):
     preplot: str
     num_episodes: int = 10
     locations: Optional[List[str]] = []
+    # Prep fields merged into Idea step
+    series_format: Optional[str] = None
+    episode_duration_min: Optional[int] = None
+    equipment_level: Optional[str] = None
 
 class AdvanceRequest(BaseModel):
     next_state: str
@@ -227,6 +231,10 @@ async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_cur
         "preplot": req.preplot,
         "num_episodes": num_ep,
         "locations": req.locations or [],
+        **({"series_format": req.series_format} if req.series_format else {}),
+        **({"episode_duration_min": req.episode_duration_min} if req.episode_duration_min else {}),
+        **({"equipment_level": req.equipment_level} if req.equipment_level else {}),
+        "prep_completed": bool(req.series_format and req.episode_duration_min and req.equipment_level),
     })
 
 

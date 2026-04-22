@@ -91,6 +91,7 @@ from routes.sequel_pipeline import router as sequel_pipeline_router
 from routes.emittente_tv import router as emittente_tv_router
 from routes.tv_stations import router as tv_stations_router
 from routes.finance_bank import router as finance_bank_router, process_daily_loan_repayments
+from routes.progression import router as progression_router
 from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
 from routes.minigames_arcade import router as minigames_arcade_router
@@ -7388,6 +7389,15 @@ async def startup_event():
     except Exception as _pe:
         logging.warning(f"[promo] startup recovery skipped: {_pe}")
 
+    # XP/Fame v2 migration (one-shot, gated by system_flags flag)
+    try:
+        from utils.xp_migration_v2 import run_xp_migration_v2
+        mig_stats = await run_xp_migration_v2(db)
+        if mig_stats:
+            logging.info(f"[XP_MIGRATION_V2] Completed: {mig_stats}")
+    except Exception as _xe:
+        logging.error(f"[XP_MIGRATION_V2] Failed: {_xe}")
+
     # Auto-sync locale → Atlas ogni 30 minuti (solo se DB locale)
     try:
         if not is_atlas:
@@ -10452,6 +10462,7 @@ app.include_router(sequel_pipeline_router, prefix="/api")
 app.include_router(emittente_tv_router, prefix="/api")
 app.include_router(tv_stations_router, prefix="/api")
 app.include_router(finance_bank_router, prefix="/api")
+app.include_router(progression_router, prefix="/api")
 app.include_router(cinepass_router)
 app.include_router(minigames_router, prefix="/api")
 app.include_router(minigames_arcade_router, prefix="/api")

@@ -1,222 +1,132 @@
-<analysis><handoff summary>
-**original_problem_statement**: 
-The user originally requested to migrate AI image generation (posters and trailers) to a free provider (Pollinations.ai) because the Emergent LLM Key budget was exhausted. The user later requested a dedicated internal admin tool to generate 30s-120s promotional videos using automated screenshots of the game (via Playwright) and AI-generated captions (via FFmpeg/Pillow). Most recently, after dissatisfaction with Pollinations' quality, the user provided API keys for Cloudflare Workers AI and HuggingFace (FLUX) to create a multi-provider fallback/round-robin system. The CURRENT GOAL is to integrate an additional free image provider called Pixazo using the API key provided by the user (), and to investigate Raphael AI as another potential alternative.
+<analysis>**original_problem_statement**: 
+The user requested a massive UI and strategic overhaul for film management, which evolved into deep economic and progression systems refining. Key requirements included fixing the La mia TV transfer loops, overhauling the Finance and Bank systems (exponential infrastructure costs, correct expense/cost tracking), building a dedicated  dashboard with historical sparklines, fixing duplicates in the A Breve dashboard sections, adding glowing animations to all status badges, and completely overhauling the broken XP and Fame systems (Fame skyrocketing past cap, XP stuck).
 
 **User's preferred language**: Italian (You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only)
 
 **what currently exists?** 
-A highly complex, full-stack cinema management game. The application now features a robust Multi-Provider AI Image System () that routes image generation through Cloudflare (SDXL), HuggingFace (FLUX), Pollinations (Sana), and Emergent, using smart fallback for posters and weighted round-robin for trailers. The trailer generation UI () now includes a live grid preview of frames as they generate. Additionally, a Promo Video Generator () exists in the Admin Panel, utilizing a headless Chromium browser (Playwright) and  to autonomously capture up to 56 game pages, write AI captions, and render vertical 9:16 MP4 videos for Instagram/TikTok marketing.
+A highly complex full-stack multiplayer cinema management game. The application now includes a fully functional real-time game economy driven by . It features advanced dashboards for Finances () and Attendance () that display per-film historical data and geo-tagged distribution logic. The Bank system has exponential infrastructure levels. The XP and Fame system has just been rewritten to use a unified  scaling system, with Fame strictly capped at 100. 
 
 **Last working item**: 
-    - Last item agent was working: The agent was attempting to integrate the Pixazo API as an additional free text-to-image provider. The agent was actively testing endpoints (, , etc.) using  but was consistently receiving 404 errors and struggling to locate the correct endpoint structure.
-    - Status: IN PROGRESS
-    - Agent Testing Done: N
-    - Which testing method agent to use?: backend testing agent/ manual testing by curl (to figure out the correct Pixazo API endpoint).
+    - Last item agent was working: Refactoring the XP and Fame progression system. The agent unified XP tracking to use , added an endpoint for heartbeat/daily login XP (), centralized Fame rewards with a strict cap of 100, reduced exaggerated Fame rewards across the app, and created a startup migration script () to recalculate and fix all existing players' stats. The backend was just restarted to run the migration.
+    - Status: TESTING PENDING
+    - Agent Testing Done: N (Backend restarted, but endpoint/migration effect hasn't been verified via logs/curl yet)
+    - Which testing method agent to use? backend testing agent / manual testing by curl (Verify  and check user's level/fame to ensure migration succeeded).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Pixazo API Integration failing with 404s (P0)
-     - Attempted fixes: Agent scraped the Pixazo site and tried calling multiple assumed endpoints (, , ) with the user's key, but all returned 404.
-     - Next debug checklist: 
-       1. Identify the correct API endpoint and payload structure for Pixazo.ai text-to-image generation.
-       2. Implement  in .
-       3. Update the Admin UI ( and ) to include Pixazo in the quota tracker and toggle list.
-     - Why fix this issue and what will be achieved with the fix? Expands the pool of high-quality free image providers, ensuring the game remains free to operate while delivering cinema-grade visuals.
-     - Status: IN PROGRESS
+  Issue 1: Verify XP/Fame Migration Success (P0)
+     - Attempted fixes: The agent wrote  and hooked it to  startup, then restarted the backend.
+     - Next debug checklist: Check backend logs to ensure  completed without errors. Log in or curl an endpoint to verify , , and  (should be <= 100) for the test user.
+     - Why fix this issue and what will be achieved with the fix? Ensures the massive XP/Fame overhaul didn't break user accounts and actually fixed the progression bug.
+     - Status: TESTING PENDING
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both
+     - Should Test frontend/backend/both after fix? backend
      - Blocked on other issue: None
 
-  Issue 2: Investigate Raphael AI (P1)
-     - Attempted fixes: None yet.
-     - Next debug checklist: Conduct a web search to determine if Raphael AI offers a public API, if it is free, and how to obtain an API key. Report findings to the user.
-     - Why fix this issue and what will be achieved with the fix? User requested this specific platform to be evaluated as another fallback option.
-     - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? N/A
-
 **In progress Task List**:
-  Task 1: Pixazo API Integration & Raphael AI Research
-     - Where to resume: Continue debugging the  requests to the Pixazo API to find the correct endpoint. Once found, add it to . Concurrently, perform a web search for Raphael AI image generation API.
-     - What will be achieved with this? Fulfills the user's latest request for more free AI image alternatives.
-     - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? Backend (curl)
-     - Blocked on something: Missing correct Pixazo API documentation.
+  Task 1: Series & Anime progression & financial stats tracking (P1)
+     - Where to resume: The user requested to replicate the financial and spectator tracking (similar to films) for Series and Anime. The user stated lo vediamo poi (we will see it later), so this should be planned for the next phases.
+     - What will be achieved with this? Extends the robust economy tracking to TV and Anime pipelines.
+     - Status: NOT STARTED
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on something: Verify current features first.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Refactoring  (File has become bloated, needs splitting into specialized background workers).
+    - (P1) Mappa geo-finanziaria interattiva: Global heatmap in the Finance Geo tab using  +  to show profitable cities.
+    - (P1) Serie TV and Anime financial/spectator historical tracking (apply the newly built  and  logic to them).
+    - (P2) Rigenera locandine in batch: Admin button to regenerate AI posters for all recovered legacy films that currently have a placeholder.
     
     Future Tasks:
-    - (P2) Monetizzazione AI Premium: Integrate Stripe Pack Qualità Cinema / Trailer Premium button (forces CF+HF-FLUX skipping Pollinations for 1 CinePass).
-    - (P2) Whitelist admin users (NeoMorpheus, UnNickk) with a monthly cap for Emergent LLM Key usage.
-    - (P2) Add FREE/PREMIUM badges on trailers if monetization activates.
-    - (P2) Promo Video Enhancement: Add an overlay watermark with Instagram handle (e.g., @cineworld_studios) and a QR code to the registration page on the final frame.
-    - (P2) Compilation annuale AI (Backlog: un trailer mashup di fine anno per l'intero studio).
-    - (P2) Tornei PvP mensili con bracket a eliminazione diretta.
+    - (P2) Ricalcolo CWSv forzato: Admin button to recalculate exact CWSv scores for old V3 legacy films.
+    - (P2) Monetizzazione AI premium: Stripe integration for high-tier trailers.
+    - (P2) PvP Tournaments module.
+    - (P2) Refactoring  to split it into specialized background workers.
 
 **Completed work in this session**
-- Multi-Provider AI Image System (DONE): Integrated Cloudflare Workers AI (SDXL) and HuggingFace (FLUX.1-schnell) alongside Pollinations and Emergent.
-- Implemented Smart Fallback for posters and Weighted Round-Robin for trailer frames in  (DONE).
-- Trailer Generator Live Preview (DONE):  now shows a live grid of frame thumbnails as they are generated, along with provider badges.
-- Promo Video Generator tool (DONE): Admin tool that uses Playwright and  to autonomously navigate 56 game pages, take screenshots, write LLM captions, and render a vertical MP4 video.
-- Fixed V3 Trailer generation (DONE): Frames are now generated sequentially to bypass rate limits, and missing frames fallback to the movie poster to prevent black screens.
-- Updated Admin UI with Promo Video and AI Providers tabs (DONE).
+- Budget-tier revenue multiplier & Bank Infrastructure exponential scaling (DONE)
+- Level-up cinematic toast notification () (DONE)
+- Fixed La Mia TV infinite loading loop and added Locked Infrastructure info modals (DONE)
+- Overhauled  &  (added mini poster grid, sparklines, trend badges, La Prima historical tracking) (DONE)
+- Re-routed Geo Global vs Globale vs Unknown into a unified Totale tracker (DONE)
+- Fixed Expenses (/bin/bash out) by using real  instead of wallet transactions (DONE)
+- Fixed A Breve dashboard duplicate bug using  matching (DONE)
+- Genera Trailer button now auto-navigates and selects the film in Pipeline V3 (DONE)
+- Added CSS keyframe  to all pipeline state badges globally (DONE)
+- Re-wrote XP & Fame scaling, centralized Fame helper, and created DB migration script (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-  - None
+None. The agent systematically addressed all screenshots and feedback provided by the user.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: None
-  - Recurrence count: 0
-  - Status: RESOLVED
+  - Issue recurrence in previous fork: Dashboard A Breve duplicate bugs. 
+  - Recurrence count: 2
+  - Status: RESOLVED (Agent patched  route to correctly match  rather than uid=0(root) gid=0(root) groups=0(root) due to UUID re-rolling on release).
 
 **Code Architecture**
-- Frontend:  (React, Tailwind, Shadcn).
-- Backend:  (FastAPI, MongoDB, APScheduler).
-- AI Routing:  handles the logic for distributing image generation requests across multiple third-party APIs.
-- Headless Automation:  uses Playwright to capture the UI and  / Pillow to compile videos.
+- Frontend:  (React). Heavily utilizes Context API (), custom UI components (Tailwind + Shadcn), and custom event listeners () for sheets/modals.
+- Backend:  (FastAPI). Uses APScheduler () for the game's core progression and economy loops. MongoDB for data storage.
 
 **Key Technical Concepts**
-APScheduler (Cron jobs), Multi-provider API routing (Weighted Round Robin & Fallback), Playwright (Headless browser automation), FFmpeg/Pillow video compilation.
+- React Contexts & Custom Events ().
+- APScheduler for interval-based game economy ticks (Revenue, Stars, Events).
+- Complex MongoDB aggregations for economy tracking (, historical attendance arrays).
+- Unified Backend Economy: Financial stats and UI are deeply coupled to the  cron jobs.
 
 **key DB schema**
-  - : Tracks active providers, fallbacks, and usage quotas.
-  -  (in-memory dict in ): Tracks background trailer generation progress, storing  for the live preview.
+  - : {, , , , , , , }
+  - : {, , , }
+  - : {, , , , , }
 
 **changes in tech stack**
-  - Added  for headless browser screenshots.
-  - Added  (Python package with embedded static FFmpeg binary) to ensure video rendering works without relying on system-level apt 2.6.1 (arm64)
-Usage: apt-get [options] command
-       apt-get [options] install|remove pkg1 [pkg2 ...]
-       apt-get [options] source pkg1 [pkg2 ...]
-
-apt-get is a command line interface for retrieval of packages
-and information about them from authenticated sources and
-for installation, upgrade and removal of packages together
-with their dependencies.
-
-Most used commands:
-  update - Retrieve new lists of packages
-  upgrade - Perform an upgrade
-  install - Install new packages (pkg is libc6 not libc6.deb)
-  reinstall - Reinstall packages (pkg is libc6 not libc6.deb)
-  remove - Remove packages
-  purge - Remove packages and config files
-  autoremove - Remove automatically all unused packages
-  dist-upgrade - Distribution upgrade, see apt-get(8)
-  dselect-upgrade - Follow dselect selections
-  build-dep - Configure build-dependencies for source packages
-  satisfy - Satisfy dependency strings
-  clean - Erase downloaded archive files
-  autoclean - Erase old downloaded archive files
-  check - Verify that there are no broken dependencies
-  source - Download source archives
-  download - Download the binary package into the current directory
-  changelog - Download and display the changelog for the given package
-
-See apt-get(8) for more information about the available commands.
-Configuration options and syntax is detailed in apt.conf(5).
-Information about how to configure sources can be found in sources.list(5).
-Package and version choices can be expressed via apt_preferences(5).
-Security details are available in apt-secure(8).
-                                        This APT has Super Cow Powers. packages, which do not persist in the production container.
-  - Added Cloudflare Workers AI and HuggingFace to the third-party integrations list.
+  - None
 
 **All files of reference** 
-  -  (Core AI routing logic)
-  -  (Updated with sequential generation and live preview support)
-  -  (Updated with live thumbnail grid)
-  -  (New: Video generation orchestrator)
-  -  (New: API for promo video)
-  -  (Updated with new tabs and quota trackers)
+  -  (Heavily modified for geo-tick, revenue calculations, and attendance tracking).
+  -  (Rewritten for consolidated XP and capped Fame).
+  -  (New migration script).
+  -  (New endpoint for heartbeat/XP).
+  -  &  (New UI for history tracking).
+  -  (New reusable trend icon).
+  -  (Added pulse-glow animations).
 
 **Areas that need refactoring**: 
-  -  (Bloated)
+  -  is extremely bloated (>2600 lines) and acts as a monolith for all chronological game events.
+  - The aggregation loops in  might get slow as DB grows, could use background materialized views.
 
 **key api endpoints**
+  -  & 
   - 
-  - 
-  -  (Now returns )
   - 
 
 **Critical Info for New Agent** 
-- **Italian Language Requirement!** You MUST communicate with the user entirely in Italian.
-- The  package is being used because standard Reading package lists...
-Building dependency tree...
-Reading state information...
-The following additional packages will be installed:
-  libaacs0 libass9 libavc1394-0 libavcodec59 libavdevice59 libavfilter8
-  libavformat59 libavutil57 libbdplus0 libblas3 libbluray2 libbs2b0 libcaca0
-  libcdio-cdda2 libcdio-paranoia2 libcdio19 libchromaprint1 libcjson1
-  libcodec2-1.0 libdc1394-25 libdecor-0-0 libdecor-0-plugin-1-cairo libflite1
-  libgfortran5 libgme0 libgsm1 libhwy1 libiec61883-0 libjack-jackd2-0
-  libjxl0.7 liblapack3 liblilv-0-0 libmbedcrypto7 libmysofa1 libnorm1
-  libopenal-data libopenal1 libopenmpt0 libpgm-5.3-0 libplacebo208
-  libpocketsphinx3 libpostproc56 librabbitmq4 libraw1394-11 librist4
-  librsvg2-2 librsvg2-common librubberband2 libsamplerate0 libsdl2-2.0-0
-  libserd-0-0 libshine3 libslang2 libsnappy1v5 libsndio7.0 libsord-0-0
-  libsoxr0 libspeex1 libsphinxbase3 libsratom-0-0 libsrt1.5-gnutls
-  libssh-gcrypt-4 libswresample4 libswscale6 libtheora0 libtwolame0
-  libudfread0 libusb-1.0-0 libva-drm2 libva-x11-2 libva2 libvdpau-va-gl1
-  libvdpau1 libvidstab1.1 libvorbisfile3 libvpx7 libvulkan1 libwebpmux3
-  libx264-164 libxvidcore4 libzimg2 libzmq5 libzvbi-common libzvbi0
-  mesa-va-drivers mesa-vdpau-drivers mesa-vulkan-drivers ocl-icd-libopencl1
-  pocketsphinx-en-us va-driver-all vdpau-driver-all
-Suggested packages:
-  ffmpeg-doc libcuda1 libnvcuvid1 libnvidia-encode1 libbluray-bdj jackd2
-  libportaudio2 libraw1394-doc librsvg2-bin serdi sndiod sordi speex
-  opencl-icd nvidia-vdpau-driver
-The following NEW packages will be installed:
-  ffmpeg libaacs0 libass9 libavc1394-0 libavcodec59 libavdevice59 libavfilter8
-  libavformat59 libavutil57 libbdplus0 libblas3 libbluray2 libbs2b0 libcaca0
-  libcdio-cdda2 libcdio-paranoia2 libcdio19 libchromaprint1 libcjson1
-  libcodec2-1.0 libdc1394-25 libdecor-0-0 libdecor-0-plugin-1-cairo libflite1
-  libgfortran5 libgme0 libgsm1 libhwy1 libiec61883-0 libjack-jackd2-0
-  libjxl0.7 liblapack3 liblilv-0-0 libmbedcrypto7 libmysofa1 libnorm1
-  libopenal-data libopenal1 libopenmpt0 libpgm-5.3-0 libplacebo208
-  libpocketsphinx3 libpostproc56 librabbitmq4 libraw1394-11 librist4
-  librsvg2-2 librsvg2-common librubberband2 libsamplerate0 libsdl2-2.0-0
-  libserd-0-0 libshine3 libslang2 libsnappy1v5 libsndio7.0 libsord-0-0
-  libsoxr0 libspeex1 libsphinxbase3 libsratom-0-0 libsrt1.5-gnutls
-  libssh-gcrypt-4 libswresample4 libswscale6 libtheora0 libtwolame0
-  libudfread0 libusb-1.0-0 libva-drm2 libva-x11-2 libva2 libvdpau-va-gl1
-  libvdpau1 libvidstab1.1 libvorbisfile3 libvpx7 libvulkan1 libwebpmux3
-  libx264-164 libxvidcore4 libzimg2 libzmq5 libzvbi-common libzvbi0
-  mesa-va-drivers mesa-vdpau-drivers mesa-vulkan-drivers ocl-icd-libopencl1
-  pocketsphinx-en-us va-driver-all vdpau-driver-all
-0 upgraded, 92 newly installed, 0 to remove and 0 not upgraded.
-Need to get 84.8 MB of archives.
-After this operation, 223 MB of additional disk space will be used.
-Do you want to continue? [Y/n] Abort. does not persist across container restarts/deployments in production. Keep this in mind if modifying video compilation logic.
-- The user provided a Pixazo API key (). Your immediate task is to find the correct API endpoint for Pixazo.ai and implement it in . The previous agent was trying various URLs and getting 404s. Do not waste time making random requests; try to find authoritative documentation or alternative free providers if Pixazo proves too obscure.
-- The user also asked you to investigate Raphael AI. Do a web search to determine if it exists, has an API, and is free, then report back in Italian.
+- **Language Constraint:** You MUST reply to the user in **Italian**.
+- **Economy/XP:** The backend just underwent a massive migration for XP and Fame ( is the new standard). Verify the migration ran successfully.
+- **Frontend Logic:** Use  when linking  (pipeline items) to released , because a new UUID is generated upon .
+- **UI Consistency:** The user relies heavily on visual feedback (e.g., the glowing badges just added). Do not alter  utility classes or remove them.
 
 **documents and test reports created in this job** 
-  -  (Updated)
+  - /app/memory/PRD.md (Updated extensively throughout the session)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Asked for a live preview of trailer generation and requested round-robin rotation for Cloudflare, Together, and HuggingFace.
-2. *Agent*: Explained strategy options. Recommended Opzione D (smart fallback for posters, weighted round-robin for trailers). Asked for API keys.
-3. *User*: Chose Opzione C+D. Provided keys for Cloudflare, Together AI, and HuggingFace.
-4. *Agent*: Tested keys. Found CF format wrong, Together out of credits, HF permissions wrong. Asked user to fix them.
-5. *User*: Provided corrected Cloudflare Token, Cloudflare Account ID, and HuggingFace Token.
-6. *Agent*: Verified CF and HF work perfectly. Integrated them into , built the live thumbnail preview, and updated the Admin UI.
-7. *User*: Possiamo aggiungere anche Pixaso. Api key: f7c571ea46ff471c8af6e3e407746f8e. È valido? Testa! Esiste anche raphael ai ma non trovo api key, forse esiste solo via web. Informati!
-8. *Agent*: Searched for Pixazo docs, attempted to call endpoints, but context ended while getting 404s on the Pixazo API. (PENDING HUMAN FULFILLMENT/DEBUGGING)
+1. *User*: Uploaded screenshots showing Uscite (Costs) at /bin/bash, duplicate Global/Totale labels, and unreadable SVG charts.
+2. *Agent*: Fixed Finance backend aggregation (merged Global, loaded real ) and adjusted the SVG chart rendering.
+3. *User*: Requested CineWorld credentials. Pointed out Uscite (Cost) is still not reflecting pipeline V3 correctly.
+4. *Agent*: Explained limits on giving credentials. Fixed the cost issue by routing backend through .
+5. *User*: Back arrow doesn't work, and La Prima stats are missing from Finance/Attendance pages.
+6. *Agent*: Implemented fallback  and retrofitted La Prima data into the Finance and Spectators breakdown tabs.
+7. *User*: Total Expenses is still at /bin/bash.
+8. *Agent*: Found the root cause (wallet_transactions missing for legacy films), refactored  to sum  directly from film docs.
+9. *User*: Genera trailer button doesn't open Pipeline V3. Il Sospetto is still showing as A BREVE duplicate. All status badges need a pulse/glow animation.
+10. *User*: La fama aumenta esageratamente, invece XP non si muove. Controlla e proponi piano. -> Agent proposed 5-phase plan. User approved Option B (recalculate all players + sensible scaling). -> Agent implemented but backend was just restarted. (PENDING VERIFICATION).
 
 **Project Health Check:**
-- Broken: Pixazo API Integration (Currently failing with 404s)
+- Broken: None known, but DB Migration script just triggered.
 - Mocked: None
 
 **3rd Party Integrations** 
-  - Emergent LlmChat (GPT-4o-mini) — uses Emergent LLM Key
-  - Gemini Nano Banana (Image Generation) — uses Emergent LLM Key (Current fallback)
-  - Cloudflare Workers AI (SDXL Lightning) — uses User API Key
-  - HuggingFace Inference (FLUX.1-schnell) — uses User API Key
-  - Pollinations.ai (Image Generation) — FREE, anonymous
-  - Pixazo API (Image Generation) — uses User API Key (PENDING INTEGRATION)
-  - Emergent Object Storage — uses Emergent integrations
+  - Emergent LLM Key (GPT-4o-mini + Gemini Nano Banana image gen) — uses Emergent LLM Key
+  - Pixazo / WaveSpeed AI (Image Generation) — uses User API Key
 
 **Testing status**
   - Testing agent used after significant changes: NO
@@ -225,8 +135,683 @@ Do you want to continue? [Y/n] Abort. does not persist across container restarts
   - Known regressions: None
 
 **Credentials to test flow:**
-Check  (Use the NeoMorpheus account to access the Admin Panel).
+Use  (Email: fandrex1@gmail.com, Password: Fandrel2776).
 
 **What agent forgot to execute**
-The agent was in the middle of diagnosing the Pixazo API endpoints via curl when the context limit was reached. It did not yet implement Pixazo into the image routing system, nor did it answer the user's question regarding Raphael AI.
-</handoff summary></analysis>
+The agent just finished the code implementation for the XP/Fame refactor and DB migration, and restarted the backend. The context ran out right after . The agent did not have time to verify if the migration actually completed successfully or check the frontend UI for the new XP/Level readouts.
+
+**Debugging checklist for current issue**
+    Issue: Verify XP/Fame Migration Success
+    
+    Backend files to check:
+    -  (Verify the logic for capping fame at 100 and converting XP to ).
+    - ==> /var/log/supervisor/backend.err.log <==
+  File "/app/backend/server.py", line 94, in <module>
+    from routes.progression import router as progression_router
+  File "/app/backend/routes/progression.py", line 4, in <module>
+    from utils.deps import get_current_user, db
+ModuleNotFoundError: No module named 'utils.deps'
+INFO:     Stopping reloader process [46]
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [7941] using WatchFiles
+Process SpawnProcess-1:
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
+    target(sockets=sockets)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
+    return asyncio.run(self.serve(sockets=sockets))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
+    config.load()
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
+    self.loaded_app = import_from_string(self.app)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
+    raise exc from None
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
+    module = importlib.import_module(module_str)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/app/backend/server.py", line 94, in <module>
+    from routes.progression import router as progression_router
+  File "/app/backend/routes/progression.py", line 4, in <module>
+    from utils.deps import get_current_user, db
+ModuleNotFoundError: No module named 'utils.deps'
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [48] using WatchFiles
+Process SpawnProcess-1:
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
+    target(sockets=sockets)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
+    return asyncio.run(self.serve(sockets=sockets))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
+    config.load()
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
+    self.loaded_app = import_from_string(self.app)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
+    raise exc from None
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
+    module = importlib.import_module(module_str)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/app/backend/server.py", line 94, in <module>
+    from routes.progression import router as progression_router
+  File "/app/backend/routes/progression.py", line 4, in <module>
+    from utils.deps import get_current_user, db
+ModuleNotFoundError: No module named 'utils.deps'
+
+==> /var/log/supervisor/backend.out.log <==
+INFO:     10.79.131.71:45676 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:49110 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:49122 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48282 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48278 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48282 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.79.131.71:39648 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48818 - "GET /api/finance/films-history HTTP/1.1" 200 OK
+INFO:     10.79.131.71:37608 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:34878 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:37606 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:34866 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45250 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45244 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45250 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.79.131.71:48666 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48666 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48666 - "GET /api/finance/breakdown?scope=continent HTTP/1.1" 200 OK
+INFO:     10.79.131.71:46500 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:42098 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:46484 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:42090 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:36588 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:36578 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:60376 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:44418 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:44410 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:34220 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48740 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48738 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:46698 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:33366 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:32908 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:32892 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+INFO:     10.79.131.71:59128 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:41602 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:41592 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:59112 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:38060 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:38054 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:52930 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58676 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58668 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:43292 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.79.131.71:39654 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.79.131.66:49638 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+INFO:     10.79.131.71:56658 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:56668 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:56658 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:46984 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58008 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58008 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45120 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39434 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39450 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:49084 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:51472 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:49076 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48852 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:59650 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48840 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:60196 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:52182 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:52188 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+INFO:     10.79.131.66:48600 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48590 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:46598 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:33328 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:33302 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:33316 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None (Check if the startup migration logged any errors).
+
+    Database to check:
+    - Execute bash:  to ensure  is <= 100.</analysis> piano. -> Agent proposed 5-phase plan. User approved Option B (recalculate all players + sensible scaling). -> Agent implemented but backend was just restarted. (PENDING VERIFICATION).
+
+**Project Health Check:**
+- Broken: None known, but DB Migration script just triggered.
+- Mocked: None
+
+**3rd Party Integrations** 
+  - Emergent LLM Key (GPT-4o-mini + Gemini Nano Banana image gen) — uses Emergent LLM Key
+  - Pixazo / WaveSpeed AI (Image Generation) — uses User API Key
+
+**Testing status**
+  - Testing agent used after significant changes: NO
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: None
+  - Known regressions: None
+
+**Credentials to test flow:**
+Use  (Email: fandrex1@gmail.com, Password: Fandrel2776).
+
+**What agent forgot to execute**
+The agent just finished the code implementation for the XP/Fame refactor and DB migration, and restarted the backend. The context ran out right after . The agent did not have time to verify if the migration actually completed successfully or check the frontend UI for the new XP/Level readouts.
+
+**Debugging checklist for current issue**
+    Issue: Verify XP/Fame Migration Success
+    
+    Backend files to check:
+    -  (Verify the logic for capping fame at 100 and converting XP to ).
+    - ==> /var/log/supervisor/backend.err.log <==
+  File "/app/backend/server.py", line 94, in <module>
+    from routes.progression import router as progression_router
+  File "/app/backend/routes/progression.py", line 4, in <module>
+    from utils.deps import get_current_user, db
+ModuleNotFoundError: No module named 'utils.deps'
+INFO:     Stopping reloader process [46]
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [7941] using WatchFiles
+Process SpawnProcess-1:
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
+    target(sockets=sockets)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
+    return asyncio.run(self.serve(sockets=sockets))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
+    config.load()
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
+    self.loaded_app = import_from_string(self.app)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
+    raise exc from None
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
+    module = importlib.import_module(module_str)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/app/backend/server.py", line 94, in <module>
+    from routes.progression import router as progression_router
+  File "/app/backend/routes/progression.py", line 4, in <module>
+    from utils.deps import get_current_user, db
+ModuleNotFoundError: No module named 'utils.deps'
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [48] using WatchFiles
+Process SpawnProcess-1:
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
+    target(sockets=sockets)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
+    return asyncio.run(self.serve(sockets=sockets))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
+    config.load()
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
+    self.loaded_app = import_from_string(self.app)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
+    raise exc from None
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
+    module = importlib.import_module(module_str)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/app/backend/server.py", line 94, in <module>
+    from routes.progression import router as progression_router
+  File "/app/backend/routes/progression.py", line 4, in <module>
+    from utils.deps import get_current_user, db
+ModuleNotFoundError: No module named 'utils.deps'
+
+==> /var/log/supervisor/backend.out.log <==
+INFO:     10.79.131.71:45676 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:49110 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:49122 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48282 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48278 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48282 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.79.131.71:39648 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48818 - "GET /api/finance/films-history HTTP/1.1" 200 OK
+INFO:     10.79.131.71:37608 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:34878 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:37606 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:34866 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45250 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45244 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45250 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.79.131.71:48666 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48666 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48666 - "GET /api/finance/breakdown?scope=continent HTTP/1.1" 200 OK
+INFO:     10.79.131.71:46500 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:42098 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:46484 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:42090 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:36588 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:36578 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:60376 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:44418 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:44410 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:34220 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48740 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48738 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:46698 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:33366 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:32908 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:32892 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+INFO:     10.79.131.71:59128 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:41602 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:41592 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:59112 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:38060 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:38054 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:52930 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58676 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58668 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:43292 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.79.131.71:39654 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.79.131.66:49638 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+INFO:     10.79.131.71:56658 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:56668 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:56658 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:46984 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58008 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58008 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45120 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39434 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39450 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:49084 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:51472 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:49076 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48852 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:59650 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48840 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:60196 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:52182 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:52188 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+INFO:     10.79.131.66:48600 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48590 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:46598 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:33328 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:33302 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:33316 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None (Check if the startup migration logged any errors).
+
+    Database to check:
+    - Execute bash:  to ensure  is <= 100.</analysis> piano. -> Agent proposed 5-phase plan. User approved Option B (recalculate all players + sensible scaling). -> Agent implemented but backend was just restarted. (PENDING VERIFICATION).
+
+**Project Health Check:**
+- Broken: None known, but DB Migration script just triggered.
+- Mocked: None
+
+**3rd Party Integrations** 
+  - Emergent LLM Key (GPT-4o-mini + Gemini Nano Banana image gen) — uses Emergent LLM Key
+  - Pixazo / WaveSpeed AI (Image Generation) — uses User API Key
+
+**Testing status**
+  - Testing agent used after significant changes: NO
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: None
+  - Known regressions: None
+
+**Credentials to test flow:**
+Use  (Email: fandrex1@gmail.com, Password: Fandrel2776).
+
+**What agent forgot to execute**
+The agent just finished the code implementation for the XP/Fame refactor and DB migration, and restarted the backend. The context ran out right after . The agent did not have time to verify if the migration actually completed successfully or check the frontend UI for the new XP/Level readouts.
+
+**Debugging checklist for current issue**
+    Issue: Verify XP/Fame Migration Success
+    
+    Backend files to check:
+    -  (Verify the logic for capping fame at 100 and converting XP to ).
+    - ==> /var/log/supervisor/backend.err.log <==
+  File "/app/backend/server.py", line 94, in <module>
+    from routes.progression import router as progression_router
+  File "/app/backend/routes/progression.py", line 4, in <module>
+    from utils.deps import get_current_user, db
+ModuleNotFoundError: No module named 'utils.deps'
+INFO:     Stopping reloader process [46]
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [7941] using WatchFiles
+Process SpawnProcess-1:
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
+    target(sockets=sockets)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
+    return asyncio.run(self.serve(sockets=sockets))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
+    config.load()
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
+    self.loaded_app = import_from_string(self.app)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
+    raise exc from None
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
+    module = importlib.import_module(module_str)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/app/backend/server.py", line 94, in <module>
+    from routes.progression import router as progression_router
+  File "/app/backend/routes/progression.py", line 4, in <module>
+    from utils.deps import get_current_user, db
+ModuleNotFoundError: No module named 'utils.deps'
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [48] using WatchFiles
+Process SpawnProcess-1:
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
+    target(sockets=sockets)
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
+    return asyncio.run(self.serve(sockets=sockets))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
+    config.load()
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
+    self.loaded_app = import_from_string(self.app)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
+    raise exc from None
+  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
+    module = importlib.import_module(module_str)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/app/backend/server.py", line 94, in <module>
+    from routes.progression import router as progression_router
+  File "/app/backend/routes/progression.py", line 4, in <module>
+    from utils.deps import get_current_user, db
+ModuleNotFoundError: No module named 'utils.deps'
+
+==> /var/log/supervisor/backend.out.log <==
+INFO:     10.79.131.71:45676 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:49110 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:49122 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48282 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48278 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48282 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.79.131.71:39648 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48818 - "GET /api/finance/films-history HTTP/1.1" 200 OK
+INFO:     10.79.131.71:37608 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:34878 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:37606 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:34866 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45250 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45244 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45250 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.79.131.71:48666 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48666 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48666 - "GET /api/finance/breakdown?scope=continent HTTP/1.1" 200 OK
+INFO:     10.79.131.71:46500 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:42098 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:46484 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:42090 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:36588 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:36578 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:60376 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:44418 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:44410 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:34220 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48740 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:48738 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:46698 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:33366 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:32908 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:32892 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+INFO:     10.79.131.71:59128 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:41602 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:41592 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:59112 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:38060 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:38054 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:52930 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58676 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58668 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:43292 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+LOGIN START
+LOGIN USER FOUND
+LOGIN PASSWORD CHECK OK
+INFO:     10.79.131.71:39654 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.79.131.66:49638 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+INFO:     10.79.131.71:56658 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:56668 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:56658 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:46984 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58008 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:58008 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:45120 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39434 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39450 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:49084 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:51472 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:49076 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48852 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:59650 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48840 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:60196 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:52182 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.66:52188 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+INFO:     10.79.131.66:48600 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.66:48590 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:46598 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:33328 - "GET /api/translations/it HTTP/1.1" 200 OK
+INFO:     10.79.131.71:33302 - "POST /api/game-url HTTP/1.1" 200 OK
+INFO:     10.79.131.71:33316 - "POST /api/game-url HTTP/1.1" 200 OK
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None
+[STARTUP] Build dir: None (Check if the startup migration logged any errors).
+
+    Database to check:
+    - Execute bash:  to ensure  is <= 100.</analysis>

@@ -305,6 +305,13 @@ async def login(credentials: UserLogin):
         
         # Update last_active timestamp
         await db.users.update_one({'id': user['id']}, {'$set': {'last_active': datetime.now(timezone.utc).isoformat()}})
+
+        # Daily login XP (once per UTC day)
+        try:
+            from utils.xp_fame import award_daily_login
+            await award_daily_login(db, user['id'])
+        except Exception:
+            pass
         
         # Persist base64 avatar to file if needed (prevents 2MB+ responses)
         avatar_url = await persist_base64_avatar(user)

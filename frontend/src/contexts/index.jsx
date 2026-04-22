@@ -296,6 +296,26 @@ export const AuthProvider = ({ children }) => {
     prevLevelRef.current = curr;
   }, [user?.level]);
 
+  // Session heartbeat — awards +1 XP every 10 min of active play (server rate-limited).
+  // Only runs when tab is visible and user is logged in.
+  useEffect(() => {
+    if (!user || !tokenRef.current) return;
+    let intervalId = null;
+    const ping = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try { await api.post('/progression/heartbeat'); } catch (_) { /* ignore */ }
+    };
+    // First ping after 10 min (don't award immediately on mount)
+    const timeoutId = setTimeout(() => {
+      ping();
+      intervalId = setInterval(ping, 10 * 60 * 1000);
+    }, 10 * 60 * 1000);
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user?.id, api]);
+
   return (
     <AuthContext.Provider value={{ user, loading, login, register, guestLogin, convertGuest, logout, token, api, updateFunds, updateUser, refreshUser, cachedGet }}>
       {children}

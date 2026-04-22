@@ -1,127 +1,111 @@
 <analysis>**original_problem_statement**: 
-The user requested a massive UI and strategic overhaul for film management, which evolved into deep economic and progression systems refining. Key requirements included fixing the La mia TV transfer loops, overhauling the Finance and Bank systems (exponential infrastructure costs, correct expense/cost tracking), building a dedicated  dashboard with historical sparklines, fixing duplicates in the A Breve dashboard sections, adding glowing animations to all status badges, and completely overhauling the broken XP and Fame systems (Fame skyrocketing past cap, XP stuck).
+The user requested extensive updates to the V3 Pipeline for TV Series and Anime, including making the pipeline identical to the Film V3 pipeline (Cast, Ciak, Finalcut, Marketing), integrating the PREP phase into the IDEA phase, overhauling the Purchased Screenplays feature to spawn V3 projects with Avanzata (Advanced) and Veloce (Fast) modes, adding a complex TV Ad tradeoffs system in the Marketing phase, fixing several UI bugs (moving I Miei to the center of the navbar), and adding Silent Bonuses (invisible cash boosts) for new players to aid onboarding.
 
-**User's preferred language**: Italian (You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only)
+**User's preferred language**: Italian (You MUST respond in Italian only)
 
 **what currently exists?** 
-A highly complex full-stack multiplayer cinema management game. The application now includes a fully functional real-time game economy driven by . It features advanced dashboards for Finances () and Attendance () that display per-film historical data and geo-tagged distribution logic. The Bank system has exponential infrastructure levels. The XP and Fame system has just been rewritten to use a unified  scaling system, with Fame strictly capped at 100. 
+A highly complex full-stack multiplayer cinema management game. The application includes a unified V3 Pipeline for Films, TV Series, and Anime. The Series/Anime pipeline has just been massively upgraded to include Ad-platform trade-offs (upfront cash vs daily revenue cuts) and the Prep phase has been integrated directly into the Idea phase. The game also features a fully revamped Purchased Screenplays system that directly integrates with the V3 Pipeline, bypassing old legacy flows.
 
 **Last working item**: 
-    - Last item agent was working: Refactoring the XP and Fame progression system. The agent unified XP tracking to use , added an endpoint for heartbeat/daily login XP (), centralized Fame rewards with a strict cap of 100, reduced exaggerated Fame rewards across the app, and created a startup migration script () to recalculate and fix all existing players' stats. The backend was just restarted to run the migration.
-    - Status: TESTING PENDING
-    - Agent Testing Done: N (Backend restarted, but endpoint/migration effect hasn't been verified via logs/curl yet)
-    - Which testing method agent to use? backend testing agent / manual testing by curl (Verify  and check user's level/fame to ensure migration succeeded).
+    - Last item agent was working: Implementing the Silent Bonuses system for new players. The user requested invisible monetary boosts during the first 6-10 days based on the number of films owned, as well as silent session bonuses (10m, 30m, 1h, 2h) and login/hourly bonuses to help with onboarding without notifying the user. The agent just created .
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use? backend testing agent or manual curl (to verify endpoints and DB wallet inserts without UI toasts).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Verify XP/Fame Migration Success (P0)
-     - Attempted fixes: The agent wrote  and hooked it to  startup, then restarted the backend.
-     - Next debug checklist: Check backend logs to ensure  completed without errors. Log in or curl an endpoint to verify , , and  (should be <= 100) for the test user.
-     - Why fix this issue and what will be achieved with the fix? Ensures the massive XP/Fame overhaul didn't break user accounts and actually fixed the progression bug.
-     - Status: TESTING PENDING
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? backend
-     - Blocked on other issue: None
+None. All reported bugs (like the Contenuto non trovato trailer bug and Hype advance guard) were fixed.
 
 **In progress Task List**:
-  Task 1: Series & Anime progression & financial stats tracking (P1)
-     - Where to resume: The user requested to replicate the financial and spectator tracking (similar to films) for Series and Anime. The user stated lo vediamo poi (we will see it later), so this should be planned for the next phases.
-     - What will be achieved with this? Extends the robust economy tracking to TV and Anime pipelines.
-     - Status: NOT STARTED
-     - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: Verify current features first.
+  Task 1: Complete and Integrate Silent Bonuses (P0)
+     - Where to resume: The logic inside  needs to be completed. Then, it needs to be hooked into the session heartbeat ( -> ) or the daily  cron jobs.
+     - What will be achieved with this? Players will receive invisible wallet transactions (cash injections) during their first few days or for playing consecutively, preventing early-game frustration.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix? Backend (verify  are created without triggering frontend event listeners/toasts).
+     - Blocked on something: Nothing.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
     - (P1) Mappa geo-finanziaria interattiva: Global heatmap in the Finance Geo tab using  +  to show profitable cities.
-    - (P1) Serie TV and Anime financial/spectator historical tracking (apply the newly built  and  logic to them).
-    - (P2) Rigenera locandine in batch: Admin button to regenerate AI posters for all recovered legacy films that currently have a placeholder.
+    - (P1) Serie TV and Anime financial/spectator historical tracking (apply the existing  and  logic to Series/Anime).
     
     Future Tasks:
+    - (P2) Rigenera locandine in batch: Admin button to regenerate AI posters for all recovered legacy films.
     - (P2) Ricalcolo CWSv forzato: Admin button to recalculate exact CWSv scores for old V3 legacy films.
     - (P2) Monetizzazione AI premium: Stripe integration for high-tier trailers.
     - (P2) PvP Tournaments module.
     - (P2) Refactoring  to split it into specialized background workers.
 
 **Completed work in this session**
-- Budget-tier revenue multiplier & Bank Infrastructure exponential scaling (DONE)
-- Level-up cinematic toast notification () (DONE)
-- Fixed La Mia TV infinite loading loop and added Locked Infrastructure info modals (DONE)
-- Overhauled  &  (added mini poster grid, sparklines, trend badges, La Prima historical tracking) (DONE)
-- Re-routed Geo Global vs Globale vs Unknown into a unified Totale tracker (DONE)
-- Fixed Expenses (/bin/bash out) by using real  instead of wallet transactions (DONE)
-- Fixed A Breve dashboard duplicate bug using  matching (DONE)
-- Genera Trailer button now auto-navigates and selects the film in Pipeline V3 (DONE)
-- Added CSS keyframe  to all pipeline state badges globally (DONE)
-- Re-wrote XP & Fame scaling, centralized Fame helper, and created DB migration script (DONE)
+- Fixed P0 backend crash caused by missing  import (DONE)
+- Fixed and completed the V2 XP/Fame DB migration script (DONE)
+- Moved I Miei navbar button to the center (position 6) and changed color to blue (DONE)
+- Overhauled Purchased Screenplays to use Pipeline V3, adding Avanzata and Veloce modes (DONE)
+- Added Bestseller badges to screenplays and a cinematic curtain animation upon purchase (DONE)
+- Fixed Contenuto non trovato trailer generation bug for Series/Anime (DONE)
+- Added progress circles inside AI Generation buttons and created a responsive Episode grid with AI-generated mini-plots (DONE)
+- Completed the missing Cast, Ciak, and Finalcut phases for Series/Anime V3 (DONE)
+- Merged the PREP phase directly into the IDEA phase for a smoother flow (DONE)
+- Added Ad Platforms and Episode Ads tradeoff logic to the Series/Anime Marketing Phase (DONE)
+- Added Prestige Tier UI toast notifications on Fame level-up (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-None. The agent systematically addressed all screenshots and feedback provided by the user.
+None.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: Dashboard A Breve duplicate bugs. 
-  - Recurrence count: 2
-  - Status: RESOLVED (Agent patched  route to correctly match  rather than uid=0(root) gid=0(root) groups=0(root) due to UUID re-rolling on release).
+  - Issue recurrence in previous fork: None observed in this session.
 
 **Code Architecture**
-- Frontend:  (React). Heavily utilizes Context API (), custom UI components (Tailwind + Shadcn), and custom event listeners () for sheets/modals.
-- Backend:  (FastAPI). Uses APScheduler () for the game's core progression and economy loops. MongoDB for data storage.
+- Frontend:  (React). Heavily utilizes Context API (), Shadcn UI, and modular pipeline phase components (, , etc.).
+- Backend:  (FastAPI). Relies heavily on MongoDB collections separated by game state (e.g., , , ).
 
 **Key Technical Concepts**
-- React Contexts & Custom Events ().
-- APScheduler for interval-based game economy ticks (Revenue, Stars, Events).
-- Complex MongoDB aggregations for economy tracking (, historical attendance arrays).
-- Unified Backend Economy: Financial stats and UI are deeply coupled to the  cron jobs.
+- Pipeline V3 State Machine ( ->  ->  ->  ->  ->  ->  -> ).
+- Modular Phase Components: React frontend swaps out components based on the project's current .
 
 **key DB schema**
-  - : {, , , , , , , }
-  - : {, , , }
-  - : {, , , , , }
+  - : The main collection for active TV Series / Anime in production.
+  -  / : Sources for purchased screenplays.
+  - : Records economy changes. Silent bonuses must be recorded here silently.
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
-  -  (Heavily modified for geo-tick, revenue calculations, and attendance tracking).
-  -  (Rewritten for consolidated XP and capped Fame).
-  -  (New migration script).
-  -  (New endpoint for heartbeat/XP).
-  -  &  (New UI for history tracking).
-  -  (New reusable trend icon).
-  -  (Added pulse-glow animations).
+  -  (Created this session, IN PROGRESS)
+  -  (Created this session for the new V3 screenplay flow)
+  -  (Heavily updated with new endpoints for Cast, Ciak, Marketing, etc.)
+  -  (Frontend state manager for Series V3)
+  -  (Updated to handle PREP logic internally)
+  -  (Heartbeat endpoint, likely where session bonuses will be hooked)
 
 **Areas that need refactoring**: 
-  -  is extremely bloated (>2600 lines) and acts as a monolith for all chronological game events.
-  - The aggregation loops in  might get slow as DB grows, could use background materialized views.
+  -  remains a >2600 line monolith. Needs splitting in the future.
 
 **key api endpoints**
+  -  (Session heartbeat)
   -  & 
-  - 
   - 
 
 **Critical Info for New Agent** 
-- **Language Constraint:** You MUST reply to the user in **Italian**.
-- **Economy/XP:** The backend just underwent a massive migration for XP and Fame ( is the new standard). Verify the migration ran successfully.
-- **Frontend Logic:** Use  when linking  (pipeline items) to released , because a new UUID is generated upon .
-- **UI Consistency:** The user relies heavily on visual feedback (e.g., the glowing badges just added). Do not alter  utility classes or remove them.
+- **Language**: You MUST reply to the user in Italian.
+- **Silent Bonuses**: The user emphasized these must be truly *silent*. Do not dispatch custom events or create  style popups for these specific cash infusions. Just update the user's  and insert a .
+- **Series/Anime Pipeline**: PREP is now part of IDEA. The pipeline array is . Do not re-introduce  as a standalone pipeline state.
 
 **documents and test reports created in this job** 
-  - /app/memory/PRD.md (Updated extensively throughout the session)
+  -  (Continuously updated)
+  -  (Used during Purchased Screenplays implementation)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Uploaded screenshots showing Uscite (Costs) at /bin/bash, duplicate Global/Totale labels, and unreadable SVG charts.
-2. *Agent*: Fixed Finance backend aggregation (merged Global, loaded real ) and adjusted the SVG chart rendering.
-3. *User*: Requested CineWorld credentials. Pointed out Uscite (Cost) is still not reflecting pipeline V3 correctly.
-4. *Agent*: Explained limits on giving credentials. Fixed the cost issue by routing backend through .
-5. *User*: Back arrow doesn't work, and La Prima stats are missing from Finance/Attendance pages.
-6. *Agent*: Implemented fallback  and retrofitted La Prima data into the Finance and Spectators breakdown tabs.
-7. *User*: Total Expenses is still at /bin/bash.
-8. *Agent*: Found the root cause (wallet_transactions missing for legacy films), refactored  to sum  directly from film docs.
-9. *User*: Genera trailer button doesn't open Pipeline V3. Il Sospetto is still showing as A BREVE duplicate. All status badges need a pulse/glow animation.
-10. *User*: La fama aumenta esageratamente, invece XP non si muove. Controlla e proponi piano. -> Agent proposed 5-phase plan. User approved Option B (recalculate all players + sensible scaling). -> Agent implemented but backend was just restarted. (PENDING VERIFICATION).
+1. *User*: Uploaded screenshot indicating the PREP step shouldn't be the 4th step, but integrated into IDEA right after title/genre.
+2. *Agent*: Merged PREP into IDEA in the frontend () and backend . Tested flow.
+3. *User*: Uploaded screenshot asking for a complete MarketingPhase with ad-platforms and an episode advertising tradeoff system (0 mins = 60% revenue cut, 8 mins = 10% cut but 20% interest penalty).
+4. *Agent*: Implemented the  endpoint and Ad trade-off logic. Verified.
+5. *User*: Requested a Silent Bonus system for early-game users (0-5 films) and session continuity (10m, 30m, 1h, 2h) to give them extra invisible cash without notifications so they don't get frustrated.
+6. *Agent*: Created  to start implementing the 3 layers (Onboarding, Session, Login/Hourly). Context ended. (PENDING COMPLETION).
 
 **Project Health Check:**
-- Broken: None known, but DB Migration script just triggered.
+- Broken: None
 - Mocked: None
 
 **3rd Party Integrations** 
@@ -129,689 +113,21 @@ None. The agent systematically addressed all screenshots and feedback provided b
   - Pixazo / WaveSpeed AI (Image Generation) — uses User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO
+  - Testing agent used after significant changes: YES (iteration 164)
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None
+  - Test files created: 
   - Known regressions: None
 
 **Credentials to test flow:**
 Use  (Email: fandrex1@gmail.com, Password: Fandrel2776).
 
 **What agent forgot to execute**
-The agent just finished the code implementation for the XP/Fame refactor and DB migration, and restarted the backend. The context ran out right after . The agent did not have time to verify if the migration actually completed successfully or check the frontend UI for the new XP/Level readouts.
+The agent just created the file  but ran out of context before writing the logic and hooking it into the  route ().
 
 **Debugging checklist for current issue**
-    Issue: Verify XP/Fame Migration Success
+    Issue: Complete Silent Bonuses Implementation
     
-    Backend files to check:
-    -  (Verify the logic for capping fame at 100 and converting XP to ).
-    - ==> /var/log/supervisor/backend.err.log <==
-  File "/app/backend/server.py", line 94, in <module>
-    from routes.progression import router as progression_router
-  File "/app/backend/routes/progression.py", line 4, in <module>
-    from utils.deps import get_current_user, db
-ModuleNotFoundError: No module named 'utils.deps'
-INFO:     Stopping reloader process [46]
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [7941] using WatchFiles
-Process SpawnProcess-1:
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
-    self.run()
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
-    self._target(*self._args, **self._kwargs)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
-    target(sockets=sockets)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
-    return asyncio.run(self.serve(sockets=sockets))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
-    return runner.run(main)
-           ^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
-    return self._loop.run_until_complete(task)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
-    return future.result()
-           ^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
-    config.load()
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
-    self.loaded_app = import_from_string(self.app)
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
-    raise exc from None
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
-    module = importlib.import_module(module_str)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "/app/backend/server.py", line 94, in <module>
-    from routes.progression import router as progression_router
-  File "/app/backend/routes/progression.py", line 4, in <module>
-    from utils.deps import get_current_user, db
-ModuleNotFoundError: No module named 'utils.deps'
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [48] using WatchFiles
-Process SpawnProcess-1:
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
-    self.run()
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
-    self._target(*self._args, **self._kwargs)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
-    target(sockets=sockets)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
-    return asyncio.run(self.serve(sockets=sockets))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
-    return runner.run(main)
-           ^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
-    return self._loop.run_until_complete(task)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
-    return future.result()
-           ^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
-    config.load()
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
-    self.loaded_app = import_from_string(self.app)
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
-    raise exc from None
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
-    module = importlib.import_module(module_str)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "/app/backend/server.py", line 94, in <module>
-    from routes.progression import router as progression_router
-  File "/app/backend/routes/progression.py", line 4, in <module>
-    from utils.deps import get_current_user, db
-ModuleNotFoundError: No module named 'utils.deps'
-
-==> /var/log/supervisor/backend.out.log <==
-INFO:     10.79.131.71:45676 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:49110 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:49122 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48282 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48278 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48282 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-LOGIN START
-LOGIN USER FOUND
-LOGIN PASSWORD CHECK OK
-INFO:     10.79.131.71:39648 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48818 - "GET /api/finance/films-history HTTP/1.1" 200 OK
-INFO:     10.79.131.71:37608 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:34878 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:37606 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:34866 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45250 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45244 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45250 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-LOGIN START
-LOGIN USER FOUND
-LOGIN PASSWORD CHECK OK
-INFO:     10.79.131.71:48666 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48666 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48666 - "GET /api/finance/breakdown?scope=continent HTTP/1.1" 200 OK
-INFO:     10.79.131.71:46500 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:42098 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:46484 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:42090 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:36588 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:36578 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:60376 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:44418 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:44410 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:34220 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48740 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48738 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:46698 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:33366 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:32908 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:32892 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-INFO:     10.79.131.71:59128 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:41602 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:41592 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:59112 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:38060 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:38054 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:52930 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58676 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58668 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:43292 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-LOGIN START
-LOGIN USER FOUND
-LOGIN PASSWORD CHECK OK
-INFO:     10.79.131.71:39654 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.79.131.66:49638 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-INFO:     10.79.131.71:56658 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:56668 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:56658 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:46984 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58008 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58008 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45120 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39434 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39450 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:49084 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:51472 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:49076 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48852 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:59650 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48840 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:60196 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:52182 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:52188 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-INFO:     10.79.131.66:48600 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48590 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:46598 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:33328 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:33302 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:33316 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None (Check if the startup migration logged any errors).
-
-    Database to check:
-    - Execute bash:  to ensure  is <= 100.</analysis> piano. -> Agent proposed 5-phase plan. User approved Option B (recalculate all players + sensible scaling). -> Agent implemented but backend was just restarted. (PENDING VERIFICATION).
-
-**Project Health Check:**
-- Broken: None known, but DB Migration script just triggered.
-- Mocked: None
-
-**3rd Party Integrations** 
-  - Emergent LLM Key (GPT-4o-mini + Gemini Nano Banana image gen) — uses Emergent LLM Key
-  - Pixazo / WaveSpeed AI (Image Generation) — uses User API Key
-
-**Testing status**
-  - Testing agent used after significant changes: NO
-  - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None
-  - Known regressions: None
-
-**Credentials to test flow:**
-Use  (Email: fandrex1@gmail.com, Password: Fandrel2776).
-
-**What agent forgot to execute**
-The agent just finished the code implementation for the XP/Fame refactor and DB migration, and restarted the backend. The context ran out right after . The agent did not have time to verify if the migration actually completed successfully or check the frontend UI for the new XP/Level readouts.
-
-**Debugging checklist for current issue**
-    Issue: Verify XP/Fame Migration Success
-    
-    Backend files to check:
-    -  (Verify the logic for capping fame at 100 and converting XP to ).
-    - ==> /var/log/supervisor/backend.err.log <==
-  File "/app/backend/server.py", line 94, in <module>
-    from routes.progression import router as progression_router
-  File "/app/backend/routes/progression.py", line 4, in <module>
-    from utils.deps import get_current_user, db
-ModuleNotFoundError: No module named 'utils.deps'
-INFO:     Stopping reloader process [46]
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [7941] using WatchFiles
-Process SpawnProcess-1:
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
-    self.run()
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
-    self._target(*self._args, **self._kwargs)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
-    target(sockets=sockets)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
-    return asyncio.run(self.serve(sockets=sockets))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
-    return runner.run(main)
-           ^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
-    return self._loop.run_until_complete(task)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
-    return future.result()
-           ^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
-    config.load()
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
-    self.loaded_app = import_from_string(self.app)
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
-    raise exc from None
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
-    module = importlib.import_module(module_str)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "/app/backend/server.py", line 94, in <module>
-    from routes.progression import router as progression_router
-  File "/app/backend/routes/progression.py", line 4, in <module>
-    from utils.deps import get_current_user, db
-ModuleNotFoundError: No module named 'utils.deps'
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [48] using WatchFiles
-Process SpawnProcess-1:
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
-    self.run()
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
-    self._target(*self._args, **self._kwargs)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
-    target(sockets=sockets)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
-    return asyncio.run(self.serve(sockets=sockets))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
-    return runner.run(main)
-           ^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
-    return self._loop.run_until_complete(task)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
-    return future.result()
-           ^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
-    config.load()
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
-    self.loaded_app = import_from_string(self.app)
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
-    raise exc from None
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
-    module = importlib.import_module(module_str)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "/app/backend/server.py", line 94, in <module>
-    from routes.progression import router as progression_router
-  File "/app/backend/routes/progression.py", line 4, in <module>
-    from utils.deps import get_current_user, db
-ModuleNotFoundError: No module named 'utils.deps'
-
-==> /var/log/supervisor/backend.out.log <==
-INFO:     10.79.131.71:45676 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:49110 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:49122 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48282 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48278 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48282 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-LOGIN START
-LOGIN USER FOUND
-LOGIN PASSWORD CHECK OK
-INFO:     10.79.131.71:39648 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48818 - "GET /api/finance/films-history HTTP/1.1" 200 OK
-INFO:     10.79.131.71:37608 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:34878 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:37606 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:34866 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45250 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45244 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45250 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-LOGIN START
-LOGIN USER FOUND
-LOGIN PASSWORD CHECK OK
-INFO:     10.79.131.71:48666 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48666 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48666 - "GET /api/finance/breakdown?scope=continent HTTP/1.1" 200 OK
-INFO:     10.79.131.71:46500 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:42098 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:46484 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:42090 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:36588 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:36578 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:60376 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:44418 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:44410 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:34220 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48740 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48738 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:46698 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:33366 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:32908 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:32892 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-INFO:     10.79.131.71:59128 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:41602 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:41592 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:59112 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:38060 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:38054 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:52930 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58676 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58668 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:43292 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-LOGIN START
-LOGIN USER FOUND
-LOGIN PASSWORD CHECK OK
-INFO:     10.79.131.71:39654 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.79.131.66:49638 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-INFO:     10.79.131.71:56658 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:56668 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:56658 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:46984 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58008 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58008 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45120 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39434 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39450 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:49084 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:51472 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:49076 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48852 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:59650 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48840 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:60196 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:52182 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:52188 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-INFO:     10.79.131.66:48600 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48590 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:46598 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:33328 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:33302 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:33316 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None (Check if the startup migration logged any errors).
-
-    Database to check:
-    - Execute bash:  to ensure  is <= 100.</analysis> piano. -> Agent proposed 5-phase plan. User approved Option B (recalculate all players + sensible scaling). -> Agent implemented but backend was just restarted. (PENDING VERIFICATION).
-
-**Project Health Check:**
-- Broken: None known, but DB Migration script just triggered.
-- Mocked: None
-
-**3rd Party Integrations** 
-  - Emergent LLM Key (GPT-4o-mini + Gemini Nano Banana image gen) — uses Emergent LLM Key
-  - Pixazo / WaveSpeed AI (Image Generation) — uses User API Key
-
-**Testing status**
-  - Testing agent used after significant changes: NO
-  - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None
-  - Known regressions: None
-
-**Credentials to test flow:**
-Use  (Email: fandrex1@gmail.com, Password: Fandrel2776).
-
-**What agent forgot to execute**
-The agent just finished the code implementation for the XP/Fame refactor and DB migration, and restarted the backend. The context ran out right after . The agent did not have time to verify if the migration actually completed successfully or check the frontend UI for the new XP/Level readouts.
-
-**Debugging checklist for current issue**
-    Issue: Verify XP/Fame Migration Success
-    
-    Backend files to check:
-    -  (Verify the logic for capping fame at 100 and converting XP to ).
-    - ==> /var/log/supervisor/backend.err.log <==
-  File "/app/backend/server.py", line 94, in <module>
-    from routes.progression import router as progression_router
-  File "/app/backend/routes/progression.py", line 4, in <module>
-    from utils.deps import get_current_user, db
-ModuleNotFoundError: No module named 'utils.deps'
-INFO:     Stopping reloader process [46]
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [7941] using WatchFiles
-Process SpawnProcess-1:
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
-    self.run()
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
-    self._target(*self._args, **self._kwargs)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
-    target(sockets=sockets)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
-    return asyncio.run(self.serve(sockets=sockets))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
-    return runner.run(main)
-           ^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
-    return self._loop.run_until_complete(task)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
-    return future.result()
-           ^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
-    config.load()
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
-    self.loaded_app = import_from_string(self.app)
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
-    raise exc from None
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
-    module = importlib.import_module(module_str)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "/app/backend/server.py", line 94, in <module>
-    from routes.progression import router as progression_router
-  File "/app/backend/routes/progression.py", line 4, in <module>
-    from utils.deps import get_current_user, db
-ModuleNotFoundError: No module named 'utils.deps'
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [48] using WatchFiles
-Process SpawnProcess-1:
-Traceback (most recent call last):
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
-    self.run()
-  File "/usr/local/lib/python3.11/multiprocessing/process.py", line 108, in run
-    self._target(*self._args, **self._kwargs)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/_subprocess.py", line 76, in subprocess_started
-    target(sockets=sockets)
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 61, in run
-    return asyncio.run(self.serve(sockets=sockets))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
-    return runner.run(main)
-           ^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
-    return self._loop.run_until_complete(task)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
-    return future.result()
-           ^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/server.py", line 68, in serve
-    config.load()
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/config.py", line 467, in load
-    self.loaded_app = import_from_string(self.app)
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 24, in import_from_string
-    raise exc from None
-  File "/root/.venv/lib/python3.11/site-packages/uvicorn/importer.py", line 21, in import_from_string
-    module = importlib.import_module(module_str)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "/app/backend/server.py", line 94, in <module>
-    from routes.progression import router as progression_router
-  File "/app/backend/routes/progression.py", line 4, in <module>
-    from utils.deps import get_current_user, db
-ModuleNotFoundError: No module named 'utils.deps'
-
-==> /var/log/supervisor/backend.out.log <==
-INFO:     10.79.131.71:45676 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:49110 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:49122 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48282 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48278 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48282 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-LOGIN START
-LOGIN USER FOUND
-LOGIN PASSWORD CHECK OK
-INFO:     10.79.131.71:39648 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48818 - "GET /api/finance/films-history HTTP/1.1" 200 OK
-INFO:     10.79.131.71:37608 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:34878 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:37606 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:34866 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45250 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45244 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45250 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-LOGIN START
-LOGIN USER FOUND
-LOGIN PASSWORD CHECK OK
-INFO:     10.79.131.71:48666 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48666 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48666 - "GET /api/finance/breakdown?scope=continent HTTP/1.1" 200 OK
-INFO:     10.79.131.71:46500 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:42098 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:46484 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:42090 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:36588 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:36578 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:60376 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:44418 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:44410 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:34220 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48740 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:48738 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:46698 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:33366 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:32908 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:32892 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-INFO:     10.79.131.71:59128 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:41602 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:41592 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:59112 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:38060 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:38054 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:52930 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58676 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58668 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:43292 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-LOGIN START
-LOGIN USER FOUND
-LOGIN PASSWORD CHECK OK
-INFO:     10.79.131.71:39654 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.79.131.66:49638 - "GET /api/finance/expenses-by-type HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-INFO:     10.79.131.71:56658 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:56668 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:56658 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:46984 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58008 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:58008 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:45120 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39434 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39450 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39434 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:39418 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:49084 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:51472 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:49076 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48852 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:59650 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48840 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:60196 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:52182 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.66:52188 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-INFO:     10.79.131.66:48600 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.66:48590 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:46598 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:33328 - "GET /api/translations/it HTTP/1.1" 200 OK
-INFO:     10.79.131.71:33302 - "POST /api/game-url HTTP/1.1" 200 OK
-INFO:     10.79.131.71:33316 - "POST /api/game-url HTTP/1.1" 200 OK
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None
-[STARTUP] Build dir: None (Check if the startup migration logged any errors).
-
-    Database to check:
-    - Execute bash:  to ensure  is <= 100.</analysis>
+    Backend files to check/edit:
+    -  (Write the logic for onboarding caps, session tracking, and daily login bonuses).
+    -  (Hook the silent bonus check into the  endpoint, which is called every 10 minutes by the frontend).
+    - Ensure all granted cash uses  and  silently.</analysis>

@@ -6,7 +6,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://game-balance-update-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://invisible-cash-boost.preview.emergentagent.com')
 TEST_EMAIL = "fandrex1@gmail.com"
 TEST_PASSWORD = "Ciaociao1"
 

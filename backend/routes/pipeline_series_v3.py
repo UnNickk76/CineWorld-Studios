@@ -519,6 +519,164 @@ async def generate_series_screenplay(pid: str, user: dict = Depends(get_current_
         raise HTTPException(500, f"Errore generazione: {str(e)[:100]}")
 
 
+# ═══════════════════════════════════════════════════════════════════
+# HYPE / CAST / PREP / CIAK / FINALCUT — series V3 full pipeline
+# ═══════════════════════════════════════════════════════════════════
+
+class HypeSaveRequest(BaseModel):
+    hype_budget: int = 0
+
+@router.post("/projects/{pid}/save-hype")
+async def save_hype_series(pid: str, req: HypeSaveRequest, user: dict = Depends(get_current_user)):
+    """Start the hype timer. Budget spent reduces duration."""
+    project = await _get_project(pid, user["id"])
+    if project.get("hype_started_at"):
+        # Already running — allow increasing budget
+        if req.hype_budget > 0:
+            fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "funds": 1})
+            if int(fresh.get("funds", 0) or 0) < req.hype_budget:
+                raise HTTPException(400, "Fondi insufficienti")
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"funds": -req.hype_budget}})
+            new_budget = int(project.get("hype_budget", 0) or 0) + req.hype_budget
+            return await _update_project(pid, user["id"], {"hype_budget": new_budget})
+        return {"success": True, "project": project}
+
+    if req.hype_budget > 0:
+        fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "funds": 1})
+        if int(fresh.get("funds", 0) or 0) < req.hype_budget:
+            raise HTTPException(400, "Fondi insufficienti")
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"funds": -req.hype_budget}})
+
+    # Hype duration: 24h base, 12h with budget >=50k, 6h with >=200k
+    hours = 24 if req.hype_budget < 50000 else (12 if req.hype_budget < 200000 else 6)
+    now = datetime.now(timezone.utc)
+    project = await _update_project(pid, user["id"], {
+        "hype_budget": req.hype_budget,
+        "hype_started_at": now.isoformat(),
+        "hype_complete_at": (now + timedelta(hours=hours)).isoformat(),
+        "hype_hours": hours,
+    })
+    return {"success": True, "project": project, "hype_hours": hours}
+
+
+async def _auto_fill_series_cast(user_id: str, series_type: str, genre: str) -> dict:
+    """Reuse the purchased-screenplay cast helper, capped at 8, labelled for anime."""
+    from routes.purchased_screenplays_v3 import _auto_fill_cast
+    cast = await _auto_fill_cast(user_id, genre or "drama")
+    if len(cast.get("actors", [])) > 8:
+        cast["actors"] = cast["actors"][:8]
+    if series_type == "anime":
+        for a in cast.get("actors", []):
+            a["role_label"] = "Doppiatore"
+    return cast
+
+
+@router.post("/projects/{pid}/auto-cast")
+async def auto_cast_series(pid: str, user: dict = Depends(get_current_user)):
+    project = await _get_project(pid, user["id"])
+    cast = await _auto_fill_series_cast(user["id"], project.get("type", "tv_series"), project.get("genre"))
+    return await _update_project(pid, user["id"], {"cast": cast})
+
+
+class CastSaveRequest(BaseModel):
+    cast: dict
+
+@router.post("/projects/{pid}/save-cast")
+async def save_cast_series(pid: str, req: CastSaveRequest, user: dict = Depends(get_current_user)):
+    return await _update_project(pid, user["id"], {"cast": req.cast})
+
+
+class PrepSaveRequest(BaseModel):
+    series_format: Optional[str] = None       # miniserie|stagionale|lunga|maratona
+    episode_duration_min: Optional[int] = None  # 22, 30, 45, 60
+    equipment_level: Optional[str] = None     # low|medium|high
+    extras_count: Optional[int] = None
+
+@router.post("/projects/{pid}/save-prep")
+async def save_prep_series(pid: str, req: PrepSaveRequest, user: dict = Depends(get_current_user)):
+    updates = {k: v for k, v in req.dict().items() if v is not None}
+    updates["prep_completed"] = True
+    return await _update_project(pid, user["id"], updates)
+
+
+@router.post("/projects/{pid}/start-ciak")
+async def start_ciak_series(pid: str, user: dict = Depends(get_current_user)):
+    project = await _get_project(pid, user["id"])
+    if project.get("ciak_started_at"):
+        return {"success": True, "project": project, "already_started": True}
+    is_anime = project.get("type") == "anime"
+    # Riprese: anime 1h/ep, serie 2h/ep — minimum 12h total
+    hours = max(12, project.get("num_episodes", 10) * (1 if is_anime else 2))
+    now = datetime.now(timezone.utc)
+    project = await _update_project(pid, user["id"], {
+        "ciak_started_at": now.isoformat(),
+        "ciak_complete_at": (now + timedelta(hours=hours)).isoformat(),
+        "ciak_hours": hours,
+    })
+    return {"success": True, "project": project, "ciak_hours": hours}
+
+
+@router.post("/projects/{pid}/start-finalcut")
+async def start_finalcut_series(pid: str, user: dict = Depends(get_current_user)):
+    project = await _get_project(pid, user["id"])
+    if project.get("finalcut_started_at"):
+        return {"success": True, "project": project, "already_started": True}
+    # Post-prod: 0.5h/ep, minimum 6h
+    hours = max(6, int(project.get("num_episodes", 10) * 0.5))
+    now = datetime.now(timezone.utc)
+    project = await _update_project(pid, user["id"], {
+        "finalcut_started_at": now.isoformat(),
+        "finalcut_complete_at": (now + timedelta(hours=hours)).isoformat(),
+        "finalcut_hours": hours,
+    })
+    return {"success": True, "project": project, "finalcut_hours": hours}
+
+
+class SpeedupSeriesRequest(BaseModel):
+    stage: str          # "hype" | "ciak" | "finalcut"
+    percentage: int     # 25, 50, 75, 100
+
+@router.post("/projects/{pid}/speedup")
+async def speedup_series(pid: str, req: SpeedupSeriesRequest, user: dict = Depends(get_current_user)):
+    """Speed up a timed stage by spending CinePass. Max 6 CP per stage."""
+    # Cheap CP costs (max 6 as requested)
+    COSTS = {25: 1, 50: 2, 75: 4, 100: 6}
+    cost = min(6, COSTS.get(req.percentage, 6))
+
+    project = await _get_project(pid, user["id"])
+    start_field = f"{req.stage}_started_at"
+    end_field = f"{req.stage}_complete_at"
+    started = project.get(start_field)
+    complete = project.get(end_field)
+    if not started or not complete:
+        raise HTTPException(400, f"Timer {req.stage} non avviato")
+
+    # Funds check
+    fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "cinepass": 1})
+    cp = int(fresh.get("cinepass", 0) or 0)
+    if cp < cost:
+        raise HTTPException(400, f"CinePass insufficienti. Servono {cost} CP.")
+
+    now = datetime.now(timezone.utc)
+    start_dt = datetime.fromisoformat(started.replace("Z", "+00:00")) if isinstance(started, str) else started
+    end_dt = datetime.fromisoformat(complete.replace("Z", "+00:00")) if isinstance(complete, str) else complete
+    total = (end_dt - start_dt).total_seconds()
+    elapsed = max(0, (now - start_dt).total_seconds())
+    current_pct = (elapsed / total) * 100 if total > 0 else 100.0
+
+    if current_pct >= 99.9:
+        raise HTTPException(400, "Già al 100%! Non serve velocizzare.")
+
+    target_pct = min(100.0, max(current_pct, float(req.percentage)))
+    # Recompute end so that elapsed/total = target_pct/100
+    new_total_sec = elapsed / (target_pct / 100.0) if target_pct > 0 else total
+    new_end = start_dt + timedelta(seconds=new_total_sec)
+
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"cinepass": -cost}})
+    project = await _update_project(pid, user["id"], {end_field: new_end.isoformat()})
+    return {"success": True, "project": project, "cp_spent": cost, "new_progress": round(target_pct, 1)}
+
+
 @router.post("/projects/{pid}/save-marketing")
 async def save_marketing(pid: str, user: dict = Depends(get_current_user)):
     """Save marketing choices including prossimamente TV toggle."""

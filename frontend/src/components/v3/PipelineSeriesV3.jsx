@@ -389,97 +389,334 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
   );
 };
 
-/* ─── HYPE PHASE (reuse film logic) ─── */
+/* ─── Timer hook: calcola progress reale da started_at / complete_at ─── */
+const useTimerProgress = (startedAt, completeAt) => {
+  const [pct, setPct] = useState(0);
+  useEffect(() => {
+    if (!startedAt || !completeAt) { setPct(0); return; }
+    const tick = () => {
+      const start = new Date(startedAt).getTime();
+      const end = new Date(completeAt).getTime();
+      const now = Date.now();
+      if (end <= start) { setPct(100); return; }
+      const p = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
+      setPct(p);
+    };
+    tick();
+    const id = setInterval(tick, 4000);
+    return () => clearInterval(id);
+  }, [startedAt, completeAt]);
+  return pct;
+};
+
+/* ─── Speedup button (CP cost cap 6) ─── */
+const SpeedupButtons = ({ project, stage, onRefresh }) => {
+  const [loading, setLoading] = useState(false);
+  const options = [
+    { pct: 25, cp: 1 },
+    { pct: 50, cp: 2 },
+    { pct: 75, cp: 4 },
+    { pct: 100, cp: 6 },
+  ];
+  const doSpeedup = async (percentage) => {
+    setLoading(true);
+    try {
+      await sapi(`/projects/${project.id}/speedup`, 'POST', { stage, percentage });
+      toast.success(`Avanzato al ${percentage}%`);
+      onRefresh?.();
+    } catch (e) { toast.error(e.message); }
+    setLoading(false);
+  };
+  return (
+    <div className="grid grid-cols-4 gap-1 mt-2" data-testid={`speedup-${stage}`}>
+      {options.map(o => (
+        <button key={o.pct} onClick={() => doSpeedup(o.pct)} disabled={loading}
+          className="py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[8px] font-bold hover:bg-cyan-500/20 disabled:opacity-40 flex flex-col items-center">
+          <span>{o.pct}%</span>
+          <span className="text-[7px] text-cyan-400/70">{o.cp} CP</span>
+        </button>
+      ))}
+    </div>
+  );
+};
+
+/* ─── HYPE PHASE ─── */
 const HypePhase = ({ project, onRefresh }) => {
-  const [progress, setProgress] = useState(project.hype_progress || 0);
-  useEffect(() => { setProgress(project.hype_progress || 0); }, [project]);
+  const [budget, setBudget] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const progress = useTimerProgress(project.hype_started_at, project.hype_complete_at);
+  const started = !!project.hype_started_at;
+
+  const startHype = async () => {
+    setLoading(true);
+    try {
+      await sapi(`/projects/${project.id}/save-hype`, 'POST', { hype_budget: budget });
+      toast.success(started ? 'Budget aggiunto!' : 'Hype avviato!');
+      onRefresh?.();
+    } catch (e) { toast.error(e.message); }
+    setLoading(false);
+  };
+
   return (
     <PhaseWrapper title="Hype" subtitle="Costruisci aspettative" icon={TrendingUp} color="orange">
-      <div className="flex flex-col items-center py-4">
-        <ProgressCircle value={progress} size={80} color="#f97316" />
-        <p className="text-[9px] text-gray-500 mt-2">L'hype si accumula automaticamente. Avanza quando pronto.</p>
-      </div>
-    </PhaseWrapper>
-  );
-};
-
-/* ─── CAST PHASE (simplified for series) ─── */
-const CastPhase = ({ project, onRefresh, seriesType }) => {
-  const cast = project.cast || {};
-  const maxActors = seriesType === 'anime' ? 8 : 8;
-  return (
-    <PhaseWrapper title="Cast & Crew" subtitle={`Seleziona il cast (max ${maxActors} attori)`} icon={Users} color="cyan">
-      <div className="space-y-2">
-        <div className="p-2 bg-cyan-500/5 border border-cyan-500/15 rounded-lg">
-          <p className="text-[9px] text-gray-400">Showrunner: <span className="text-white font-bold">{cast.director?.name || 'Da selezionare'}</span></p>
-          <p className="text-[9px] text-gray-400">Attori: <span className="text-white font-bold">{(cast.actors || []).length}/{maxActors}</span></p>
-          <p className="text-[9px] text-gray-400">Compositore: <span className="text-white font-bold">{cast.composer?.name || 'Da selezionare'}</span></p>
-          {seriesType === 'anime' && <p className="text-[8px] text-yellow-400 mt-1">Il compositore influenza la Opening/Ending</p>}
-        </div>
-        <p className="text-[8px] text-gray-500 text-center">Il casting utilizza lo stesso sistema del film V3. Avanza per ora.</p>
-      </div>
-    </PhaseWrapper>
-  );
-};
-
-/* ─── PREP PHASE ─── */
-const PrepPhase = ({ project, onRefresh, seriesType }) => {
-  const formats = [
-    { id: 'miniserie', label: 'Miniserie', desc: '4-6 episodi' },
-    { id: 'stagionale', label: 'Stagionale', desc: '8-13 episodi' },
-    { id: 'lunga', label: 'Lunga', desc: '20-26 episodi' },
-    { id: 'maratona', label: 'Maratona', desc: '40+ episodi' },
-  ];
-  const durations = [22, 30, 45, 60];
-  return (
-    <PhaseWrapper title="Pre-Produzione" subtitle="Formato, durata episodi, effetti" icon={Camera} color="blue">
       <div className="space-y-3">
-        <p className="text-[8px] text-gray-500">Formato Serie</p>
+        <div className="flex flex-col items-center py-2">
+          <ProgressCircle value={progress} size={90} color="#f97316" />
+          {started && <p className="text-[8px] text-gray-500 mt-1">Budget speso: ${(project.hype_budget || 0).toLocaleString()}</p>}
+        </div>
+
+        {!started && (
+          <>
+            <p className="text-[9px] text-gray-400">Budget marketing hype (riduce il timer)</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[0, 50000, 200000].map(b => (
+                <button key={b} onClick={() => setBudget(b)}
+                  className={`py-2 rounded-lg border text-[9px] font-bold ${budget === b ? 'border-orange-500/40 bg-orange-500/10 text-orange-400' : 'border-gray-800 text-gray-500'}`}>
+                  {b === 0 ? 'Gratis (24h)' : b === 50000 ? '$50K (12h)' : '$200K (6h)'}
+                </button>
+              ))}
+            </div>
+            <button onClick={startHype} disabled={loading}
+              className="w-full py-2 rounded-lg bg-orange-500/15 border border-orange-500/30 text-orange-400 text-[10px] font-bold disabled:opacity-40" data-testid="start-hype-btn">
+              {loading ? '...' : 'Avvia Hype'}
+            </button>
+          </>
+        )}
+
+        {started && progress < 100 && <SpeedupButtons project={project} stage="hype" onRefresh={onRefresh} />}
+        {started && progress >= 100 && <p className="text-[9px] text-emerald-400 text-center font-bold">Hype completato! Avanza a Cast.</p>}
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+/* ─── CAST PHASE (compact but complete) ─── */
+const CastPhase = ({ project, onRefresh, seriesType }) => {
+  const [loading, setLoading] = useState(false);
+  const cast = project.cast || {};
+  const actors = cast.actors || [];
+  const actorLabel = seriesType === 'anime' ? 'Doppiatori' : 'Attori';
+
+  const autoCast = async () => {
+    setLoading(true);
+    try {
+      await sapi(`/projects/${project.id}/auto-cast`, 'POST');
+      toast.success('Cast generato automaticamente!');
+      onRefresh?.();
+    } catch (e) { toast.error(e.message); }
+    setLoading(false);
+  };
+
+  return (
+    <PhaseWrapper title="Cast & Crew" subtitle={`Regia, compositore, ${actorLabel.toLowerCase()}`} icon={Users} color="cyan">
+      <div className="space-y-3">
+        {/* Showrunner / Regista */}
+        <div className="p-2 rounded-lg bg-cyan-500/5 border border-cyan-500/15">
+          <p className="text-[7px] text-gray-500 uppercase font-bold">Showrunner / Regista</p>
+          <p className="text-[10px] text-white font-bold mt-0.5">{cast.director?.name || <span className="text-gray-500 italic">Da assegnare</span>}</p>
+          {cast.director?.stars && <p className="text-[8px] text-amber-400">{'★'.repeat(cast.director.stars)}</p>}
+        </div>
+
+        {/* Compositore */}
+        <div className="p-2 rounded-lg bg-purple-500/5 border border-purple-500/15">
+          <p className="text-[7px] text-gray-500 uppercase font-bold">
+            {seriesType === 'anime' ? 'Compositore (OP/ED)' : 'Compositore'}
+          </p>
+          <p className="text-[10px] text-white font-bold mt-0.5">{cast.composer?.name || <span className="text-gray-500 italic">Da assegnare</span>}</p>
+        </div>
+
+        {/* Attori/Doppiatori */}
+        <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/15">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[7px] text-gray-500 uppercase font-bold">{actorLabel} ({actors.length}/8)</p>
+          </div>
+          {actors.length > 0 ? (
+            <div className="grid grid-cols-2 gap-1">
+              {actors.slice(0, 8).map((a, i) => (
+                <div key={i} className="text-[9px] text-white truncate flex items-center gap-1" title={a.name}>
+                  <span className="text-gray-600 text-[7px]">#{i + 1}</span>
+                  <span className="truncate">{a.name}</span>
+                  {a.stars && <span className="text-amber-400 text-[7px] flex-shrink-0">{'★'.repeat(a.stars)}</span>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[9px] text-gray-500 italic">Nessuno selezionato</p>
+          )}
+        </div>
+
+        {/* Auto-cast button */}
+        <button onClick={autoCast} disabled={loading}
+          className="w-full py-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold disabled:opacity-40" data-testid="series-auto-cast-btn">
+          {loading ? '...' : actors.length > 0 ? 'Rigenera Cast Automatico' : 'Genera Cast Automatico (6-8)'}
+        </button>
+        <p className="text-[7px] text-gray-600 text-center">Preleva dai tuoi attori in agenzia, completa con NPC stelle medie</p>
+      </div>
+    </PhaseWrapper>
+  );
+};
+
+/* ─── PREP PHASE (functional) ─── */
+const PrepPhase = ({ project, onRefresh, seriesType }) => {
+  const [fmt, setFmt] = useState(project.series_format || 'stagionale');
+  const [dur, setDur] = useState(project.episode_duration_min || (seriesType === 'anime' ? 22 : 45));
+  const [equip, setEquip] = useState(project.equipment_level || 'medium');
+  const [loading, setLoading] = useState(false);
+
+  const formats = [
+    { id: 'miniserie', label: 'Miniserie', desc: '4-6 ep' },
+    { id: 'stagionale', label: 'Stagionale', desc: '8-13 ep' },
+    { id: 'lunga', label: 'Lunga', desc: '20-26 ep' },
+    { id: 'maratona', label: 'Maratona', desc: '40+ ep' },
+  ];
+  const durations = seriesType === 'anime' ? [22, 24, 30] : [30, 45, 60];
+  const equipLevels = [
+    { id: 'low', label: 'Economico', cost: '$', color: 'gray' },
+    { id: 'medium', label: 'Medio', cost: '$$', color: 'blue' },
+    { id: 'high', label: 'Premium', cost: '$$$', color: 'amber' },
+  ];
+
+  const save = async () => {
+    setLoading(true);
+    try {
+      await sapi(`/projects/${project.id}/save-prep`, 'POST', {
+        series_format: fmt, episode_duration_min: dur, equipment_level: equip,
+      });
+      toast.success('Pre-produzione salvata!');
+      onRefresh?.();
+    } catch (e) { toast.error(e.message); }
+    setLoading(false);
+  };
+
+  return (
+    <PhaseWrapper title="Pre-Produzione" subtitle="Formato, durata episodi, equipaggiamento" icon={Camera} color="blue">
+      <div className="space-y-3">
+        <p className="text-[8px] text-gray-500 uppercase font-bold">Formato</p>
         <div className="grid grid-cols-2 gap-1.5">
           {formats.map(f => (
-            <button key={f.id} className={`p-2 rounded-lg border text-left ${project.series_format === f.id ? 'border-blue-500/40 bg-blue-500/10' : 'border-gray-800'}`}>
+            <button key={f.id} onClick={() => setFmt(f.id)}
+              className={`p-2 rounded-lg border text-left ${fmt === f.id ? 'border-blue-500/40 bg-blue-500/10' : 'border-gray-800'}`}
+              data-testid={`prep-fmt-${f.id}`}>
               <p className="text-[9px] font-bold text-white">{f.label}</p>
               <p className="text-[7px] text-gray-500">{f.desc}</p>
             </button>
           ))}
         </div>
-        <p className="text-[8px] text-gray-500">Durata Episodio</p>
+
+        <p className="text-[8px] text-gray-500 uppercase font-bold">Durata Episodio</p>
         <div className="flex gap-1.5">
           {durations.map(d => (
-            <button key={d} className={`flex-1 py-1.5 rounded-lg border text-[9px] font-bold ${project.episode_duration_min === d ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-gray-800 text-gray-500'}`}>
+            <button key={d} onClick={() => setDur(d)}
+              className={`flex-1 py-1.5 rounded-lg border text-[9px] font-bold ${dur === d ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-gray-800 text-gray-500'}`}
+              data-testid={`prep-dur-${d}`}>
               {d} min
             </button>
           ))}
         </div>
+
+        <p className="text-[8px] text-gray-500 uppercase font-bold">Equipaggiamento</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {equipLevels.map(e => (
+            <button key={e.id} onClick={() => setEquip(e.id)}
+              className={`p-2 rounded-lg border ${equip === e.id ? `border-${e.color}-500/40 bg-${e.color}-500/10` : 'border-gray-800'}`}
+              data-testid={`prep-equip-${e.id}`}>
+              <p className="text-[9px] font-bold text-white">{e.label}</p>
+              <p className={`text-[8px] ${equip === e.id ? `text-${e.color}-400` : 'text-gray-500'}`}>{e.cost}</p>
+            </button>
+          ))}
+        </div>
+
+        <button onClick={save} disabled={loading}
+          className="w-full py-2 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-400 text-[10px] font-bold disabled:opacity-40" data-testid="save-prep-btn">
+          {loading ? '...' : 'Salva Pre-Produzione'}
+        </button>
       </div>
     </PhaseWrapper>
   );
 };
 
-/* ─── CIAK PHASE ─── */
-const CiakPhase = ({ project, seriesType }) => {
+/* ─── CIAK PHASE (real timer) ─── */
+const CiakPhase = ({ project, onRefresh, seriesType }) => {
+  const [loading, setLoading] = useState(false);
+  const progress = useTimerProgress(project.ciak_started_at, project.ciak_complete_at);
+  const started = !!project.ciak_started_at;
   const minPerEp = seriesType === 'anime' ? 20 : 30;
   const totalMin = (project.num_episodes || 10) * minPerEp;
+
+  const startCiak = async () => {
+    setLoading(true);
+    try {
+      await sapi(`/projects/${project.id}/start-ciak`, 'POST');
+      toast.success('Riprese avviate!');
+      onRefresh?.();
+    } catch (e) { toast.error(e.message); }
+    setLoading(false);
+  };
+
   return (
     <PhaseWrapper title="Riprese" subtitle={`${minPerEp} min reali per episodio`} icon={Clapperboard} color="red">
-      <div className="flex flex-col items-center py-4">
-        <ProgressCircle value={0} size={80} color="#ef4444" />
-        <p className="text-[9px] text-gray-500 mt-2">{project.num_episodes} episodi × {minPerEp} min = <span className="text-white font-bold">{totalMin} min</span> totali</p>
-        <p className="text-[8px] text-gray-600">Avanza per avviare le riprese</p>
+      <div className="space-y-3">
+        <div className="flex flex-col items-center py-2">
+          <ProgressCircle value={progress} size={90} color="#ef4444" />
+          <p className="text-[9px] text-gray-500 mt-2">{project.num_episodes} ep × {minPerEp} min = <span className="text-white font-bold">{totalMin} min</span></p>
+          {started && project.ciak_hours && (
+            <p className="text-[8px] text-gray-600 mt-0.5">Durata: {project.ciak_hours}h reali</p>
+          )}
+        </div>
+
+        {!started && (
+          <button onClick={startCiak} disabled={loading}
+            className="w-full py-2 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-[10px] font-bold disabled:opacity-40" data-testid="start-ciak-btn">
+            {loading ? '...' : '🎬 Avvia Riprese'}
+          </button>
+        )}
+
+        {started && progress < 100 && <SpeedupButtons project={project} stage="ciak" onRefresh={onRefresh} />}
+        {started && progress >= 100 && <p className="text-[9px] text-emerald-400 text-center font-bold">Riprese completate! Avanza a Final Cut.</p>}
       </div>
     </PhaseWrapper>
   );
 };
 
-/* ─── FINALCUT PHASE ─── */
-const FinalCutPhase = ({ project }) => (
-  <PhaseWrapper title="Post-Produzione" subtitle="Montaggio e mix finale" icon={Scissors} color="purple">
-    <div className="flex flex-col items-center py-4">
-      <ProgressCircle value={0} size={80} color="#a855f7" />
-      <p className="text-[9px] text-gray-500 mt-2">Il montaggio finale e il mix audio avvengono qui. I voti CWSv per episodio vengono calcolati.</p>
-    </div>
-  </PhaseWrapper>
-);
+/* ─── FINALCUT PHASE (real timer) ─── */
+const FinalCutPhase = ({ project, onRefresh }) => {
+  const [loading, setLoading] = useState(false);
+  const progress = useTimerProgress(project.finalcut_started_at, project.finalcut_complete_at);
+  const started = !!project.finalcut_started_at;
+
+  const startFC = async () => {
+    setLoading(true);
+    try {
+      await sapi(`/projects/${project.id}/start-finalcut`, 'POST');
+      toast.success('Post-produzione avviata!');
+      onRefresh?.();
+    } catch (e) { toast.error(e.message); }
+    setLoading(false);
+  };
+
+  return (
+    <PhaseWrapper title="Post-Produzione" subtitle="Montaggio e mix finale" icon={Scissors} color="purple">
+      <div className="space-y-3">
+        <div className="flex flex-col items-center py-2">
+          <ProgressCircle value={progress} size={90} color="#a855f7" />
+          {started && project.finalcut_hours && (
+            <p className="text-[8px] text-gray-600 mt-0.5">Durata: {project.finalcut_hours}h reali</p>
+          )}
+        </div>
+
+        {!started && (
+          <button onClick={startFC} disabled={loading}
+            className="w-full py-2 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-400 text-[10px] font-bold disabled:opacity-40" data-testid="start-finalcut-btn">
+            {loading ? '...' : '✂️ Avvia Post-Produzione'}
+          </button>
+        )}
+
+        {started && progress < 100 && <SpeedupButtons project={project} stage="finalcut" onRefresh={onRefresh} />}
+        {started && progress >= 100 && <p className="text-[9px] text-emerald-400 text-center font-bold">Post-produzione completata! Avanza a Marketing.</p>}
+      </div>
+    </PhaseWrapper>
+  );
+};
 
 /* ─── MARKETING PHASE ─── */
 const MarketingPhase = ({ project, onRefresh }) => {
@@ -861,6 +1098,12 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
 
         {/* Advance Button — with per-step gating */}
         {currentStep !== 'release_pending' && nextStep && (() => {
+          const timerProgress = (startAt, endAt) => {
+            if (!startAt || !endAt) return 0;
+            const s = new Date(startAt).getTime(), e = new Date(endAt).getTime(), n = Date.now();
+            if (e <= s) return 100;
+            return Math.min(100, Math.max(0, ((n - s) / (e - s)) * 100));
+          };
           const reason = (() => {
             if (currentStep === 'idea') {
               if (!selected.title || !selected.genre) return 'Completa Titolo e Genere prima di avanzare';
@@ -868,13 +1111,30 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
               return null;
             }
             if (currentStep === 'hype') {
-              const hp = selected.hype_progress || 0;
-              if (hp < 100) return `Hype al ${hp}%. Raggiungi 100% per avanzare`;
+              if (!selected.hype_started_at) return 'Avvia prima la campagna Hype';
+              const pct = timerProgress(selected.hype_started_at, selected.hype_complete_at);
+              if (pct < 100) return `Hype al ${Math.round(pct)}%. Usa CP per velocizzare`;
               return null;
             }
             if (currentStep === 'cast') {
               const cast = selected.cast || {};
-              if (!cast.actors || cast.actors.length < 1) return 'Seleziona almeno 1 attore';
+              if (!cast.actors || cast.actors.length < 1) return 'Genera prima il Cast';
+              return null;
+            }
+            if (currentStep === 'prep') {
+              if (!selected.prep_completed) return 'Salva prima le scelte di Pre-Produzione';
+              return null;
+            }
+            if (currentStep === 'ciak') {
+              if (!selected.ciak_started_at) return 'Avvia prima le Riprese';
+              const pct = timerProgress(selected.ciak_started_at, selected.ciak_complete_at);
+              if (pct < 100) return `Riprese al ${Math.round(pct)}%`;
+              return null;
+            }
+            if (currentStep === 'finalcut') {
+              if (!selected.finalcut_started_at) return 'Avvia prima la Post-Produzione';
+              const pct = timerProgress(selected.finalcut_started_at, selected.finalcut_complete_at);
+              if (pct < 100) return `Post-produzione al ${Math.round(pct)}%`;
               return null;
             }
             return null;

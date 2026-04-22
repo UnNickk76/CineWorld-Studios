@@ -859,20 +859,49 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
           </div>
         </div>
 
-        {/* Advance Button */}
-        {currentStep !== 'release_pending' && nextStep && (
-          <div className="sticky top-[88px] z-30 px-3 py-1.5 bg-black/90 backdrop-blur-sm border-b border-gray-800/30 flex gap-2">
-            {prevStep && (
-              <button onClick={() => advance(prevStep)} disabled={loading}
-                className="px-3 py-1.5 rounded-lg border border-gray-800 text-gray-500 text-[8px] font-bold disabled:opacity-30">Indietro</button>
-            )}
-            <button onClick={() => advance(nextStep)} disabled={loading}
-              className="flex-1 py-1.5 rounded-lg text-[9px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 disabled:opacity-30"
-              data-testid="advance-btn">
-              {loading ? '...' : `Avanti → ${SERIES_STEPS[stepIndex + 1]?.label}`}
-            </button>
-          </div>
-        )}
+        {/* Advance Button — with per-step gating */}
+        {currentStep !== 'release_pending' && nextStep && (() => {
+          const reason = (() => {
+            if (currentStep === 'idea') {
+              if (!selected.title || !selected.genre) return 'Completa Titolo e Genere prima di avanzare';
+              if (!selected.preplot || selected.preplot.length < 30) return 'Scrivi una sinossi (min 30 caratteri)';
+              return null;
+            }
+            if (currentStep === 'hype') {
+              const hp = selected.hype_progress || 0;
+              if (hp < 100) return `Hype al ${hp}%. Raggiungi 100% per avanzare`;
+              return null;
+            }
+            if (currentStep === 'cast') {
+              const cast = selected.cast || {};
+              if (!cast.actors || cast.actors.length < 1) return 'Seleziona almeno 1 attore';
+              return null;
+            }
+            return null;
+          })();
+          const blocked = !!reason;
+          return (
+            <div className="sticky top-[88px] z-30 px-3 py-1.5 bg-black/90 backdrop-blur-sm border-b border-gray-800/30 flex gap-2">
+              {prevStep && (
+                <button onClick={() => advance(prevStep)} disabled={loading}
+                  className="px-3 py-1.5 rounded-lg border border-gray-800 text-gray-500 text-[8px] font-bold disabled:opacity-30">Indietro</button>
+              )}
+              <button
+                onClick={() => { if (!blocked) advance(nextStep); else toast.error(reason); }}
+                disabled={loading || blocked}
+                className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold disabled:opacity-40 ${
+                  blocked
+                    ? 'bg-gray-800/60 border border-gray-700/40 text-gray-500 cursor-not-allowed'
+                    : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
+                }`}
+                data-testid="advance-btn"
+                title={reason || ''}
+              >
+                {loading ? '...' : blocked ? reason : `Avanti → ${SERIES_STEPS[stepIndex + 1]?.label}`}
+              </button>
+            </div>
+          );
+        })()}
 
         <StepperBar current={currentStep} />
         {renderPhase()}

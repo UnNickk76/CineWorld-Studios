@@ -1700,6 +1700,17 @@ async def get_coming_soon():
          'pipeline_version': 1, 'release_type': 1, 'premiere': 1}
     ).sort('created_at', -1)
     v3_items = await v3_cursor.to_list(50)
+
+    # V3 Pipeline SERIES/ANIME projects (have poster, not yet released/discarded)
+    v3_series_cursor = db.series_projects_v3.find(
+        {'pipeline_version': 3,
+         'poster_url': {'$nin': [None, '']},
+         'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'genre_name': 1, 'subgenres': 1,
+         'poster_url': 1, 'user_id': 1, 'created_at': 1, 'type': 1,
+         'num_episodes': 1, 'pipeline_state': 1, 'pipeline_version': 1}
+    ).sort('created_at', -1)
+    v3_series_items = await v3_series_cursor.to_list(50)
     
     # Enrich with production house names
     user_ids = list(set(
@@ -1707,7 +1718,8 @@ async def get_coming_soon():
         [f['user_id'] for f in film_items] +
         [r['user_id'] for r in remaster_items] +
         [v['user_id'] for v in v2_items] +
-        [v3['user_id'] for v3 in v3_items]
+        [v3['user_id'] for v3 in v3_items] +
+        [vs['user_id'] for vs in v3_series_items]
     ))
     users = {}
     if user_ids:
@@ -1797,6 +1809,24 @@ async def get_coming_soon():
             'la_prima_live': la_prima_live,
             'la_prima_waiting': la_prima_waiting,
             'is_v2': True,
+        })
+
+    # V3 SERIES/ANIME pipeline — surface them in Prossimamente Serie TV / Anime
+    V3_SERIES_STATE_LABEL = {
+        'idea': 'Idea', 'hype': 'Hype', 'cast': 'Cast', 'prep': 'Preparazione',
+        'ciak': 'Riprese', 'finalcut': 'Final Cut', 'marketing': 'Marketing',
+        'distribution': 'TV', 'release_pending': 'Uscita',
+    }
+    for vs in v3_series_items:
+        owner = users.get(vs['user_id'], {})
+        state_label = V3_SERIES_STATE_LABEL.get(vs.get('pipeline_state', ''), vs.get('pipeline_state', ''))
+        items.append({
+            **vs,
+            'content_type': vs.get('type') or 'tv_series',
+            'genre_name': vs.get('genre_name') or vs.get('genre', ''),
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+            'pipeline_status_label': state_label,
+            'is_v2': True,  # reuse pipeline pill styling
         })
     
     # Deduplicate and filter out released films

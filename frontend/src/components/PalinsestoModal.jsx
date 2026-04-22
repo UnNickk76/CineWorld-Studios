@@ -265,10 +265,11 @@ export function PalinsestoModal({ open, onClose, series, stationId, onRefresh })
                   return (
                     <div key={ep.number}>
                       <div
-                        onClick={() => isAired ? setExpandedEp(isExpanded ? null : ep.number) : null}
+                        onClick={() => (isAired || ep.mini_plot || ep.plot) ? setExpandedEp(isExpanded ? null : ep.number) : null}
                         className={`rounded-lg p-2.5 flex items-center gap-2 transition-all ${
                           isAired ? 'bg-white/[0.03] border border-green-500/10 cursor-pointer hover:bg-white/[0.05]'
                           : isOnAir ? 'bg-green-500/5 border border-green-500/20'
+                          : (ep.mini_plot || ep.plot) ? 'bg-black/30 border border-white/5 cursor-pointer hover:bg-white/[0.05]'
                           : 'bg-black/20 opacity-40'
                         }`}
                         data-testid={`ep-${ep.number}`}
@@ -300,6 +301,9 @@ export function PalinsestoModal({ open, onClose, series, stationId, onRefresh })
                               <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                             </div>
                           )}
+                          {!isAired && !isOnAir && (ep.mini_plot || ep.plot) && (
+                            <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          )}
                           {isOnAir && (
                             <div className="flex items-center gap-1">
                               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
@@ -309,20 +313,28 @@ export function PalinsestoModal({ open, onClose, series, stationId, onRefresh })
                         </div>
                       </div>
 
-                      {/* Expanded details for aired episodes */}
-                      {isExpanded && isAired && (
+                      {/* Expanded details — shows plot for aired + mini_plot for all with synopsis */}
+                      {isExpanded && (isAired || ep.mini_plot || ep.plot) && (
                         <div className="ml-9 mt-1 p-2.5 rounded-lg bg-white/[0.02] border border-white/5 space-y-2">
-                          {ep.plot && <p className="text-[10px] text-gray-400 italic leading-relaxed">{ep.plot}</p>}
-                          <div className="flex items-center gap-3 text-[10px]">
-                            <span className="flex items-center gap-1 text-cyan-400"><Eye className="w-3 h-3" /> {(ep.viewers || 0).toLocaleString()} views</span>
-                            <span className={`flex items-center gap-1 font-bold ${ep.consensus_pct >= 70 ? 'text-green-400' : ep.consensus_pct >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
-                              <Star className="w-3 h-3" /> {ep.consensus_pct || 0}% consenso
-                            </span>
-                          </div>
-                          {ep.broadcast_rating > 0 && (
-                            <div className="flex items-center gap-1 text-[9px] text-gray-500">
-                              Rating: {ep.broadcast_rating}/10
-                            </div>
+                          {(ep.plot || ep.mini_plot) && (
+                            <p className="text-[10px] text-gray-400 italic leading-relaxed">
+                              {ep.plot || ep.mini_plot}
+                            </p>
+                          )}
+                          {isAired && (
+                            <>
+                              <div className="flex items-center gap-3 text-[10px]">
+                                <span className="flex items-center gap-1 text-cyan-400"><Eye className="w-3 h-3" /> {(ep.viewers || 0).toLocaleString()} views</span>
+                                <span className={`flex items-center gap-1 font-bold ${ep.consensus_pct >= 70 ? 'text-green-400' : ep.consensus_pct >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                  <Star className="w-3 h-3" /> {ep.consensus_pct || 0}% consenso
+                                </span>
+                              </div>
+                              {ep.broadcast_rating > 0 && (
+                                <div className="flex items-center gap-1 text-[9px] text-gray-500">
+                                  Rating: {ep.broadcast_rating}/10
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       )}

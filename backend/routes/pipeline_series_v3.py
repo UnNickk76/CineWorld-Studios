@@ -618,17 +618,20 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         cwsv_display = "5"
         episode_votes = []
 
-    # Merge AI titles with CWSv votes
+    # Merge AI titles with CWSv votes (preserve mini_plot from screenplay gen)
     existing_episodes = project.get("episodes", [])
     final_episodes = []
     for i in range(project.get("num_episodes", 10)):
         ep_title = "Episodio " + str(i + 1)
+        ep_mini_plot = ""
         if i < len(existing_episodes):
             ep_title = existing_episodes[i].get("title", ep_title)
+            ep_mini_plot = existing_episodes[i].get("mini_plot", "")
         ep_vote = episode_votes[i] if i < len(episode_votes) else {"cwsv": quality_score, "cwsv_display": cwsv_display, "revealed": False}
         final_episodes.append({
             "number": i + 1,
             "title": ep_title,
+            "mini_plot": ep_mini_plot,
             "cwsv": ep_vote.get("cwsv", quality_score),
             "cwsv_display": ep_vote.get("cwsv_display", cwsv_display),
             "is_finale": ep_vote.get("is_finale", False),

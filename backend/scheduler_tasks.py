@@ -1643,7 +1643,9 @@ async def auto_revenue_tick():
         }, {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'quality_score': 1, 'quality': 1,
             'imdb_rating': 1, 'opening_day_revenue': 1, 'release_date': 1, 'released_at': 1,
             'cast': 1, 'status': 1, 'content_type': 1, 'hype_score': 1,
-            'star_born_film': 1, 'star_born_at': 1, 'budget_tier': 1}).to_list(5000)
+            'star_born_film': 1, 'star_born_at': 1, 'budget_tier': 1,
+            'distribution_world': 1, 'distribution_zones': 1, 'distribution_continents': 1,
+            'distribution_nations': 1, 'distribution_cities': 1, 'release_event': 1}).to_list(5000)
         
         # Mark source for films
         for f in active_films:

@@ -199,19 +199,68 @@ async def finance_cashflow(days: int = 30, user: dict = Depends(get_current_user
 # BANK — Loans + CinePass Exchange + Infrastructure
 # ═══════════════════════════════════════════════════════════════
 
-BANK_INFRA_LEVELS = {
-    0: {'max_loan': 100_000, 'interest_pct': 18, 'upgrade_cost': 0, 'label': 'Nessuna (base)'},
-    1: {'max_loan': 500_000, 'interest_pct': 14, 'upgrade_cost': 250_000, 'label': 'Ufficio'},
-    2: {'max_loan': 1_500_000, 'interest_pct': 11, 'upgrade_cost': 750_000, 'label': 'Filiale'},
-    3: {'max_loan': 3_500_000, 'interest_pct': 9, 'upgrade_cost': 1_750_000, 'label': 'Banca'},
-    4: {'max_loan': 7_500_000, 'interest_pct': 7, 'upgrade_cost': 3_500_000, 'label': 'Banca Regionale'},
-    5: {'max_loan': 15_000_000, 'interest_pct': 6, 'upgrade_cost': 7_000_000, 'label': 'Istituto'},
-    6: {'max_loan': 30_000_000, 'interest_pct': 5, 'upgrade_cost': 15_000_000, 'label': 'Istituto Nazionale'},
-    7: {'max_loan': 75_000_000, 'interest_pct': 4.5, 'upgrade_cost': 35_000_000, 'label': 'Holding'},
-    8: {'max_loan': 150_000_000, 'interest_pct': 4, 'upgrade_cost': 70_000_000, 'label': 'Holding Internazionale'},
-    9: {'max_loan': 400_000_000, 'interest_pct': 3.5, 'upgrade_cost': 150_000_000, 'label': 'Investment Bank'},
-    10: {'max_loan': 1_000_000_000, 'interest_pct': 3, 'upgrade_cost': 400_000_000, 'label': 'Empire Bank'},
+BANK_LEVEL_LABELS = {
+    0: 'Nessuna (base)',
+    1: 'Ufficio',
+    2: 'Filiale',
+    3: 'Banca',
+    4: 'Banca Regionale',
+    5: 'Istituto',
+    6: 'Istituto Nazionale',
+    7: 'Holding',
+    8: 'Holding Internazionale',
+    9: 'Investment Bank',
+    10: 'Empire Bank',
+    11: 'Global Empire',
+    12: 'Mega Corp',
+    13: 'Cinematic Dynasty',
+    14: 'Studio Titan',
+    15: 'Hollywood Emperor',
 }
+
+MIN_LOAN = 10_000
+
+
+def get_bank_tier(level: int) -> dict:
+    """Dynamic, unlimited-level bank tier.
+    - Max loan: 100k at Lv1, doubles each level (10k-100k, 10k-200k, 10k-400k, ...).
+    - Interest: 18% at Lv0, -1.2% per level, floor 3%.
+    - Upgrade cost: easy up to Lv4, aggressive exponential from Lv5 (~25M @ Lv10).
+    - CinePass cost: kicks in from Lv5, scales to ~100 CP @ Lv10.
+    - No level cap.
+    """
+    lvl = max(0, int(level or 0))
+    # Max loan
+    if lvl == 0:
+        max_loan = 100_000
+    else:
+        max_loan = int(100_000 * (2 ** (lvl - 1)))
+    # Interest
+    interest_pct = max(3.0, round(18 - lvl * 1.2, 1))
+    # Upgrade cost to REACH `lvl` (i.e., cost from lvl-1 -> lvl)
+    if lvl == 0:
+        upgrade_cost = 0
+        upgrade_cinepass = 0
+    elif lvl <= 4:
+        # Phase 1 (easy): 50k, 150k, 450k, 1.35M
+        upgrade_cost = int(50_000 * (3 ** (lvl - 1)))
+        upgrade_cinepass = 0
+    else:
+        # Phase 2 (aggressive): base 1.35M @ Lv4, *1.63 per level
+        # Lv5: 2.2M, Lv6: 3.6M, Lv7: 5.9M, Lv8: 9.6M, Lv9: 15.6M, Lv10: ~25.4M
+        upgrade_cost = int(1_350_000 * (1.63 ** (lvl - 4)))
+        # CinePass: Lv5: 10, Lv6: 16, Lv7: 25, Lv8: 40, Lv9: 63, Lv10: ~100
+        upgrade_cinepass = int(round(10 * (1.58 ** (lvl - 5))))
+    label = BANK_LEVEL_LABELS.get(lvl, f'Empire Bank Lv.{lvl}')
+    return {
+        'level': lvl,
+        'max_loan': max_loan,
+        'min_loan': MIN_LOAN,
+        'interest_pct': interest_pct,
+        'upgrade_cost': upgrade_cost,
+        'upgrade_cinepass': upgrade_cinepass,
+        'label': label,
+    }
 
 
 def _cap_by_player(user: dict, infra_max: int) -> int:
@@ -227,8 +276,8 @@ async def bank_status(user: dict = Depends(get_current_user)):
     uid = user['id']
     infra = await db.bank_infra.find_one({'user_id': uid}, {'_id': 0})
     lvl = (infra or {}).get('level', 0)
-    tier = BANK_INFRA_LEVELS.get(lvl, BANK_INFRA_LEVELS[0])
-    next_tier = BANK_INFRA_LEVELS.get(lvl + 1)
+    tier = get_bank_tier(lvl)
+    next_tier = get_bank_tier(lvl + 1)
     cap = _cap_by_player(user, tier['max_loan'])
     active = await db.bank_loans.find({'user_id': uid, 'status': 'active'}, {'_id': 0}).to_list(10)
     total_debt = sum((loan.get('remaining_amount', 0) or 0) for loan in active)
@@ -237,16 +286,18 @@ async def bank_status(user: dict = Depends(get_current_user)):
             'level': lvl,
             'label': tier['label'],
             'max_loan_base': tier['max_loan'],
+            'min_loan': tier['min_loan'],
             'max_loan_for_you': cap,
             'interest_pct': tier['interest_pct'],
         },
         'next_level': {
             'level': lvl + 1,
-            'label': next_tier['label'] if next_tier else None,
-            'upgrade_cost': next_tier['upgrade_cost'] if next_tier else None,
-            'max_loan_base': next_tier['max_loan'] if next_tier else None,
-            'interest_pct': next_tier['interest_pct'] if next_tier else None,
-        } if next_tier else None,
+            'label': next_tier['label'],
+            'upgrade_cost': next_tier['upgrade_cost'],
+            'upgrade_cinepass': next_tier['upgrade_cinepass'],
+            'max_loan_base': next_tier['max_loan'],
+            'interest_pct': next_tier['interest_pct'],
+        },
         'active_loans': active,
         'total_debt': total_debt,
         'can_borrow': max(0, cap - total_debt),
@@ -267,6 +318,8 @@ async def take_loan(req: TakeLoanRequest, user: dict = Depends(get_current_user)
     if req.amount <= 0:
         raise HTTPException(400, "Importo non valido")
     status = await bank_status(user)
+    if req.amount < status['infra']['min_loan']:
+        raise HTTPException(400, f"Importo minimo: ${status['infra']['min_loan']:,.0f}")
     if req.amount > status['can_borrow']:
         raise HTTPException(400, f"Limite prestito superato (disponibili ${status['can_borrow']:,.0f})")
 
@@ -363,28 +416,35 @@ async def cinepass_exchange(req: ExchangeRequest, user: dict = Depends(get_curre
 
 @router.post("/bank/upgrade-infra")
 async def upgrade_bank_infra(user: dict = Depends(get_current_user)):
-    """Upgrade bank infrastructure to the next level."""
+    """Upgrade bank infrastructure to the next level (no level cap)."""
     uid = user['id']
     infra = await db.bank_infra.find_one({'user_id': uid}, {'_id': 0}) or {'level': 0}
     current_lvl = infra.get('level', 0)
     next_lvl = current_lvl + 1
-    tier = BANK_INFRA_LEVELS.get(next_lvl)
-    if not tier:
-        raise HTTPException(400, "Livello massimo raggiunto")
+    tier = get_bank_tier(next_lvl)
     cost = tier['upgrade_cost']
-    u = await db.users.find_one({'id': uid}, {'_id': 0, 'funds': 1})
-    if (u or {}).get('funds', 0) < cost:
+    cp_cost = tier['upgrade_cinepass']
+    u = await db.users.find_one({'id': uid}, {'_id': 0, 'funds': 1, 'cinepass': 1})
+    funds = (u or {}).get('funds', 0) or 0
+    cp = (u or {}).get('cinepass', 0) or 0
+    if funds < cost:
         raise HTTPException(400, f"Fondi insufficienti: servono ${cost:,.0f}")
-    await db.users.update_one({'id': uid}, {'$inc': {'funds': -cost}})
+    if cp_cost > 0 and cp < cp_cost:
+        raise HTTPException(400, f"CinePass insufficienti: servono {cp_cost} CP")
+    inc = {'funds': -cost}
+    if cp_cost > 0:
+        inc['cinepass'] = -cp_cost
+    await db.users.update_one({'id': uid}, {'$inc': inc})
     await db.bank_infra.update_one(
         {'user_id': uid},
         {'$set': {'user_id': uid, 'level': next_lvl, 'label': tier['label'], 'upgraded_at': datetime.now(timezone.utc).isoformat()}},
         upsert=True,
     )
     from utils.wallet import log_wallet_tx
+    title_extra = f" (+{cp_cost} CP)" if cp_cost > 0 else ""
     await log_wallet_tx(db, uid, cost, 'out', source='infrastructure',
-                        title=f'Upgrade Banca → {tier["label"]}', ref_type='bank_infra', geo={'continent': 'Bank'})
-    return {'message': f'Banca potenziata a {tier["label"]}', 'new_level': next_lvl, 'cost': cost}
+                        title=f'Upgrade Banca → {tier["label"]}{title_extra}', ref_type='bank_infra', geo={'continent': 'Bank'})
+    return {'message': f'Banca potenziata a {tier["label"]}', 'new_level': next_lvl, 'cost': cost, 'cinepass_cost': cp_cost}
 
 
 # ═══════════════════════════════════════════════════════════════

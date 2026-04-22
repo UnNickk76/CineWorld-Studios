@@ -107,6 +107,7 @@ const ContestPage = React.lazy(() => import('./pages/ContestPage'));
 const MiniGamesPage = React.lazy(() => import('./pages/MiniGamesPage'));
 import LoginRewardPopup from './components/LoginRewardPopup';
 import { AutoTickNotifications } from './components/AutoTickNotifications';
+import { LevelUpToast } from './components/LevelUpToast';
 import TutorialModal from './components/TutorialModal';
 import DashboardTour from './components/DashboardTour';
 const MyFilms = React.lazy(() => import('./pages/MyFilms'));
@@ -1916,6 +1917,7 @@ const ProtectedRoute = ({ children }) => {
       <SwipeNavigator />
       <LoginRewardPopup />
       <AutoTickNotifications api={api} />
+      <LevelUpToast />
       <div className="main-content-push" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <UserStripBanner />
       <AnimatePresence>

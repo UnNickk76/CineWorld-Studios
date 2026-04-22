@@ -319,7 +319,12 @@ export default function BankPage() {
                     <p className="text-[11px] font-bold text-amber-200">{nextTier.interest_pct}%</p>
                   </div>
                 </div>
-                <p className="text-[10px] text-gray-400 mb-2">Costo upgrade: <b className="text-rose-300">{fmt(nextTier.upgrade_cost)}</b></p>
+                <p className="text-[10px] text-gray-400 mb-2">
+                  Costo upgrade: <b className="text-rose-300">{fmt(nextTier.upgrade_cost)}</b>
+                  {nextTier.upgrade_cinepass > 0 && (
+                    <span className="ml-2">+ <b className="text-sky-300">{nextTier.upgrade_cinepass} CP</b></span>
+                  )}
+                </p>
                 <button onClick={upgradeInfra} disabled={upgrading}
                   className="w-full py-2 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-300 text-black font-bold text-[11px] hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
                   data-testid="upgrade-infra-btn">

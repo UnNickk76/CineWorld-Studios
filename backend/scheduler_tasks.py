@@ -1469,6 +1469,27 @@ async def process_la_prima_buildup():
 # ==================== AUTO REVENUE + STAR + SKILL TICK ====================
 
 
+# ═══════════════════════════════════════════════════════════════
+# BUDGET-TIER REVENUE MULTIPLIERS
+# Higher-budget films = wider distribution = more screens = more revenue
+# Applied on top of flop/sleeper mechanics and La Prima calculations.
+# ═══════════════════════════════════════════════════════════════
+_BUDGET_REV_MULTIPLIER = {
+    'micro': 0.5,
+    'low': 0.8,       # "indie"
+    'mid': 1.0,       # "standard"
+    'big': 1.4,
+    'blockbuster': 1.8,
+    'mega': 2.5,      # "tentpole"
+}
+
+
+def _budget_multiplier(budget_tier: str) -> float:
+    if not budget_tier:
+        return 1.0
+    return _BUDGET_REV_MULTIPLIER.get(str(budget_tier).lower(), 1.0)
+
+
 async def auto_revenue_tick():
     """
     Automatic tick every 10 minutes:
@@ -1640,7 +1661,8 @@ async def auto_revenue_tick():
                         city_mult = 1.2
                     base_spectators_per_tick = int(150 * city_mult * (0.8 + (hype or 0) / 100))
                     ticket = 12 + int(quality * 0.3)  # 12-42 USD
-                    tick_rev = int(base_spectators_per_tick * ticket * (0.7 + quality / 150))
+                    budget_mult = _budget_multiplier(film.get('budget_tier', ''))
+                    tick_rev = int(base_spectators_per_tick * ticket * (0.7 + quality / 150) * budget_mult)
                     total_revenue += tick_rev
                     # Update the film_projects doc with accumulated revenue
                     try:
@@ -1714,6 +1736,8 @@ async def auto_revenue_tick():
                             flop_multiplier = 1.0 + hype_mod * max(0, (1 - days / 14))
                     
                     daily_rev = opening * (decay ** days) * quality_mult * imdb_boost * star_revenue_boost * flop_multiplier
+                    # Budget-tier multiplier: blockbusters get wider distribution = more screens
+                    daily_rev *= _budget_multiplier(budget_tier)
                     tick_rev = max(0, int(daily_rev / 144))
                     total_revenue += tick_rev
                     # Per-film wallet tx log with film's primary geo

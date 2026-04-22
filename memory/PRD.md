@@ -10,7 +10,17 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
-- **Feb 2026 — Refinement Session (this session)**
+- **Feb 2026 — Economia Realistica + Level-Up Cinematografico**
+  - **Budget-tier revenue multiplier** (`scheduler_tasks.py::auto_revenue_tick`): i film ad alto budget generano più incassi (wider distribution = più schermi). Scala: micro=0.5x, low=0.8x, mid=1.0x, big=1.4x, blockbuster=1.8x, mega=2.5x. Applicato sia alla formula box-office regolare (daily_rev) sia alla formula La Prima (tick_rev via spectators × ticket). Helper `_budget_multiplier()` + dict `_BUDGET_REV_MULTIPLIER`.
+  - **Banca — Livelli illimitati + scala esponenziale** (`routes/finance_bank.py`): rimosso dict statico `BANK_INFRA_LEVELS` (max Lv10), sostituito da `get_bank_tier(level)` dinamico senza cap. Max loan: 100k @ Lv1, raddoppia ogni livello (Lv1:100k, Lv2:200k, Lv3:400k, …, Lv10:51.2M, Lv15:1.6B). Min loan: 10k fisso. Interesse: 18% base, -1.2pt/livello, floor 3%. **Upgrade cost**: fase 1 (Lv1-4) "easy" con moltiplicatore 3x (50k/150k/450k/1.35M), fase 2 (Lv5+) esponenziale *1.63/livello → Lv10 ≈ 25.3M + 98 CP (vicinissimo al target utente 25M+100CP). CinePass richiesto solo da Lv5 in poi.
+  - **BankPage UI**: mostra costo CinePass extra accanto al costo upgrade quando presente (`+ X CP` in sky-blue).
+  - **LevelUpToast cinematografico** (`components/LevelUpToast.jsx`, nuovo): toast mobile-first (94vw max 420px) centrato sotto topbar, gradient amber/gold con shimmer animato (framer-motion), trophy icon con glow, confetti gold a 3 raffiche + audio cue WebAudio (C5→C6 triangle), progress bar di dismiss 4.4s. Ascolta evento custom `cw:level-up {newLevel, oldLevel}`.
+  - **Level-up detection nell'AuthProvider** (`contexts/index.jsx`): `prevLevelRef` traccia il `user.level` corrente; al prossimo refresh `/auth/me` (post milestone XP server-side), se `curr > prev` dispatcha `window.dispatchEvent(new CustomEvent('cw:level-up'))`. Skip del primo load per evitare falsi positivi.
+  - **Integrazione App.js**: import + `<LevelUpToast />` montato globalmente accanto ad `AutoTickNotifications`.
+  - **Test**: `/api/bank/status` ritorna nuova struttura (min_loan 10k, upgrade_cinepass 0 per Lv<5). Verifica scala con script python: Lv10 = 51.2M loan / 25.3M upgrade / 98 CP / 6% interest ✓.
+  - Files: `scheduler_tasks.py`, `routes/finance_bank.py`, `components/LevelUpToast.jsx` (nuovo), `contexts/index.jsx`, `App.js`, `pages/BankPage.jsx`.
+
+- **Feb 2026 — Refinement Session**
   - **Doppione UserStripBanner rimosso**: BankPage + FinancePage non importano più `UserStripBanner` (era duplicato, il globale basta).
   - **Banca — Click su card infra**: click sulla card "La Tua Infrastruttura" passa automaticamente alla tab Upgrade (con hint "Clicca qui per acquistare Infrastruttura Banca"). Se lv≥1, la tab Upgrade mostra il next tier per potenziare.
   - **Banca — Slider importo**: step ridotto da 50K a 10K, min 10K. Slider ora realmente movibile. Disabled quando `can_borrow < 10K`.

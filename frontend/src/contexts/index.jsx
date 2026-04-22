@@ -46,6 +46,7 @@ export const AuthProvider = ({ children }) => {
   const tokenRef = useRef(localStorage.getItem('cineworld_token'));
   const [token, setTokenState] = useState(tokenRef.current);
   const logoutRef = useRef(null);
+  const prevLevelRef = useRef(null);
 
   const setToken = (t) => {
     tokenRef.current = t;
@@ -278,6 +279,22 @@ export const AuthProvider = ({ children }) => {
       preloadPages();
     }
   }, [user, preloadPages]);
+
+  // Level-up detection: fire cinematic toast when user.level increases.
+  useEffect(() => {
+    if (!user) { prevLevelRef.current = null; return; }
+    const curr = Number(user.level || 0);
+    const prev = prevLevelRef.current;
+    // Skip first load (prev=null) — we only want UP transitions
+    if (prev != null && curr > prev) {
+      try {
+        window.dispatchEvent(new CustomEvent('cw:level-up', {
+          detail: { newLevel: curr, oldLevel: prev }
+        }));
+      } catch (_) { /* ignore */ }
+    }
+    prevLevelRef.current = curr;
+  }, [user?.level]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, guestLogin, convertGuest, logout, token, api, updateFunds, updateUser, refreshUser, cachedGet }}>

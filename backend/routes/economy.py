@@ -237,7 +237,7 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         'audience_satisfaction': 1, 'budget': 1, 'total_budget': 1,
         'created_at': 1, 'released_at': 1, 'release_date': 1, 'studio_id': 1,
         'current_week': 1, 'opening_day_revenue': 1, 'last_revenue_collected': 1,
-        'subtitle': 1
+        'subtitle': 1, 'cumulative_attendance': 1, 'la_prima_spectators': 1, 'theater_stats': 1
     }
     films_task = db.films.find({'user_id': uid}, films_light_fields).to_list(100)
     infra_task = db.infrastructure.find({'owner_id': uid}, {'_id': 0, 'purchase_cost': 1, 'total_revenue': 1, 'level': 1, 'type': 1}).to_list(100)
@@ -283,6 +283,20 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         r['producer_badges'] = p.get('badges', {})
 
     total_box_office = sum(max(f.get('realistic_box_office', 0) or 0, f.get('total_revenue', 0) or 0) for f in films)
+    # Authoritative box office from wallet_transactions (source of truth for the new finance system)
+    try:
+        agg_cursor = db.wallet_transactions.aggregate([
+            {'$match': {'user_id': uid, 'direction': 'in',
+                        'source': {'$in': ['box_office', 'la_prima', 'tv_broadcast']}}},
+            {'$group': {'_id': None, 'total': {'$sum': '$abs_amount'}}},
+        ])
+        async for d in agg_cursor:
+            wt_total = int(d.get('total', 0) or 0)
+            # Use wallet_transactions if it has any data (new system), otherwise keep legacy calc.
+            if wt_total > 0:
+                total_box_office = max(total_box_office, wt_total)
+    except Exception:
+        pass
     total_likes = sum((f.get('likes_count', 0) or 0) for f in films)
     avg_quality = sum((f.get('quality_score', 0) or 0) for f in films) / len(films) if films else 0
     total_film_costs = sum((f.get('total_budget', 0) or f.get('budget', 0) or 0) for f in films)
@@ -373,17 +387,23 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
                 pass
 
     # Calculate spectators total + best film
+    # Authoritative: cumulative_attendance + la_prima_spectators (same source as /spectators/films-history)
     total_spectators = 0
     for f in films:
+        cum = int(f.get('cumulative_attendance', 0) or 0)
+        lp = int(f.get('la_prima_spectators', 0) or 0)
+        if cum > 0 or lp > 0:
+            total_spectators += cum + lp
+            continue
+        # Legacy fallback: theater_stats or estimate from box_office
         ts = f.get('theater_stats', {}).get('total_spectators', 0)
         if ts > 0:
             total_spectators += ts
         else:
-            # Estimate from box_office if theater_stats not available yet
             bo = f.get('box_office', {})
             rev = bo.get('total', 0) if isinstance(bo, dict) else 0
             if rev > 0:
-                total_spectators += int(rev / 11)  # ~$11 avg ticket price
+                total_spectators += int(rev / 11)
     best_film = ''
     best_quality = 0
     for f in films:

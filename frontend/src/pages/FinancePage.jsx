@@ -179,21 +179,31 @@ function TabBtn({ active, onClick, icon, label, testId }) {
 
 function OverviewTab({ statements, cashflow }) {
   const income = statements?.income_by_source || [];
-  const expense = statements?.expense_by_source || [];
   const totalIn = statements?.total_income || 0;
-  const totalOut = statements?.total_expense || 0;
+  const [expensesByType, setExpensesByType] = useState(null);
+  const [expenseTab, setExpenseTab] = useState('all');
+  const { api } = useContext(AuthContext);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await api.get('/finance/expenses-by-type');
+        setExpensesByType(r.data || null);
+      } catch { setExpensesByType(null); }
+    })();
+  }, [api]);
+
+  const activeExpense = expensesByType?.[expenseTab] || { total: 0, count: 0, label: '—' };
   return (
     <div className="space-y-4">
       {/* Cashflow mini chart */}
-      {cashflow.length > 0 && (
-        <div className="p-3 bg-[#0f0d10] rounded-xl border border-white/5">
-          <div className="flex items-center gap-1 mb-2">
-            <BarChart3 className="w-3.5 h-3.5 text-sky-300" />
-            <p className="text-[10px] font-bold text-sky-200 tracking-wider uppercase">Flusso Giornaliero</p>
-          </div>
-          <CashflowChart series={cashflow} />
+      <div className="p-3 bg-[#0f0d10] rounded-xl border border-white/5">
+        <div className="flex items-center gap-1 mb-2">
+          <BarChart3 className="w-3.5 h-3.5 text-sky-300" />
+          <p className="text-[10px] font-bold text-sky-200 tracking-wider uppercase">Flusso Giornaliero</p>
         </div>
-      )}
+        <CashflowChart series={cashflow || []} />
+      </div>
 
       {/* Income by source */}
       <div className="p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/20">
@@ -209,18 +219,42 @@ function OverviewTab({ statements, cashflow }) {
         ) : income.map(i => <SourceRow key={`in-${i.source}`} item={i} total={totalIn} direction="in" />)}
       </div>
 
-      {/* Expense by source */}
-      <div className="p-3 bg-rose-500/5 rounded-xl border border-rose-500/20">
+      {/* Expense by content type (Tutti / Film / Serie TV / Anime) */}
+      <div className="p-3 bg-rose-500/5 rounded-xl border border-rose-500/20" data-testid="expense-type-panel">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1">
             <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
             <p className="text-[10px] font-bold text-rose-200 tracking-wider uppercase">Uscite</p>
           </div>
-          <p className="text-[11px] font-bold text-rose-100">{fmt(totalOut)}</p>
+          <p className="text-[11px] font-bold text-rose-100">{fmt(activeExpense.total)}</p>
         </div>
-        {expense.length === 0 ? (
-          <p className="text-[10px] text-gray-500 text-center py-3">Nessuna uscita nel periodo</p>
-        ) : expense.map(i => <SourceRow key={`out-${i.source}`} item={i} total={totalOut} direction="out" />)}
+        <div className="grid grid-cols-4 gap-1 mb-2">
+          {[
+            { k: 'all', label: 'Tutti' },
+            { k: 'film', label: 'Film' },
+            { k: 'series', label: 'Serie TV' },
+            { k: 'anime', label: 'Anime' },
+          ].map(t => {
+            const v = expensesByType?.[t.k]?.total || 0;
+            const active = expenseTab === t.k;
+            return (
+              <button key={t.k} onClick={() => setExpenseTab(t.k)}
+                className={`py-1.5 px-1 rounded-md text-[9px] font-bold transition-all
+                  ${active ? 'bg-rose-500 text-white shadow-[0_0_8px_rgba(244,63,94,0.4)]' : 'bg-white/5 text-gray-400 hover:text-rose-300 border border-white/5'}`}
+                data-testid={`expense-tab-${t.k}`}>
+                <div>{t.label}</div>
+                <div className="text-[8px] opacity-80 mt-0.5">{fmtShort(v)}</div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="text-center py-1 text-[10px] text-gray-400">
+          {activeExpense.total > 0 ? (
+            <span>{activeExpense.count} transazioni · <b className="text-rose-200">{fmt(activeExpense.total)}</b> totali</span>
+          ) : (
+            <span>Nessuna uscita in questa categoria</span>
+          )}
+        </div>
       </div>
 
       {/* Net profit */}
@@ -256,57 +290,59 @@ function SourceRow({ item, total, direction }) {
 }
 
 function CashflowChart({ series }) {
-  if (!series || series.length === 0) {
-    return <p className="text-[10px] text-gray-600 text-center py-3">Nessun dato di flusso</p>;
+  // Filter out days with zero activity — these make the chart look like a solid band
+  const active = (series || []).filter(d => (d.income || 0) > 0 || (d.expense || 0) > 0);
+  if (!active || active.length === 0) {
+    return <p className="text-[10px] text-gray-600 text-center py-3">Nessuna attività nel periodo</p>;
   }
-  const w = 320, h = 80, padTop = 6, padBottom = 14, padX = 4;
+  const w = 320, h = 90, padTop = 12, padBottom = 18, padX = 6;
   const chartH = h - padTop - padBottom;
-  const maxVal = Math.max(1, ...series.map(d => Math.max(d.income || 0, d.expense || 0)));
-  const slotW = (w - padX * 2) / series.length;
-  const barW = Math.max(2, slotW - 2);
-  // X-axis: show first / middle / last labels to avoid clutter on mobile
-  const tickIdx = series.length <= 3
-    ? series.map((_, i) => i)
-    : [0, Math.floor(series.length / 2), series.length - 1];
+  const maxVal = Math.max(1, ...active.map(d => Math.max(d.income || 0, d.expense || 0)));
+  // Bar width: max 18px, min 4px, distributed evenly across active days
+  const slotW = Math.min(40, (w - padX * 2) / active.length);
+  const barGroupW = Math.max(6, slotW * 0.7);
+  const barW = Math.max(3, (barGroupW - 2) / 2);
   const fmtDay = (d) => {
-    try {
-      const dt = new Date(d);
-      return `${dt.getDate()}/${dt.getMonth() + 1}`;
-    } catch { return d; }
+    try { const dt = new Date(d); return `${dt.getDate()}/${dt.getMonth() + 1}`; } catch { return d; }
   };
   const fmtK = (v) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1_000 ? `${Math.round(v / 1_000)}K` : `${v}`;
+  const midY = padTop + chartH / 2;
   return (
     <div>
       <div className="flex items-center justify-between mb-1 text-[8px] text-gray-500 uppercase tracking-wider">
         <span>Max: <b className="text-emerald-300">{fmtK(maxVal)}</b></span>
-        <span>{series.length} {series.length === 1 ? 'giorno' : 'giorni'}</span>
+        <span>{active.length} {active.length === 1 ? 'giorno' : 'giorni'} attivi</span>
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: h }} data-testid="cashflow-chart">
-        {/* Zero line */}
-        <line x1={padX} y1={padTop + chartH / 2} x2={w - padX} y2={padTop + chartH / 2} stroke="rgba(255,255,255,0.08)" strokeDasharray="2 2" />
-        {series.map((d, i) => {
-          const x = padX + i * slotW + (slotW - barW) / 2;
-          const inH = ((d.income || 0) / maxVal) * (chartH / 2 - 1);
-          const exH = ((d.expense || 0) / maxVal) * (chartH / 2 - 1);
-          const midY = padTop + chartH / 2;
+        {/* Horizontal grid lines */}
+        <line x1={padX} y1={padTop} x2={w - padX} y2={padTop} stroke="rgba(255,255,255,0.04)" strokeDasharray="1 2" />
+        <line x1={padX} y1={midY} x2={w - padX} y2={midY} stroke="rgba(255,255,255,0.1)" />
+        <line x1={padX} y1={h - padBottom} x2={w - padX} y2={h - padBottom} stroke="rgba(255,255,255,0.04)" strokeDasharray="1 2" />
+        {/* Bars grouped: income (left, green) + expense (right, red) */}
+        {active.map((d, i) => {
+          const gx = padX + i * slotW + (slotW - barGroupW) / 2;
+          const inH = ((d.income || 0) / maxVal) * (chartH / 2 - 2);
+          const exH = ((d.expense || 0) / maxVal) * (chartH / 2 - 2);
           return (
-            <g key={d.day}>
-              <rect x={x} y={midY - inH} width={barW} height={Math.max(inH, (d.income > 0 ? 0.8 : 0))} fill="rgba(72,220,120,0.85)" rx="1" />
-              <rect x={x} y={midY + 1} width={barW} height={Math.max(exH, (d.expense > 0 ? 0.8 : 0))} fill="rgba(240,100,100,0.85)" rx="1" />
+            <g key={d.day || i}>
+              {d.income > 0 && <rect x={gx} y={midY - inH} width={barW} height={inH} fill="url(#gradGreen)" rx="1.5" />}
+              {d.expense > 0 && <rect x={gx + barW + 2} y={midY + 1} width={barW} height={exH} fill="url(#gradRed)" rx="1.5" />}
+              <text x={gx + barGroupW / 2} y={h - 4} fill="rgba(200,200,200,0.55)" fontSize="8" textAnchor="middle">{fmtDay(d.day)}</text>
             </g>
           );
         })}
-        {/* X-axis labels */}
-        {tickIdx.map(i => {
-          const x = padX + i * slotW + slotW / 2;
-          return (
-            <text key={i} x={x} y={h - 3} fill="rgba(200,200,200,0.55)" fontSize="8" textAnchor="middle">
-              {fmtDay(series[i].day)}
-            </text>
-          );
-        })}
+        <defs>
+          <linearGradient id="gradGreen" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="#059669" stopOpacity="0.7" />
+          </linearGradient>
+          <linearGradient id="gradRed" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="#be123c" stopOpacity="0.7" />
+          </linearGradient>
+        </defs>
       </svg>
-      <div className="flex items-center justify-center gap-3 mt-0.5">
+      <div className="flex items-center justify-center gap-3 mt-1">
         <span className="flex items-center gap-1 text-[8px] text-gray-400"><span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" /> Entrate</span>
         <span className="flex items-center gap-1 text-[8px] text-gray-400"><span className="w-1.5 h-1.5 rounded-sm bg-rose-400" /> Uscite</span>
       </div>

@@ -121,10 +121,24 @@ async def finance_breakdown(scope: str = 'continent', days: int = 30, parent: Op
     items = []
     async for d in db.wallet_transactions.aggregate(pipeline):
         name = d['_id']
-        # Normalize labels: empty/None/"Global" → "Totale" (Italian unified label for world-wide)
-        if not name or str(name).strip() == '' or str(name).lower() in ('global', 'sconosciuto'):
+        # Normalize labels: empty/None/"Global"/"Globale"/"Sconosciuto" → "Totale" (unified catch-all label).
+        # "Globale" is the legacy fallback label used when the tick had no city/nation info; it's merged
+        # with the other variants so only ONE row "Totale" appears for all untagged revenue.
+        key = str(name).strip().lower() if name else ''
+        if not key or key in ('global', 'globale', 'sconosciuto'):
             name = 'Totale'
         items.append({'name': name, 'total': d.get('total', 0), 'count': d.get('count', 0)})
+
+    # Merge duplicates that normalized to the same label (e.g., "Global" + "Globale" both → "Totale")
+    merged = {}
+    for it in items:
+        k = it['name']
+        if k in merged:
+            merged[k]['total'] += it['total']
+            merged[k]['count'] += it['count']
+        else:
+            merged[k] = dict(it)
+    items = sorted(merged.values(), key=lambda x: -x['total'])
     # Fill with known continents even if 0 (only when scope=continent and no parent)
     if scope == 'continent' and not parent:
         KNOWN = ['Europa', 'Nord America', 'Sud America', 'Asia', 'Africa', 'Oceania', 'Globale']
@@ -224,7 +238,8 @@ async def finance_films_history(user: dict = Depends(get_current_user)):
         {'_id': 0, 'id': 1, 'film_id': 1, 'source_project_id': 1, 'title': 1, 'poster_url': 1,
          'status': 1, 'total_cost': 1, 'total_revenue': 1, 'theater_start': 1, 'released_at': 1,
          'release_type': 1, 'la_prima_revenue': 1, 'la_prima_city': 1, 'la_prima_nation': 1,
-         'opening_day_revenue': 1}
+         'opening_day_revenue': 1, 'total_budget': 1, 'budget': 1, 'marketing_cost': 1,
+         'production_cost': 1, 'trailer_cost': 1, 'distribution_cost': 1}
     ).sort('released_at', -1).to_list(500)
 
     if not films:
@@ -266,24 +281,28 @@ async def finance_films_history(user: dict = Depends(get_current_user)):
             except Exception:
                 start_day = None
 
+        # Fill missing days with 0 from theater_start up to today (so UI shows Giorno 1, 2, 3... always)
         daily_revenues = []
-        sorted_days = sorted(by_day.keys())
-        for day_str in sorted_days:
-            # compute day index
-            idx = None
-            if start_day:
-                try:
-                    from datetime import date
-                    d1 = date.fromisoformat(day_str)
-                    d0 = date.fromisoformat(start_day)
-                    idx = (d1 - d0).days + 1  # Day 1 = theater_start day
-                except Exception:
-                    idx = None
-            daily_revenues.append({'day': idx, 'date': day_str, 'total': by_day[day_str]})
+        if start_day:
+            try:
+                from datetime import date, timedelta as _td
+                d0 = date.fromisoformat(start_day)
+                today = datetime.now(timezone.utc).date()
+                cur_date = d0
+                day_idx = 1
+                while cur_date <= today:
+                    day_str = cur_date.isoformat()
+                    daily_revenues.append({'day': day_idx, 'date': day_str, 'total': by_day.get(day_str, 0)})
+                    cur_date = cur_date + _td(days=1)
+                    day_idx += 1
+            except Exception:
+                daily_revenues = [{'day': None, 'date': k, 'total': v} for k, v in sorted(by_day.items())]
+        else:
+            daily_revenues = [{'day': None, 'date': k, 'total': v} for k, v in sorted(by_day.items())]
 
         total_revenue = sum(by_day.values()) + la_prima_total
         total_cost = int(f.get('total_cost') or 0)
-        # If film_doc is older and has no total_cost, fallback to sum of outgoing tx
+        # Fallback costo per film legacy (senza wallet_transactions out tagged with project id)
         if total_cost == 0:
             sp_id = f.get('source_project_id')
             if sp_id:
@@ -294,9 +313,17 @@ async def finance_films_history(user: dict = Depends(get_current_user)):
                 ])
                 async for d in cost_pipe:
                     total_cost = int(d.get('total', 0) or 0)
+        # Secondo fallback: somma campi budget noti sul film doc
+        if total_cost == 0:
+            sb = int(f.get('total_budget') or 0) or int(f.get('budget') or 0)
+            mk = int(f.get('marketing_cost') or 0)
+            pp = int(f.get('production_cost') or 0)
+            tr = int(f.get('trailer_cost') or 0)
+            ds = int((f.get('distribution_cost') or {}).get('total', 0) if isinstance(f.get('distribution_cost'), dict) else (f.get('distribution_cost') or 0))
+            total_cost = sb + mk + pp + tr + ds
 
-        # Theater days count
-        days_in_theaters = len(sorted_days)
+        # Theater days count (real elapsed days)
+        days_in_theaters = len(daily_revenues) if daily_revenues else 0
 
         result.append({
             'id': fid,
@@ -317,6 +344,47 @@ async def finance_films_history(user: dict = Depends(get_current_user)):
         })
 
     return {'films': result}
+
+
+# ═══════════════════════════════════════════════════════════════
+# EXPENSES BY CONTENT TYPE — Tutti/Film/Serie TV/Anime breakdown
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/finance/expenses-by-type")
+async def finance_expenses_by_type(user: dict = Depends(get_current_user)):
+    """Return lifetime expenses grouped by content type:
+    Tutti (total), Film, Serie TV, Anime. Based on wallet_transactions outgoing
+    grouped by ref_type and cross-referenced with content_type.
+    """
+    uid = user['id']
+    # Aggregate by ref_type
+    pipeline = [
+        {'$match': {'user_id': uid, 'direction': 'out'}},
+        {'$group': {'_id': '$ref_type', 'total': {'$sum': '$abs_amount'}, 'count': {'$sum': 1}}},
+    ]
+    by_ref = {}
+    async for d in db.wallet_transactions.aggregate(pipeline):
+        by_ref[d['_id'] or 'other'] = {'total': int(d.get('total', 0)), 'count': d.get('count', 0)}
+
+    # Classify into the 4 buckets
+    film_keys = ['film', 'film_project']
+    series_keys = ['tv_series', 'series', 'series_project']
+    anime_keys = ['anime', 'anime_project']
+    films_total = sum(by_ref.get(k, {}).get('total', 0) for k in film_keys)
+    films_count = sum(by_ref.get(k, {}).get('count', 0) for k in film_keys)
+    series_total = sum(by_ref.get(k, {}).get('total', 0) for k in series_keys)
+    series_count = sum(by_ref.get(k, {}).get('count', 0) for k in series_keys)
+    anime_total = sum(by_ref.get(k, {}).get('total', 0) for k in anime_keys)
+    anime_count = sum(by_ref.get(k, {}).get('count', 0) for k in anime_keys)
+    total_all = sum(v.get('total', 0) for v in by_ref.values())
+    count_all = sum(v.get('count', 0) for v in by_ref.values())
+
+    return {
+        'all': {'total': total_all, 'count': count_all, 'label': 'Tutti'},
+        'film': {'total': films_total, 'count': films_count, 'label': 'Film'},
+        'series': {'total': series_total, 'count': series_count, 'label': 'Serie TV'},
+        'anime': {'total': anime_total, 'count': anime_count, 'label': 'Anime'},
+    }
 
 
 # ═══════════════════════════════════════════════════════════════

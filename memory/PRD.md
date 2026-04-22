@@ -10,6 +10,21 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Hotfix 4 bug Finanze/Dashboard**
+  - **🐛 Foto 1 — Geo "Globale" vs "Totale" duplicati**: il breakdown mostrava DUE righe separate ("Globale" $14.1K + "Totale" $5.3K) per le tx legacy. **Fix**: normalizzazione estesa a `globale` (it), `global` (en), `sconosciuto`, `''` → bucket unico "Totale" + merge duplicati dopo normalizzazione (`routes/finance_bank.py /finance/breakdown`). Ora si vede una sola riga "Totale" che raggruppa tutte le tx catch-all.
+  - **🐛 Foto 2 — Costo $0 film legacy + giorni 1,2 mancanti**: `/finance/films-history` mostrava "Costo $0" su Seeeee (legacy V2 senza wallet_transactions outgoing) e timeline saltava i giorni senza entries. **Fix**:
+    1. Fallback costo secondario: se `total_cost==0` e nemmeno `wallet_transactions` ha spese, somma `total_budget/budget + marketing_cost + production_cost + trailer_cost + distribution_cost` dai campi diretti del film doc.
+    2. Fill giorni mancanti: ora `daily_revenues` è generato dal `theater_start` fino ad oggi con Giorno 1, 2, 3... anche quando non ci sono transazioni per quel giorno (valore 0). Finalmente timeline continuativa.
+  - **🐛 Foto 3 — Uscite $0 redundante + chart "banda verde"**:
+    1. Rimossa la sezione "Uscite by source" redundante (riportava sempre "Nessuna uscita nel periodo").
+    2. Sostituita con nuovo panel **"Uscite" a 4 tab** (Tutti/Film/Serie TV/Anime). Nuovo endpoint `GET /api/finance/expenses-by-type` aggrega `wallet_transactions.out` per `ref_type` classificando in film/tv_series/anime/tutti. Ogni tab mostra importo+count live.
+    3. **CashflowChart riscritto**: filtra out i giorni con 0 attività (causa della "banda verde"), bar group income+expense affiancati con gradient + grid lines orizzontali. Header "N giorni attivi" + Max value. Ora leggibile anche con 1-2 giorni di dati.
+  - **🐛 Foto 4 — Dashboard Incassi/Spettatori $0**: `stats.total_revenue` e `stats.total_spectators` leggevano solo i campi denormalizzati (`films.total_revenue`, `films.theater_stats`) che sono vuoti sui film legacy. **Fix**: ora aggregano dalla source of truth reale:
+    1. `total_box_office = max(sum(films.total_revenue), wallet_transactions.in di box_office/la_prima/tv_broadcast)` (usa il più alto).
+    2. `total_spectators = sum(films.cumulative_attendance + films.la_prima_spectators)` con fallback al legacy `theater_stats` o stima `revenue/11`.
+    3. Proiezione `films.cumulative_attendance`, `la_prima_spectators`, `theater_stats` aggiunta in `films_light_fields`.
+  - Files: `routes/finance_bank.py` (merge Totale, fallback costo, fill giorni, expenses-by-type endpoint), `routes/economy.py` (dashboard aggregazione box office + spettatori da wallet+attendance), `pages/FinancePage.jsx` (OverviewTab refactor con 4 tab Uscite + CashflowChart rewrite).
+
 - **Feb 2026 — Hotfix Dashboard Incassi $0 + crash "selectedFilmDetail"**
   - **🐛 CRASH**: `FinancePage.jsx` aveva un edit perso (probabilmente dovuto al git restore precedente di scheduler_tasks.py): state `filmsHistory`/`selectedFilmDetail` non erano dichiarati, ma il JSX li referenziava → runtime error `Can't find variable: selectedFilmDetail` all'apertura di `/finanze` (schermata "La pellicola si è inceppata"). **Fix**: reintegrato `useState` per `filmsHistory` e `selectedFilmDetail`, rimosso lo state legacy `txs`.
   - **🐛 BUG INCASSI $0**: `auto_revenue_tick` (film `in_theaters`) incrementava `users.funds` e loggava `wallet_transactions` ma NON aggiornava `films.total_revenue`. La Dashboard Home aggregava `sum(films.total_revenue)` → sempre $0 anche con ricavi reali registrati sul wallet. **Fix**: aggiunto `$inc: {'total_revenue': tick_rev}` su `films` dentro il tick (solo per `_source='films'` per non toccare tv_series/anime). Convive correttamente con `update_all_films_revenue` che usa `max(current, realistic_box_office)` preservando il valore più alto.

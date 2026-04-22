@@ -10,6 +10,14 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Fix "A Breve duplicato" root cause + Genera Trailer → Pipeline V3**
+  - **🐛 Root cause "Il Sospetto" A BREVE + AL CINEMA (il bug ricorrente)**: il safeguard in `/la-prima/coming-to-cinemas` matchava `db.films.id == film_project.id`, MA al `confirm-release` viene creato un NUOVO UUID in `films.id` mentre il project id resta salvato in `films.source_project_id`. Il match non è mai stato soddisfatto → il film "A Breve" non veniva mai escluso quando il film passava a `in_theaters`. **Fix definitivo**: il match ora usa `films.source_project_id IN [project_ids]` — coerente con il design effettivo del DB. Questo è il bug ricorrente che l'utente ha segnalato 10 volte e ora è risolto alla radice.
+  - **Genera Trailer anche dopo release** (`PipelineV3.jsx` + `FilmActionsSheet.jsx`):
+    - PipelineV3 ora legge query param `?p=<project_id>` al mount. Se presente chiama auto-select del progetto + reset `releasePhase` per evitare re-open dell'overlay cinematico → apre direttamente la vista read-only della pipeline con TrailerGeneratorCard sempre visibile (già implementata con `isReadOnly && selected?.user_id === user?.id`).
+    - FilmActionsSheet `TrailerBanner.onGo` ora naviga a `/create-film?p={film.source_project_id}` (fallback `film.id` per film legacy V2). Il sheet si chiude e la pipeline si apre con il film selezionato + TrailerGeneratorCard in evidenza. Il resto è "freezato" (read-only) come richiesto.
+  - `economy.py`: aggiunta proiezione `source_project_id` in `recent_releases_task` così il campo viaggia fino al frontend.
+  - Files: `routes/la_prima.py` (safeguard match fix), `routes/economy.py` (projection), `pages/PipelineV3.jsx` (useSearchParams auto-select), `components/FilmActionsSheet.jsx` (navigate target).
+
 - **Feb 2026 — Fix Uscite $0 nel saldo strip + Uscite by-type**
   - **🐛 Uscite da wallet_transactions vuote su film legacy**: sia il saldo strip (foto 2 "Uscite $0") sia `/finance/expenses-by-type` (foto 3 Tutti/Film/0) aggregavano da `wallet_transactions direction=out` che non esiste per film legacy (spese pre-sistema finanziario). **Fix seguendo il principio utente "X+X+X… dove presenti"**:
     - **`/finance/expenses-by-type`** riscritto: ora somma direttamente `films.total_cost` + `tv_series.total_cost` (differenziato per `type='anime'` vs `type='tv_series'`). Retrofit via `calculate_production_cost` + persistenza lazy quando `total_cost=0` sul doc (stessa logica di `/finance/films-history`).

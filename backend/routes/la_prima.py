@@ -1034,16 +1034,18 @@ async def get_coming_to_cinemas(user: dict = Depends(get_current_user)):
 
     projects = premiere_films + direct_films
 
-    # SAFEGUARD: if same project id already exists in db.films with active status,
-    # exclude it — it means the film has already moved to cinema/release.
+    # SAFEGUARD: if same project has already spawned a `films` doc (released/in_theaters/la_prima),
+    # exclude it — the film has already moved to cinema. Match on `source_project_id` because
+    # confirm-release creates a NEW UUID in `films.id` and keeps project id only in `source_project_id`.
     all_ids = [p['id'] for p in projects]
     active_in_films = set()
     if all_ids:
         async for f in db.films.find(
-            {'id': {'$in': all_ids}, 'status': {'$in': ['in_theaters', 'released', 'la_prima', 'in_cinema']}},
-            {'_id': 0, 'id': 1}
+            {'source_project_id': {'$in': all_ids},
+             'status': {'$in': ['in_theaters', 'released', 'la_prima', 'in_cinema']}},
+            {'_id': 0, 'source_project_id': 1}
         ):
-            active_in_films.add(f['id'])
+            active_in_films.add(f['source_project_id'])
     projects = [p for p in projects if p['id'] not in active_in_films]
 
     # Enrich with owner info

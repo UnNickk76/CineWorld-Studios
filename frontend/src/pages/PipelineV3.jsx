@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Film, ChevronLeft, Save, X, Eye } from 'lucide-react';
 import CinematicReleaseOverlay from '../components/CinematicReleaseOverlay';
 import { FilmRollAnimation, CrowdRushAnimation, MontageRollAnimation, LaPrimaAnimation } from '../components/v3/PipelineAnimations';
@@ -12,6 +12,7 @@ import { AuthContext } from '../contexts';
 
 export default function PipelineV3() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { api, user } = useContext(AuthContext) || {};
   const [projects, setProjects] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -61,6 +62,27 @@ export default function PipelineV3() {
   useEffect(() => { loadProjects(); }, [loadProjects]);
   useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); } }, [toast]);
   useEffect(() => { return () => { if (progressRef.current) clearInterval(progressRef.current); }; }, []);
+
+  // Auto-select a project when ?p=<project_id> is passed in URL (used by "Genera Trailer"
+  // action from FilmActionsSheet to jump directly to the trailer step in read-only mode).
+  const autoSelectRef = useRef(false);
+  useEffect(() => {
+    const pid = searchParams.get('p');
+    if (!pid || autoSelectRef.current || selected) return;
+    autoSelectRef.current = true;
+    (async () => {
+      try {
+        const d = await v3api(`/films/${pid}`);
+        if (d) {
+          setReleasePhase('idle');
+          releaseCompletedRef.current = false;
+          setSelected(d);
+          // Clear the query param so refreshing doesn't re-trigger
+          setSearchParams({}, { replace: true });
+        }
+      } catch (_) { /* ignore */ }
+    })();
+  }, [searchParams, selected, setSearchParams]);
 
   const currentStep = selected?.pipeline_state || 'idea';
   const stepIndex = V3_STEPS.findIndex(s => s.id === currentStep);

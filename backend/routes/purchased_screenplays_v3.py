@@ -326,8 +326,8 @@ async def create_v3_from_screenplay(
         'subgenre': subgenres[0] if subgenres else None,
         'subgenres': subgenres,
         'preplot': preplot,
-        'pipeline_state': 'hype',   # idea step already complete
-        'pipeline_ui_step': 1,
+        'pipeline_state': 'idea',   # start at idea — poster must be created by player
+        'pipeline_ui_step': 0,
         'poster_source': None,
         'poster_prompt': '',
         'poster_prompt_note': '',

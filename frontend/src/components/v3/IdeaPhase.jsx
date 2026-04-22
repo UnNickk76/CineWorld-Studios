@@ -30,7 +30,9 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
   const hasPoster = !!film.poster_url;
   const hasScreenplay = !!(film.screenplay_text && film.screenplay_text.length > 50);
 
-  const initialPhase = hasScreenplay ? 3 : hasPoster ? 2 : hasSavedIdea ? 1 : 0;
+  // If poster missing (e.g. purchased screenplay pre-filled screenplay but no poster yet),
+  // force subPhase 1 regardless of screenplay state — the player must create the poster.
+  const initialPhase = hasScreenplay && hasPoster ? 3 : hasPoster ? 2 : hasSavedIdea ? 1 : 0;
   const [subPhase, setSubPhase] = useState(initialPhase);
 
   // Form state

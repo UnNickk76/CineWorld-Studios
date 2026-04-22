@@ -757,6 +757,30 @@ async def advance_state(pid: str, req: AdvanceRequest, user: dict = Depends(get_
         pass  # Events are non-critical
 
     project = await _update_project(pid, user["id"], update)
+
+    # Award XP/Fame on state transitions
+    try:
+        from utils.xp_fame import award_milestone
+        milestone_map = {
+            'cast': 'screenplay_done',
+            'prep': 'cast_done',
+            'ciak': 'ciak_done',  # awarded when entering ciak
+            'finalcut': 'ciak_done',
+            'distribution': 'finalcut_done',
+            'uscita': 'distribution_confirmed',
+            'la_prima': 'la_prima_live',
+            'released': 'film_released',
+        }
+        m = milestone_map.get(req.next_state)
+        if m:
+            await award_milestone(
+                db, user['id'], m,
+                quality_score=project.get('quality_score', 0) or 0,
+                title=project.get('title'),
+            )
+    except Exception:
+        pass
+
     return {"success": True, "project": project, "new_events": new_events}
 
 
@@ -1788,7 +1812,9 @@ async def auto_cast(pid: str, user: dict = Depends(get_current_user)):
         if not s: break
         cast["screenwriters"].append(s)
     idx = 0
-    while len(cast["actors"]) < 5:
+    import random
+    target_actors = random.randint(5, 8)
+    while len(cast["actors"]) < target_actors:
         a = pick(by_role["actor"], "actor")
         if not a: break
         a["cast_role"] = roles_order[idx] if idx < len(roles_order) else "generico"
@@ -2464,6 +2490,18 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     try:
         from game_hooks import on_film_released
         await on_film_released(user["id"])
+    except Exception:
+        pass
+
+    # Award XP + fame for release
+    try:
+        from utils.xp_fame import award_milestone
+        await award_milestone(
+            db, user['id'], 'film_released',
+            quality_score=quality_score,
+            revenue=film_doc.get('realistic_box_office', 0) or 0,
+            title=film_doc.get('title'),
+        )
     except Exception:
         pass
 

@@ -1015,20 +1015,20 @@ async def get_coming_to_cinemas(user: dict = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
     la_prima_end_threshold = (now - timedelta(hours=24)).isoformat()
 
-    # Premiere films: La Prima window completed (now > datetime+24h), distribution confirmed, not released
+    # Premiere films: La Prima window completed (now > datetime+24h), distribution confirmed, not released/in-theaters/la_prima
     premiere_films = await db.film_projects.find(
         {'pipeline_version': 3, 'release_type': 'premiere',
          'distribution_confirmed': True,
-         'pipeline_state': {'$nin': ['released', 'discarded']},
+         'pipeline_state': {'$nin': ['released', 'discarded', 'la_prima', 'in_theaters']},
          'premiere.datetime': {'$ne': None, '$lte': la_prima_end_threshold}},
         {'_id': 0}
     ).to_list(100)
 
-    # Direct releases: distribution confirmed, not released
+    # Direct releases: distribution confirmed, not released/in-theaters
     direct_films = await db.film_projects.find(
         {'pipeline_version': 3, 'release_type': 'direct',
          'distribution_confirmed': True,
-         'pipeline_state': {'$nin': ['released', 'discarded']}},
+         'pipeline_state': {'$nin': ['released', 'discarded', 'in_theaters', 'la_prima']}},
         {'_id': 0}
     ).to_list(100)
 

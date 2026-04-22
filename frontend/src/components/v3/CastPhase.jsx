@@ -5,7 +5,7 @@ import { PhaseWrapper, v3api } from './V3Shared';
 const CAST_TABS = [
   { id: 'directors', label: 'Registi', max: 1 },
   { id: 'screenwriters', label: 'Scenegg.', max: 3 },
-  { id: 'actors', label: 'Attori', max: 5 },
+  { id: 'actors', label: 'Attori', max: 999 },
   { id: 'composers', label: 'Compositori', max: 1 },
 ];
 
@@ -313,7 +313,7 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
           </div>
           <div className="p-1.5 rounded-lg bg-gray-800/30 border border-gray-700/30 text-center">
             <p className="text-[7px] text-gray-500">Attori</p>
-            <p className="text-[8px] font-bold text-white">{(cast.actors || []).length}/5</p>
+            <p className="text-[8px] font-bold text-white">{(cast.actors || []).length}</p>
           </div>
           <div className="p-1.5 rounded-lg bg-gray-800/30 border border-gray-700/30 text-center">
             <p className="text-[7px] text-gray-500">Compos.</p>

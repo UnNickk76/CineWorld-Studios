@@ -591,7 +591,7 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
             contentGenre={film.genre || ''}
             contentStatus={film.status || film.pipeline_state || ''}
             api={api}
-            userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
+            userCredits={user?.cinepass ?? user?.cinecrediti ?? user?.cinecredits ?? 0}
             canGenerate={true}
             isGuest={!!user?.is_guest}
             onGenerated={onRefresh}

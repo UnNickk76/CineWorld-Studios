@@ -7,6 +7,7 @@ from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 import uuid
 import logging
+import os
 
 from database import db
 from auth_utils import get_current_user
@@ -334,6 +335,120 @@ async def generate_episode_titles(pid: str, user: dict = Depends(get_current_use
 
     await _update_project(pid, user["id"], {"episodes": episodes})
     return {"episodes": episodes}
+
+
+# ═══════════════════════════════════════════════════════════════
+# AI POSTER + SCREENPLAY for Series/Anime V3 (parity with Film V3)
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/projects/{pid}/generate-poster")
+async def generate_series_poster(pid: str, user: dict = Depends(get_current_user)):
+    """Generate AI poster for a V3 series/anime project. Uses Gemini Nano Banana style."""
+    project = await _get_project(pid, user["id"])
+    title = project.get("title", "Serie")
+    genre = project.get("genre", "drama")
+    subgenres = project.get("subgenres", [])
+    is_anime = project.get("type") == "anime"
+
+    key = os.environ.get("EMERGENT_LLM_KEY", "")
+    if not key:
+        raise HTTPException(400, "LLM key non configurata")
+
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        img_gen = OpenAIImageGeneration(api_key=key)
+        style = ("anime art style, vibrant colors, dramatic composition"
+                 if is_anime else
+                 "cinematic TV show poster style, professional photography, dramatic lighting")
+        sub_text = subgenres[0] if subgenres else ""
+        prompt = (
+            f"TV series poster for '{title}', {genre} {sub_text} "
+            f"{'anime' if is_anime else 'TV series'}. {style}. "
+            f"Vertical 2:3 aspect, no text or titles in the image, cinematic lighting, high detail."
+        )
+        images = await img_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+        if not images:
+            raise HTTPException(500, "Generazione immagine fallita")
+
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(images[0]))
+        img = img.resize((400, 600), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, "PNG", optimize=True)
+        png = buf.getvalue()
+
+        from routes.series_pipeline import poster_storage
+        filename = f"series_v3_{pid}.png"
+        await poster_storage.save_poster(filename, png, "image/png")
+        poster_url = f"/api/posters/{filename}"
+
+        await _update_project(pid, user["id"], {"poster_url": poster_url})
+
+        try:
+            from utils.xp_fame import award_milestone
+            await award_milestone(db, user["id"], "poster_generated", title=title)
+        except Exception:
+            pass
+
+        return {"poster_url": poster_url, "message": "Locandina generata!"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Series V3 poster generation failed for {pid}: {e}")
+        raise HTTPException(500, f"Errore generazione: {str(e)[:100]}")
+
+
+@router.post("/projects/{pid}/generate-screenplay")
+async def generate_series_screenplay(pid: str, user: dict = Depends(get_current_user)):
+    """Generate AI screenplay summary for a V3 series/anime pilot + season arc."""
+    project = await _get_project(pid, user["id"])
+    title = project.get("title", "Serie")
+    genre = project.get("genre", "drama")
+    preplot = project.get("preplot", "")
+    num_ep = project.get("num_episodes", 10)
+    is_anime = project.get("type") == "anime"
+
+    key = os.environ.get("EMERGENT_LLM_KEY", "")
+    if not key:
+        raise HTTPException(400, "LLM key non configurata")
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        type_label = "anime" if is_anime else "serie TV"
+        prompt = (
+            f"Sei uno sceneggiatore esperto. Scrivi una sceneggiatura di stagione per un/una {type_label} "
+            f"intitolata \"{title}\", genere {genre}, {num_ep} episodi.\n"
+            f"Sinossi di partenza: {preplot[:500]}\n\n"
+            f"Produci:\n"
+            f"1. Logline (1 frase potente)\n"
+            f"2. Personaggi principali (3-5, con nome + descrizione breve)\n"
+            f"3. Arco di stagione (3-4 atti)\n"
+            f"4. Cliffhanger finale\n"
+            f"Rispondi in italiano, tono cinematografico."
+        )
+        llm = LlmChat(
+            api_key=key,
+            session_id=f"series-screenplay-{pid}",
+            system_message="Sei uno sceneggiatore senior italiano pluripremiato.",
+        ).with_model("openai", "gpt-4o-mini")
+        resp = await llm.send_message(UserMessage(text=prompt))
+        screenplay = resp or ""
+
+        await _update_project(pid, user["id"], {"screenplay_text": screenplay, "screenplay_generated_at": _now()})
+
+        try:
+            from utils.xp_fame import award_milestone
+            await award_milestone(db, user["id"], "screenplay_done", title=title)
+        except Exception:
+            pass
+
+        return {"screenplay": screenplay, "message": "Sceneggiatura generata!"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Series V3 screenplay generation failed for {pid}: {e}")
+        raise HTTPException(500, f"Errore generazione: {str(e)[:100]}")
 
 
 @router.post("/projects/{pid}/save-marketing")

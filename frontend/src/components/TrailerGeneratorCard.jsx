@@ -146,7 +146,7 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
     const targetCost = effectiveCost(tier.cost);
     const delta = Math.max(0, targetCost - currentCost);
     if (delta > 0 && userCredits < delta && !isGuest) {
-      toast.error(`Servono ${delta} cinecrediti (ne hai ${userCredits})`);
+      toast.error(`Servono ${delta} CinePass (ne hai ${userCredits})`);
       return;
     }
     try {
@@ -320,7 +320,7 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
                 const delta = effectiveCost(t.cost) - effectiveCost(tier.cost);
                 return (
                   <button key={t.key} onClick={() => handleGenerate(t.key)} className={`flex-1 py-1.5 rounded-lg border ${t.border} bg-white/[0.02] text-[9px] font-bold text-white hover:bg-white/[0.05]`} data-testid={`trailer-upgrade-${t.key}`}>
-                    Upgrade → {t.label}<br/><span className="text-yellow-400">{delta > 0 ? `+${delta} cc` : 'GRATIS'}</span>
+                    Upgrade → {t.label}<br/><span className="text-yellow-400">{delta > 0 ? `+${delta} CP` : 'GRATIS'}</span>
                   </button>
                 );
               })}
@@ -338,7 +338,7 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
                   const cost = effectiveCost(t.cost);
                   return (
                     <button key={t.key} onClick={() => handleGenerate(t.key)} className={`py-1.5 rounded-lg border ${t.border} bg-gradient-to-br ${t.color} text-[8px] font-bold text-white`}>
-                      {t.label}<br/><span className="opacity-90">{cost === 0 ? 'GRATIS' : `${cost} cc`}</span>
+                      {t.label}<br/><span className="opacity-90">{cost === 0 ? 'GRATIS' : `${cost} CP`}</span>
                     </button>
                   );
                 })}
@@ -405,7 +405,7 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
               <span className="text-[9px] font-bold bg-black/30 rounded-full px-2 py-0.5 mt-0.5">
                 {isGuest && t.cost > 0 ? <><span className="line-through opacity-50 mr-1">{t.cost}</span><span className="text-emerald-300">GRATIS</span></> :
                  cost === 0 ? 'GRATIS' :
-                 isReleased && t.cost > 0 ? <><span className="line-through opacity-50 mr-1">{t.cost}</span>{cost} cc</> : `${cost} cc`}
+                 isReleased && t.cost > 0 ? <><span className="line-through opacity-50 mr-1">{t.cost}</span>{cost} CP</> : `${cost} CP`}
               </span>
               <span className="text-[7px] opacity-70">{isReleased ? 'post-lancio' : `+${t.hype}% hype`}</span>
             </button>

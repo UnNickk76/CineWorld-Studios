@@ -10,7 +10,15 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
-- **Feb 2026 — Finance + Bank System + Real-Time Revenue (this session)**
+- **Feb 2026 — 5 Quick Fixes (this session)**
+  - **Fix 1 — Il Sospetto doppione**: `coming-to-cinemas` escludeva solo `released/discarded`. Esteso `pipeline_state` exclusion a `['released', 'discarded', 'la_prima', 'in_theaters']` per premiere & direct films. Ora i film in LA PRIMA LIVE non appaiono più anche in "A Breve".
+  - **Fix 2 — Trailer CinePass**: TrailerGeneratorCard mostrava "cc" e leggeva `user.cinecrediti` (che è 0). Ora legge `user?.cinepass ?? user?.cinecrediti ?? user?.cinecredits` e mostra "CP". Backend `/trailers/*` decrementa `cinepass` (oltre agli alias cinecrediti per compat).
+  - **Fix 3 — Cast Attori illimitati**: rimosso cap `max: 5` → `max: 999`. Label "5/5" → conteggio puro. Auto-cast in `pipeline_v3 /auto-cast` ora randomizza attori tra **5-8** (`random.randint(5, 8)`). Il player può aggiungere/rimuovere liberamente dopo l'auto.
+  - **Fix 4 — XP/Fame sistema funzionante**: creato `utils/xp_fame.py` con `award_milestone(db, user_id, milestone, ...)` + `LEVEL_THRESHOLDS` (40 livelli), `MILESTONE_REWARDS` mappati (project_create, cast_done, ciak_done, la_prima_live, film_released, poster_generated, trailer_generated, tv_launch, ecc). Hook in `pipeline_v3.advance` e `confirm-release` con bonus qualità (+30xp/+3fame se quality≥80, +15xp/+1fame se ≥60) + bonus revenue (log10). Salvato `milestone_awards` collection per UX.
+  - **Fix 5 — Serie TV/Anime AI Poster + Screenplay**: aggiunti endpoint `/pipeline-series-v3/projects/{pid}/generate-poster` (Gemini Nano Banana, style anime se `type=anime`) e `/generate-screenplay` (GPT-4o-mini con logline/personaggi/archi/cliffhanger). Frontend IdeaPhase serie: 2 bottoni grid (purple "Locandina AI", emerald "Sceneggiatura AI") + preview compact sotto (mini poster + details screenplay collapsible). Awards automatici (poster_generated, screenplay_done).
+  - Files: `la_prima.py`, `trailers.py`, `TrailerGeneratorCard.jsx`, `IdeaPhase.jsx` + `PipelineSeriesV3.jsx` + `FilmDetailV3.jsx` (cinepass alias), `pipeline_v3.py` (auto-cast 5-8 + xp hooks), `CastPhase.jsx` (max 999), `utils/xp_fame.py` (nuovo), `pipeline_series_v3.py` (poster + screenplay endpoints).
+
+- **Feb 2026 — Finance + Bank System + Real-Time Revenue**
   - **Root cause revenue mancanti**: `auto_revenue_tick` processava solo `db.films`, ignorando V3 `film_projects` in stato `la_prima`. Esteso tick per includere le LA PRIMA entro 24h dalla premiere con formula `spectators_per_tick × ticket × quality × city_mult`. Revenue scritto su `film_projects.total_revenue` + log geotagged.
   - **Wallet Transaction System**:
     - Nuova collection `wallet_transactions` + helper `utils/wallet.py::log_wallet_tx(user_id, amount, direction, source, ref_id, geo, ...)`.

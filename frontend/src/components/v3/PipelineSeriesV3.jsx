@@ -94,6 +94,8 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
   const [genres, setGenres] = useState({});
   const [saving, setSaving] = useState(false);
   const [genTitles, setGenTitles] = useState(false);
+  const [genPoster, setGenPoster] = useState(false);
+  const [genScreen, setGenScreen] = useState(false);
 
   useEffect(() => {
     sapi(`/genres?series_type=${seriesType}`).then(d => setGenres(d.genres || {})).catch(() => {});
@@ -122,6 +124,26 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
       onRefresh?.();
     } catch (e) { toast.error(e.message); }
     setGenTitles(false);
+  };
+
+  const generatePoster = async () => {
+    setGenPoster(true);
+    try {
+      const r = await sapi(`/projects/${project.id}/generate-poster`, 'POST');
+      toast.success(r.message || 'Locandina generata!');
+      onRefresh?.();
+    } catch (e) { toast.error(e.message); }
+    setGenPoster(false);
+  };
+
+  const generateScreenplay = async () => {
+    setGenScreen(true);
+    try {
+      const r = await sapi(`/projects/${project.id}/generate-screenplay`, 'POST');
+      toast.success(r.message || 'Sceneggiatura generata!');
+      onRefresh?.();
+    } catch (e) { toast.error(e.message); }
+    setGenScreen(false);
   };
 
   return (
@@ -203,10 +225,37 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
         {valid && (
           <button onClick={generateTitles} disabled={genTitles}
             className="px-3 py-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold disabled:opacity-30" data-testid="gen-titles-btn">
-            {genTitles ? '...' : 'Genera Titoli EP'}
+            {genTitles ? '...' : 'Titoli EP'}
           </button>
         )}
       </div>
+
+      {/* AI Poster + Screenplay (like film V3) */}
+      {valid && project.id && (
+        <div className="grid grid-cols-2 gap-2" data-testid="series-ai-tools">
+          <button onClick={generatePoster} disabled={genPoster}
+            className="py-2 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[10px] font-bold active:scale-95 transition-transform disabled:opacity-40 flex items-center justify-center gap-1" data-testid="gen-series-poster-btn">
+            {genPoster ? '...' : (project.poster_url ? 'Rigenera Locandina' : 'Locandina AI')}
+          </button>
+          <button onClick={generateScreenplay} disabled={genScreen}
+            className="py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold active:scale-95 transition-transform disabled:opacity-40 flex items-center justify-center gap-1" data-testid="gen-series-screenplay-btn">
+            {genScreen ? '...' : (project.screenplay_text ? 'Rigenera Sceneggiatura' : 'Sceneggiatura AI')}
+          </button>
+        </div>
+      )}
+
+      {project.poster_url && (
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-purple-500/5 border border-purple-500/20">
+          <img src={(project.poster_url.startsWith('http') ? project.poster_url : `${API}${project.poster_url}`)} alt="" className="w-10 h-14 rounded object-cover border border-purple-400/30" />
+          <p className="text-[9px] text-purple-200">Locandina pronta</p>
+        </div>
+      )}
+      {project.screenplay_text && (
+        <details className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+          <summary className="text-[10px] font-bold text-emerald-300 cursor-pointer">📝 Sceneggiatura (click per leggere)</summary>
+          <p className="text-[9px] text-gray-300 mt-2 whitespace-pre-wrap leading-relaxed">{project.screenplay_text}</p>
+        </details>
+      )}
 
       {/* Episode titles preview */}
       {project.episodes?.length > 0 && (
@@ -727,7 +776,7 @@ function SeriesTrailerSection({ project, onRefresh }) {
         contentGenre={project.genre || ''}
         contentStatus={project.status || project.pipeline_state || ''}
         api={api}
-        userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
+        userCredits={user?.cinepass ?? user?.cinecrediti ?? user?.cinecredits ?? 0}
         canGenerate={true}
         isGuest={!!user?.is_guest}
         onGenerated={onRefresh}

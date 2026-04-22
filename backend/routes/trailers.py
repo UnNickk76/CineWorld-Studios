@@ -532,7 +532,14 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
             prev_cost = int(round(prev_cost * 0.5))
         cost_delta = max(0, base_cost - prev_cost)
         if cost_delta > 0:
-            await db.users.update_one({"id": user_id}, {"$inc": {"cinecrediti": -cost_delta, "cinecredits": -cost_delta}})
+            await db.users.update_one({"id": user_id}, {"$inc": {"cinepass": -cost_delta, "cinecrediti": -cost_delta, "cinecredits": -cost_delta}})
+            try:
+                from utils.wallet import log_wallet_tx
+                await log_wallet_tx(db, user_id, cost_delta, 'out', source='cinepass_exchange',
+                                    ref_id=content_id, ref_type='trailer', title=f'Trailer {tier}',
+                                    meta={'cost_cp': cost_delta})
+            except Exception:
+                pass
 
         job.update(progress=100, stage="done", status="completed")
     except Exception as e:
@@ -612,9 +619,9 @@ async def generate_trailer(content_id: str, tier: str = Query("base"), mode: str
     # Guest users play trailer generation FREE (AI is internal, no real spend)
     is_guest = bool(user.get("is_guest"))
     if cost_delta > 0 and not is_guest:
-        credits = user.get("cinecrediti", user.get("cinecredits", 0)) or 0
+        credits = user.get("cinepass", user.get("cinecrediti", user.get("cinecredits", 0))) or 0
         if credits < cost_delta:
-            raise HTTPException(402, f"Cinecrediti insufficienti (servono {cost_delta})")
+            raise HTTPException(402, f"CinePass insufficienti (servono {cost_delta})")
 
     _rate_limit_check(user["id"])
 

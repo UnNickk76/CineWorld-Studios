@@ -521,7 +521,7 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
                   contentGenre={film.genre || ''}
                   contentStatus={film.pipeline_state || film.status || ''}
                   api={api}
-                  userCredits={user?.cinecrediti ?? user?.cinecredits ?? 0}
+                  userCredits={user?.cinepass ?? user?.cinecrediti ?? user?.cinecredits ?? 0}
                   canGenerate={true}
                   isGuest={isGuest}
                   onGenerated={onRefresh}

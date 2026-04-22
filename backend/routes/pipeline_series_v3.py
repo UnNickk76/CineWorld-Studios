@@ -527,6 +527,96 @@ async def generate_series_screenplay(pid: str, user: dict = Depends(get_current_
         raise HTTPException(500, f"Errore generazione: {str(e)[:100]}")
 
 
+class MarketingSaveRequest(BaseModel):
+    sponsor_ids: List[str] = []         # selected ad platforms (acting as sponsors)
+    ad_breaks_min: int = 0              # 0-8 minutes of ad breaks per episode
+    campaign_days: int = 7              # hype campaign length in days
+    prossimamente_tv: bool = False
+
+
+@router.post("/projects/{pid}/save-marketing-v3")
+async def save_marketing_series_v3(pid: str, req: MarketingSaveRequest, user: dict = Depends(get_current_user)):
+    """Save marketing config for series/anime.
+
+    Business rules:
+    - ad_breaks_min=0 → sponsors pay full upfront BUT daily revenue cut = 60% (max) until re-aired
+    - ad_breaks_min>0 (1-8) → sponsors pay proportionally (min/8) AND daily cut drops to 10%
+    - More ad breaks → less public interest (small hype penalty) → higher flop risk
+    """
+    from utils.calc_adv import AD_PLATFORMS
+
+    ad_breaks = max(0, min(8, int(req.ad_breaks_min or 0)))
+    proportion = (ad_breaks / 8.0) if ad_breaks > 0 else 1.0  # 0 breaks = full upfront
+
+    selected = [p for p in AD_PLATFORMS if p["id"] in (req.sponsor_ids or [])]
+    upfront_revenue = 0
+    sponsor_packages = []
+    for p in selected:
+        base_fee = int(p["cost_per_day"] * max(1, req.campaign_days) * 1.6)  # sponsor pays >> cost
+        fee = int(base_fee * proportion) if ad_breaks > 0 else base_fee
+        upfront_revenue += fee
+        sponsor_packages.append({
+            "id": p["id"],
+            "name": p.get("name_it") or p["name"],
+            "upfront_fee": fee,
+            "full_fee": base_fee,
+            "reach_multiplier": p["reach_multiplier"],
+        })
+
+    # Revenue cut percentage applied daily to gross viewer revenue
+    revenue_cut_pct = 10 if ad_breaks > 0 else 60
+    # Interest penalty: 0 breaks = 0%, 8 breaks = max -20% interest modifier
+    interest_penalty = round((ad_breaks / 8.0) * 20, 1)
+
+    # Credit upfront to user funds
+    if upfront_revenue > 0:
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"funds": upfront_revenue}})
+
+    project = await _update_project(pid, user["id"], {
+        "marketing_config": {
+            "sponsor_ids": req.sponsor_ids,
+            "ad_breaks_min": ad_breaks,
+            "campaign_days": max(1, req.campaign_days),
+        },
+        "sponsor_packages": sponsor_packages,
+        "ad_breaks_per_episode": ad_breaks,
+        "revenue_cut_percentage": revenue_cut_pct,
+        "interest_penalty_pct": interest_penalty,
+        "marketing_upfront_revenue": upfront_revenue,
+        "marketing_completed": True,
+        "prossimamente_tv": bool(req.prossimamente_tv),
+    })
+    return {
+        "success": True,
+        "project": project,
+        "upfront_credited": upfront_revenue,
+        "revenue_cut_pct": revenue_cut_pct,
+        "interest_penalty_pct": interest_penalty,
+    }
+
+
+@router.get("/projects/{pid}/marketing-preview")
+async def marketing_preview(pid: str, sponsor_ids: str = "", ad_breaks_min: int = 0,
+                             campaign_days: int = 7, user: dict = Depends(get_current_user)):
+    """Dry-run preview: what you'd earn upfront + daily cut without saving."""
+    from utils.calc_adv import AD_PLATFORMS
+    await _get_project(pid, user["id"])
+    ids = [s for s in (sponsor_ids or "").split(",") if s]
+    ad_breaks = max(0, min(8, int(ad_breaks_min or 0)))
+    proportion = (ad_breaks / 8.0) if ad_breaks > 0 else 1.0
+    total = 0
+    for p in AD_PLATFORMS:
+        if p["id"] in ids:
+            base_fee = int(p["cost_per_day"] * max(1, campaign_days) * 1.6)
+            fee = int(base_fee * proportion) if ad_breaks > 0 else base_fee
+            total += fee
+    return {
+        "upfront_revenue": total,
+        "revenue_cut_pct": 10 if ad_breaks > 0 else 60,
+        "interest_penalty_pct": round((ad_breaks / 8.0) * 20, 1),
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════
 # HYPE / CAST / PREP / CIAK / FINALCUT — series V3 full pipeline
 # ═══════════════════════════════════════════════════════════════════
@@ -835,6 +925,12 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "distribution_schedule": project.get("distribution_schedule", "weekly"),
         "selected_sponsors": project.get("selected_sponsors", []),
         "marketing_packages": project.get("marketing_packages", []),
+        # Ad-break / sponsor revenue config (daily tick uses these fields)
+        "ad_breaks_per_episode": project.get("ad_breaks_per_episode", 0),
+        "revenue_cut_percentage": project.get("revenue_cut_percentage", 60),
+        "interest_penalty_pct": project.get("interest_penalty_pct", 0),
+        "sponsor_packages": project.get("sponsor_packages", []),
+        "marketing_upfront_revenue": project.get("marketing_upfront_revenue", 0),
         "prossimamente_tv": prossimamente,
         "quality_score": quality_score,
         "cwsv_display": cwsv_display,

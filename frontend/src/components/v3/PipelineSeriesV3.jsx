@@ -787,37 +787,141 @@ const FinalCutPhase = ({ project, onRefresh }) => {
 /* ─── MARKETING PHASE ─── */
 const MarketingPhase = ({ project, onRefresh }) => {
   const [prossimamente, setProssimamente] = useState(project.prossimamente_tv || false);
+  const [sponsors, setSponsors] = useState([]);
+  const [selectedSponsors, setSelectedSponsors] = useState(project.marketing_config?.sponsor_ids || []);
+  const [adBreaks, setAdBreaks] = useState(project.ad_breaks_per_episode ?? 0);
+  const [campaignDays, setCampaignDays] = useState(project.marketing_config?.campaign_days || 7);
+  const [preview, setPreview] = useState({ upfront_revenue: 0, revenue_cut_pct: 60, interest_penalty_pct: 0 });
+  const [saving, setSaving] = useState(false);
+  const completed = !!project.marketing_completed;
+
+  // Fetch ad platforms once
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const API = process.env.REACT_APP_BACKEND_URL;
+        const token = localStorage.getItem('cineworld_token');
+        const r = await fetch(`${API}/api/pipeline-v3/ad-platforms`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        const d = await r.json();
+        setSponsors(d.platforms || []);
+      } catch (_) { /* ignore */ }
+    };
+    load();
+  }, []);
+
+  // Fetch preview on changes (debounced)
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      try {
+        const qs = `sponsor_ids=${selectedSponsors.join(',')}&ad_breaks_min=${adBreaks}&campaign_days=${campaignDays}`;
+        const r = await sapi(`/projects/${project.id}/marketing-preview?${qs}`);
+        setPreview(r);
+      } catch (_) { /* ignore */ }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [selectedSponsors, adBreaks, campaignDays, project.id]);
+
+  const toggleSponsor = (id) => {
+    setSelectedSponsors(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
   const save = async () => {
+    setSaving(true);
     try {
-      await sapi(`/projects/${project.id}/save-marketing-data`, 'POST', { prossimamente_tv: prossimamente, selected_sponsors: [], marketing_packages: [] });
-      toast.success('Marketing salvato!');
+      const r = await sapi(`/projects/${project.id}/save-marketing-v3`, 'POST', {
+        sponsor_ids: selectedSponsors,
+        ad_breaks_min: adBreaks,
+        campaign_days: campaignDays,
+        prossimamente_tv: prossimamente,
+      });
+      toast.success(`Marketing salvato! +$${(r.upfront_credited || 0).toLocaleString()} accreditati`);
       onRefresh?.();
     } catch (e) { toast.error(e.message); }
+    setSaving(false);
   };
+
   return (
-    <PhaseWrapper title="Marketing & TV" subtitle="Sponsor, promozione, prossimamente" icon={Megaphone} color="green">
+    <PhaseWrapper title="Marketing & TV" subtitle="Sponsor, pubblicità episodi, promozione" icon={Megaphone} color="green">
       <div className="space-y-3">
-        {/* Prossimamente TV Toggle */}
-        <div className="p-3 rounded-lg bg-green-500/5 border border-green-500/15">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold text-white">Prossimamente in TV</p>
-              <p className="text-[8px] text-gray-500">Mostra nella sezione "Prossimamente" della Dashboard</p>
-            </div>
-            <button onClick={() => setProssimamente(!prossimamente)}
-              className={`w-12 h-6 rounded-full transition-colors relative ${prossimamente ? 'bg-green-600' : 'bg-gray-700'}`} data-testid="prossimamente-toggle">
-              <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${prossimamente ? 'translate-x-6' : 'translate-x-0.5'}`} />
-            </button>
+        {/* Sponsor packages */}
+        <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/15">
+          <p className="text-[8px] text-green-300 font-bold uppercase mb-1.5">Sponsor ({selectedSponsors.length}/{sponsors.length})</p>
+          <div className="grid grid-cols-2 gap-1">
+            {sponsors.map(s => (
+              <button key={s.id} onClick={() => toggleSponsor(s.id)}
+                className={`p-1.5 rounded-lg border text-left ${selectedSponsors.includes(s.id) ? 'border-green-500/50 bg-green-500/10' : 'border-gray-800'}`}
+                data-testid={`sponsor-${s.id}`}>
+                <p className="text-[9px] font-bold text-white truncate">{s.name_it || s.name}</p>
+                <p className="text-[7px] text-gray-500">x{s.reach_multiplier} · ${(s.cost_per_day / 1000).toFixed(0)}K/g</p>
+              </button>
+            ))}
           </div>
-          {prossimamente && (
-            <p className="text-[8px] text-green-400 mt-2">La serie apparirà nella sezione "Prossimamente" appena creata. Al completamento pipeline deciderai quando trasmetterla.</p>
-          )}
-          {!prossimamente && (
-            <p className="text-[8px] text-gray-500 mt-2">La serie andrà direttamente in "I Miei" → Serie TV/Anime dopo il rilascio.</p>
-          )}
         </div>
-        <button onClick={save} className="w-full py-2 rounded-lg bg-green-500/15 border border-green-500/30 text-green-400 text-[10px] font-bold" data-testid="save-marketing-btn">
-          Conferma Marketing
+
+        {/* Campaign days */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[8px] text-gray-500 uppercase font-bold">Giorni campagna</p>
+            <span className="text-[10px] font-bold text-amber-400">{campaignDays}g</span>
+          </div>
+          <input type="range" min={3} max={30} value={campaignDays} onChange={e => setCampaignDays(+e.target.value)}
+            className="w-full accent-amber-500" data-testid="campaign-days-slider" />
+        </div>
+
+        {/* Ad breaks slider — the KEY tradeoff */}
+        <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <p className="text-[8px] text-amber-300 font-bold uppercase">Pubblicità / Episodio</p>
+            <span className="text-sm font-bold text-amber-400">{adBreaks} min</span>
+          </div>
+          <input type="range" min={0} max={8} step={1} value={adBreaks} onChange={e => setAdBreaks(+e.target.value)}
+            className="w-full accent-amber-500" data-testid="ad-breaks-slider" />
+          <div className="flex items-center justify-between text-[8px]">
+            <span className="text-gray-500">0 min = no ads</span>
+            <span className="text-gray-500">8 min max</span>
+          </div>
+          <div className={`p-1.5 rounded text-[9px] leading-snug ${adBreaks === 0 ? 'bg-red-500/5 border border-red-500/20 text-red-300' : 'bg-blue-500/5 border border-blue-500/20 text-blue-300'}`}>
+            {adBreaks === 0 ? (
+              <>⚠️ <b>-60% ricavi giornalieri</b> fino a ritrasmissione, ma sponsor pagano full upfront e <b>interesse pubblico max</b>.</>
+            ) : (
+              <>✅ Solo <b>-10% ricavi giornalieri</b> · Sponsor pagano {Math.round((adBreaks / 8) * 100)}% upfront · Interesse pubblico <b>-{preview.interest_penalty_pct}%</b> (rischio flop)</>
+            )}
+          </div>
+        </div>
+
+        {/* Live preview */}
+        <div className="p-2 rounded-lg bg-white/[0.03] border border-white/5 grid grid-cols-3 gap-1 text-center">
+          <div>
+            <p className="text-[7px] text-gray-500 uppercase">Upfront</p>
+            <p className="text-[11px] font-bold text-emerald-400" data-testid="preview-upfront">${(preview.upfront_revenue / 1000).toFixed(0)}K</p>
+          </div>
+          <div>
+            <p className="text-[7px] text-gray-500 uppercase">Cut /giorno</p>
+            <p className="text-[11px] font-bold text-orange-400">-{preview.revenue_cut_pct}%</p>
+          </div>
+          <div>
+            <p className="text-[7px] text-gray-500 uppercase">Interesse</p>
+            <p className="text-[11px] font-bold text-red-400">-{preview.interest_penalty_pct}%</p>
+          </div>
+        </div>
+
+        {/* Prossimamente TV Toggle */}
+        <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/15 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold text-white">Prossimamente in TV</p>
+            <p className="text-[7px] text-gray-500">Mostra nella dashboard</p>
+          </div>
+          <button onClick={() => setProssimamente(!prossimamente)}
+            className={`w-12 h-6 rounded-full transition-colors relative ${prossimamente ? 'bg-green-600' : 'bg-gray-700'}`} data-testid="prossimamente-toggle">
+            <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform ${prossimamente ? 'translate-x-6' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+
+        <button onClick={save} disabled={saving}
+          className="w-full py-2 rounded-lg bg-green-500/15 border border-green-500/30 text-green-400 text-[10px] font-bold disabled:opacity-40" data-testid="save-marketing-btn">
+          {saving ? '...' : completed ? 'Aggiorna Marketing' : 'Conferma Marketing'}
         </button>
       </div>
     </PhaseWrapper>
@@ -965,6 +1069,8 @@ const DistributionPhase = ({ project, onRefresh }) => {
 /* ─── STEP FINALE ─── */
 const StepFinale = ({ project, onConfirm, loading, seriesType }) => {
   const isAnime = seriesType === 'anime';
+  const [selectedEp, setSelectedEp] = useState(null);
+  const epDur = (isAnime ? 22 : (project.episode_duration_min || 45));
   return (
     <PhaseWrapper title="Uscita" subtitle="Riepilogo e conferma" icon={Ticket} color="emerald">
       <div className="space-y-3">
@@ -974,18 +1080,26 @@ const StepFinale = ({ project, onConfirm, loading, seriesType }) => {
           <h3 className="text-sm font-bold text-white">{project.title}</h3>
           <p className="text-[8px] text-gray-500">{ALL_LABELS[project.genre] || project.genre} — {project.num_episodes} episodi</p>
           <p className="text-[8px] text-gray-500">{project.distribution_schedule === 'binge' ? 'Binge' : 'Settimanale'} — {project.prossimamente_tv ? 'In TV' : 'Solo Catalogo'}</p>
+          {project.marketing_upfront_revenue > 0 && (
+            <p className="text-[8px] text-emerald-400 mt-1">Upfront sponsor: ${(project.marketing_upfront_revenue || 0).toLocaleString()}</p>
+          )}
+          {typeof project.ad_breaks_per_episode === 'number' && (
+            <p className="text-[8px] text-amber-400">Pubblicità: {project.ad_breaks_per_episode} min/ep · Cut: -{project.revenue_cut_percentage || 60}%/g</p>
+          )}
         </div>
 
-        {/* Episodes preview */}
+        {/* Episodes — clickable to view mini_plot */}
         {project.episodes?.length > 0 && (
           <div className="p-2 rounded-lg bg-white/[0.02] border border-white/5">
-            <p className="text-[8px] text-gray-500 font-bold uppercase mb-1">Episodi</p>
+            <p className="text-[8px] text-gray-500 font-bold uppercase mb-1">Episodi ({project.episodes.length})</p>
             {project.episodes.map((ep, i) => (
-              <div key={i} className="flex items-center gap-2 py-0.5">
+              <button key={i} onClick={() => setSelectedEp(ep)}
+                className="w-full flex items-center gap-2 py-0.5 text-left hover:bg-white/[0.03] active:bg-white/[0.05] rounded transition-colors"
+                data-testid={`final-ep-${ep.number}`}>
                 <span className="text-[7px] text-gray-600 w-4">{ep.number}.</span>
-                <span className="text-[8px] text-gray-300 flex-1">{ep.title}</span>
-                <span className="text-[7px] text-gray-700">CWSv nascosto</span>
-              </div>
+                <span className="text-[8px] text-gray-300 flex-1 truncate">{ep.title}</span>
+                <span className="text-[7px] text-gray-700 flex-shrink-0">{epDur}m · CWSv nascosto</span>
+              </button>
             ))}
           </div>
         )}
@@ -995,6 +1109,25 @@ const StepFinale = ({ project, onConfirm, loading, seriesType }) => {
           {loading ? 'Rilascio in corso...' : `Rilascia ${isAnime ? 'Anime' : 'Serie TV'}`}
         </button>
       </div>
+
+      {/* Episode mini-plot modal */}
+      {selectedEp && (
+        <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4" onClick={() => setSelectedEp(null)}>
+          <div className="bg-[#111113] border border-amber-500/30 rounded-xl max-w-sm w-full p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <p className="text-[8px] text-amber-400/80 uppercase font-bold">Episodio {selectedEp.number}</p>
+              <h4 className="text-base font-bold text-white mt-0.5">{selectedEp.title}</h4>
+            </div>
+            <div className="text-[11px] text-gray-300 leading-relaxed whitespace-pre-wrap min-h-[72px]">
+              {selectedEp.mini_plot || <span className="italic text-gray-500">Mini-trama non ancora disponibile.</span>}
+            </div>
+            <button onClick={() => setSelectedEp(null)}
+              className="w-full py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-bold" data-testid="close-final-ep-modal">
+              Chiudi
+            </button>
+          </div>
+        </div>
+      )}
     </PhaseWrapper>
   );
 };
@@ -1200,6 +1333,10 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
               if (!selected.finalcut_started_at) return 'Avvia prima la Post-Produzione';
               const pct = timerProgress(selected.finalcut_started_at, selected.finalcut_complete_at);
               if (pct < 100) return `Post-produzione al ${Math.round(pct)}%`;
+              return null;
+            }
+            if (currentStep === 'marketing') {
+              if (!selected.marketing_completed) return 'Conferma prima il Marketing';
               return null;
             }
             return null;

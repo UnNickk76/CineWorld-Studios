@@ -10,7 +10,25 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
-- **Feb 2026 — UI Coherence Overhaul (this session)**
+- **Feb 2026 — Finance + Bank System + Real-Time Revenue (this session)**
+  - **Root cause revenue mancanti**: `auto_revenue_tick` processava solo `db.films`, ignorando V3 `film_projects` in stato `la_prima`. Esteso tick per includere le LA PRIMA entro 24h dalla premiere con formula `spectators_per_tick × ticket × quality × city_mult`. Revenue scritto su `film_projects.total_revenue` + log geotagged.
+  - **Wallet Transaction System**:
+    - Nuova collection `wallet_transactions` + helper `utils/wallet.py::log_wallet_tx(user_id, amount, direction, source, ref_id, geo, ...)`.
+    - Hook in `pipeline_v3._spend` (production costs) e nel revenue tick (box_office, la_prima, tv_broadcast).
+    - Geo tagging per la_prima: `{continent, nation, city}` dal premiere → drill-down nella UI.
+  - **WalletBadge topbar**: sostituisce il Funds badge statico. Mostra ▲/▼ delta animato 3s quando il saldo cambia + floating toast sonner con titolo, città e `±$X`. Polling automatico ogni 60s via `refreshUser`. Click → `/finanze`.
+  - **Pagina `/finanze`** (FinancePage): Saldo card dorata + tabs Conto/Geo/Storico/Banca. Statement P&L, breakdown entrate per source, cashflow SVG bar chart 30g, profit netto.
+  - **Pagina `/banca`** (BankPage): 3 tab Prestiti/Cambio/Upgrade.
+    - **Prestiti**: slider importo, 4 durate (3/7/14/30g), preview interessi dinamica, rate giornaliere auto-dedotte dal job `bank_loan_repayments` (ogni 4h). Late fee: -2 fama, push next_due +12h.
+    - **Cambio $ ↔ CinePass**: buy 15K/CP, sell 10K/CP (spread realistico).
+    - **Upgrade Infrastruttura Bancaria**: 10 livelli (Ufficio → Empire Bank). Senza infra: prestito minimo $100K @ 18%. Lv10: fino a $1B @ 3%. Senza infra = solo prestiti base.
+  - **Navbar bottom**: rimossa icona **Home** (doppione topbar), aggiunta **Banca** (Landmark icon). Topbar Home mantenuta.
+  - **Titoli di Coda**: aggiunte icone **Finanza** e **Banca** nella griglia Navigazione.
+  - **Dashboard**: click su "Incassi" → `/finanze` (prima andava a `/statistics`).
+  - **Tested via curl**: take-loan ($100K/7g, interesse $10.8K), wallet_transactions log OK, recent-deltas OK, finance/overview + breakdown OK, revenue tick esegue pulito.
+  - Files: `utils/wallet.py`, `routes/finance_bank.py` (nuovo), `scheduler_tasks.py` (auto_revenue_tick esteso + wallet log), `pipeline_v3.py` (_spend hook), `server.py` (router + scheduler job), `WalletBadge.jsx`, `FinancePage.jsx`, `BankPage.jsx`, `App.js` (routes + navbar + navItems), `Dashboard.jsx`.
+
+- **Feb 2026 — UI Coherence Overhaul**
   - **Root cause "★ 0.0 · ⏱ —" (dati rotti)**: `formatDuration()` leggeva solo `duration_minutes`, mentre i film V3 salvano `film_duration_minutes`. **Fix**: `formatDuration` ora legge entrambi + fallback budget_tier; `confirm-release` V3 salva anche `duration_minutes` + `duration_category`. Imdb display nasconde lo star quando quality è 0/null.
   - **La Prima countdown**: chip animato con Clock dentro `PStarBanner` che mostra hh:mm rimanenti. Pulse dorato + glow.
   - **La Prima + Prossimamente in "I Miei"**: `/api/films/my` unifica `db.films` con `db.film_projects` (stati non-released) e mappa pipeline_state → status.

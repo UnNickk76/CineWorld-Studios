@@ -90,6 +90,7 @@ from routes.ri_cinema import router as ri_cinema_router
 from routes.sequel_pipeline import router as sequel_pipeline_router
 from routes.emittente_tv import router as emittente_tv_router
 from routes.tv_stations import router as tv_stations_router
+from routes.finance_bank import router as finance_bank_router, process_daily_loan_repayments
 from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
 from routes.minigames_arcade import router as minigames_arcade_router
@@ -7846,6 +7847,14 @@ async def startup_event():
         replace_existing=True
     )
 
+    # Every 4 hours: Process due bank loan installments
+    scheduler.add_job(
+        process_daily_loan_repayments,
+        IntervalTrigger(hours=4),
+        id='bank_loan_repayments',
+        replace_existing=True
+    )
+
     # Daily at 08:00: Market Deal of the Day + Close expired auctions
     async def market_daily_tasks():
         try:
@@ -10442,6 +10451,7 @@ app.include_router(pipeline_series_v3_router)
 app.include_router(sequel_pipeline_router, prefix="/api")
 app.include_router(emittente_tv_router, prefix="/api")
 app.include_router(tv_stations_router, prefix="/api")
+app.include_router(finance_bank_router, prefix="/api")
 app.include_router(cinepass_router)
 app.include_router(minigames_router, prefix="/api")
 app.include_router(minigames_arcade_router, prefix="/api")

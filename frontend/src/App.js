@@ -83,6 +83,7 @@ import UserStripBanner from './components/UserStripBanner';
 import QuickCommandsPanel from './components/QuickCommandsPanel';
 import GuestRegisterDialog from './components/GuestRegisterDialog';
 import FilmActionsSheet from './components/FilmActionsSheet';
+import WalletBadge from './components/WalletBadge';
 const DownloadAppPage = React.lazy(() => import('./pages/DownloadAppPage'));
 const FeedbackBoard = React.lazy(() => import('./pages/FeedbackBoard'));
 const FestivalsPage = React.lazy(() => import('./pages/FestivalsPage'));
@@ -134,6 +135,8 @@ const EventHistoryPage = React.lazy(() => import('./pages/EventHistoryPage'));
 const StrutturePage = React.lazy(() => import('./pages/StrutturePage'));
 const AgenziaPage = React.lazy(() => import('./pages/AgenziaPage'));
 const StrategicoPage = React.lazy(() => import('./pages/StrategicoPage'));
+const FinancePage = React.lazy(() => import('./pages/FinancePage'));
+const BankPage = React.lazy(() => import('./pages/BankPage'));
 
 // ==================== COMPONENTS ====================
 
@@ -440,7 +443,6 @@ const MobileBottomNav = () => {
   };
 
   const items = [
-    { path: '/dashboard', icon: Home, label: 'Home', testid: 'bn-home' },
     { path: null, icon: Film, label: 'I Miei', testid: 'bn-films', action: () => { setShowIMiei(!showIMiei); setShowQuickCommands(false); }, imiei: true },
     { path: '/social', icon: Globe, label: 'CineBoard', testid: 'bn-cineboard' },
     { path: '/leaderboard', icon: BarChart3, label: 'Classifiche', testid: 'bn-classifiche' },
@@ -448,6 +450,7 @@ const MobileBottomNav = () => {
     { path: null, icon: Heart, label: 'Dona', testid: 'bn-dona', action: () => window.open('https://www.paypal.me/UnNickk', '_blank'), donate: true },
     { path: '/journal', icon: Newspaper, label: 'CineJournal', testid: 'bn-journal' },
     { path: '/marketplace', icon: Store, label: 'Mercato', testid: 'bn-mercato' },
+    { path: '/banca', icon: Landmark, label: 'Banca', testid: 'bn-banca' },
     { path: null, icon: RadioTower, label: 'Radio', testid: 'bn-radio', action: handleRadioClick, radio: true, locked: radioLocked },
     { path: '/minigiochi', icon: Gamepad2, label: 'Minigiochi', testid: 'bn-minigiochi' },
     { path: '/event-history', icon: Sparkles, label: 'Eventi', testid: 'bn-eventi' },
@@ -1204,6 +1207,8 @@ const TopNavbar = () => {
     { path: '/strutture', icon: Briefcase, label: language === 'it' ? 'Strutture' : 'Buildings' },
     { path: '/agenzia', icon: Users, label: language === 'it' ? 'Agenzia' : 'Agency' },
     { path: '/strategico', icon: Rocket, label: language === 'it' ? 'Strategia' : 'Strategy' },
+    { path: '/finanze', icon: Landmark, label: language === 'it' ? 'Finanza' : 'Finance' },
+    { path: '/banca', icon: Landmark, label: language === 'it' ? 'Banca' : 'Bank' },
     { path: '/drafts', icon: Pen, label: language === 'it' ? 'Bozze' : 'Drafts' },
     { path: '/tv-stations', icon: Radio, label: language === 'it' ? 'TV Stations' : 'TV Stations' },
     { path: '/medals', icon: Medal, label: language === 'it' ? 'Medaglie' : 'Medals' },
@@ -1303,16 +1308,8 @@ const TopNavbar = () => {
               </span>
             )}
           </Button>
-          {/* Funds */}
-          <div className="flex flex-col items-center bg-yellow-500/10 px-1 py-0.5 rounded border border-yellow-500/20 flex-shrink-0">
-            <div className="flex items-center">
-              <DollarSign className="w-2 h-2 text-yellow-500" />
-              <span className="text-yellow-500 font-bold text-[7px]" data-testid="user-funds">
-                {user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
-              </span>
-            </div>
-            <span className="text-[6px] text-yellow-500/70 leading-none">Soldi</span>
-          </div>
+          {/* Funds (Wallet Badge with delta arrows) */}
+          <WalletBadge onClick={() => navigate('/finanze')} />
           {/* CinePass */}
           <div className="flex flex-col items-center bg-cyan-500/10 px-1 py-0.5 rounded border border-cyan-500/20 flex-shrink-0">
             <div className="flex items-center">
@@ -2196,6 +2193,8 @@ function App() {
                 <Route path="/tv-stations" element={<ProtectedRoute><AllTVStationsPage /></ProtectedRoute>} />
                 <Route path="/marketplace" element={<ProtectedRoute><MarketV2Page /></ProtectedRoute>} />
                 <Route path="/market" element={<ProtectedRoute><MarketV2Page /></ProtectedRoute>} />
+                <Route path="/finanze" element={<ProtectedRoute><FinancePage /></ProtectedRoute>} />
+                <Route path="/banca" element={<ProtectedRoute><BankPage /></ProtectedRoute>} />
                 <Route path="/challenges" element={<ProtectedRoute><MedalsChallengePage /></ProtectedRoute>} />
                 <Route path="/medals" element={<ProtectedRoute><MedalsChallengePage /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />

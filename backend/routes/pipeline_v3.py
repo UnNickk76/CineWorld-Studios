@@ -261,7 +261,7 @@ async def _update_project(pid: str, user_id: str, update: dict) -> dict:
     return await _get_project(pid, user_id)
 
 
-async def _spend(user_id: str, funds: int = 0, cinepass: int = 0) -> dict:
+async def _spend(user_id: str, funds: int = 0, cinepass: int = 0, source: str = 'production', ref_id: str = None, ref_type: str = None, title: str = None) -> dict:
     user_doc = await _get_user_doc(user_id)
     # Guest users play the tutorial for free: skip all cost checks/deductions
     if user_doc.get("is_guest"):
@@ -276,6 +276,14 @@ async def _spend(user_id: str, funds: int = 0, cinepass: int = 0) -> dict:
             {"id": user_id},
             {"$inc": {"funds": -funds, "cinepass": -cinepass}},
         )
+        # Wallet tx log (fire-and-forget)
+        try:
+            from utils.wallet import log_wallet_tx
+            if funds > 0:
+                await log_wallet_tx(db, user_id, funds, 'out', source=source, ref_id=ref_id,
+                                    ref_type=ref_type or 'film_project', title=title)
+        except Exception:
+            pass
     updated = await _get_user_doc(user_id)
     return {"funds": updated.get("funds", 0), "cinepass": updated.get("cinepass", 0)}
 

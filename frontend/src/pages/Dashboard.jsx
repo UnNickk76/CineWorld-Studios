@@ -436,7 +436,7 @@ const Dashboard = () => {
                       <div><p className="text-sm font-bold text-white">{batchData.stats.total_films}</p><p className="text-[8px] text-gray-500">Films</p></div>
                       <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
                     </div>
-                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/statistics')}>
+                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/finanze')} data-testid="stat-incassi">
                       <DollarSign className="w-4 h-4 text-green-500/70" />
                       <div><p className="text-sm font-bold text-white">${batchData.stats.total_revenue >= 1000000 ? `${(batchData.stats.total_revenue / 1000000).toFixed(1)}M` : batchData.stats.total_revenue >= 1000 ? `${(batchData.stats.total_revenue / 1000).toFixed(0)}K` : batchData.stats.total_revenue?.toLocaleString()}</p><p className="text-[8px] text-gray-500">Incassi</p></div>
                       <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />

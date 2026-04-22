@@ -4,6 +4,31 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════
+   Status Pulse Badge — pulse + glow using currentColor
+   Apply to any pipeline/release status pill (Riprese, A BREVE,
+   AL CINEMA, LIVE, IN USCITA, etc.) to attract player attention.
+   Keeps existing background/text colors intact.
+   ═══════════════════════════════════════════════════════════ */
+@keyframes status-pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 currentColor, 0 0 4px 0 currentColor;
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 3px transparent, 0 0 14px 2px currentColor;
+    transform: scale(1.06);
+  }
+}
+.status-pulse-glow {
+  animation: status-pulse-glow 1.8s ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-pulse-glow { animation: none; }
+}
+
+
 @layer base {
     :root {
         --background: 0 0% 6%;

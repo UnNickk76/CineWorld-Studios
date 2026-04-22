@@ -216,7 +216,7 @@ function ComingSoonThumb({ item, onClick }) {
       <div className="flex items-center gap-1">
         <p className="text-[7px] text-gray-600 truncate">{item.production_house}</p>
         {item.pipeline_status_label && (
-          <span className={`text-[6px] px-1 py-0.5 rounded font-bold flex-shrink-0 ${
+          <span className={`status-pulse-glow text-[6px] px-1 py-0.5 rounded font-bold flex-shrink-0 ${
             ({'Idea':'bg-amber-500/15 text-amber-400','Hype':'bg-orange-500/15 text-orange-400','Cast':'bg-cyan-500/15 text-cyan-400',
               'Preparazione':'bg-blue-500/15 text-blue-400','Riprese':'bg-red-500/15 text-red-400','Final Cut':'bg-purple-500/15 text-purple-400',
               'Marketing':'bg-green-500/15 text-green-400','La Prima':'bg-yellow-500/15 text-yellow-400','Distribuzione':'bg-blue-500/15 text-blue-400',

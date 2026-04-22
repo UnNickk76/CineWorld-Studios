@@ -107,7 +107,7 @@ const ProssimamenteV3Section = () => {
                     <div className="absolute bottom-0.5 right-0.5 px-1 py-0.5 rounded bg-black/80 text-[6px] text-indigo-400 font-bold">{item.aired_count}/{item.total_episodes} EP</div>
                   )}
                   {item.pipeline_state && item.pipeline_state !== 'released' && (
-                    <div className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded-full bg-amber-500/80 text-[5px] text-black font-black uppercase">{item.pipeline_state}</div>
+                    <div className="status-pulse-glow absolute top-0.5 left-0.5 px-1 py-0.5 rounded-full bg-amber-500/80 text-[5px] text-black font-black uppercase">{item.pipeline_state}</div>
                   )}
                 </div>
                 <div className="p-1">
@@ -576,8 +576,10 @@ const Dashboard = () => {
                           )}
                           <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/85" />
                           <div className="absolute inset-0 flex flex-col items-center justify-center px-1 text-center">
-                            <p className="text-[6px] font-bold text-orange-300 tracking-wider uppercase">A breve</p>
-                            <p className="text-[7px] font-black text-orange-200 truncate uppercase w-full leading-tight mt-0.5">{film.a_breve_scope}</p>
+                            <div className="status-pulse-glow text-orange-300">
+                              <p className="text-[6px] font-bold tracking-wider uppercase leading-none">A breve</p>
+                              <p className="text-[7px] font-black text-orange-200 truncate uppercase w-full leading-tight mt-0.5">{film.a_breve_scope}</p>
+                            </div>
                           </div>
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5 text-gray-300">{film.title}</p>
@@ -603,7 +605,7 @@ const Dashboard = () => {
                             </div>
                           )}
                           {film.status && film.status !== 'released' && film.status !== 'completed' && (
-                            <div className={`absolute bottom-0 inset-x-0 py-0.5 flex items-center justify-center gap-0.5 text-[5px] font-bold tracking-wider ${
+                            <div className={`status-pulse-glow absolute bottom-0 inset-x-0 py-0.5 flex items-center justify-center gap-0.5 text-[5px] font-bold tracking-wider ${
                               film.status === 'premiere_live' ? 'bg-amber-600/90 text-amber-100' :
                               film.status === 'in_theaters' ? 'bg-green-600/90 text-green-100' :
                               'bg-blue-600/80 text-blue-100'

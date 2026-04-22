@@ -10,6 +10,16 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 2026 — Status Badge Pulse Glow (tutti gli stati pipeline/release)**
+  - **Nuovo keyframe CSS `status-pulse-glow`** in `index.css`: animazione 1.8s infinita che alterna `box-shadow 0-14px` + `transform scale 1.0-1.06` usando `currentColor` così il glow riprende il colore del badge. Rispetta `prefers-reduced-motion`.
+  - **Applicato a tutti i badge di stato** in Dashboard (sezioni Film/Serie TV/Anime):
+    - `ComingSoonSection` — badge `pipeline_status_label` (Idea/Hype/Cast/Preparazione/Riprese/Final Cut/Marketing/La Prima/Distribuzione/Uscita) ora pulsa con il suo colore originale.
+    - Dashboard `pipeline_state` top-left pill amber (pre-release films) ora pulsa.
+    - Dashboard "Ultimi Film al Cinema" bottom strip: "AL CINEMA" (verde), "LA PRIMA" (amber), "IN USCITA" (blu) tutti con pulse+glow che richiama i loro colori rispettivi.
+    - Card "A BREVE" dimmed arancione: wrapper interno ora pulsa col glow orange.
+  - Nessun cambio colori esistenti — solo l'animazione aggiunta via classe utility. Drop-in su qualsiasi elemento futuro.
+  - Files: `index.css`, `pages/Dashboard.jsx`, `components/ComingSoonSection.jsx`.
+
 - **Feb 2026 — Fix "A Breve duplicato" root cause + Genera Trailer → Pipeline V3**
   - **🐛 Root cause "Il Sospetto" A BREVE + AL CINEMA (il bug ricorrente)**: il safeguard in `/la-prima/coming-to-cinemas` matchava `db.films.id == film_project.id`, MA al `confirm-release` viene creato un NUOVO UUID in `films.id` mentre il project id resta salvato in `films.source_project_id`. Il match non è mai stato soddisfatto → il film "A Breve" non veniva mai escluso quando il film passava a `in_theaters`. **Fix definitivo**: il match ora usa `films.source_project_id IN [project_ids]` — coerente con il design effettivo del DB. Questo è il bug ricorrente che l'utente ha segnalato 10 volte e ora è risolto alla radice.
   - **Genera Trailer anche dopo release** (`PipelineV3.jsx` + `FilmActionsSheet.jsx`):

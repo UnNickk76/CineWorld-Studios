@@ -262,7 +262,7 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     my_anime_task = db.tv_series.find({'user_id': uid, 'type': 'anime'}, series_light).sort('created_at', -1).to_list(10)
     recent_releases_task = db.films.find(
         {'status': 'in_theaters'},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1, 'status': 1, 'is_masterpiece': 1, 'pipeline_version': 1}
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1, 'status': 1, 'is_masterpiece': 1, 'pipeline_version': 1, 'attendance_trend': 1}
     ).sort('created_at', -1).to_list(20)
 
     films, infrastructure, challenges, pending_films, pipeline_projects, series_pipeline, anime_pipeline, emerging_count, shooting_films, my_series, my_anime, recent_releases, v2_films = await asyncio.gather(

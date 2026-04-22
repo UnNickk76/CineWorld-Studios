@@ -320,6 +320,104 @@ async def finance_films_history(user: dict = Depends(get_current_user)):
 
 
 # ═══════════════════════════════════════════════════════════════
+# SPECTATORS HISTORY — Aggregated per-film attendance with daily breakdown
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/spectators/films-history")
+async def spectators_films_history(user: dict = Depends(get_current_user)):
+    """Return all user's films with cumulative attendance + daily attendance breakdown.
+    Uses existing `films.attendance_history` (last 144 ticks ≈ 24h) aggregated per day.
+    For older days beyond the 24h window we store a `daily_attendance` rollup.
+    Shape:
+      {
+        films: [
+          { id, title, poster_url, status, total_spectators, today_spectators,
+            attendance_trend: 'up'|'down'|'flat',
+            has_la_prima, la_prima_spectators, la_prima_city, la_prima_nation,
+            theater_start, days_in_theaters,
+            daily_spectators: [{day, date, total}], ...
+          }
+        ]
+      }
+    """
+    uid = user['id']
+    films = await db.films.find(
+        {'user_id': uid, 'status': {'$in': ['in_theaters', 'released', 'coming_soon']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1,
+         'current_attendance': 1, 'cumulative_attendance': 1, 'attendance_history': 1,
+         'attendance_trend': 1, 'theater_start': 1, 'released_at': 1, 'daily_attendance': 1,
+         'release_type': 1, 'la_prima_spectators': 1, 'la_prima_revenue': 1,
+         'la_prima_city': 1, 'la_prima_nation': 1, 'day_in_theaters': 1}
+    ).sort('released_at', -1).to_list(500)
+
+    if not films:
+        return {'films': []}
+
+    result = []
+    for f in films:
+        # Aggregate attendance_history (last ~24h of ticks) by day
+        hist = f.get('attendance_history') or []
+        by_day = {}
+        for entry in hist:
+            ts = entry.get('timestamp') or entry.get('ts')
+            if not ts:
+                continue
+            day_str = str(ts)[:10]
+            val = int(entry.get('total_attendance', 0) or 0)
+            by_day.setdefault(day_str, 0)
+            by_day[day_str] += val
+
+        # Merge with any stored `daily_attendance` rollup (long-term history)
+        long_term = f.get('daily_attendance') or []
+        if isinstance(long_term, list):
+            for e in long_term:
+                if isinstance(e, dict) and e.get('date'):
+                    day_str = str(e['date'])[:10]
+                    if day_str not in by_day:
+                        by_day[day_str] = int(e.get('total', 0) or 0)
+
+        # Compute day index relative to theater_start
+        theater_start = f.get('theater_start') or f.get('released_at')
+        start_day = str(theater_start)[:10] if theater_start else None
+
+        daily_spectators = []
+        for day_str in sorted(by_day.keys()):
+            idx = None
+            if start_day:
+                try:
+                    from datetime import date
+                    d1 = date.fromisoformat(day_str)
+                    d0 = date.fromisoformat(start_day)
+                    idx = (d1 - d0).days + 1
+                except Exception:
+                    idx = None
+            daily_spectators.append({'day': idx, 'date': day_str, 'total': by_day[day_str]})
+
+        total_spectators = int(f.get('cumulative_attendance', 0) or 0)
+        today_spectators = int(f.get('current_attendance', 0) or 0)
+        la_prima_spectators = int(f.get('la_prima_spectators', 0) or 0)
+
+        result.append({
+            'id': f['id'],
+            'title': f.get('title', ''),
+            'poster_url': f.get('poster_url', ''),
+            'status': f.get('status'),
+            'attendance_trend': f.get('attendance_trend') or 'flat',
+            'theater_start': theater_start,
+            'days_in_theaters': int(f.get('day_in_theaters') or len(daily_spectators) or 0),
+            'total_spectators': total_spectators,
+            'today_spectators': today_spectators,
+            'has_la_prima': (f.get('release_type') == 'premiere') or la_prima_spectators > 0,
+            'la_prima_spectators': la_prima_spectators,
+            'la_prima_city': f.get('la_prima_city') or '',
+            'la_prima_nation': f.get('la_prima_nation') or '',
+            'daily_spectators': daily_spectators,
+        })
+
+    return {'films': result}
+
+
+# ═══════════════════════════════════════════════════════════════
 # BANK — Loans + CinePass Exchange + Infrastructure
 # ═══════════════════════════════════════════════════════════════
 

@@ -377,6 +377,30 @@ async def update_film_attendance():
                 )
                 
                 # Update film
+                # Daily attendance aggregation: group last 144 ticks into days (~24h each)
+                # attendance_history is capped to 144 entries ≈ 24h so we recompute a rolling daily sum.
+                # Also compute simple trend: last tick vs previous tick (for UI icon).
+                trend_dir = 'flat'
+                if len(attendance_history) >= 2:
+                    last_t = attendance_history[-1]['total_attendance']
+                    prev_t = attendance_history[-2]['total_attendance']
+                    if last_t > prev_t * 1.03:
+                        trend_dir = 'up'
+                    elif last_t < prev_t * 0.97:
+                        trend_dir = 'down'
+
+                # Persistent daily rollup (last 90 days) for long-term spectators history
+                today_str = now.date().isoformat()
+                daily_attendance = film.get('daily_attendance') or []
+                if not isinstance(daily_attendance, list):
+                    daily_attendance = []
+                existing = next((e for e in daily_attendance if e.get('date') == today_str), None)
+                if existing:
+                    existing['total'] = int(existing.get('total', 0) or 0) + int(total_attendance)
+                else:
+                    daily_attendance.append({'date': today_str, 'total': int(total_attendance)})
+                daily_attendance = daily_attendance[-90:]
+
                 await scheduler_db.films.update_one(
                     {'id': film['id']},
                     {'$set': {
@@ -387,6 +411,8 @@ async def update_film_attendance():
                         'cumulative_attendance': cumulative_attendance,
                         'total_screenings': total_screenings,
                         'attendance_history': attendance_history,
+                        'attendance_trend': trend_dir,
+                        'daily_attendance': daily_attendance,
                         'popularity_score': round(new_popularity, 1),
                         'cineboard_score': round(cineboard_score, 2),
                         'day_in_theaters': round(days_in_theaters),

@@ -2491,6 +2491,7 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "total_revenue": 0,
         "total_cost": total_cost,
         "la_prima_revenue": int(project.get("total_revenue", 0) or 0) if (project.get("release_type") == "premiere") else 0,
+        "la_prima_spectators": int((project.get("premiere") or {}).get("spectators_total", 0) or 0) if (project.get("release_type") == "premiere") else 0,
         "la_prima_city": (project.get("premiere") or {}).get("city") if (project.get("release_type") == "premiere") else None,
         "la_prima_nation": (project.get("premiere") or {}).get("nation") if (project.get("release_type") == "premiere") else None,
         "opening_day_revenue": _calc_opening_day(quality_score, project),

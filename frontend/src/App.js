@@ -137,6 +137,7 @@ const StrutturePage = React.lazy(() => import('./pages/StrutturePage'));
 const AgenziaPage = React.lazy(() => import('./pages/AgenziaPage'));
 const StrategicoPage = React.lazy(() => import('./pages/StrategicoPage'));
 const FinancePage = React.lazy(() => import('./pages/FinancePage'));
+const SpectatorsPage = React.lazy(() => import('./pages/SpectatorsPage'));
 const BankPage = React.lazy(() => import('./pages/BankPage'));
 
 // ==================== COMPONENTS ====================
@@ -2196,6 +2197,7 @@ function App() {
                 <Route path="/marketplace" element={<ProtectedRoute><MarketV2Page /></ProtectedRoute>} />
                 <Route path="/market" element={<ProtectedRoute><MarketV2Page /></ProtectedRoute>} />
                 <Route path="/finanze" element={<ProtectedRoute><FinancePage /></ProtectedRoute>} />
+                <Route path="/spettatori" element={<ProtectedRoute><SpectatorsPage /></ProtectedRoute>} />
                 <Route path="/banca" element={<ProtectedRoute><BankPage /></ProtectedRoute>} />
                 <Route path="/challenges" element={<ProtectedRoute><MedalsChallengePage /></ProtectedRoute>} />
                 <Route path="/medals" element={<ProtectedRoute><MedalsChallengePage /></ProtectedRoute>} />

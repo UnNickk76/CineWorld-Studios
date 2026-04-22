@@ -12,6 +12,7 @@ import FeaturedTrailersStrip from '../components/FeaturedTrailersStrip';
 import UltimiTrailerStrip from '../components/UltimiTrailerStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
+import { AttendanceTrendBadge } from '../components/AttendanceTrendBadge';
 import { Card, CardContent } from '../components/ui/card';
 
 const FilmDetailV3 = lazy(() => import('../components/v3/FilmDetailV3'));
@@ -457,7 +458,7 @@ const Dashboard = () => {
                 {/* Extra stats — Spettatori + Best Film */}
                 {batchData?.stats && (
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5">
+                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform hover:border-cyan-500/30" onClick={() => navigate('/spettatori')} data-testid="stat-spettatori">
                       <Users className="w-4 h-4 text-cyan-400/70" />
                       <div><p className="text-sm font-bold text-white">{batchData.stats.total_spectators ? (batchData.stats.total_spectators >= 1000000 ? `${(batchData.stats.total_spectators/1000000).toFixed(1)}M` : batchData.stats.total_spectators >= 1000 ? `${Math.floor(batchData.stats.total_spectators/1000)}K` : batchData.stats.total_spectators) : '0'}</p><p className="text-[8px] text-gray-500">Spettatori Totali</p></div>
                     </div>
@@ -602,12 +603,13 @@ const Dashboard = () => {
                             </div>
                           )}
                           {film.status && film.status !== 'released' && film.status !== 'completed' && (
-                            <div className={`absolute bottom-0 inset-x-0 py-0.5 text-center text-[5px] font-bold tracking-wider ${
+                            <div className={`absolute bottom-0 inset-x-0 py-0.5 flex items-center justify-center gap-0.5 text-[5px] font-bold tracking-wider ${
                               film.status === 'premiere_live' ? 'bg-amber-600/90 text-amber-100' :
                               film.status === 'in_theaters' ? 'bg-green-600/90 text-green-100' :
                               'bg-blue-600/80 text-blue-100'
                             }`}>
-                              {film.status === 'premiere_live' ? 'LA PRIMA' : film.status === 'in_theaters' ? 'AL CINEMA' : 'IN USCITA'}
+                              <span>{film.status === 'premiere_live' ? 'LA PRIMA' : film.status === 'in_theaters' ? 'AL CINEMA' : 'IN USCITA'}</span>
+                              <AttendanceTrendBadge trend={film.attendance_trend} status={film.status} />
                             </div>
                           )}
                           {film.virtual_likes > 0 && (

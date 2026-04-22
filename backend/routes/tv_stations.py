@@ -576,21 +576,138 @@ async def get_scheduled_content(station_id: str, user: dict = Depends(get_curren
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre': 1}
     ).to_list(50)
 
-    # Series/Anime scheduled for this station
+    # Series/Anime scheduled for this station (includes V3 series auto-scheduled via target_tv_station_id)
+    _series_proj = {
+        '_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre_name': 1, 'num_episodes': 1,
+        'pipeline_version': 1, 'release_policy': 1, 'tv_eps_per_batch': 1, 'tv_interval_days': 1,
+        'tv_split_season': 1, 'tv_split_pause_days': 1, 'distribution_delay_hours': 1,
+        'tv_schedule_accepted_at': 1, 'released_at': 1, 'target_tv_station_id': 1, 'type': 1,
+    }
     scheduled_series = await db.tv_series.find(
         {'user_id': user['id'], 'scheduled_for_tv': True, 'scheduled_for_tv_station': station_id, 'type': 'tv_series'},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre_name': 1, 'num_episodes': 1}
+        _series_proj
     ).to_list(50)
     scheduled_anime = await db.tv_series.find(
         {'user_id': user['id'], 'scheduled_for_tv': True, 'scheduled_for_tv_station': station_id, 'type': 'anime'},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre_name': 1, 'num_episodes': 1}
+        _series_proj
     ).to_list(50)
+
+    # Enrich series/anime with pending flag + computed airing start
+    def _enrich_series(s):
+        s['pending_tv_approval'] = bool(s.get('pipeline_version') == 3 and not s.get('tv_schedule_accepted_at'))
+        try:
+            if s.get('released_at') and s.get('distribution_delay_hours') is not None:
+                rel = datetime.fromisoformat(s['released_at'].replace('Z', '+00:00')) if isinstance(s['released_at'], str) else s['released_at']
+                s['tv_airing_start'] = (rel + timedelta(hours=int(s.get('distribution_delay_hours', 0) or 0))).isoformat()
+        except Exception:
+            s['tv_airing_start'] = None
+        return s
+    scheduled_series = [_enrich_series(s) for s in scheduled_series]
+    scheduled_anime = [_enrich_series(s) for s in scheduled_anime]
 
     all_scheduled = scheduled_films + scheduled_fp + scheduled_series + scheduled_anime
     for item in all_scheduled:
-        item['content_type'] = 'film' if item in scheduled_films or item in scheduled_fp else ('anime' if item in scheduled_anime else 'tv_series')
+        if item in scheduled_films or item in scheduled_fp:
+            item['content_type'] = 'film'
+        elif item in scheduled_anime:
+            item['content_type'] = 'anime'
+        else:
+            item['content_type'] = 'tv_series'
 
     return {"items": all_scheduled, "total": len(all_scheduled)}
+
+
+class PendingEditRequest(BaseModel):
+    tv_eps_per_batch: Optional[int] = None
+    tv_interval_days: Optional[int] = None
+    tv_split_season: Optional[bool] = None
+    tv_split_pause_days: Optional[int] = None
+    distribution_delay_hours: Optional[int] = None
+
+
+@router.post("/tv-stations/{station_id}/accept-pending/{content_id}")
+async def accept_pending_scheduled(station_id: str, content_id: str, user: dict = Depends(get_current_user)):
+    """Accept pipeline-assigned TV scheduling for a V3 series/anime (confirms pipeline settings)."""
+    station = await db.tv_stations.find_one({'id': station_id, 'user_id': user['id']}, {'_id': 0, 'id': 1})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+    series = await db.tv_series.find_one(
+        {'id': content_id, 'user_id': user['id'], 'scheduled_for_tv_station': station_id},
+        {'_id': 0, 'id': 1}
+    )
+    if not series:
+        raise HTTPException(404, "Contenuto non trovato o non destinato a questa stazione")
+    await db.tv_series.update_one(
+        {'id': content_id},
+        {'$set': {'tv_schedule_accepted_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": True, "accepted": True}
+
+
+@router.post("/tv-stations/{station_id}/edit-pending/{content_id}")
+async def edit_pending_scheduled(
+    station_id: str, content_id: str, req: PendingEditRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Override pipeline TV scheduling with custom values and mark accepted."""
+    station = await db.tv_stations.find_one({'id': station_id, 'user_id': user['id']}, {'_id': 0, 'id': 1})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+    series = await db.tv_series.find_one(
+        {'id': content_id, 'user_id': user['id'], 'scheduled_for_tv_station': station_id},
+        {'_id': 0, 'id': 1}
+    )
+    if not series:
+        raise HTTPException(404, "Contenuto non trovato o non destinato a questa stazione")
+
+    update = {}
+    if req.tv_eps_per_batch is not None:
+        update['tv_eps_per_batch'] = max(1, min(3, int(req.tv_eps_per_batch)))
+    if req.tv_interval_days is not None:
+        update['tv_interval_days'] = max(1, min(3, int(req.tv_interval_days)))
+    if req.tv_split_season is not None:
+        update['tv_split_season'] = bool(req.tv_split_season)
+    if req.tv_split_pause_days is not None:
+        update['tv_split_pause_days'] = max(7, min(30, int(req.tv_split_pause_days)))
+    if req.distribution_delay_hours is not None:
+        update['distribution_delay_hours'] = max(0, int(req.distribution_delay_hours))
+    update['tv_schedule_accepted_at'] = datetime.now(timezone.utc).isoformat()
+
+    await db.tv_series.update_one({'id': content_id}, {'$set': update})
+    return {"success": True, "updated": update}
+
+
+@router.post("/tv-stations/{station_id}/assign-series/{series_id}")
+async def assign_series_to_station(station_id: str, series_id: str, user: dict = Depends(get_current_user)):
+    """Assign a V3 series/anime currently with no TV station (pipeline chose 'Nessuna emittente')
+    to this station. Uses pipeline settings as defaults, marks as accepted immediately.
+    """
+    station = await db.tv_stations.find_one({'id': station_id, 'user_id': user['id']}, {'_id': 0, 'id': 1})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+    series = await db.tv_series.find_one(
+        {'id': series_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not series:
+        raise HTTPException(404, "Serie non trovata")
+    if series.get('scheduled_for_tv_station'):
+        raise HTTPException(400, "Serie gia' assegnata a un'altra emittente")
+
+    await db.tv_series.update_one(
+        {'id': series_id},
+        {'$set': {
+            'scheduled_for_tv_station': station_id,
+            'scheduled_for_tv': True,
+            'target_tv_station_id': station_id,
+            'prossimamente_tv': True,
+            'status': 'in_tv',
+            'tv_schedule_accepted_at': datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    return {"success": True, "station_id": station_id}
+
+
 
 
 @router.get("/tv-stations/available-content/{station_id}")
@@ -617,11 +734,11 @@ async def get_available_content(station_id: str, user: dict = Depends(get_curren
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre': 1, 'quality_score': 1, 'total_revenue': 1}
     ).to_list(100)
     
-    # Completed series not already added
+    # Completed series not already added (include V3: status='in_tv' or 'catalog')
     available_series = await db.tv_series.find(
         {
             'user_id': user['id'],
-            'status': 'completed',
+            'status': {'$in': ['completed', 'in_tv', 'catalog']},
             'type': 'tv_series',
             'id': {'$nin': existing_series_ids}
         },
@@ -631,7 +748,7 @@ async def get_available_content(station_id: str, user: dict = Depends(get_curren
     available_anime = await db.tv_series.find(
         {
             'user_id': user['id'],
-            'status': 'completed',
+            'status': {'$in': ['completed', 'in_tv', 'catalog']},
             'type': 'anime',
             'id': {'$nin': existing_series_ids}
         },

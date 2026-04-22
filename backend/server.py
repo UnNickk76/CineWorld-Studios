@@ -7679,7 +7679,8 @@ async def startup_event():
         auto_release_coming_soon,
         process_coming_soon_dynamic_events,
         auto_cleanup_corrupted_projects,
-        auto_revenue_tick
+        auto_revenue_tick,
+        process_tv_pipeline_auto_apply
     )
     from routes.city_dynamics import (
         initialize_city_dynamics,
@@ -7855,6 +7856,14 @@ async def startup_event():
         auto_revenue_tick,
         IntervalTrigger(minutes=10),
         id='auto_revenue_tick',
+        replace_existing=True
+    )
+
+    # Every 5 minutes: auto-apply pipeline TV scheduling for V3 series/anime
+    scheduler.add_job(
+        process_tv_pipeline_auto_apply,
+        IntervalTrigger(minutes=5),
+        id='tv_pipeline_auto_apply',
         replace_existing=True
     )
 

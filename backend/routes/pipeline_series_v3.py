@@ -806,6 +806,7 @@ class DistributionSaveRequest(BaseModel):
     tv_split_season: bool = False     # split into 2 half-seasons
     tv_split_pause_days: int = 14     # days between half-seasons (7/14/21/30)
     distribution_delay_hours: int = 0 # 0=immediate, hours delay before first ep
+    target_tv_station_id: Optional[str] = None  # owner's TV station to broadcast on. None = "Nessuna emittente"
 
 @router.post("/projects/{pid}/save-distribution")
 async def save_distribution(pid: str, req: DistributionSaveRequest, user: dict = Depends(get_current_user)):
@@ -828,6 +829,13 @@ async def save_distribution(pid: str, req: DistributionSaveRequest, user: dict =
         eps = max(1, min(3, eps))
         interval = max(1, min(3, interval))
 
+    # Validate station ownership (if provided)
+    target_station_id = req.target_tv_station_id
+    if target_station_id:
+        st = await db.tv_stations.find_one({"id": target_station_id, "user_id": user["id"]}, {"_id": 0, "id": 1})
+        if not st:
+            target_station_id = None
+
     return await _update_project(pid, user["id"], {
         "release_policy": policy,
         "tv_eps_per_batch": eps,
@@ -835,6 +843,7 @@ async def save_distribution(pid: str, req: DistributionSaveRequest, user: dict =
         "tv_split_season": req.tv_split_season and policy in ("half_seasons", "all_at_once"),
         "tv_split_pause_days": max(7, min(30, req.tv_split_pause_days)),
         "distribution_delay_hours": req.distribution_delay_hours,
+        "target_tv_station_id": target_station_id,
         "distribution_schedule": "binge" if policy == "all_at_once" and not req.tv_split_season and eps >= 3 else "scheduled",
     })
 
@@ -899,6 +908,16 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     prossimamente = project.get("prossimamente_tv", False)
     series_type = project.get("type", "tv_series")
 
+    # Target TV station from DistributionPhase
+    target_station_id = project.get("target_tv_station_id")
+    if target_station_id:
+        # Re-verify ownership at release time
+        st_ok = await db.tv_stations.find_one(
+            {"id": target_station_id, "user_id": user["id"]}, {"_id": 0, "id": 1}
+        )
+        if not st_ok:
+            target_station_id = None
+
     # Determine destination
     if prossimamente:
         status = "in_tv"
@@ -932,6 +951,18 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "sponsor_packages": project.get("sponsor_packages", []),
         "marketing_upfront_revenue": project.get("marketing_upfront_revenue", 0),
         "prossimamente_tv": prossimamente,
+        # TV scheduling config (propagated from DistributionPhase)
+        "release_policy": project.get("release_policy", "daily_1"),
+        "tv_eps_per_batch": project.get("tv_eps_per_batch", 1),
+        "tv_interval_days": project.get("tv_interval_days", 1),
+        "tv_split_season": project.get("tv_split_season", False),
+        "tv_split_pause_days": project.get("tv_split_pause_days", 14),
+        "distribution_delay_hours": project.get("distribution_delay_hours", 0),
+        # Target station: if set, serie appears pending in that station's "Prossimamente"
+        "target_tv_station_id": target_station_id,
+        "scheduled_for_tv": bool(target_station_id) and prossimamente,
+        "scheduled_for_tv_station": target_station_id if prossimamente else None,
+        "tv_schedule_accepted_at": None,   # set when station owner accepts or scheduler auto-applies
         "quality_score": quality_score,
         "cwsv_display": cwsv_display,
         "cwsv_data": cwsv_result,

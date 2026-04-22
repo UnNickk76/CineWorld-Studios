@@ -936,6 +936,19 @@ const DistributionPhase = ({ project, onRefresh }) => {
   const [split, setSplit] = useState(project.tv_split_season || false);
   const [pause, setPause] = useState(project.tv_split_pause_days || 14);
   const [delay, setDelay] = useState(project.distribution_delay_hours || 0);
+  const [targetStation, setTargetStation] = useState(project.target_tv_station_id || null);
+  const [myStations, setMyStations] = useState([]);
+  const [stationsLoaded, setStationsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!project?.prossimamente_tv || stationsLoaded) return;
+    const token = localStorage.getItem('cineworld_token');
+    fetch(`${API}/api/my-owned-tv-stations`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setMyStations(d?.stations || []))
+      .catch(() => setMyStations([]))
+      .finally(() => setStationsLoaded(true));
+  }, [project?.prossimamente_tv, stationsLoaded]);
 
   const policies = [
     { id: 'daily_1', label: '1 al giorno', desc: 'La TV trasmette 1 episodio al giorno. Nessuna scelta per la TV.', tvFree: false },
@@ -953,6 +966,7 @@ const DistributionPhase = ({ project, onRefresh }) => {
       await sapi(`/projects/${project.id}/save-distribution`, 'POST', {
         release_policy: policy, tv_eps_per_batch: epsBatch, tv_interval_days: interval,
         tv_split_season: split, tv_split_pause_days: pause, distribution_delay_hours: delay,
+        target_tv_station_id: targetStation,
       });
       toast.success('Distribuzione salvata!');
       onRefresh?.();
@@ -1038,6 +1052,36 @@ const DistributionPhase = ({ project, onRefresh }) => {
                 <button key={h} onClick={() => setDelay(h)}
                   className={`px-3 py-1.5 rounded-lg border text-[9px] font-bold ${delay === h ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400' : 'border-gray-800 text-gray-500'}`}>
                   {h === 0 ? 'Immediato' : `Dopo ${h}h`}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Target TV Station (owner's stations + "Nessuna emittente") */}
+        {project.prossimamente_tv && (
+          <div>
+            <p className="text-[9px] text-gray-400 font-bold uppercase mb-1">Emittente di destinazione</p>
+            <div className="space-y-1.5">
+              <button onClick={() => setTargetStation(null)} data-testid="station-none"
+                className={`w-full p-2 rounded-lg border text-left transition-all ${targetStation === null ? 'border-amber-500/40 bg-amber-500/10' : 'border-gray-800 hover:border-gray-700'}`}>
+                <p className="text-[10px] font-bold text-white flex items-center gap-1.5">
+                  <Globe className="w-3 h-3 text-amber-400" /> Nessuna emittente
+                </p>
+                <p className="text-[7px] text-gray-500">Scegli piu' tardi dal menu della serie, oppure vendi al mercato</p>
+              </button>
+              {myStations.length === 0 && stationsLoaded && (
+                <p className="text-[8px] text-gray-600 italic px-1">Non possiedi emittenti TV. Puoi crearne una da Infrastrutture.</p>
+              )}
+              {myStations.map(st => (
+                <button key={st.id} onClick={() => setTargetStation(st.id)} data-testid={`station-${st.id}`}
+                  className={`w-full p-2 rounded-lg border text-left transition-all ${targetStation === st.id ? 'border-blue-500/40 bg-blue-500/10' : 'border-gray-800 hover:border-gray-700'}`}>
+                  <p className="text-[10px] font-bold text-white flex items-center gap-1.5">
+                    <Tv className="w-3 h-3 text-blue-400" /> {st.station_name || st.name || 'Emittente'}
+                  </p>
+                  <p className="text-[7px] text-gray-500">
+                    Lv.{st.infra_level || 1} · {st.nation || 'Italia'} · {st.film_cap ? `${st.film_count || 0}/${st.film_cap} film` : 'capacita disponibile'}
+                  </p>
                 </button>
               ))}
             </div>

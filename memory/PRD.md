@@ -10,6 +10,18 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 23, 2026 — Serie TV/Anime V3: emittente in pipeline + dashboard cliccabile + pending TV UX**
+  - **Pipeline V3 DistributionPhase (serie+anime)**: se `prossimamente_tv=true`, il player ora sceglie l'**emittente TV di destinazione** tra le proprie + opzione "Nessuna emittente". Field nuovo `target_tv_station_id` (salvato via `/save-distribution`, propagato a `confirm-release`). Se seleziona una TV → al rilascio viene popolato `scheduled_for_tv=true, scheduled_for_tv_station=<id>` sulla `tv_series`, e config pipeline (eps_per_batch, interval, split, delay) propagata.
+  - **Dashboard "IN ARRIVO SU TV" cliccabile**: ogni poster ora e' un button che apre `ProssimamenteDetailModal` (nuovo). Usa `/api/series/{id}` (normalizzato V1/V2/V3) per mostrare: hero, produttore, CWSv/quality, countdown airing, preplot, e **lista episodi cliccabili** — ogni episodio espande inline il `mini_plot` AI generato in IdeaPhase. Episodi senza mini-trama mostrano "Mini-trama disponibile al rilascio".
+  - **Owner actions nella modal**: se l'owner clicca la propria serie senza `scheduled_for_tv_station`, appaiono 2 azioni owner-only: "Invia a TV" (station picker → POST `/tv-stations/{st}/assign-series/{sid}`) e "Vendi al Mercato" (redirect `/marketplace?sell=series&id=<id>`).
+  - **TVStationPage "Prossimamente" con pending approval**: il `NetflixRow` ora renderizza le tile con `pending_tv_approval=true` come **poster oscurato** (opacity 55 + grayscale 30 + ring ambra), badge "DA PIPELINE" e countdown accanto. Overlay con 2 bottoni tondi grandi:
+    - **✔️ verde** → `POST /tv-stations/{st}/accept-pending/{cid}` conferma le impostazioni pipeline.
+    - **✏️ ambra** → apre `PendingTVEditModal` (nuovo) con controlli eps/interval/split/delay coerenti con la `release_policy`, poi `POST /tv-stations/{st}/edit-pending/{cid}` sovrascrive e accetta.
+  - **Scheduler auto-apply** (`process_tv_pipeline_auto_apply`, ogni 5 min): trova serie V3 con `scheduled_for_tv_station` impostato, `tv_schedule_accepted_at` null, e `released_at + distribution_delay_hours` scaduto → auto-accetta con i settings pipeline + inserisce una notifica silenziosa `tv_auto_scheduled` nel campanello utente.
+  - **`/tv-stations/{id}/scheduled`** esteso: ritorna ora il flag `pending_tv_approval`, `tv_airing_start` (computed), e tutta la config pipeline per alimentare la modal edit.
+  - **`/tv-stations/available-content/{id}`** esteso a serie V3 con `status ∈ {completed, in_tv, catalog}` (prima solo `completed`, per questo la serie propria non compariva nel picker "Aggiungi Serie TV").
+  - Files: `routes/pipeline_series_v3.py`, `routes/tv_stations.py` (nuovi endpoint accept/edit/assign-series), `scheduler_tasks.py` (+`process_tv_pipeline_auto_apply`), `server.py` (job registrato), `components/v3/PipelineSeriesV3.jsx` (selettore station), `components/ProssimamenteDetailModal.jsx` (nuovo), `components/PendingTVEditModal.jsx` (nuovo), `pages/Dashboard.jsx` (click handler), `pages/TVStationPage.jsx` (NetflixRow overlay + modal mount).
+
 - **Feb 23, 2026 — Silent Bonuses system (invisibile, anti-frustrazione new players)**
   - **Nuovo modulo** `/app/backend/utils/silent_bonuses.py` con 3 layer totalmente silenziosi (nessun toast/evento frontend):
     1. **Onboarding boost** gg 0-6 (peak) con taper lineare gg 7-10: cap cumulativo in $ scalato per numero film posseduti (`0 film=$2M`, `1=$10M`, `2=$17M`, `3=$22M`, `4=$26M`, `5=$28M`, `6+=$28M` plateau). Pace `~0.5% del rimanente` per heartbeat, circa 200 beat per svuotare il cap in 6gg.

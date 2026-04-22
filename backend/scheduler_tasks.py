@@ -9,6 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import random
 import asyncio
+from uuid import uuid4
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -1240,6 +1241,58 @@ VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 
                        'screenplay', 'pre_production', 'shooting',
                        'completed', 'released', 'discarded', 'abandoned', 'remastering', 'pending_release'}
 VALID_SERIES_STATUSES = {'concept', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'production', 'ready_to_release', 'completed', 'released', 'discarded', 'abandoned'}
+
+async def process_tv_pipeline_auto_apply():
+    """Auto-apply pipeline TV scheduling for V3 series/anime after delay_hours has elapsed.
+    If the TV station owner didn't tap ✔️/✏️ manually, we honour the pipeline defaults
+    silently and notify the owner.
+    """
+    now = datetime.now(timezone.utc)
+    try:
+        async for s in scheduler_db.tv_series.find({
+            'pipeline_version': 3,
+            'scheduled_for_tv': True,
+            'scheduled_for_tv_station': {'$ne': None},
+            'tv_schedule_accepted_at': None,
+            'status': 'in_tv',
+        }, {'_id': 0}):
+            try:
+                rel_raw = s.get('released_at')
+                if not rel_raw:
+                    continue
+                rel = datetime.fromisoformat(rel_raw.replace('Z', '+00:00')) if isinstance(rel_raw, str) else rel_raw
+                delay_h = int(s.get('distribution_delay_hours', 0) or 0)
+                if now < rel + timedelta(hours=delay_h):
+                    continue  # delay not yet elapsed
+                await scheduler_db.tv_series.update_one(
+                    {'id': s['id']},
+                    {'$set': {
+                        'tv_schedule_accepted_at': now.isoformat(),
+                        'tv_schedule_auto_applied': True,
+                    }}
+                )
+                # Silent notification to TV station owner
+                try:
+                    await scheduler_db.notifications.insert_one({
+                        'id': str(uuid4()),
+                        'user_id': s['user_id'],
+                        'type': 'tv_auto_scheduled',
+                        'title': f"Trasmissione '{s.get('title','')}' avviata",
+                        'body': 'Le impostazioni della pipeline sono state applicate automaticamente.',
+                        'content_id': s['id'],
+                        'station_id': s.get('scheduled_for_tv_station'),
+                        'read': False,
+                        'created_at': now.isoformat(),
+                    })
+                except Exception:
+                    pass
+            except Exception as inner:
+                logger.warning(f"[TV AUTO APPLY] skip series {s.get('id')}: {inner}")
+    except Exception as e:
+        logger.error(f"[TV AUTO APPLY] job error: {e}")
+
+
+
 
 async def auto_cleanup_corrupted_projects():
     """Periodic cleanup of corrupted/invalid projects. Runs every 30 min.

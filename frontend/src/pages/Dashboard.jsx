@@ -11,6 +11,7 @@ import BestHighlightsLeaderboard from '../components/BestHighlightsLeaderboard';
 import FeaturedTrailersStrip from '../components/FeaturedTrailersStrip';
 import UltimiTrailerStrip from '../components/UltimiTrailerStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
+import ProssimamenteDetailModal from '../components/ProssimamenteDetailModal';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
 import { PurchasedScreenplayBadge } from '../components/PurchasedScreenplayBadge';
 import { AttendanceTrendBadge } from '../components/AttendanceTrendBadge';
@@ -82,7 +83,7 @@ const RiCinemaShowcase = ({ api, navigate }) => {
 
 
 /* ─── Prossimamente V3 Serie/Anime ─── */
-const ProssimamenteV3Section = () => {
+const ProssimamenteV3Section = ({ onItemClick }) => {
   const { api } = useContext(AuthContext);
   const [data, setData] = useState({ coming_soon: [], airing: [] });
   useEffect(() => {
@@ -100,7 +101,10 @@ const ProssimamenteV3Section = () => {
           </h3>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {items.map(item => (
-              <div key={item.id} className="flex-shrink-0 w-24 rounded-lg overflow-hidden border border-indigo-500/15 bg-black/30">
+              <button key={item.id}
+                onClick={() => onItemClick?.(item.id)}
+                data-testid={`prossimamente-v3-item-${item.id}`}
+                className="flex-shrink-0 w-24 rounded-lg overflow-hidden border border-indigo-500/15 bg-black/30 text-left hover:border-indigo-400/40 active:scale-[0.97] transition-all">
                 <div className="aspect-[2/3] bg-gray-800 relative">
                   {item.poster_url ? <img src={posterSrc(item.poster_url)} alt="" className="w-full h-full object-cover" /> :
                     <div className="w-full h-full flex items-center justify-center">{item.type === 'anime' ? <Sparkles className="w-4 h-4 text-gray-700" /> : <Tv className="w-4 h-4 text-gray-700" />}</div>}
@@ -115,7 +119,7 @@ const ProssimamenteV3Section = () => {
                   <p className="text-[7px] font-bold text-white truncate">{item.title}</p>
                   <p className="text-[6px] text-gray-500">{item.producer?.nickname || ''}</p>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </CardContent>
@@ -161,6 +165,8 @@ const Dashboard = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   // Cinematic event for Eventi WOW
   const [cinematicWow, setCinematicWow] = useState(null);
+  // V3 series/anime detail modal (dashboard "IN ARRIVO SU TV")
+  const [prossimamenteDetailId, setProssimamenteDetailId] = useState(null);
 
   // Sync with global side menu
   useEffect(() => {
@@ -653,7 +659,7 @@ const Dashboard = () => {
           </div>
 
           {/* 5b. Prossimamente V3 Serie/Anime */}
-          <ProssimamenteV3Section />
+          <ProssimamenteV3Section onItemClick={(id) => setProssimamenteDetailId(id)} />
 
           {/* 6. Ultimi Aggiornamenti SERIE TV */}
           <div className="mb-4 rounded-xl glow-purple" data-testid="recent-releases-series">
@@ -1023,6 +1029,13 @@ const Dashboard = () => {
           <FilmDetailV3 filmId={selectedFilmId} onClose={() => setSelectedFilmId(null)} />
         </Suspense>
       )}
+
+      {/* Prossimamente V3 Serie/Anime Detail Modal */}
+      <ProssimamenteDetailModal
+        open={!!prossimamenteDetailId}
+        onClose={() => setProssimamenteDetailId(null)}
+        seriesId={prossimamenteDetailId}
+      />
     </>
   );
 };

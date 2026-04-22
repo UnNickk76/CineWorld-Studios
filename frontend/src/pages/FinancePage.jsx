@@ -8,7 +8,7 @@ import {
   ArrowLeft, TrendingUp, TrendingDown, DollarSign, Ticket, Landmark,
   Wallet, PieChart as PieIcon, BarChart3, History, ChevronRight, Loader2, Globe, MapPin, Building2
 } from 'lucide-react';
-import UserStripBanner from '../components/UserStripBanner';
+import UserStripBanner from '../components/UserStripBanner';  // not used — handled globally
 
 const fmt = (n) => {
   const v = Number(n || 0);
@@ -87,7 +87,6 @@ export default function FinancePage() {
 
   return (
     <div className="min-h-screen bg-[#07060a] text-white pb-10" data-testid="finance-page">
-      <UserStripBanner />
       <div className="px-3 pt-3 pb-2 flex items-center gap-2">
         <button onClick={() => navigate(-1)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-amber-300 active:scale-90 transition-transform" data-testid="finance-back">
           <ArrowLeft className="w-4 h-4" />
@@ -288,22 +287,67 @@ function BreakdownTab({ breakdown, changeScope }) {
         <div className="text-center py-14">
           <Globe className="w-8 h-8 text-gray-700 mx-auto mb-2" />
           <p className="text-[11px] text-gray-500">Nessun dato geografico</p>
-          <p className="text-[9px] text-gray-600 mt-1">Gli incassi La Prima verranno categorizzati qui</p>
+          <p className="text-[9px] text-gray-600 mt-1">Gli incassi verranno categorizzati qui per continente/nazione/città</p>
         </div>
       ) : (
         <div className="space-y-1.5">
-          {items.map((i, idx) => (
-            <div key={`${scope}-${i.name}`} className="p-2 bg-[#0f0d10] rounded-lg border border-white/5" data-testid={`breakdown-${idx}`}>
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-semibold text-white">{i.name}</p>
-                <p className="text-[11px] font-bold text-amber-300">{fmt(i.total)}</p>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-amber-400 to-amber-500" style={{ width: `${i.share_pct}%` }} />
-                </div>
-                <p className="text-[9px] text-gray-500 w-10 text-right">{i.share_pct}%</p>
-              </div>
+          {items.map((i, idx) => <AccordionGeoRow key={`${scope}-${i.name}-${idx}`} item={i} scope={scope} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AccordionGeoRow({ item, scope }) {
+  const [expanded, setExpanded] = useState(false);
+  const [children, setChildren] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const { api } = useContext(AuthContext);
+
+  const childScope = scope === 'continent' ? 'nation' : scope === 'nation' ? 'city' : null;
+
+  const toggle = async () => {
+    if (!childScope) return;
+    if (expanded) { setExpanded(false); return; }
+    if (!children) {
+      setLoading(true);
+      try {
+        const r = await api.get(`/finance/breakdown?scope=${childScope}&parent=${encodeURIComponent(item.name)}&parent_scope=${scope}`);
+        setChildren(r.data?.items || []);
+      } catch { setChildren([]); }
+      setLoading(false);
+    }
+    setExpanded(true);
+  };
+
+  const isZero = item.total === 0;
+  return (
+    <div className={`rounded-lg border ${isZero ? 'border-white/5 bg-[#0a080b] opacity-60' : 'border-white/5 bg-[#0f0d10]'}`} data-testid={`accordion-${item.name}`}>
+      <button onClick={toggle} className="w-full p-2 text-left active:scale-[0.99] transition-transform" disabled={!childScope}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            {childScope && <ChevronRight className={`w-3 h-3 text-amber-400 transition-transform flex-shrink-0 ${expanded ? 'rotate-90' : ''}`} />}
+            <p className="text-[11px] font-semibold text-white truncate">{item.name}</p>
+          </div>
+          <p className={`text-[11px] font-bold ${isZero ? 'text-gray-500' : 'text-amber-300'}`}>{fmt(item.total)}</p>
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-amber-400 to-amber-500" style={{ width: `${Math.min(100, item.share_pct)}%` }} />
+          </div>
+          <p className="text-[9px] text-gray-500 w-10 text-right">{item.share_pct}%</p>
+        </div>
+      </button>
+      {expanded && (
+        <div className="px-2 pb-2 space-y-1 border-t border-white/5">
+          {loading ? (
+            <div className="flex items-center justify-center py-3"><Loader2 className="w-3 h-3 animate-spin text-amber-400" /></div>
+          ) : !children || children.length === 0 ? (
+            <p className="text-[9px] text-gray-600 text-center py-2">Nessun dato</p>
+          ) : children.map((c, i) => (
+            <div key={i} className="flex items-center justify-between p-1.5 rounded bg-black/30">
+              <p className="text-[10px] text-gray-300">{c.name}</p>
+              <p className="text-[10px] font-bold text-amber-300">{fmt(c.total)}</p>
             </div>
           ))}
         </div>

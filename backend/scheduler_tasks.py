@@ -1716,6 +1716,36 @@ async def auto_revenue_tick():
                     daily_rev = opening * (decay ** days) * quality_mult * imdb_boost * star_revenue_boost * flop_multiplier
                     tick_rev = max(0, int(daily_rev / 144))
                     total_revenue += tick_rev
+                    # Per-film wallet tx log with film's primary geo
+                    if tick_rev > 0:
+                        try:
+                            from utils.wallet import log_wallet_tx
+                            # Extract primary geo from release_event or distribution
+                            rev_geo = {}
+                            re = film.get('release_event') or {}
+                            if isinstance(re, dict):
+                                rev_geo = {
+                                    'city': re.get('city') or re.get('host_city') or '',
+                                    'nation': re.get('nation') or re.get('country') or '',
+                                    'continent': re.get('continent') or 'Globale',
+                                }
+                            # Fallback: distribution_continents
+                            if not rev_geo.get('continent'):
+                                dc = film.get('distribution_continents') or []
+                                if dc:
+                                    rev_geo['continent'] = dc[0] if isinstance(dc, list) else str(dc)
+                                else:
+                                    rev_geo['continent'] = 'Globale'
+                            await log_wallet_tx(
+                                scheduler_db, user_id, tick_rev, 'in',
+                                source='box_office' if film.get('_source') == 'films' else 'tv_broadcast',
+                                ref_id=film_id,
+                                ref_type='film' if film.get('_source') == 'films' else 'tv_series',
+                                title=film.get('title'),
+                                geo=rev_geo,
+                            )
+                        except Exception:
+                            pass
                 
                 # --- SKILL PROGRESSION ---
                 for cast_id in film_cast_map.get(film_id, []):
@@ -1933,35 +1963,7 @@ async def auto_revenue_tick():
                     {'id': user_id},
                     {'$inc': {'funds': total_revenue, 'total_earnings': total_revenue}}
                 )
-                # Aggregate wallet log for regular films/series (la_prima already logged per-tick)
-                try:
-                    from utils.wallet import log_wallet_tx
-                    non_lp = [f for f in films if f.get('_source') != 'film_projects']
-                    # We approximate: if there are non-la_prima films, log a single aggregate entry
-                    # referencing the first one — la_prima amounts are ALREADY in wallet_transactions
-                    # but double-counted here. Since the inline la_prima tx was already written,
-                    # we must subtract la_prima's share. Simpler: log aggregate as 'box_office' with
-                    # 0 if only la_prima was active, else log the film name.
-                    # BUT: tick_rev for la_prima was already added to total_revenue.
-                    # To avoid double-logging in wallet_transactions, skip the aggregate log when
-                    # the only contributing films are la_prima. If mixed, log only non-la_prima portion
-                    # (which requires tracking — simpler: skip aggregate entirely).
-                    # Policy: la_prima transactions are logged individually; regular films logged here.
-                    if non_lp:
-                        # Compute an approximate non-la_prima portion: in a tick, regular films typically
-                        # dominate. We log the total_revenue minus a rough la_prima share (if any).
-                        # Simple approach: assume mixed revenue is mostly regular; log a single aggregate
-                        primary = non_lp[0]
-                        await log_wallet_tx(
-                            scheduler_db, user_id, total_revenue, 'in',
-                            source='box_office' if primary.get('_source') == 'films' else 'tv_broadcast',
-                            ref_id=primary.get('id'),
-                            ref_type='film' if primary.get('_source') == 'films' else 'tv_series',
-                            title=primary.get('title'),
-                            geo={'continent': 'Global'},
-                        )
-                except Exception:
-                    pass
+                # Wallet tx already logged per-film inside the loop
                 revenue_count += 1
                 film_only_count = sum(1 for f in films if f.get('_source') == 'films')
                 series_only_count = sum(1 for f in films if f.get('_source') == 'tv_series')

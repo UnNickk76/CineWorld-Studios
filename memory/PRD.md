@@ -10,7 +10,17 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
-- **Feb 2026 — 5 Quick Fixes (this session)**
+- **Feb 2026 — Refinement Session (this session)**
+  - **Doppione UserStripBanner rimosso**: BankPage + FinancePage non importano più `UserStripBanner` (era duplicato, il globale basta).
+  - **Banca — Click su card infra**: click sulla card "La Tua Infrastruttura" passa automaticamente alla tab Upgrade (con hint "Clicca qui per acquistare Infrastruttura Banca"). Se lv≥1, la tab Upgrade mostra il next tier per potenziare.
+  - **Banca — Slider importo**: step ridotto da 50K a 10K, min 10K. Slider ora realmente movibile. Disabled quando `can_borrow < 10K`.
+  - **Coming-to-cinemas safeguard**: oltre al filtro `pipeline_state`, aggiunto check cross-collection: se lo stesso `id` esiste in `db.films` con status `in_theaters/released/la_prima/in_cinema`, il film viene escluso da "A Breve". Questo elimina ogni doppione residuo anche su dati production inconsistenti.
+  - **Revenue tick — Geo coerente**: ogni film (box_office e la_prima) logga `wallet_transactions` individuali con `{continent, nation, city}` reali, estratti da `release_event`, `distribution_continents` o fallback `Globale`. Rimosso log aggregato "Global" a valle. Così il breakdown Geo è coerente coi incassi totali e con i singoli film.
+  - **Finance Breakdown drill-down**: endpoint `/finance/breakdown` ora accetta `parent` + `parent_scope` per filtrare (es. nations in Europa). Ritorna sempre i 6 continenti noti (Europa/N.America/S.America/Asia/Africa/Oceania/Globale) anche con 0.
+  - **Finance UI accordion**: nuovo `AccordionGeoRow` espande al click mostrando figli (continente→nazioni, nazione→città) on-demand via API. Caricamento progressivo, icona chevron rotante.
+  - Files: `BankPage.jsx`, `FinancePage.jsx`, `la_prima.py` (cross-collection safeguard), `scheduler_tasks.py` (per-film geo log), `finance_bank.py` (breakdown parent filter).
+
+- **Feb 2026 — 5 Quick Fixes**
   - **Fix 1 — Il Sospetto doppione**: `coming-to-cinemas` escludeva solo `released/discarded`. Esteso `pipeline_state` exclusion a `['released', 'discarded', 'la_prima', 'in_theaters']` per premiere & direct films. Ora i film in LA PRIMA LIVE non appaiono più anche in "A Breve".
   - **Fix 2 — Trailer CinePass**: TrailerGeneratorCard mostrava "cc" e leggeva `user.cinecrediti` (che è 0). Ora legge `user?.cinepass ?? user?.cinecrediti ?? user?.cinecredits` e mostra "CP". Backend `/trailers/*` decrementa `cinepass` (oltre agli alias cinecrediti per compat).
   - **Fix 3 — Cast Attori illimitati**: rimosso cap `max: 5` → `max: 999`. Label "5/5" → conteggio puro. Auto-cast in `pipeline_v3 /auto-cast` ora randomizza attori tra **5-8** (`random.randint(5, 8)`). Il player può aggiungere/rimuovere liberamente dopo l'auto.

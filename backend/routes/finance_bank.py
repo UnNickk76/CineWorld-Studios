@@ -101,25 +101,37 @@ async def finance_overview(user: dict = Depends(get_current_user)):
 
 
 @router.get("/finance/breakdown")
-async def finance_breakdown(scope: str = 'continent', days: int = 30, user: dict = Depends(get_current_user)):
-    """Breakdown by scope: 'continent' | 'nation' | 'city'. Only income side."""
+async def finance_breakdown(scope: str = 'continent', days: int = 30, parent: Optional[str] = None, parent_scope: Optional[str] = None, user: dict = Depends(get_current_user)):
+    """Breakdown by scope. Supports drill-down via parent/parent_scope filter.
+    Example: scope='nation', parent='Europa', parent_scope='continent' → only nations within Europa.
+    """
     if scope not in ('continent', 'nation', 'city'):
         raise HTTPException(400, "scope must be continent|nation|city")
     cutoff = (datetime.now(timezone.utc) - timedelta(days=min(days, 365))).isoformat()
     geo_key = f'$geo.{scope}'
+    match = {'user_id': user['id'], 'direction': 'in', 'created_at': {'$gte': cutoff}}
+    if parent and parent_scope in ('continent', 'nation'):
+        match[f'geo.{parent_scope}'] = parent
     pipeline = [
-        {'$match': {'user_id': user['id'], 'direction': 'in', 'created_at': {'$gte': cutoff}}},
+        {'$match': match},
         {'$group': {'_id': geo_key, 'total': {'$sum': '$abs_amount'}, 'count': {'$sum': 1}}},
         {'$sort': {'total': -1}},
-        {'$limit': 20},
+        {'$limit': 50},
     ]
     items = []
     async for d in db.wallet_transactions.aggregate(pipeline):
         items.append({'name': d['_id'] or 'Sconosciuto', 'total': d.get('total', 0), 'count': d.get('count', 0)})
+    # Fill with known continents even if 0 (only when scope=continent and no parent)
+    if scope == 'continent' and not parent:
+        KNOWN = ['Europa', 'Nord America', 'Sud America', 'Asia', 'Africa', 'Oceania', 'Globale']
+        existing = {i['name'] for i in items}
+        for c in KNOWN:
+            if c not in existing:
+                items.append({'name': c, 'total': 0, 'count': 0})
     total = sum(i['total'] for i in items) or 1
     for i in items:
         i['share_pct'] = round((i['total'] / total) * 100, 1)
-    return {'scope': scope, 'days': days, 'items': items, 'total': total}
+    return {'scope': scope, 'days': days, 'parent': parent, 'items': items, 'total': total}
 
 
 @router.get("/finance/statements")

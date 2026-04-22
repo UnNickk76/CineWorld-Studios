@@ -9,7 +9,7 @@ import {
   ArrowLeft, Landmark, Ticket, DollarSign, Loader2, TrendingUp,
   Building2, Coins, CreditCard, CheckCircle, AlertTriangle, ArrowRight, Clock
 } from 'lucide-react';
-import UserStripBanner from '../components/UserStripBanner';
+import UserStripBanner from '../components/UserStripBanner';  // not used — handled globally
 
 const fmt = (n) => {
   const v = Number(n || 0);
@@ -107,7 +107,6 @@ export default function BankPage() {
 
   return (
     <div className="min-h-screen bg-[#07060a] text-white pb-10" data-testid="bank-page">
-      <UserStripBanner />
       <div className="px-3 pt-3 pb-2 flex items-center gap-2">
         <button onClick={() => navigate(-1)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-amber-300 active:scale-90 transition-transform" data-testid="bank-back">
           <ArrowLeft className="w-4 h-4" />
@@ -119,8 +118,9 @@ export default function BankPage() {
         <Landmark className="w-5 h-5 text-amber-400" />
       </div>
 
-      {/* Infra status card */}
-      <div className="mx-3 rounded-xl p-4 bg-gradient-to-br from-amber-500/15 via-[#1a1208] to-[#0a0706] border border-amber-500/30" data-testid="bank-infra-card">
+      {/* Infra status card → click va alla tab Upgrade */}
+      <button onClick={() => setTab('infra')} className="w-full mx-0 text-left" data-testid="bank-infra-card-click">
+      <div className="mx-3 rounded-xl p-4 bg-gradient-to-br from-amber-500/15 via-[#1a1208] to-[#0a0706] border border-amber-500/30 active:scale-[0.99] transition-transform" data-testid="bank-infra-card">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[9px] text-amber-300/70 tracking-wider uppercase">La Tua Infrastruttura</p>
@@ -144,7 +144,14 @@ export default function BankPage() {
             <p className="text-[11px] font-bold text-emerald-300">{fmt(status.can_borrow)}</p>
           </div>
         </div>
+        {infra.level === 0 && (
+          <p className="text-[9px] text-amber-300/70 text-center mt-2">
+            <Building2 className="w-3 h-3 inline mr-0.5" />
+            Clicca qui per <b className="underline">acquistare Infrastruttura Banca</b> (tab Upgrade)
+          </p>
+        )}
       </div>
+      </button>
 
       {/* Tabs */}
       <div className="mx-3 mt-3 flex gap-1 bg-[#0f0d10] rounded-lg p-1">
@@ -193,12 +200,13 @@ export default function BankPage() {
               <p className="text-[9px] text-gray-400 mb-2">Importo ($)</p>
               <input
                 type="range"
-                min={50000}
-                max={Math.max(50000, status.can_borrow)}
-                step={50000}
-                value={loanAmount}
+                min={10000}
+                max={Math.max(10000, status.can_borrow)}
+                step={10000}
+                value={Math.min(loanAmount, Math.max(10000, status.can_borrow))}
                 onChange={(e) => setLoanAmount(Number(e.target.value))}
-                className="w-full accent-emerald-400"
+                disabled={status.can_borrow < 10000}
+                className="w-full accent-emerald-400 disabled:opacity-40"
                 data-testid="loan-amount-slider"
               />
               <p className="text-center text-xl font-bold text-emerald-200 my-1" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>{fmt(loanAmount)}</p>

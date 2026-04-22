@@ -10,7 +10,23 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
-- **Feb 22, 2026 — Sceneggiature Pronte → Pipeline V3 (nuovo flusso unificato)**
+- **Feb 23, 2026 — Silent Bonuses system (invisibile, anti-frustrazione new players)**
+  - **Nuovo modulo** `/app/backend/utils/silent_bonuses.py` con 3 layer totalmente silenziosi (nessun toast/evento frontend):
+    1. **Onboarding boost** gg 0-6 (peak) con taper lineare gg 7-10: cap cumulativo in $ scalato per numero film posseduti (`0 film=$2M`, `1=$10M`, `2=$17M`, `3=$22M`, `4=$26M`, `5=$28M`, `6+=$28M` plateau). Pace `~0.5% del rimanente` per heartbeat, circa 200 beat per svuotare il cap in 6gg.
+    2. **Session continuity**: 4 soglie con reset dopo 30min idle — `10m=$5K`, `30m=$15K`, `60m=$40K`, `120m=$100K`. Idempotente: ogni threshold pagato una sola volta per sessione.
+    3. **Daily login + hourly**: `$50K` al primo heartbeat del giorno, poi `$20K/h` con cap `5/giorno`.
+  - **Hook in heartbeat** (`routes/progression.py POST /progression/heartbeat`): chiama `apply_silent_bonuses(db, user.id)` dopo `award_session_heartbeat`. Il `diag` ritornato NON è incluso nel payload di risposta → zero possibilità di trigger toast frontend.
+  - **Wallet log**: ogni credito inserito in `db.wallet_transactions` con `silent:true`, `source ∈ {onboarding_boost, session_bonus, daily_login, hourly_bonus}`, `detail` descrittivo, `geo: 'Totale'`. `users.funds` incrementato via `$inc` nello stesso turn.
+  - **DB tracking fields aggiunti a `users`**: `onboarding_boost_granted`, `last_login_bonus_date`, `hourly_bonus_today ({date, count, last_at})`, `session_start_at`, `session_thresholds_crossed`, `last_heartbeat_at`.
+  - **Test curl/python**:
+    - Utente veterano fandrex1 (2026-03-08): heartbeat ritorna `awarded:false`, ma funds +$50K (daily_login, prima volta oggi) → tx silent loggata correttamente. ✓
+    - Simulato user "3gg fa + 6 film": 5 heartbeat danno onboarding boost $140K → $137K decrescente (0.5% del residuo), totale $693K distribuiti. ✓
+    - Simulato sessione 35min: session_bonus=$20K (5K+15K). Secondo heartbeat ritorna $0 (idempotency). ✓
+    - Reset dopo 40min idle: nuova sessione, $0 (giusto). ✓
+  - **Zero regressioni**: `award_session_heartbeat` XP/Fame + prestige_events intatti; silent bonus in `try/except` che fallisce silenzioso.
+  - Files: `utils/silent_bonuses.py` (nuovo), `routes/progression.py`.
+
+
   - **Nuovo modulo** `/app/backend/routes/purchased_screenplays_v3.py` con 2 endpoint:
     - `POST /api/purchased-screenplays/create-v3-project` — acquista sceneggiatura (emerging pubblico o agency privata) e crea direttamente un `film_projects` V3 con `pipeline_state='hype'` (idea già completato). Modes: `avanzata` | `veloce`. Prezzi: veloce=2x, agency=60% sconto. Auto-fill cast (hired_stars user + NPC medium stars), prep preset, marketing preset per Veloce. Seeding dei flag `from_purchased_screenplay`, `purchased_screenplay_mode`, `purchased_screenplay_source`, `purchased_writer_name`, `idea_locked`, `cast_locked`, `prep_locked`, `auto_advance_veloce`. Atomic: fondi dedotti SOLO dopo insert+consume riusciti (no money loss su eccezioni).
     - `POST /api/purchased-screenplays/veloce-fast-track/{pid}` — solo Veloce, da stato `hype` salta a `distribution` settando ciak/finalcut come completati e `release_type='direct'` (salta La Prima). Richiede `poster_url` creato dal player.

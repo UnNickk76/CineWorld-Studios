@@ -7,6 +7,7 @@ from utils.xp_fame import (
     award_session_heartbeat, get_prestige_tier,
     LEVEL_THRESHOLDS, xp_for_next_level, get_level_from_xp, PRESTIGE_TIERS
 )
+from utils.silent_bonuses import apply_silent_bonuses
 
 router = APIRouter()
 
@@ -18,6 +19,13 @@ async def progression_heartbeat(user: dict = Depends(get_current_user)):
     so the frontend can fire the celebratory toast.
     """
     result = await award_session_heartbeat(db, user['id'])
+
+    # Silent bonuses: onboarding boost, session continuity, daily/hourly.
+    # Deliberately NOT included in the response to avoid any frontend toast.
+    try:
+        await apply_silent_bonuses(db, user['id'])
+    except Exception:
+        pass
 
     # Surface prestige tier notifications (built by utils.xp_fame._apply_user_update)
     prestige_notifs = []

@@ -10,7 +10,7 @@ import { AuthContext } from '../contexts';
 import {
   Eye, Megaphone, Wand2, ChevronDown, Store, Trash2, X,
   Tv, Zap, Clock, Film as FilmIcon, Loader2, AlertTriangle,
-  TrendingDown, TrendingUp, Minus, Info, Play, Lock
+  TrendingDown, TrendingUp, Minus, Info, Play, Lock, Building2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -36,6 +36,7 @@ export default function FilmActionsSheet() {
   const [tvSection, setTvSection] = useState(false); // show La mia TV panel
   const [stations, setStations] = useState([]);
   const [stationsLoading, setStationsLoading] = useState(false);
+  const [stationsLoaded, setStationsLoaded] = useState(false);
   const [pickStation, setPickStation] = useState(null); // station selected for scheduling
   const [delayHours, setDelayHours] = useState(24);
   const [actionLoading, setActionLoading] = useState(null);
@@ -60,6 +61,8 @@ export default function FilmActionsSheet() {
       setTvSection(false);
       setPickStation(null);
       setDelayHours(24);
+      setStationsLoaded(false);
+      setStations([]);
       // fetch trailer status (non-blocking)
       setTrailer(null);
       setTrailerLoading(true);
@@ -84,12 +87,13 @@ export default function FilmActionsSheet() {
     } catch {
       setStations([]);
     }
+    setStationsLoaded(true);
     setStationsLoading(false);
   }, [api]);
 
   useEffect(() => {
-    if (tvSection && stations.length === 0 && !stationsLoading) loadStations();
-  }, [tvSection, stations.length, stationsLoading, loadStations]);
+    if (tvSection && !stationsLoaded && !stationsLoading) loadStations();
+  }, [tvSection, stationsLoaded, stationsLoading, loadStations]);
 
   if (!film) return null;
 
@@ -282,6 +286,7 @@ export default function FilmActionsSheet() {
                 film={film}
                 stations={stations}
                 loading={stationsLoading}
+                loaded={stationsLoaded}
                 pickStation={pickStation}
                 setPickStation={setPickStation}
                 delayHours={delayHours}
@@ -290,6 +295,7 @@ export default function FilmActionsSheet() {
                 onTransferNow={handleTransferNow}
                 onTransferScheduled={handleTransferScheduled}
                 actionLoading={actionLoading}
+                onGoInfra={() => { navigate('/infrastructure'); close(); }}
               />
             )}
 
@@ -397,7 +403,7 @@ function ActionRow({ icon, color, label, hint, onClick, loading, testId }) {
 }
 
 /* ─── La Mia TV Panel ─── */
-function LaMiaTVPanel({ film, stations, loading, pickStation, setPickStation, delayHours, setDelayHours, onBack, onTransferNow, onTransferScheduled, actionLoading }) {
+function LaMiaTVPanel({ film, stations, loading, loaded, pickStation, setPickStation, delayHours, setDelayHours, onBack, onTransferNow, onTransferScheduled, actionLoading, onGoInfra }) {
   const trend = film.trend || film.cinema_trend;
   const delayOptions = [6, 12, 24, 48, 96];
 
@@ -417,17 +423,29 @@ function LaMiaTVPanel({ film, stations, loading, pickStation, setPickStation, de
         <TrendHint trend={trend} />
       )}
 
-      {loading ? (
-        <div className="flex items-center justify-center py-10">
+      {loading && !loaded ? (
+        <div className="flex flex-col items-center justify-center py-10 gap-2" data-testid="la-mia-tv-loading">
           <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+          <p className="text-[9px] text-gray-500">Caricamento emittenti…</p>
         </div>
       ) : stations.length === 0 ? (
-        <div className="text-center py-8">
-          <Tv className="w-8 h-8 text-gray-600 mx-auto mb-2" />
-          <p className="text-[11px] text-gray-400 mb-1">Nessuna emittente TV</p>
-          <p className="text-[9px] text-gray-600 leading-tight">
-            Costruisci un'emittente TV dal menu "Infrastrutture" per poter trasmettere i tuoi film.
+        <div className="text-center py-6" data-testid="la-mia-tv-empty">
+          <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+            <Tv className="w-7 h-7 text-amber-400/70" />
+          </div>
+          <p className="text-sm font-bold text-amber-100 mb-1">Emittente TV mancante</p>
+          <p className="text-[10px] text-gray-400 leading-snug px-4 mb-4">
+            Per trasmettere "{film.title}" sulla tua TV devi prima costruire un'emittente.
           </p>
+          <button
+            onClick={onGoInfra}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-bold text-[11px] hover:brightness-110 active:scale-95 transition-all shadow-[0_2px_12px_rgba(212,175,55,0.35)]"
+            data-testid="la-mia-tv-goto-infra"
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            Vai a Infrastrutture
+          </button>
+          <p className="text-[9px] text-gray-600 mt-3">Acquisti l'emittente → torni qui → trasmetti il film (gratis)</p>
         </div>
       ) : !pickStation ? (
         <div className="space-y-1.5">

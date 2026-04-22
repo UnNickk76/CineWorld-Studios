@@ -76,6 +76,7 @@ const InfrastructurePage = () => {
   const [purchasing, setPurchasing] = useState(false);
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
   const [levelInfo, setLevelInfo] = useState(null);
+  const [lockedInfoInfra, setLockedInfoInfra] = useState(null);
   
   // Infrastructure detail dialog state
   const [showDetailDialog, setShowDetailDialog] = useState(false);
@@ -391,8 +392,11 @@ const InfrastructurePage = () => {
                   <Card
                     key={infra.id}
                     data-infra-type={infra.id}
-                    className={`border transition-all cursor-pointer relative ${canBuy ? `bg-white/5 ${activeCat.border} hover:bg-white/10` : 'bg-white/3 border-white/5 opacity-50'} ${isPromoEligible ? 'ring-2 ring-red-400/70 shadow-lg shadow-red-900/40' : ''}`}
-                    onClick={() => { if (canBuy) { setSelectedType(infra); setShowPurchaseDialog(true); } }}
+                    className={`border transition-all cursor-pointer relative ${canBuy ? `bg-white/5 ${activeCat.border} hover:bg-white/10` : 'bg-white/3 border-white/5 opacity-60 hover:opacity-85 active:scale-[0.98]'} ${isPromoEligible ? 'ring-2 ring-red-400/70 shadow-lg shadow-red-900/40' : ''}`}
+                    onClick={() => {
+                      if (canBuy) { setSelectedType(infra); setShowPurchaseDialog(true); }
+                      else { setLockedInfoInfra(infra); }
+                    }}
                   >
                     {isPromoEligible && (
                       <div className="absolute -top-2 -right-2 z-10 bg-gradient-to-br from-red-500 to-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-pulse">-80%</div>
@@ -460,6 +464,93 @@ const InfrastructurePage = () => {
           )
         )}
       </div>
+
+      {/* Locked Infrastructure Info Dialog */}
+      <Dialog open={!!lockedInfoInfra} onOpenChange={(o) => !o && setLockedInfoInfra(null)}>
+        <DialogContent className="bg-[#14110d] border-amber-500/20 max-w-sm max-h-[85vh] overflow-y-auto" data-testid="locked-infra-dialog">
+          {lockedInfoInfra && (() => {
+            const LockedIcon = getIcon(lockedInfoInfra.icon);
+            const userLvl = levelInfo?.level ?? user?.level ?? 0;
+            const userFame = user?.fame ?? 0;
+            const meetsLv = userLvl >= (lockedInfoInfra.level_required || 0);
+            const meetsFame = userFame >= (lockedInfoInfra.fame_required || 0);
+            const perks = [];
+            if (lockedInfoInfra.screens > 0) perks.push(`${lockedInfoInfra.screens} sale x ${lockedInfoInfra.seats_per_screen} posti`);
+            if (lockedInfoInfra.revenue_multiplier && lockedInfoInfra.revenue_multiplier !== 1) perks.push(`Ricavi x${lockedInfoInfra.revenue_multiplier}`);
+            if (lockedInfoInfra.can_show_3d) perks.push('Supporta film 3D');
+            if (lockedInfoInfra.has_food_court) perks.push('Food court integrato');
+            if (lockedInfoInfra.production_bonus) perks.push(`-${lockedInfoInfra.production_bonus}% costi produzione`);
+            if (lockedInfoInfra.quality_bonus) perks.push(`+${lockedInfoInfra.quality_bonus}% qualità film`);
+            if (lockedInfoInfra.daily_maintenance) perks.push(`Manutenzione $${lockedInfoInfra.daily_maintenance.toLocaleString()}/g`);
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
+                      <LockedIcon className="w-6 h-6 text-amber-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <DialogTitle className="font-['Bebas_Neue'] text-xl leading-tight">
+                        {language === 'it' ? lockedInfoInfra.name_it : lockedInfoInfra.name}
+                      </DialogTitle>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Lock className="w-3 h-3 text-amber-400" />
+                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Bloccata</span>
+                      </div>
+                    </div>
+                  </div>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    {language === 'it' ? lockedInfoInfra.description_it : lockedInfoInfra.description}
+                  </p>
+                  {perks.length > 0 && (
+                    <div className="p-2.5 rounded-lg bg-black/40 border border-white/5" data-testid="locked-infra-benefits">
+                      <p className="text-[9px] uppercase tracking-wider text-amber-400/70 font-bold mb-1.5">A cosa serve</p>
+                      <ul className="space-y-1">
+                        {perks.map((p, i) => (
+                          <li key={i} className="flex items-start gap-1.5 text-[11px] text-gray-200">
+                            <span className="text-emerald-400 mt-0.5">●</span>
+                            <span>{p}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="p-2.5 rounded-lg bg-rose-500/5 border border-rose-500/20" data-testid="locked-infra-requirements">
+                    <p className="text-[9px] uppercase tracking-wider text-rose-300/70 font-bold mb-1.5">Requisiti per sbloccarla</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className={`p-2 rounded border ${meetsLv ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'}`}>
+                        <p className="text-[9px] text-gray-400 uppercase">Livello</p>
+                        <p className={`text-sm font-bold ${meetsLv ? 'text-emerald-300' : 'text-rose-300'}`}>
+                          Lv.{userLvl} / Lv.{lockedInfoInfra.level_required}
+                        </p>
+                      </div>
+                      <div className={`p-2 rounded border ${meetsFame ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'}`}>
+                        <p className="text-[9px] text-gray-400 uppercase">Fama</p>
+                        <p className={`text-sm font-bold ${meetsFame ? 'text-emerald-300' : 'text-rose-300'}`}>
+                          {userFame} / {lockedInfoInfra.fame_required}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded bg-amber-500/5 border border-amber-500/15">
+                    <span className="text-[10px] text-gray-400 uppercase tracking-wider">Costo acquisto</span>
+                    <span className="text-sm font-bold text-amber-300">${lockedInfoInfra.base_cost?.toLocaleString()}</span>
+                  </div>
+                  <Button
+                    onClick={() => setLockedInfoInfra(null)}
+                    className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold"
+                    data-testid="locked-infra-close-btn"
+                  >
+                    Ho capito
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Purchase Dialog */}
       <Dialog open={showPurchaseDialog} onOpenChange={setShowPurchaseDialog}>

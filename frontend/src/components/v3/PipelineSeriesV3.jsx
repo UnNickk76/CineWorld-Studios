@@ -9,6 +9,26 @@ import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+/* ─── Inline Progress Circle (small, for inside buttons) ─── */
+const InlineProgressCircle = ({ value = 0, color = '#fff' }) => {
+  const r = 7;
+  const c = 2 * Math.PI * r;
+  const off = c - (value / 100) * c;
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" className="inline-block flex-shrink-0">
+      <circle cx="10" cy="10" r={r} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
+      <circle
+        cx="10" cy="10" r={r} fill="none" stroke={color} strokeWidth="2"
+        strokeDasharray={c}
+        strokeDashoffset={off}
+        strokeLinecap="round"
+        transform="rotate(-90 10 10)"
+        style={{ transition: 'stroke-dashoffset 0.3s ease' }}
+      />
+    </svg>
+  );
+};
+
 /* ─── API helper (uses series-v3 prefix) ─── */
 async function sapi(path, method = 'GET', body) {
   const token = localStorage.getItem('cineworld_token');
@@ -96,6 +116,11 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
   const [genTitles, setGenTitles] = useState(false);
   const [genPoster, setGenPoster] = useState(false);
   const [genScreen, setGenScreen] = useState(false);
+  const [posterProgress, setPosterProgress] = useState(0);
+  const [screenProgress, setScreenProgress] = useState(0);
+  const [selectedEp, setSelectedEp] = useState(null);  // episode clicked → show mini_plot
+  const posterIntRef = useRef(null);
+  const screenIntRef = useRef(null);
 
   useEffect(() => {
     sapi(`/genres?series_type=${seriesType}`).then(d => setGenres(d.genres || {})).catch(() => {});
@@ -128,23 +153,49 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
 
   const generatePoster = async () => {
     setGenPoster(true);
+    setPosterProgress(0);
+    // Simulate progress 0→95 over ~18s until the real response arrives
+    if (posterIntRef.current) clearInterval(posterIntRef.current);
+    const start = Date.now();
+    posterIntRef.current = setInterval(() => {
+      const elapsed = (Date.now() - start) / 1000;
+      setPosterProgress(Math.min(95, Math.round(elapsed * 5.3)));
+    }, 400);
     try {
       const r = await sapi(`/projects/${project.id}/generate-poster`, 'POST');
+      setPosterProgress(100);
       toast.success(r.message || 'Locandina generata!');
       onRefresh?.();
     } catch (e) { toast.error(e.message); }
-    setGenPoster(false);
+    if (posterIntRef.current) { clearInterval(posterIntRef.current); posterIntRef.current = null; }
+    setTimeout(() => { setGenPoster(false); setPosterProgress(0); }, 600);
   };
 
   const generateScreenplay = async () => {
     setGenScreen(true);
+    setScreenProgress(0);
+    if (screenIntRef.current) clearInterval(screenIntRef.current);
+    const start = Date.now();
+    screenIntRef.current = setInterval(() => {
+      const elapsed = (Date.now() - start) / 1000;
+      // Longer because 2 LLM calls (script + mini-plots), ~25s
+      setScreenProgress(Math.min(95, Math.round(elapsed * 3.8)));
+    }, 400);
     try {
       const r = await sapi(`/projects/${project.id}/generate-screenplay`, 'POST');
+      setScreenProgress(100);
       toast.success(r.message || 'Sceneggiatura generata!');
       onRefresh?.();
     } catch (e) { toast.error(e.message); }
-    setGenScreen(false);
+    if (screenIntRef.current) { clearInterval(screenIntRef.current); screenIntRef.current = null; }
+    setTimeout(() => { setGenScreen(false); setScreenProgress(0); }, 600);
   };
+
+  // Cleanup intervals on unmount
+  useEffect(() => () => {
+    if (posterIntRef.current) clearInterval(posterIntRef.current);
+    if (screenIntRef.current) clearInterval(screenIntRef.current);
+  }, []);
 
   return (
     <div className="p-3 space-y-3">
@@ -234,12 +285,22 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
       {valid && project.id && (
         <div className="grid grid-cols-2 gap-2" data-testid="series-ai-tools">
           <button onClick={generatePoster} disabled={genPoster}
-            className="py-2 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[10px] font-bold active:scale-95 transition-transform disabled:opacity-40 flex items-center justify-center gap-1" data-testid="gen-series-poster-btn">
-            {genPoster ? '...' : (project.poster_url ? 'Rigenera Locandina' : 'Locandina AI')}
+            className="py-2 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[10px] font-bold active:scale-95 transition-transform disabled:opacity-70 flex items-center justify-center gap-1.5 relative" data-testid="gen-series-poster-btn">
+            {genPoster && (
+              <InlineProgressCircle value={posterProgress} color="#c084fc" />
+            )}
+            <span>{genPoster
+              ? `${posterProgress}%`
+              : (project.poster_url ? 'Rigenera Locandina' : 'Locandina AI')}</span>
           </button>
           <button onClick={generateScreenplay} disabled={genScreen}
-            className="py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold active:scale-95 transition-transform disabled:opacity-40 flex items-center justify-center gap-1" data-testid="gen-series-screenplay-btn">
-            {genScreen ? '...' : (project.screenplay_text ? 'Rigenera Sceneggiatura' : 'Sceneggiatura AI')}
+            className="py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold active:scale-95 transition-transform disabled:opacity-70 flex items-center justify-center gap-1.5 relative" data-testid="gen-series-screenplay-btn">
+            {genScreen && (
+              <InlineProgressCircle value={screenProgress} color="#34d399" />
+            )}
+            <span>{genScreen
+              ? `${screenProgress}%`
+              : (project.screenplay_text ? 'Rigenera Sceneggiatura' : 'Sceneggiatura AI')}</span>
           </button>
         </div>
       )}
@@ -257,13 +318,50 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
         </details>
       )}
 
-      {/* Episode titles preview */}
+      {/* Episode titles grid — 12 per column, click to show mini-plot */}
       {project.episodes?.length > 0 && (
         <div className="p-2 rounded-lg bg-white/[0.02] border border-white/5">
-          <p className="text-[8px] text-gray-500 mb-1 font-bold uppercase">Titoli Episodi</p>
-          {project.episodes.map((ep, i) => (
-            <p key={i} className="text-[8px] text-gray-400"><span className="text-gray-600 mr-1">{ep.number}.</span>{ep.title}</p>
-          ))}
+          <p className="text-[8px] text-gray-500 mb-1.5 font-bold uppercase">Titoli Episodi ({project.episodes.length})</p>
+          <div
+            className="grid gap-x-3 gap-y-0.5 overflow-x-auto"
+            style={{ gridAutoFlow: 'column', gridTemplateRows: 'repeat(12, auto)', gridAutoColumns: 'minmax(130px, 1fr)' }}
+            data-testid="series-episodes-grid"
+          >
+            {project.episodes.map((ep, i) => (
+              <button
+                key={i}
+                onClick={() => setSelectedEp(ep)}
+                className="text-left text-[8.5px] text-gray-400 hover:text-amber-300 active:text-amber-400 transition-colors truncate leading-tight py-0.5"
+                title={ep.title}
+                data-testid={`ep-title-${ep.number}`}
+              >
+                <span className="text-gray-600 mr-1">{ep.number}.</span>{ep.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Episode mini-plot modal */}
+      {selectedEp && (
+        <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4" onClick={() => setSelectedEp(null)}>
+          <div className="bg-[#111113] border border-amber-500/30 rounded-xl max-w-sm w-full p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <p className="text-[8px] text-amber-400/80 uppercase font-bold">Episodio {selectedEp.number}</p>
+              <h4 className="text-base font-bold text-white mt-0.5">{selectedEp.title}</h4>
+            </div>
+            <div className="text-[11px] text-gray-300 leading-relaxed whitespace-pre-wrap min-h-[72px]">
+              {selectedEp.mini_plot
+                ? selectedEp.mini_plot
+                : <span className="italic text-gray-500">Mini-trama non ancora disponibile. Genera la sceneggiatura per creare le trame di tutti gli episodi.</span>}
+            </div>
+            <button
+              onClick={() => setSelectedEp(null)}
+              className="w-full py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-bold"
+              data-testid="close-ep-modal">
+              Chiudi
+            </button>
+          </div>
         </div>
       )}
     </div>

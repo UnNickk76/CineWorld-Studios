@@ -97,6 +97,13 @@ async def _find_content(content_id: str):
     doc = await db.tv_series.find_one({"series_id": content_id}, {"_id": 0})
     if doc:
         return doc, "tv_series"
+    # V3 series projects live in series_projects_v3 (pre-release pipeline)
+    try:
+        doc = await db.series_projects_v3.find_one({"id": content_id}, {"_id": 0})
+        if doc:
+            return doc, "series_projects_v3"
+    except Exception:
+        pass
     try:
         doc = await db.anime_series.find_one({"id": content_id}, {"_id": 0})
         if doc:

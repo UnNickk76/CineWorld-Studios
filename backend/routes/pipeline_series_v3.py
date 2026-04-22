@@ -401,13 +401,16 @@ async def generate_series_poster(pid: str, user: dict = Depends(get_current_user
 
 @router.post("/projects/{pid}/generate-screenplay")
 async def generate_series_screenplay(pid: str, user: dict = Depends(get_current_user)):
-    """Generate AI screenplay summary for a V3 series/anime pilot + season arc."""
+    """Generate AI screenplay summary for a V3 series/anime pilot + season arc.
+    Also generates a mini-plot (~200 chars) per episode, coherent with the main screenplay.
+    """
     project = await _get_project(pid, user["id"])
     title = project.get("title", "Serie")
     genre = project.get("genre", "drama")
     preplot = project.get("preplot", "")
     num_ep = project.get("num_episodes", 10)
     is_anime = project.get("type") == "anime"
+    existing_episodes = project.get("episodes") or []
 
     key = os.environ.get("EMERGENT_LLM_KEY", "")
     if not key:
@@ -435,7 +438,68 @@ async def generate_series_screenplay(pid: str, user: dict = Depends(get_current_
         resp = await llm.send_message(UserMessage(text=prompt))
         screenplay = resp or ""
 
-        await _update_project(pid, user["id"], {"screenplay_text": screenplay, "screenplay_generated_at": _now()})
+        # ─── Second call: generate per-episode mini-plots (~200 chars each) ───
+        updated_episodes = existing_episodes
+        try:
+            ep_titles_list = [(ep.get("number", i + 1), ep.get("title", f"Episodio {i + 1}"))
+                              for i, ep in enumerate(existing_episodes[:num_ep])]
+            if not ep_titles_list:
+                ep_titles_list = [(i + 1, f"Episodio {i + 1}") for i in range(num_ep)]
+
+            titles_block = "\n".join(f"{n}. {t}" for n, t in ep_titles_list)
+            ep_prompt = (
+                f"Serie: \"{title}\" ({genre}, {type_label}). Sinossi: {preplot[:300]}\n\n"
+                f"Sceneggiatura di stagione:\n{screenplay[:1500]}\n\n"
+                f"Episodi da sintetizzare:\n{titles_block}\n\n"
+                f"Per ogni episodio scrivi una mini-trama coerente con la sceneggiatura e "
+                f"la sinossi (max 200 caratteri, 3 righe, italiano, tono cinematografico).\n\n"
+                f"Rispondi SOLO in JSON puro senza markdown, esattamente così:\n"
+                f"[{{\"number\": 1, \"mini_plot\": \"...\"}}, {{\"number\": 2, \"mini_plot\": \"...\"}}, ...]"
+            )
+            llm2 = LlmChat(
+                api_key=key,
+                session_id=f"series-epplots-{pid}",
+                system_message="Scrittore di tv, risponde SOLO in JSON valido.",
+            ).with_model("openai", "gpt-4o-mini")
+            raw = await llm2.send_message(UserMessage(text=ep_prompt)) or ""
+
+            # Robust JSON extraction (strip markdown fences if any)
+            import json
+            clean = raw.strip()
+            if clean.startswith("```"):
+                clean = clean.split("```", 2)[1]
+                if clean.lower().startswith("json"):
+                    clean = clean[4:]
+                clean = clean.strip()
+            # find the JSON array substring
+            a = clean.find("[")
+            b = clean.rfind("]")
+            if a >= 0 and b > a:
+                clean = clean[a:b + 1]
+            parsed = json.loads(clean)
+            by_num = {int(item.get("number", 0)): str(item.get("mini_plot", ""))[:220] for item in parsed if isinstance(item, dict)}
+
+            # Merge onto existing episodes (or build new ones)
+            updated_episodes = []
+            for i, (num, t) in enumerate(ep_titles_list):
+                base = existing_episodes[i] if i < len(existing_episodes) else {}
+                updated_episodes.append({
+                    **base,
+                    "number": num,
+                    "title": t,
+                    "mini_plot": by_num.get(num, base.get("mini_plot", "")),
+                    "cwsv": base.get("cwsv"),
+                    "cwsv_display": base.get("cwsv_display"),
+                    "revealed": base.get("revealed", False),
+                })
+        except Exception as inner:
+            logger.warning(f"Per-episode mini-plot gen failed for {pid}: {inner}")
+            # Fall through — keep screenplay, leave episodes unchanged
+
+        updates = {"screenplay_text": screenplay, "screenplay_generated_at": _now()}
+        if updated_episodes != existing_episodes:
+            updates["episodes"] = updated_episodes
+        await _update_project(pid, user["id"], updates)
 
         try:
             from utils.xp_fame import award_milestone
@@ -443,7 +507,11 @@ async def generate_series_screenplay(pid: str, user: dict = Depends(get_current_
         except Exception:
             pass
 
-        return {"screenplay": screenplay, "message": "Sceneggiatura generata!"}
+        return {
+            "screenplay": screenplay,
+            "episodes": updated_episodes,
+            "message": "Sceneggiatura generata con mini-trame per episodio!",
+        }
     except HTTPException:
         raise
     except Exception as e:

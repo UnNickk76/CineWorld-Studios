@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Users, Star, Briefcase, Trash2, RefreshCw, ChevronRight, BookOpen, Award, Shield, Swords, Heart, Sparkles, Search, Pen, Diamond, ChevronDown, ChevronUp, UserPlus, Lock, Unlock, FileSignature } from 'lucide-react';
+import { Users, Star, Briefcase, Trash2, RefreshCw, ChevronRight, BookOpen, Award, Shield, Swords, Heart, Sparkles, Search, Pen, Diamond, ChevronDown, ChevronUp, UserPlus, Lock, Unlock, FileSignature, Clapperboard, ArrowRight, Zap } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 
@@ -333,12 +334,15 @@ function ScoutTalentsTab({ api, slotsAvailable, onReload }) {
 }
 
 function ScoutScreenplaysTab({ api }) {
+  const navigate = useNavigate();
   const [screenplays, setScreenplays] = React.useState([]);
   const [myScreenplays, setMyScreenplays] = React.useState([]);
   const [scoutLevel, setScoutLevel] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [actionId, setActionId] = React.useState(null);
   const [purchasedCount, setPurchasedCount] = React.useState(0);
+  const [pendingSp, setPendingSp] = React.useState(null);   // screenplay awaiting mode choice
+  const [modeLoading, setModeLoading] = React.useState(false);
 
   const load = React.useCallback(() => {
     Promise.all([
@@ -354,14 +358,27 @@ function ScoutScreenplaysTab({ api }) {
 
   React.useEffect(() => { load(); }, [load]);
 
-  const purchase = async (id) => {
-    setActionId(id);
+  const openPurchaseModal = (sp) => { setPendingSp(sp); };
+
+  const confirmMode = async (mode) => {
+    if (!pendingSp) return;
+    setModeLoading(true);
     try {
-      const res = await api.post(`/agency/purchase-screenplay/${id}`);
+      const res = await api.post('/purchased-screenplays/create-v3-project', {
+        screenplay_id: pendingSp.id,
+        source: 'agency',
+        mode,
+      });
       toast.success(res.data.message);
-      load();
-    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
-    setActionId(null);
+      setPendingSp(null);
+      // Navigate into Pipeline V3 with the project auto-selected
+      const pid = res.data.project_id;
+      if (pid) navigate(`/create-film?p=${pid}`);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    } finally {
+      setModeLoading(false);
+    }
   };
 
   if (loading) return <div className="text-center py-8"><RefreshCw className="w-5 h-5 animate-spin mx-auto text-gray-500" /></div>;
@@ -400,7 +417,7 @@ function ScoutScreenplaysTab({ api }) {
                 <div className="flex flex-col items-end gap-1 flex-shrink-0">
                   <span className="text-[10px] text-yellow-400 font-bold">${sp.cost?.toLocaleString()}</span>
                   <Button size="sm" className="h-7 px-3 text-[10px] bg-emerald-600 hover:bg-emerald-700"
-                    onClick={() => purchase(sp.id)} disabled={actionId === sp.id}
+                    onClick={() => openPurchaseModal(sp)} disabled={actionId === sp.id}
                     data-testid={`buy-screenplay-${sp.id}`}>
                     {actionId === sp.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Acquista'}
                   </Button>
@@ -438,6 +455,72 @@ function ScoutScreenplaysTab({ api }) {
           ))}
         </div>
       )}
+
+      {/* Purchase Mode Modal — Avanzata / Veloce */}
+      {pendingSp && (() => {
+        const baseRaw = pendingSp.cost || 0;
+        // Agency discount: 60% off base. Veloce multiplies by 2.
+        const avanzataCost = Math.max(1000, Math.round(baseRaw * 0.4));
+        const velociCost = Math.max(1000, Math.round(baseRaw * 2 * 0.4));
+        return (
+          <div className="fixed inset-0 bg-black/70 z-[70] flex items-center justify-center p-3" onClick={() => !modeLoading && setPendingSp(null)}>
+            <div className="bg-[#111113] border border-white/10 rounded-xl max-w-md w-full p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-bold text-white">{pendingSp.title}</div>
+                  <div className="text-[10px] text-gray-400">di {pendingSp.writer_name} — Qualità {pendingSp.quality}/100</div>
+                </div>
+                <Badge className="text-[8px] bg-emerald-500/20 text-emerald-300 h-4">Sconto Agenzia -60%</Badge>
+              </div>
+              <p className="text-[10px] text-gray-500">Scegli come produrre il film da questa sceneggiatura.</p>
+
+              <button
+                onClick={() => confirmMode('avanzata')}
+                disabled={modeLoading}
+                className="w-full bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-500/60 rounded-lg p-3 text-left transition-all disabled:opacity-40"
+                data-testid="agency-mode-avanzata">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Clapperboard className="w-4 h-4 text-emerald-400" />
+                    <div>
+                      <div className="font-bold text-xs">Avanzata</div>
+                      <div className="text-[9px] text-white/50">Pipeline guidata, XP piena</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-emerald-400 text-xs">${avanzataCost.toLocaleString()}</div>
+                    <ArrowRight className="w-3 h-3 text-white/30 ml-auto" />
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => confirmMode('veloce')}
+                disabled={modeLoading}
+                className="w-full bg-orange-500/5 hover:bg-orange-500/10 border border-orange-500/30 hover:border-orange-500/60 rounded-lg p-3 text-left transition-all disabled:opacity-40"
+                data-testid="agency-mode-veloce">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-orange-400" />
+                    <div>
+                      <div className="font-bold text-xs">Veloce</div>
+                      <div className="text-[9px] text-white/50">Solo locandina + trailer. -50% XP</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-orange-400 text-xs">${velociCost.toLocaleString()}</div>
+                    <ArrowRight className="w-3 h-3 text-white/30 ml-auto" />
+                  </div>
+                </div>
+              </button>
+
+              <Button size="sm" variant="ghost" className="w-full text-[10px]" onClick={() => setPendingSp(null)} disabled={modeLoading}>
+                Annulla
+              </Button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

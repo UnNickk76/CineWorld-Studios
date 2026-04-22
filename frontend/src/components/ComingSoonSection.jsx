@@ -8,6 +8,7 @@ import { Dialog, DialogContent } from './ui/dialog';
 import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronRight, Shield, Newspaper, MessageCircle, Zap, FastForward, Search, AlertTriangle, Gavel, Swords, Target, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { OutcomePopup, getOutcomeType } from './OutcomePopup';
+import { PurchasedScreenplayBadge } from './PurchasedScreenplayBadge';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -173,6 +174,11 @@ function ComingSoonThumb({ item, onClick }) {
           <div className="w-full h-full flex items-center justify-center">
             <TypeIcon className={`w-8 h-8 ${typeColor} opacity-20`} />
           </div>
+        )}
+        {item.from_purchased_screenplay && (
+          <PurchasedScreenplayBadge mode={item.purchased_screenplay_mode}
+                                    source={item.purchased_screenplay_source}
+                                    size="sm" />
         )}
         {/* Countdown overlay */}
         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-1.5 pt-4">

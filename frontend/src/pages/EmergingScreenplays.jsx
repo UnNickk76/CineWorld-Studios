@@ -93,16 +93,25 @@ export default function EmergingScreenplays() {
 
   useEffect(() => { fetchScreenplays(); }, []);
 
-  const handleAccept = async (option) => {
+  const handleAccept = async (mode) => {
     if (!selectedScreenplay) return;
     setAccepting(true);
     try {
-      const res = await api.post(`/emerging-screenplays/${selectedScreenplay.id}/accept`, { option });
+      const res = await api.post('/purchased-screenplays/create-v3-project', {
+        screenplay_id: selectedScreenplay.id,
+        source: 'emerging',
+        mode,  // 'avanzata' | 'veloce'
+      });
       toast.success(res.data.message);
       await refreshUser();
       setShowDetail(false);
-      // Navigate to film pipeline casting tab - project is already in casting phase
-      navigate('/produci');
+      // Navigate into Pipeline V3 with the new project auto-selected
+      const pid = res.data.project_id;
+      if (pid) {
+        navigate(`/create-film?p=${pid}`);
+      } else {
+        navigate('/produci');
+      }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Errore nell\'acquisto');
     } finally {
@@ -350,36 +359,69 @@ export default function EmergingScreenplays() {
                 <div className="space-y-3 pt-2">
                   <h4 className="font-['Bebas_Neue'] text-lg text-center">Scegli come produrre</h4>
 
-                  {/* Option B: Screenplay only */}
-                  {/* Option: Full package only */}
-                  <button
-                    onClick={() => handleAccept('full_package')}
-                    disabled={accepting || user?.funds < selectedScreenplay.full_package_cost}
-                    className="w-full bg-yellow-500/5 hover:bg-yellow-500/10 border border-yellow-500/20 hover:border-yellow-500/40 rounded-xl p-4 text-left transition-all disabled:opacity-40 group"
-                    data-testid="accept-full-package"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
-                          <Crown className="w-5 h-5 text-yellow-400" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-sm group-hover:text-yellow-400 transition-colors">Pacchetto Completo</div>
-                          <div className="text-xs text-white/40">Sceneggiatura + cast incluso - scegli solo la locandina</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-yellow-400">${(selectedScreenplay.full_package_cost / 1000).toFixed(0)}K</div>
-                        <ArrowRight className="w-4 h-4 text-white/20 ml-auto" />
-                      </div>
-                    </div>
-                  </button>
+                  {(() => {
+                    const baseCost = selectedScreenplay.full_package_cost || 0;
+                    const velociCost = baseCost * 2;
+                    const canAvanzata = (user?.funds || 0) >= baseCost;
+                    const canVeloce = (user?.funds || 0) >= velociCost;
+                    return (
+                      <>
+                        {/* AVANZATA — guided pipeline */}
+                        <button
+                          onClick={() => handleAccept('avanzata')}
+                          disabled={accepting || !canAvanzata}
+                          className="w-full bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-500/60 rounded-xl p-4 text-left transition-all disabled:opacity-40 group"
+                          data-testid="screenplay-mode-avanzata"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                                <Clapperboard className="w-5 h-5 text-emerald-400" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-sm group-hover:text-emerald-400 transition-colors">Avanzata</div>
+                                <div className="text-xs text-white/50 leading-tight">Pipeline guidata: tutti i passaggi cinematici sbloccati, +XP piena</div>
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <div className="font-bold text-emerald-400">${(baseCost / 1000).toFixed(0)}K</div>
+                              <ArrowRight className="w-4 h-4 text-white/30 ml-auto" />
+                            </div>
+                          </div>
+                        </button>
 
-                  {user?.funds < selectedScreenplay.full_package_cost && (
-                    <p className="text-center text-xs text-red-400">
-                      Fondi insufficienti (hai ${(user?.funds / 1000).toFixed(0)}K)
-                    </p>
-                  )}
+                        {/* VELOCE — fast track */}
+                        <button
+                          onClick={() => handleAccept('veloce')}
+                          disabled={accepting || !canVeloce}
+                          className="w-full bg-orange-500/5 hover:bg-orange-500/10 border border-orange-500/30 hover:border-orange-500/60 rounded-xl p-4 text-left transition-all disabled:opacity-40 group"
+                          data-testid="screenplay-mode-veloce"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                                <Sparkles className="w-5 h-5 text-orange-400" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-sm group-hover:text-orange-400 transition-colors">Veloce</div>
+                                <div className="text-xs text-white/50 leading-tight">Tutto pronto: crea solo locandina e trailer. Salta timers e La Prima. -50% XP.</div>
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <div className="font-bold text-orange-400">${(velociCost / 1000).toFixed(0)}K</div>
+                              <ArrowRight className="w-4 h-4 text-white/30 ml-auto" />
+                            </div>
+                          </div>
+                        </button>
+
+                        {!canAvanzata && (
+                          <p className="text-center text-xs text-red-400">
+                            Fondi insufficienti per Avanzata (hai ${(user?.funds / 1000).toFixed(0)}K)
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </>

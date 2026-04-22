@@ -1073,6 +1073,9 @@ async def get_coming_to_cinemas(user: dict = Depends(get_current_user)):
             'owner_id': p.get('user_id'),
             'owner_nickname': owner.get('nickname', '?'),
             'owner_studio': owner.get('production_house_name'),
+            'from_purchased_screenplay': bool(p.get('from_purchased_screenplay')),
+            'purchased_screenplay_mode': p.get('purchased_screenplay_mode'),
+            'purchased_screenplay_source': p.get('purchased_screenplay_source'),
         })
     # Sort newest first by premiere datetime for premiere, by created for direct
     items.sort(key=lambda x: x.get('title', ''))

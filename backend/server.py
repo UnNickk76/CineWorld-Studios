@@ -117,6 +117,7 @@ from routes.premiere import router as premiere_router
 from routes.coming_soon import router as coming_soon_router
 from routes.major import router as major_router
 from routes.emerging_screenplays import router as emerging_screenplays_router
+from routes.purchased_screenplays_v3 import router as purchased_screenplays_v3_router
 from routes.emerging_screenplays import expire_old_screenplays
 from routes.sponsors import router as sponsors_router, initialize_sponsors as _init_sponsors
 from routes.la_prima import router as la_prima_router
@@ -10491,6 +10492,7 @@ app.include_router(premiere_router, prefix="/api")
 app.include_router(coming_soon_router, prefix="/api")
 app.include_router(major_router, prefix="/api")
 app.include_router(emerging_screenplays_router, prefix="/api")
+app.include_router(purchased_screenplays_v3_router)  # already has /api prefix in route paths
 app.include_router(sponsors_router, prefix="/api")
 app.include_router(la_prima_router, prefix="/api")
 app.include_router(la_prima_events_router, prefix="/api")

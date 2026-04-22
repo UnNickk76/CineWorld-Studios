@@ -2499,6 +2499,11 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "la_prima_nation": (project.get("premiere") or {}).get("nation") if (project.get("release_type") == "premiere") else None,
         "opening_day_revenue": _calc_opening_day(quality_score, project),
         "current_cinemas": max(1, len(project.get("distribution_continents", []))),
+        # Purchased-screenplay flags — propagate to films so UI can show the book badge
+        "from_purchased_screenplay": bool(project.get("from_purchased_screenplay")),
+        "purchased_screenplay_mode": project.get("purchased_screenplay_mode"),
+        "purchased_screenplay_source": project.get("purchased_screenplay_source"),
+        "purchased_writer_name": project.get("purchased_writer_name"),
         "created_at": _now(),
         "updated_at": _now(),
     }

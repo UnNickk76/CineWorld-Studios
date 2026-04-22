@@ -396,6 +396,15 @@ export default function PipelineV3() {
                   'bg-gray-800 text-gray-400 border-gray-700'
                 }`}>{selected.budget_tier.toUpperCase()}</span>
               )}
+              {selected.from_purchased_screenplay && (
+                <span className={`text-[6px] px-1 py-0.5 rounded font-bold border inline-flex items-center gap-0.5 ${
+                  selected.purchased_screenplay_mode === 'veloce'
+                    ? 'bg-orange-500/15 text-orange-300 border-orange-500/30'
+                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                }`} title={`Da Sceneggiatura Pronta (${selected.purchased_screenplay_source || '?'})`}>
+                  📖 {(selected.purchased_screenplay_mode || 'PRONTA').toUpperCase()}
+                </span>
+              )}
             </div>
           </div>
           <button onClick={saveDraft} disabled={loading || !dirty}
@@ -413,12 +422,44 @@ export default function PipelineV3() {
               <button onClick={() => advance(prevStep)} disabled={loading}
                 className="px-3 py-1.5 rounded-lg border border-gray-800 text-gray-500 text-[8px] font-bold disabled:opacity-30">Indietro</button>
             )}
-            <button onClick={() => advance(nextStep)} disabled={loading || !canAdvance}
-              className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold disabled:opacity-30 ${
-                canAdvance ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400' : 'bg-gray-800/50 border border-gray-700/30 text-gray-600 cursor-not-allowed'
-              }`} data-testid="advance-btn">
-              {loading ? '...' : !canAdvance ? `Completa ${V3_STEPS[stepIndex]?.label} prima` : `Avanti ${V3_STEPS[stepIndex + 1]?.label}`}
-            </button>
+            {/* Veloce Fast Track: at hype state, jump directly to distribution */}
+            {selected.auto_advance_veloce && currentStep === 'hype' ? (
+              <button
+                onClick={async () => {
+                  if (!selected.poster_url) {
+                    showToast('Crea prima la locandina', 'error');
+                    return;
+                  }
+                  setLoading(true);
+                  try {
+                    const API = process.env.REACT_APP_BACKEND_URL;
+                    const token = localStorage.getItem('cineworld_token');
+                    const resp = await fetch(`${API}/api/purchased-screenplays/veloce-fast-track/${selected.id}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    });
+                    const r = await resp.json();
+                    if (!resp.ok) throw new Error(r.detail || 'Errore');
+                    if (r?.project) { setSelected(r.project); showToast(r.message || 'Fast-track completato'); }
+                    else { await refreshSelected(); showToast('Fast-track completato'); }
+                  } catch (e) {
+                    showToast(String(e?.message || 'Errore fast-track'), 'error');
+                  }
+                  setLoading(false);
+                }}
+                disabled={loading || !selected.poster_url}
+                className="flex-1 py-1.5 rounded-lg text-[9px] font-bold bg-orange-500/20 border border-orange-500/40 text-orange-300 disabled:opacity-30"
+                data-testid="veloce-fast-track-btn">
+                {loading ? '...' : !selected.poster_url ? 'Crea prima la locandina' : '⚡ Fast-Track → Distribuzione'}
+              </button>
+            ) : (
+              <button onClick={() => advance(nextStep)} disabled={loading || !canAdvance}
+                className={`flex-1 py-1.5 rounded-lg text-[9px] font-bold disabled:opacity-30 ${
+                  canAdvance ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400' : 'bg-gray-800/50 border border-gray-700/30 text-gray-600 cursor-not-allowed'
+                }`} data-testid="advance-btn">
+                {loading ? '...' : !canAdvance ? `Completa ${V3_STEPS[stepIndex]?.label} prima` : `Avanti ${V3_STEPS[stepIndex + 1]?.label}`}
+              </button>
+            )}
           </div>
         )}
 

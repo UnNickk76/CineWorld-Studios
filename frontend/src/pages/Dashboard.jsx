@@ -12,6 +12,7 @@ import FeaturedTrailersStrip from '../components/FeaturedTrailersStrip';
 import UltimiTrailerStrip from '../components/UltimiTrailerStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
+import { PurchasedScreenplayBadge } from '../components/PurchasedScreenplayBadge';
 import { AttendanceTrendBadge } from '../components/AttendanceTrendBadge';
 import { Card, CardContent } from '../components/ui/card';
 
@@ -574,6 +575,11 @@ const Dashboard = () => {
                           ) : (
                             <div className="w-full h-full bg-black" />
                           )}
+                          {film.from_purchased_screenplay && (
+                            <PurchasedScreenplayBadge mode={film.purchased_screenplay_mode}
+                                                      source={film.purchased_screenplay_source}
+                                                      size="sm" />
+                          )}
                           <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/85" />
                           <div className="absolute inset-0 flex flex-col items-center justify-center px-1 text-center">
                             <div className="status-pulse-glow text-orange-300">
@@ -596,6 +602,11 @@ const Dashboard = () => {
                       }} data-testid={`recent-film-${film.id}`}>
                         <div className={`aspect-[2/3] relative rounded-lg overflow-hidden ${film.status === 'in_theaters' ? 'border-2 border-emerald-500/50' : ''}`} style={{ boxShadow: film.status === 'premiere_live' ? '0 0 8px rgba(212,175,55,0.3)' : film.status === 'in_theaters' ? '0 0 8px rgba(80,220,110,0.35)' : 'none' }}>
                           <MasterpieceBadge isMasterpiece={film.is_masterpiece} size="xs" />
+                          {film.from_purchased_screenplay && (
+                            <PurchasedScreenplayBadge mode={film.purchased_screenplay_mode}
+                                                      source={film.purchased_screenplay_source}
+                                                      size="sm" />
+                          )}
                           <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 active:scale-110 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
                           {/* Status badge — LIVE pulse for in_theaters */}
                           {film.status === 'in_theaters' && (

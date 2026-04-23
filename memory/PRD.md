@@ -10,6 +10,12 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 23, 2026 — Tripletta veloce: Prossimamente cliccabile + Trailer Serie/Anime + Progress trailer**
+  - **Fix 1**: `ComingSoonSection` (Dashboard "PROSSIMAMENTE SERIE TV / ANIME") ora apre `ProssimamenteDetailModal` invece di navigare a `/series/{id}`. La modale usa `/api/series/{id}` con fallback su `series_projects_v3` che gia' gestisce progetti incompleti omettendo i campi mancanti (CONTENT_TYPE filter copre `series|anime|tv_series`).
+  - **Fix 2**: `_collect_trailers` (in `routes/trailer_events.py`) ora scansiona anche la collezione `series_projects_v3`, oltre a `films + tv_series + film_projects`. I trailer di serie TV e anime V3 (sia pre-release che released) **compaiono automaticamente nella strip "Ultimi Trailer"** della dashboard e **competono nel contest giornaliero/settimanale** (`/events/trailers/daily` e `/weekly`) perche' usano la stessa util. Type risolto via `doc.type` → `tv_series` o `anime`.
+  - **Fix 3**: rimossa la live-preview grid dei frame durante la generazione trailer (non funzionava e creava confusione). Ora `TrailerGeneratorCard` mostra un **grande cerchio al centro con percentuale dentro** (28x28, `text-[24px] font-black`), stage corrente e countdown sotto. Mobile-first, piu' pulito e concentra l'attenzione sul progresso.
+  - Files: `components/ComingSoonSection.jsx`, `components/TrailerGeneratorCard.jsx`, `routes/trailer_events.py`.
+
 - **Feb 23, 2026 — Doppio fix rapido: "A breve" duplicato + freccia andamento spettatori**
   - **Bug 1**: la card "A BREVE" persisteva accanto alla card "AL CINEMA LIVE" dello stesso film. Il filtro frontend confrontava `r.id` (nuovo UUID post-confirm-release) con `ab.film_id` (project id) → non matchava mai.
     **Fix**: `routes/pipeline_v3.py recent-releases` ora include `source_project_id` nella projection. Il filtro frontend confronta sia `r.source_project_id === ab.film_id` che `r.id === ab.film_id`.

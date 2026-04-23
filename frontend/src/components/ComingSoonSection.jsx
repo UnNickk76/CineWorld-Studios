@@ -8,6 +8,7 @@ import { Dialog, DialogContent } from './ui/dialog';
 import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronRight, Shield, Newspaper, MessageCircle, Zap, FastForward, Search, AlertTriangle, Gavel, Swords, Target, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { OutcomePopup, getOutcomeType } from './OutcomePopup';
+import ProssimamenteDetailModal from './ProssimamenteDetailModal';
 import { PurchasedScreenplayBadge } from './PurchasedScreenplayBadge';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -603,6 +604,7 @@ export function ComingSoonSection({ compact = false, filterType, sectionTitle })
   const [loading, setLoading] = useState(true);
   const [pvpStatus, setPvpStatus] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [prossimamenteId, setProssimamenteId] = useState(null);
 
   const loadItems = useCallback(() => {
     if (!api) return;
@@ -664,8 +666,10 @@ export function ComingSoonSection({ compact = false, filterType, sectionTitle })
         <div className="flex gap-2 overflow-x-auto pb-2 px-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
           {items.map(item => (
             <ComingSoonThumb key={item.id} item={item} onClick={() => {
-              if (item.content_type === 'series' || item.content_type === 'anime') {
-                navigate(`/series/${item.id}`);
+              if (item.content_type === 'series' || item.content_type === 'anime' || item.content_type === 'tv_series') {
+                // Series/Anime (V3 projects or legacy): open unified Prossimamente modal
+                // which handles both unreleased projects and aired episodes.
+                setProssimamenteId(item.id);
               } else {
                 navigate(`/films/${item.id}`);
               }
@@ -689,6 +693,12 @@ export function ComingSoonSection({ compact = false, filterType, sectionTitle })
           )}
         </DialogContent>
       </Dialog>
+
+      <ProssimamenteDetailModal
+        open={!!prossimamenteId}
+        onClose={() => setProssimamenteId(null)}
+        seriesId={prossimamenteId}
+      />
     </div>
   );
 }

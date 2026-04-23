@@ -176,21 +176,6 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
     const estimated = job.estimated_seconds || 30;
     const remaining = Math.max(0, estimated - elapsed);
     const overtime = elapsed > estimated;
-    // Live preview frames
-    const partials = Array.isArray(job.partial_frames) ? job.partial_frames : [];
-    const totalFrames = tier.frames || 6;
-    const slots = Array.from({ length: totalFrames }, (_, i) => partials.find(p => p.idx === i) || null);
-    const providerLabel = (prov) => ({
-      cloudflare: 'CF', huggingface_flux: 'HF', huggingface_together: 'HF+T',
-      pixazo: 'PIX', wavespeed: 'WAVE',
-      pollinations: 'POLL', emergent: 'EMRG', placeholder: '—', fallback: '•'
-    }[prov] || prov?.slice(0, 3) || '?');
-    const providerColor = (prov) => ({
-      cloudflare: 'bg-orange-500/80', huggingface_flux: 'bg-yellow-500/80',
-      huggingface_together: 'bg-amber-500/80', pixazo: 'bg-cyan-500/80',
-      wavespeed: 'bg-indigo-500/80', pollinations: 'bg-pink-500/80',
-      emergent: 'bg-purple-500/80', placeholder: 'bg-gray-600/80', fallback: 'bg-gray-600/80'
-    }[prov] || 'bg-gray-600/80');
     return (
       <div className={`relative rounded-2xl border ${modeMeta.border} bg-gradient-to-br ${modeMeta.bg} p-4`} data-testid="trailer-generator-card">
         <button onClick={handleAbort}
@@ -199,49 +184,21 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
           <X className="w-4 h-4" />
         </button>
 
-        <div className="flex items-start gap-3">
-          {/* Left: live frames grid */}
-          <div className="flex-1 min-w-0" data-testid="trailer-live-preview">
-            <div className="grid grid-cols-3 gap-1.5">
-              {slots.map((slot, i) => (
-                <div key={i} className="relative aspect-video rounded-md overflow-hidden bg-white/5 border border-white/10">
-                  {slot && slot.image_url ? (
-                    <>
-                      <img src={slot.image_url} alt={`frame ${i + 1}`}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        data-testid={`trailer-frame-preview-${i}`} />
-                      {slot.provider && (
-                        <span className={`absolute top-0.5 left-0.5 ${providerColor(slot.provider)} text-white text-[7px] font-bold px-1 py-0.5 rounded leading-none`}>
-                          {providerLabel(slot.provider)}
-                        </span>
-                      )}
-                      <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-[7px] font-bold px-1 rounded">{i + 1}</span>
-                    </>
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center animate-pulse">
-                      <span className="text-[8px] text-gray-600 font-bold">{i + 1}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            <p className={`text-[11px] font-bold ${modeMeta.accentText} mt-2`}>Creazione {tier.label} in corso…</p>
-            <p className="text-[9px] text-gray-500 mt-0.5">Stage: {job.stage || 'queued'} · {elapsed}s / ~{estimated}s{overtime ? ' (quasi fatto)' : ''}</p>
-          </div>
-
-          {/* Right: progress circle (smaller) */}
-          <div className="relative w-16 h-16 flex-shrink-0">
-            <svg className="w-16 h-16 -rotate-90" viewBox="0 0 80 80">
+        {/* Big centered progress circle with % inside (mobile-first, no live preview frames) */}
+        <div className="flex flex-col items-center justify-center py-3">
+          <div className="relative w-28 h-28" data-testid="trailer-progress-circle">
+            <svg className="w-28 h-28 -rotate-90" viewBox="0 0 80 80">
               <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="7" />
               <circle cx="40" cy="40" r="34" fill="none" stroke="url(#gg)" strokeWidth="7" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={dashOffset} style={{ transition: 'stroke-dashoffset 0.5s' }} />
               <defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#f5a623" /><stop offset="100%" stopColor="#e94e77" /></linearGradient></defs>
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className={`text-[13px] font-black ${modeMeta.accentText}`}>{progress}%</span>
-              <span className="text-[7px] text-gray-500 font-bold">{overtime ? '…' : `${remaining}s`}</span>
+              <span className={`text-[24px] font-black leading-none ${modeMeta.accentText}`}>{progress}%</span>
+              <span className="text-[8px] text-gray-500 font-bold mt-0.5">{overtime ? 'quasi fatto' : `${remaining}s`}</span>
             </div>
           </div>
+          <p className={`text-[11px] font-bold ${modeMeta.accentText} mt-3`}>Creazione {tier.label} in corso...</p>
+          <p className="text-[9px] text-gray-500 mt-0.5">Stage: {job.stage || 'queued'} · {elapsed}s / ~{estimated}s</p>
         </div>
 
         <p className="text-[8px] text-gray-600 mt-3 text-center">Tocca la ✕ in alto a destra per annullare e proseguire senza trailer.</p>

@@ -46,22 +46,33 @@ async def _enrich_entries(entries: list) -> list:
 
 
 async def _collect_trailers(match_filter: dict, limit: int = 100) -> list:
-    """Scan films + tv_series + film_projects for trailers matching filter."""
+    """Scan films + tv_series + film_projects + series_projects_v3 for trailers matching filter."""
     out = []
     proj = {"_id": 0, "id": 1, "title": 1, "poster_url": 1, "user_id": 1, "genre": 1,
-            "trailer": 1, "film_id": 1, "pipeline_version": 1}
-    for coll, ctype in (("films", "film"), ("tv_series", "tv_series"), ("film_projects", "project")):
+            "trailer": 1, "film_id": 1, "pipeline_version": 1, "type": 1}
+    for coll, ctype in (
+        ("films", "film"),
+        ("tv_series", "tv_series"),
+        ("film_projects", "project"),
+        ("series_projects_v3", "series_v3"),
+    ):
         try:
             cursor = db[coll].find({**match_filter, "trailer.frames": {"$exists": True, "$ne": []}}, proj).limit(limit)
             async for d in cursor:
                 t = d.get("trailer") or {}
-                # Fetch likes/dislikes for TStar engagement (default 0)
                 likes = int(t.get("likes_count", 0) or 0)
                 dislikes = int(t.get("dislikes_count", 0) or 0)
                 scoring = compute_tstar(t, likes=likes, dislikes=dislikes)
+                # Infer content type: tv_series collection already holds the type, but
+                # series_projects_v3 stores 'type' ∈ {tv_series, anime}
+                resolved_ctype = ctype
+                if coll == "series_projects_v3":
+                    resolved_ctype = d.get("type") or "tv_series"
+                elif coll == "tv_series":
+                    resolved_ctype = d.get("type") or "tv_series"
                 out.append({
                     "content_id": d.get("id"),
-                    "content_type": ctype,
+                    "content_type": resolved_ctype,
                     "title": d.get("title"),
                     "poster_url": d.get("poster_url"),
                     "genre": d.get("genre"),

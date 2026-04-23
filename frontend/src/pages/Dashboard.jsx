@@ -565,7 +565,10 @@ const Dashboard = () => {
                         with status=in_theaters) to avoid duplicate. Keep it visible while the film is
                         still in La Prima / not yet released. */}
                     {aBreveCinema
-                      .filter(ab => !recentReleases.some(r => r.id === ab.film_id && r.status === 'in_theaters'))
+                      .filter(ab => !recentReleases.some(r =>
+                        (r.source_project_id === ab.film_id || r.id === ab.film_id) &&
+                        r.status === 'in_theaters'
+                      ))
                       .map(film => (
                       <div key={`abreve-${film.film_id}`} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => {
                         if (film.owner_user_id && user?.id && film.owner_user_id === user.id) {
@@ -628,8 +631,10 @@ const Dashboard = () => {
                               'bg-blue-600/80 text-blue-100'
                             }`}>
                               <span>{film.status === 'premiere_live' ? 'LA PRIMA' : film.status === 'in_theaters' ? 'AL CINEMA' : 'IN USCITA'}</span>
-                              <AttendanceTrendBadge trend={film.attendance_trend} status={film.status} />
                             </div>
+                          )}
+                          {film.status === 'in_theaters' && (
+                            <AttendanceTrendBadge trend={film.attendance_trend} status={film.status} className="absolute bottom-0.5 right-0.5" />
                           )}
                           {film.virtual_likes > 0 && (
                             <div className="absolute top-0.5 left-0.5 bg-black/70 rounded px-0.5 py-0.5 flex items-center gap-0.5">

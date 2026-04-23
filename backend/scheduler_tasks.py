@@ -380,15 +380,19 @@ async def update_film_attendance():
                 # Update film
                 # Daily attendance aggregation: group last 144 ticks into days (~24h each)
                 # attendance_history is capped to 144 entries ≈ 24h so we recompute a rolling daily sum.
-                # Also compute simple trend: last tick vs previous tick (for UI icon).
+                # Trend: compare the last tick vs the tick ~3 hours ago (18 ticks at 10 min each).
+                # Fall back to the oldest entry if we don't have 18 yet — UI stays informative
+                # instead of showing a dash for days.
                 trend_dir = 'flat'
                 if len(attendance_history) >= 2:
                     last_t = attendance_history[-1]['total_attendance']
-                    prev_t = attendance_history[-2]['total_attendance']
-                    if last_t > prev_t * 1.03:
-                        trend_dir = 'up'
-                    elif last_t < prev_t * 0.97:
-                        trend_dir = 'down'
+                    ref_idx = -18 if len(attendance_history) >= 18 else 0
+                    prev_t = attendance_history[ref_idx]['total_attendance']
+                    if prev_t > 0:
+                        if last_t > prev_t * 1.03:
+                            trend_dir = 'up'
+                        elif last_t < prev_t * 0.97:
+                            trend_dir = 'down'
 
                 # Persistent daily rollup (last 90 days) for long-term spectators history
                 today_str = now.date().isoformat()

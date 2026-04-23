@@ -17,18 +17,21 @@ export const AttendanceTrendBadge = ({ trend, status, size = 'xs', className = '
   let Icon = Minus;
   let bg = 'bg-gray-500/80';
   let ring = 'ring-gray-400/40';
+  let pulse = '';
   if (t === 'up') {
     Icon = TrendingUp;
     bg = 'bg-emerald-500';
-    ring = 'ring-emerald-300/60 shadow-[0_0_6px_rgba(16,185,129,0.6)]';
+    ring = 'ring-emerald-300/60 shadow-[0_0_8px_rgba(16,185,129,0.75)]';
+    pulse = 'animate-pulse';
   } else if (t === 'down') {
     Icon = TrendingDown;
     bg = 'bg-rose-500';
-    ring = 'ring-rose-300/60 shadow-[0_0_6px_rgba(244,63,94,0.6)]';
+    ring = 'ring-rose-300/60 shadow-[0_0_8px_rgba(244,63,94,0.75)]';
+    pulse = 'animate-pulse';
   }
   return (
     <span
-      className={`inline-flex items-center justify-center rounded ${px} ${bg} ${ring} ring-1 ${className}`}
+      className={`inline-flex items-center justify-center rounded ${px} ${bg} ${ring} ${pulse} ring-1 ${className}`}
       data-testid={`attendance-trend-${t}`}
       title={t === 'up' ? 'Affluenza in crescita' : t === 'down' ? 'Affluenza in calo' : 'Affluenza stabile'}
     >

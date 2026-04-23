@@ -10,6 +10,14 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 23, 2026 — Doppio fix rapido: "A breve" duplicato + freccia andamento spettatori**
+  - **Bug 1**: la card "A BREVE" persisteva accanto alla card "AL CINEMA LIVE" dello stesso film. Il filtro frontend confrontava `r.id` (nuovo UUID post-confirm-release) con `ab.film_id` (project id) → non matchava mai.
+    **Fix**: `routes/pipeline_v3.py recent-releases` ora include `source_project_id` nella projection. Il filtro frontend confronta sia `r.source_project_id === ab.film_id` che `r.id === ab.film_id`.
+  - **Bug 2**: la `AttendanceTrendBadge` mostrava "—" quasi sempre perche' il `trend_dir` in `scheduler_tasks.update_film_attendance` confrontava `last tick vs previous tick` (10 min → rumore, rumore risolto come flat). Inoltre badge centrato tra lo sfondo verde, non visibile.
+    **Fix cadenza**: confronto ora su **3 ore fa** (`attendance_history[-18]`, 18 tick × 10 min). Fallback all'entry piu' vecchia disponibile nelle prime 3 ore. Soglia ±3%.
+    **Fix UI**: badge spostato a `absolute bottom-0.5 right-0.5` (fuori dalla pill "AL CINEMA", in angolo a destra), aggiunto `animate-pulse` + ombra bagliore piu' intensa quando trend e' `up`/`down` (resta statico per `flat`).
+  - Files: `routes/pipeline_v3.py`, `scheduler_tasks.py`, `pages/Dashboard.jsx`, `components/AttendanceTrendBadge.jsx`.
+
 - **Feb 23, 2026 — Badge rosso "Produci" visibile anche in fase IDEA e HYPE (V3)**
   - **Bug**: `GET /api/pipeline-v2/production-counts` (usato dal topbar + side-menu per il pallino rosso) non includeva gli stati V3 `idea`/`hype`/`cast`/`ciak`/`finalcut`/`distribution` per film. Non considerava la collezione `series_projects_v3` (tutte le serie/anime V3). Risultato: durante idea e hype il badge era 0.
   - **Fix** (`routes/pipeline_v2.py` get_production_counts):

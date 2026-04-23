@@ -468,12 +468,13 @@ async def get_recent_releases(user: dict = Depends(get_current_user)):
 
     items = await db.films.find(
         {"status": "in_theaters"},
-        {"_id": 0, "id": 1, "title": 1, "poster_url": 1, "user_id": 1,
+        {"_id": 0, "id": 1, "source_project_id": 1, "title": 1, "poster_url": 1, "user_id": 1,
          "quality_score": 1, "total_revenue": 1, "genre": 1, "status": 1,
          "pipeline_version": 1, "created_at": 1, "released_at": 1,
          "film_duration_label": 1, "theater_days": 1, "theater_start": 1,
          "cast": 1, "film_format": 1, "subgenres": 1, "preplot": 1,
-         "screenplay_text": 1, "likes_count": 1, "virtual_likes": 1}
+         "screenplay_text": 1, "likes_count": 1, "virtual_likes": 1,
+         "attendance_trend": 1, "attendance_trend_updated_at": 1}
     ).sort("created_at", -1).to_list(20)
 
     # Enrich with producer names

@@ -85,11 +85,14 @@ MARKETING_COSTS = {
 EXTRAS_COST_PER_100 = 80_000
 
 
-def calculate_production_cost(project: dict) -> dict:
+def calculate_production_cost(project: dict, user_doc: dict = None) -> dict:
     """Calcola il costo totale di produzione.
     
     Uses budget_tier if available (V2 budget system), falls back to format-based for legacy.
     Returns breakdown + totals.
+
+    If user_doc is provided, applies level_cost_multiplier at checkout (transparent UI).
+    Does NOT modify per-item costs so leaderboard/records stay pure.
     """
     film_format = project.get("film_format", "standard")
     budget_tier = project.get("budget_tier")
@@ -207,12 +210,30 @@ def calculate_production_cost(project: dict) -> dict:
     dist_cp = (dist_cost_data.get("total_cp", 0) or 0)
     
     total_cp = min(30, base_cp + complexity_cp + dist_cp)
-    
+
+    # Level-based cost scaling (applies ONLY to total_funds, preserves per-item costs for transparency)
+    scaling = None
+    base_total_funds = total_funds
+    if user_doc is not None:
+        try:
+            from utils.economy_scaling import compute_scaling_bundle
+            scaling = compute_scaling_bundle(
+                user_doc,
+                source='production',
+                budget_tier=project.get('budget_tier'),
+                films_made=user_doc.get('films_produced_count', 0),
+            )
+            total_funds = max(100_000, int(round(total_funds * scaling['multiplier'])))
+        except Exception:
+            scaling = None
+
     return {
         "breakdown": breakdown,
         "total_funds": total_funds,
+        "base_total_funds": base_total_funds,
         "total_cp": total_cp,
         "sponsor_offset": sponsor_offset,
+        "scaling": scaling,
     }
 
 

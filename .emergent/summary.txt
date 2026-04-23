@@ -1,28 +1,39 @@
-<analysis>**original_problem_statement**: 
-The user requested extensive updates to the V3 Pipeline for TV Series and Anime, including making the pipeline identical to the Film V3 pipeline (Cast, Ciak, Finalcut, Marketing), integrating the PREP phase into the IDEA phase, overhauling the Purchased Screenplays feature to spawn V3 projects with Avanzata (Advanced) and Veloce (Fast) modes, adding a complex TV Ad tradeoffs system in the Marketing phase, fixing several UI bugs (moving I Miei to the center of the navbar), and adding Silent Bonuses (invisible cash boosts) for new players to aid onboarding.
+<analysis><handoff summary>
+**original_problem_statement**: 
+The user requested a massive, multi-faceted overhaul of the game's economics and several UI/UX pipeline fixes. The core new requirement is an **Economics Scaling System** for the V3 Pipeline: production costs (cast, crew, equipment) must scale dynamically based on the player's level (e.g., Level 1 players should pay ~3-8M for a film, capping out at a 1.5x multiplier at Level 200+), cast recruitment must be level-gated (Level 1 players shouldn't easily recruit 5-star actors), and the CWSv (quality score) variance must be adjusted so films don't default to 7.0-8.0 regardless of the cast. Box office revenues must remain absolute (unscaled) for fair leaderboards.
 
-**User's preferred language**: Italian (You MUST respond in Italian only)
+**User's preferred language**: Italian (You MUST INSTRUCT next agent to respond in Italian only)
 
 **what currently exists?** 
-A highly complex full-stack multiplayer cinema management game. The application includes a unified V3 Pipeline for Films, TV Series, and Anime. The Series/Anime pipeline has just been massively upgraded to include Ad-platform trade-offs (upfront cash vs daily revenue cuts) and the Prep phase has been integrated directly into the Idea phase. The game also features a fully revamped Purchased Screenplays system that directly integrates with the V3 Pipeline, bypassing old legacy flows.
+A highly complex full-stack multiplayer cinema management game. It features a unified V3 Pipeline for Films, TV Series, and Anime. The agent just completed a massive streak of UI/UX fixes (dashboard modals, admin panel expansions, anime casting systems, episode duration generators). The backend now includes a new  utility that calculates a cost multiplier using an asymptotic curve based on the player's level.
 
 **Last working item**: 
-    - Last item agent was working: Implementing the Silent Bonuses system for new players. The user requested invisible monetary boosts during the first 6-10 days based on the number of films owned, as well as silent session bonuses (10m, 30m, 1h, 2h) and login/hourly bonuses to help with onboarding without notifying the user. The agent just created .
+    - Last item agent was working: Implementing the **Economics Overhaul (Cost Scaling)**. The agent created  and successfully updated . It was in the middle of updating the  function and cost calculations inside  when the  tool failed due to a mismatched string, and the context window ended.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? backend testing agent or manual curl (to verify endpoints and DB wallet inserts without UI toasts).
+    - Which testing method agent to use? backend testing agent or manual curl / python -c to verify cost calculations and cast proposals.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-None. All reported bugs (like the Contenuto non trovato trailer bug and Hype advance guard) were fixed.
+  Issue 1: Complete the  integration in  (P0)
+     - Attempted fixes: Agent tried to use  on  in  to automatically apply the economy multiplier to scalable funds, but the string replacement failed.
+     - Next debug checklist: 
+       - View  around line 264.
+       - Manually apply the  logic to the  function or where  are deducted.
+       - Ensure the scaling is also applied to Series/Anime V3 pipelines ().
+     - Why fix this issue and what will be achieved with the fix? It is the core of the cost-reduction system for low-level players.
+     - Status: IN PROGRESS
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on other issue: None
 
 **In progress Task List**:
-  Task 1: Complete and Integrate Silent Bonuses (P0)
-     - Where to resume: The logic inside  needs to be completed. Then, it needs to be hooked into the session heartbeat ( -> ) or the daily  cron jobs.
-     - What will be achieved with this? Players will receive invisible wallet transactions (cash injections) during their first few days or for playing consecutively, preventing early-game frustration.
-     - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? Backend (verify  are created without triggering frontend event listeners/toasts).
-     - Blocked on something: Nothing.
+  Task 1: Complete the Economics Overhaul - Cast Level-Gating & CWSv Variance (P0)
+     - Where to resume: Update the  endpoints in  and  to restrict the maximum fame/stars visible based on the player's level (as agreed in the plan: Lvl 1-2 = 1★, Lvl 3-5 = 2★, etc., with a 5% chance of a higher tier Interested NPC at +50% cost). Update  to implement the new CWSv variance (baseline 4.5, wider spread based on cast average, +1.2 jackpot for perfect genre matching).
+     - What will be achieved with this? Complete the economic rebalancing, making the early game accessible and the late game challenging and meritocratic.
+     - Status: NOT STARTED
+     - Should Test frontend/backend/both after fix? Backend
+     - Blocked on something: Task 1 (Cost Scaling)
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -37,72 +48,74 @@ None. All reported bugs (like the Contenuto non trovato trailer bug and Hype adv
     - (P2) Refactoring  to split it into specialized background workers.
 
 **Completed work in this session**
-- Fixed P0 backend crash caused by missing  import (DONE)
-- Fixed and completed the V2 XP/Fame DB migration script (DONE)
-- Moved I Miei navbar button to the center (position 6) and changed color to blue (DONE)
-- Overhauled Purchased Screenplays to use Pipeline V3, adding Avanzata and Veloce modes (DONE)
-- Added Bestseller badges to screenplays and a cinematic curtain animation upon purchase (DONE)
-- Fixed Contenuto non trovato trailer generation bug for Series/Anime (DONE)
-- Added progress circles inside AI Generation buttons and created a responsive Episode grid with AI-generated mini-plots (DONE)
-- Completed the missing Cast, Ciak, and Finalcut phases for Series/Anime V3 (DONE)
-- Merged the PREP phase directly into the IDEA phase for a smoother flow (DONE)
-- Added Ad Platforms and Episode Ads tradeoff logic to the Series/Anime Marketing Phase (DONE)
-- Added Prestige Tier UI toast notifications on Fame level-up (DONE)
+- Series/Anime TV Scheduling: Added , automated distribution scheduler, and Pending TV dashboard modals (DONE).
+- Scarta / Ricomincia Buttons: Added hard-delete and restart endpoints for V3 Idea Phase (Film, Series, Anime) with  modal (DONE).
+- Dynamic Episode Duration: Episodes now vary slightly (-3 to +7 mins) based on the user's selected base duration (DONE).
+- Lunga/Maratona constraints: Fixed a bug capping long series formats to 13 episodes (DONE).
+- Produci Badge counter: Now accurately counts V3 projects in Idea/Hype phases (DONE).
+- Admin Panel Expansions: Added All Films, All Series, All Anime, and All Trailers tabs with permanent delete buttons and fix actions (DONE).
+- Owner Permanent Delete: Added Elimina per sempre button on content modals for content owners (DONE).
+- Anime Cast Phase: Created  (generated 300 directors, 2000 illustrators) and fully implemented the Cast Phase for Anime/Series V3 (DONE).
+- Economics Overhaul Math: Created  with the approved asymptotic cost curve (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-None.
+None. Agent cleared the entire user backlog before hitting the context limit on the final feature.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: None observed in this session.
+  - Issue recurrence in previous fork: None
+  - Recurrence count: 0
+  - Status: RESOLVED
 
 **Code Architecture**
 - Frontend:  (React). Heavily utilizes Context API (), Shadcn UI, and modular pipeline phase components (, , etc.).
-- Backend:  (FastAPI). Relies heavily on MongoDB collections separated by game state (e.g., , , ).
+- Backend:  (FastAPI). Relies heavily on MongoDB collections separated by game state (e.g., , , , ).
 
 **Key Technical Concepts**
 - Pipeline V3 State Machine ( ->  ->  ->  ->  ->  ->  -> ).
-- Modular Phase Components: React frontend swaps out components based on the project's current .
+- Economics Scaling: A mathematical multiplier applied to production costs based on .
 
 **key DB schema**
+  - : Contains actors, directors, writers, composers, , .
   - : The main collection for active TV Series / Anime in production.
-  -  / : Sources for purchased screenplays.
-  - : Records economy changes. Silent bonuses must be recorded here silently.
+  - : Contains , , , .
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
-  -  (Created this session, IN PROGRESS)
-  -  (Created this session for the new V3 screenplay flow)
-  -  (Heavily updated with new endpoints for Cast, Ciak, Marketing, etc.)
-  -  (Frontend state manager for Series V3)
-  -  (Updated to handle PREP logic internally)
-  -  (Heartbeat endpoint, likely where session bonuses will be hooked)
+  -  (Created this session, contains multiplier logic)
+  -  (Updated to use scaling)
+  -  (Currently being edited to apply scaling to )
+  -  (Needs scaling applied)
+  -  (Needs updating for CWSv variance)
 
 **Areas that need refactoring**: 
-  -  remains a >2600 line monolith. Needs splitting in the future.
+  -  and  are massive. Extracting cast proposal logic to a shared utility would be beneficial.
 
 **key api endpoints**
-  -  (Session heartbeat)
-  -  & 
+  - 
+  - 
   - 
 
 **Critical Info for New Agent** 
 - **Language**: You MUST reply to the user in Italian.
-- **Silent Bonuses**: The user emphasized these must be truly *silent*. Do not dispatch custom events or create  style popups for these specific cash infusions. Just update the user's  and insert a .
-- **Series/Anime Pipeline**: PREP is now part of IDEA. The pipeline array is . Do not re-introduce  as a standalone pipeline state.
+- The user has explicitly requested **No test agent** for UI/UX changes, preferring you to trust your code and use  or  to verify. However, for the backend Economics overhaul, you should use  or  to verify the math is working as expected.
+- The Economics Scaling rule: Costs (cast, crew, CGI, etc.) MUST scale based on player level. Revenues (Box office, tickets, spectators) MUST NOT scale, ensuring leaderboards remain purely meritocratic.
 
 **documents and test reports created in this job** 
-  -  (Continuously updated)
-  -  (Used during Purchased Screenplays implementation)
+  -  (Continuously updated with all completed fixes)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Uploaded screenshot indicating the PREP step shouldn't be the 4th step, but integrated into IDEA right after title/genre.
-2. *Agent*: Merged PREP into IDEA in the frontend () and backend . Tested flow.
-3. *User*: Uploaded screenshot asking for a complete MarketingPhase with ad-platforms and an episode advertising tradeoff system (0 mins = 60% revenue cut, 8 mins = 10% cut but 20% interest penalty).
-4. *Agent*: Implemented the  endpoint and Ad trade-off logic. Verified.
-5. *User*: Requested a Silent Bonus system for early-game users (0-5 films) and session continuity (10m, 30m, 1h, 2h) to give them extra invisible cash without notifications so they don't get frustrated.
-6. *Agent*: Created  to start implementing the 3 layers (Onboarding, Session, Login/Hourly). Context ended. (PENDING COMPLETION).
+1. *User*: Requested Scarta/Ricomincia buttons in Idea Phase V3.
+2. *Agent*: Implemented buttons using .
+3. *User*: Reported episodes always defaulting to 55m regardless of choice.
+4. *Agent*: Fixed variable episode generation duration.
+5. *User*: Reported Lunga/Maratona formats capping at 13 episodes.
+6. *Agent*: Fixed intersection range bug.
+7. *User*: Admin / Event fixes + Owner permanent delete + Produci badge fix + Anime casting system with Disegnatori.
+8. *Agent*: Fixed badge, created Anime casting system (), added Admin tabs, added owner delete.
+9. *User*: Requested massive Economics balancing (costs too high for early players, CWSv too compressed).
+10. *Agent*: Proposed mathematical curve for cost scaling, cast gating, and CWSv variance. User approved (Procedi tutto). Agent started implementation but context ended while editing . (PENDING COMPLETION).
 
 **Project Health Check:**
 - Broken: None
@@ -113,21 +126,23 @@ None.
   - Pixazo / WaveSpeed AI (Image Generation) — uses User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES (iteration 164)
+  - Testing agent used after significant changes: NO (User requested No test agent for these rapid patches).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: 
+  - Test files created: None
   - Known regressions: None
 
 **Credentials to test flow:**
 Use  (Email: fandrex1@gmail.com, Password: Fandrel2776).
 
 **What agent forgot to execute**
-The agent just created the file  but ran out of context before writing the logic and hooking it into the  route ().
+The agent failed to successfully execute the  tool on the  function in  just before context ran out. 
 
 **Debugging checklist for current issue**
-    Issue: Complete Silent Bonuses Implementation
+    Issue: Complete Economics Overhaul Implementation
     
     Backend files to check/edit:
-    -  (Write the logic for onboarding caps, session tracking, and daily login bonuses).
-    -  (Hook the silent bonus check into the  endpoint, which is called every 10 minutes by the frontend).
-    - Ensure all granted cash uses  and  silently.</analysis>
+    -  (Apply  inside  or where total funds are calculated before deduction).
+    -  (Apply the same cost scaling logic to TV Series / Anime creation).
+    - Update  endpoints in both  and  to filter out high-tier actors based on the player's level (Level-gated cast tiers).
+    -  (Update the formula to have a baseline of 4.5, higher variance, and genre-matching bonuses as agreed in the chat history).
+</handoff summary></analysis>

@@ -2433,7 +2433,7 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     # This is the authoritative net cost (incl. sponsor offset, marketing, cast, distribution, ...).
     try:
         from utils.calc_production_cost import calculate_production_cost
-        cost_breakdown = calculate_production_cost(project)
+        cost_breakdown = calculate_production_cost(project, user_doc=user)
         total_cost = int(cost_breakdown.get("total_funds", 0) or 0)
     except Exception:
         total_cost = 0

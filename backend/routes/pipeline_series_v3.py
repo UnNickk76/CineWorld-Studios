@@ -1011,6 +1011,78 @@ async def discard_project(pid: str, user: dict = Depends(get_current_user)):
     return {"success": True}
 
 
+@router.post("/projects/{pid}/hard-delete")
+async def hard_delete_series_project(pid: str, user: dict = Depends(get_current_user)):
+    """Permanently delete a V3 series/anime project (no catalog/tv transfer)."""
+    project = await _get_project(pid, user["id"])
+    if project.get("pipeline_state") == "released":
+        raise HTTPException(400, "Impossibile cancellare una serie gia' rilasciata")
+    await db.series_projects_v3.delete_one({"id": pid, "user_id": user["id"]})
+    # Best effort: clean any orphan tv_series doc created during a previous discard
+    await db.tv_series.delete_many({"source_project_id": pid, "user_id": user["id"], "status": {"$in": ["discarded", "catalog"]}})
+    return {"success": True, "deleted": True}
+
+
+@router.post("/projects/{pid}/restart")
+async def restart_series_project(pid: str, user: dict = Depends(get_current_user)):
+    """Reset a V3 series/anime project back to empty idea state."""
+    project = await _get_project(pid, user["id"])
+    if project.get("pipeline_state") == "released":
+        raise HTTPException(400, "Impossibile ricominciare una serie gia' rilasciata")
+
+    fresh = {
+        "pipeline_state": "idea",
+        "status": "idea",
+        "title": "",
+        "genre": None,
+        "genre_name": None,
+        "subgenres": [],
+        "preplot": "",
+        "poster_url": "",
+        "poster_is_placeholder": False,
+        "screenplay": None,
+        "screenplay_text": None,
+        "screenplay_ai_generated": False,
+        "cast": {},
+        "hired_stars": [],
+        "cast_proposals": [],
+        "num_episodes": 10,
+        "season_number": 1,
+        "series_format": "stagionale",
+        "episode_duration_min": 45,
+        "episodes": [],
+        "ciak_completed": False,
+        "finalcut_completed": False,
+        "marketing_completed": False,
+        "distribution_confirmed": False,
+        "selected_sponsors": [],
+        "marketing_packages": [],
+        "ad_breaks_per_episode": 0,
+        "revenue_cut_percentage": 60,
+        "interest_penalty_pct": 0,
+        "sponsor_packages": [],
+        "marketing_upfront_revenue": 0,
+        "prossimamente_tv": False,
+        "release_policy": "daily_1",
+        "tv_eps_per_batch": 1,
+        "tv_interval_days": 1,
+        "tv_split_season": False,
+        "tv_split_pause_days": 14,
+        "distribution_delay_hours": 0,
+        "target_tv_station_id": None,
+        "hype": 0,
+        "trailer": None,
+        "quality_score": 0,
+        "cwsv_display": None,
+        "restarted_at": _now(),
+    }
+    await _update_project(pid, user["id"], fresh)
+    project = await _get_project(pid, user["id"])
+    return {"success": True, "project": project, "restarted": True}
+
+
+
+
 # ═══════════════════════════════════════
 # RINNOVO STAGIONE (S2, S3, ...)
 # ═══════════════════════════════════════

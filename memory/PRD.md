@@ -10,6 +10,18 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 23, 2026 — IdeaPhase V3: Scarta + Ricomincia con Cineox+Velion**
+  - **Nuovo componente condiviso** `components/v3/CineConfirm.jsx`: modale conferma con i mascot **Cineox + Velion**, glow tonale (rose/amber/violet), animazioni float dei personaggi, backdrop blur, auto-close su tap esterno. Mobile-first.
+  - **Backend endpoints nuovi**:
+    - `POST /pipeline-v3/films/{pid}/hard-delete` → elimina completamente il progetto film V3 (no transfer a mercato). Blocca se `pipeline_state=='released'`. Cleanup orfani `films` con stato `market|discarded`.
+    - `POST /pipeline-v3/films/{pid}/restart` → reset totale: titolo, genere, pretrama, locandina, sceneggiatura, cast, locations, equipment, CGI/VFX, shooting_days, flag di fase, sponsor, marketing, premiere, distribuzione, hype, trailer, durata, cwsv ecc. tutti wiped. Stesso ID progetto. Salva `restarted_at`.
+    - `POST /pipeline-series-v3/projects/{pid}/hard-delete` → idem per serie/anime V3. Cleanup orfani `tv_series` con stato `discarded|catalog`.
+    - `POST /pipeline-series-v3/projects/{pid}/restart` → reset completo serie/anime V3 (include anche campi TV: target_tv_station_id, release_policy, eps/interval/split/delay).
+  - **Frontend IdeaPhase Film** (`components/v3/IdeaPhase.jsx` → nuovo `DangerZoneFilm`): 2 bottoni in fondo "Ricomincia" (ambra, `RotateCcw`) + "Scarta" (rose, `Trash2`), ognuno apre `CineConfirm`. Su conferma discard → redirect a `/produci`. Su restart → `onRefresh()`.
+  - **Frontend IdeaPhase Serie/Anime** (`components/v3/PipelineSeriesV3.jsx` → nuovo `SeriesDangerZone`): stessi 2 bottoni con `data-testid="series-idea-restart-btn"` e `series-idea-discard-btn`. Chiama gli endpoint serie.
+  - **Sicurezza**: entrambi gli endpoint rigettano richieste su progetti `released` (code 400).
+  - Zero breaking change sugli endpoint `/discard` legacy (conservati per eventuali flussi vecchi).
+
 - **Feb 23, 2026 — Serie TV/Anime V3: emittente in pipeline + dashboard cliccabile + pending TV UX**
   - **Pipeline V3 DistributionPhase (serie+anime)**: se `prossimamente_tv=true`, il player ora sceglie l'**emittente TV di destinazione** tra le proprie + opzione "Nessuna emittente". Field nuovo `target_tv_station_id` (salvato via `/save-distribution`, propagato a `confirm-release`). Se seleziona una TV → al rilascio viene popolato `scheduled_for_tv=true, scheduled_for_tv_station=<id>` sulla `tv_series`, e config pipeline (eps_per_batch, interval, split, delay) propagata.
   - **Dashboard "IN ARRIVO SU TV" cliccabile**: ogni poster ora e' un button che apre `ProssimamenteDetailModal` (nuovo). Usa `/api/series/{id}` (normalizzato V1/V2/V3) per mostrare: hero, produttore, CWSv/quality, countdown airing, preplot, e **lista episodi cliccabili** — ogni episodio espande inline il `mini_plot` AI generato in IdeaPhase. Episodi senza mini-trama mostrano "Mini-trama disponibile al rilascio".

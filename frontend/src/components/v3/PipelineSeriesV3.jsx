@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Film, ChevronLeft, Save, X, Tv, Sparkles, Star } from 'lucide-react';
+import { Plus, Film, ChevronLeft, Save, X, Tv, Sparkles, Star, Trash2, RotateCcw } from 'lucide-react';
 import { StepperBar as FilmStepperBar, PhaseWrapper, ProgressCircle, STEP_STYLES, GENRE_LABELS, SUBGENRE_MAP, LOCATION_TAGS } from './V3Shared';
 import { Check, TrendingUp, Users, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket } from 'lucide-react';
 import { AuthContext } from '../../contexts';
 import TrailerGeneratorCard from '../TrailerGeneratorCard';
+import CineConfirm from './CineConfirm';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -451,11 +452,62 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
           </div>
         </div>
       )}
+
+      {/* Danger zone: Scarta / Ricomincia */}
+      <SeriesDangerZone project={project} onRefresh={onRefresh} />
     </div>
   );
 };
 
-/* ─── Timer hook: calcola progress reale da started_at / complete_at ─── */
+/* ─── Danger zone for Series/Anime V3 ─── */
+const SeriesDangerZone = ({ project, onRefresh }) => {
+  const [showDiscard, setShowDiscard] = useState(false);
+  const [showRestart, setShowRestart] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const onDiscard = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await sapi(`/projects/${project.id}/hard-delete`, 'POST');
+      toast.success('Progetto eliminato');
+      setShowDiscard(false);
+      window.location.href = '/produci';
+    } catch (e) { toast.error(e.message); } finally { setBusy(false); }
+  };
+  const onRestart = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await sapi(`/projects/${project.id}/restart`, 'POST');
+      toast.success('Progetto ricominciato da zero');
+      setShowRestart(false);
+      onRefresh?.();
+    } catch (e) { toast.error(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="mt-4 pt-4 border-t border-white/5">
+      <p className="text-[8px] text-gray-600 uppercase font-bold tracking-wider mb-2 text-center">Zona pericolosa</p>
+      <div className="grid grid-cols-2 gap-2">
+        <button onClick={() => setShowRestart(true)} data-testid="series-idea-restart-btn"
+          className="py-2.5 rounded-xl border border-amber-500/25 bg-amber-500/5 text-amber-400 text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-amber-500/10 active:scale-[0.97] transition-all">
+          <RotateCcw className="w-3.5 h-3.5" /> Ricomincia
+        </button>
+        <button onClick={() => setShowDiscard(true)} data-testid="series-idea-discard-btn"
+          className="py-2.5 rounded-xl border border-rose-500/30 bg-rose-500/5 text-rose-300 text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-rose-500/10 active:scale-[0.97] transition-all">
+          <Trash2 className="w-3.5 h-3.5" /> Scarta
+        </button>
+      </div>
+      <CineConfirm open={showDiscard} title="Scartare il progetto?"
+        subtitle="Verra' eliminato completamente. Non finira' al mercato."
+        confirmLabel={busy ? '...' : 'Scarta per sempre'} confirmTone="rose"
+        onConfirm={onDiscard} onCancel={() => !busy && setShowDiscard(false)} />
+      <CineConfirm open={showRestart} title="Ricominciare da capo?"
+        subtitle="Tutti i dati (titolo, locandina, sceneggiatura, cast, episodi, ecc.) saranno cancellati."
+        confirmLabel={busy ? '...' : 'Ricomincia'} confirmTone="amber"
+        onConfirm={onRestart} onCancel={() => !busy && setShowRestart(false)} />
+    </div>
+  );
+};
 const useTimerProgress = (startedAt, completeAt) => {
   const [pct, setPct] = useState(0);
   useEffect(() => {

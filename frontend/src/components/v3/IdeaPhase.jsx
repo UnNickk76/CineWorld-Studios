@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect, useContext } from 'react';
-import { Sparkles, Film, RefreshCw, Building2, MapPin, Trees, Landmark, Home } from 'lucide-react';
+import { Sparkles, Film, RefreshCw, Building2, MapPin, Trees, Landmark, Home, Trash2, RotateCcw } from 'lucide-react';
 import { PhaseWrapper, GENRES, GENRE_LABELS, SUBGENRE_MAP, ProgressCircle, v3api } from './V3Shared';
 import { AuthContext } from '../../contexts';
 import TrailerGeneratorCard from '../TrailerGeneratorCard';
+import CineConfirm from './CineConfirm';
 
 /*
   Flusso sequenziale:
@@ -556,6 +557,83 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
           </div>
         </div>
       )}
+
+      {/* Danger zone: Scarta / Ricomincia (mobile-first) */}
+      {!readOnly && (
+        <DangerZoneFilm film={film} onRefresh={onRefresh} toast={toast} api={api} />
+      )}
     </PhaseWrapper>
+  );
+};
+
+// Danger Zone — film V3 ideaPhase
+const DangerZoneFilm = ({ film, onRefresh, toast, api }) => {
+  const [showDiscard, setShowDiscard] = useState(false);
+  const [showRestart, setShowRestart] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const onDiscard = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api.post(`/pipeline-v3/films/${film.id}/hard-delete`);
+      toast?.success?.('Progetto eliminato');
+      setShowDiscard(false);
+      window.location.href = '/produci';
+    } catch (e) {
+      toast?.error?.(e?.response?.data?.detail || 'Errore eliminazione');
+    } finally { setBusy(false); }
+  };
+  const onRestart = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api.post(`/pipeline-v3/films/${film.id}/restart`);
+      toast?.success?.('Progetto ricominciato da zero');
+      setShowRestart(false);
+      onRefresh?.();
+    } catch (e) {
+      toast?.error?.(e?.response?.data?.detail || 'Errore reset');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="mt-4 pt-4 border-t border-white/5">
+      <p className="text-[8px] text-gray-600 uppercase font-bold tracking-wider mb-2 text-center">Zona pericolosa</p>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => setShowRestart(true)}
+          data-testid="idea-restart-btn"
+          className="py-2.5 rounded-xl border border-amber-500/25 bg-amber-500/5 text-amber-400 text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-amber-500/10 active:scale-[0.97] transition-all"
+        >
+          <RotateCcw className="w-3.5 h-3.5" /> Ricomincia
+        </button>
+        <button
+          onClick={() => setShowDiscard(true)}
+          data-testid="idea-discard-btn"
+          className="py-2.5 rounded-xl border border-rose-500/30 bg-rose-500/5 text-rose-300 text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-rose-500/10 active:scale-[0.97] transition-all"
+        >
+          <Trash2 className="w-3.5 h-3.5" /> Scarta
+        </button>
+      </div>
+      <CineConfirm
+        open={showDiscard}
+        title="Scartare il progetto?"
+        subtitle="Verra' eliminato completamente. Non finira' al mercato."
+        confirmLabel={busy ? '...' : 'Scarta per sempre'}
+        confirmTone="rose"
+        onConfirm={onDiscard}
+        onCancel={() => !busy && setShowDiscard(false)}
+      />
+      <CineConfirm
+        open={showRestart}
+        title="Ricominciare da capo?"
+        subtitle="Tutti i dati (titolo, locandina, sceneggiatura, cast, ecc.) saranno cancellati."
+        confirmLabel={busy ? '...' : 'Ricomincia'}
+        confirmTone="amber"
+        onConfirm={onRestart}
+        onCancel={() => !busy && setShowRestart(false)}
+      />
+    </div>
   );
 };

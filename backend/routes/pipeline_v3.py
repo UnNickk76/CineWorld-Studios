@@ -2611,6 +2611,81 @@ async def delete_film_permanently(film_id: str, user: dict = Depends(get_current
     return {"success": True, "message": "Film eliminato permanentemente"}
 
 
+@router.post("/films/{pid}/hard-delete")
+async def hard_delete_project(pid: str, user: dict = Depends(get_current_user)):
+    """Permanently delete a V3 film project (no market transfer). Safe only while the
+    project is not yet released. Allowed from any stage before release.
+    """
+    project = await _get_project(pid, user["id"])
+    if project.get("pipeline_state") == "released":
+        raise HTTPException(400, "Impossibile cancellare un progetto gia' rilasciato")
+    await db.film_projects.delete_one({"id": pid, "user_id": user["id"]})
+    # Best effort: clean any orphan film doc created by discard
+    await db.films.delete_many({"source_project_id": pid, "user_id": user["id"], "status": {"$in": ["market", "discarded"]}})
+    return {"success": True, "deleted": True}
+
+
+@router.post("/films/{pid}/restart")
+async def restart_project(pid: str, user: dict = Depends(get_current_user)):
+    """Reset a V3 film project back to an empty idea state. Preserves id and user but
+    clears title, genre, screenplay, cast, poster and all downstream data.
+    """
+    project = await _get_project(pid, user["id"])
+    if project.get("pipeline_state") == "released":
+        raise HTTPException(400, "Impossibile ricominciare un progetto gia' rilasciato")
+
+    fresh = {
+        "pipeline_state": "idea",
+        "status": "idea",
+        "title": "",
+        "genre": None,
+        "subgenre": None,
+        "preplot": "",
+        "poster_url": "",
+        "poster_is_placeholder": False,
+        "screenplay": None,
+        "screenplay_text": None,
+        "screenplay_ai_generated": False,
+        "cast": {},
+        "hired_stars": [],
+        "cast_proposals": [],
+        "locations": [],
+        "equipment": [],
+        "cgi": [],
+        "vfx": [],
+        "extras": [],
+        "shooting_days": 0,
+        "ciak_completed": False,
+        "finalcut_completed": False,
+        "marketing_completed": False,
+        "distribution_confirmed": False,
+        "selected_sponsors": [],
+        "marketing_packages": [],
+        "ad_breaks_per_episode": 0,
+        "marketing_upfront_revenue": 0,
+        "premiere": None,
+        "release_event": None,
+        "release_type": None,
+        "distribution_continents": [],
+        "distribution_nations": [],
+        "distribution_cities": [],
+        "distribution_mondiale": False,
+        "hype": 0,
+        "hype_events": [],
+        "trailer": None,
+        "film_duration_minutes": 0,
+        "duration_category": None,
+        "quality_score": 0,
+        "cwsv_display": None,
+        "episodes": [],
+        "restarted_at": _now(),
+    }
+    await _update_project(pid, user["id"], fresh)
+    project = await _get_project(pid, user["id"])
+    return {"success": True, "project": project, "restarted": True}
+
+
+
 @router.get("/ad-platforms")
 async def get_ad_platforms_v3():
     """Get available advertising platforms for V3."""

@@ -10,6 +10,18 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 23, 2026 — Admin Panel: sezione Trailer**
+  - **Backend**: 3 nuovi endpoint admin-only:
+    - `GET /admin/all-trailers?q=` scansiona `films + film_projects + tv_series + series_projects_v3` cercando `trailer.frames` not empty. Ritorna `{content_id, collection, content_type, title, poster_url, tier, mode, views/likes/dislikes, generated_at, parent_exists, parent_stage, owner_nickname, studio_name, owner_exists}`.
+    - `GET /admin/trailer-detail/{content_id}` → trailer completo con frames per playback.
+    - `DELETE /admin/delete-trailer/{content_id}` → `$unset trailer` su tutte le 4 collezioni + cleanup `trailer_votes`.
+  - **Frontend AdminPage**: nuova 4a tab "Trailer" a fianco di Film/Serie TV/Anime. Apre `TrailersAdminPanel` con:
+    - Search box per titolo.
+    - Grid compatta (48px) di poster con badge tier al centro.
+    - Click sulla card → popup: proprietario (o "Ex-proprietario" se user cancellato), status del parent (Esiste/No), tier, views, 2 bottoni "Visualizza Trailer" (fetch detail + `TrailerPlayerModal`) e "Elimina per sempre" (ConfirmModal di sistema).
+  - Verificato via curl: 4 trailer trovati, metadata corretti (owner, parent_exists, tier).
+  - Files: `server.py` (endpoints), `pages/AdminPage.jsx` (TrailersAdminPanel).
+
 - **Feb 23, 2026 — Tripletta admin/owner + eventi globali**
   - **Fix 1 (owner)**: aggiunto bottone "Elimina per sempre" con `CineConfirm` (Cineox+Velion, tono rose) in:
     - `ContentTemplate.jsx` (qualsiasi stato del film, qualsiasi sezione, visibile solo al proprietario)

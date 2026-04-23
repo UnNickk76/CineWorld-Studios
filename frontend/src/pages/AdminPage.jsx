@@ -7,6 +7,7 @@ import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Pl
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 import { Dialog, DialogContent } from '../components/ui/dialog';
+import TrailerPlayerModal from '../components/TrailerPlayerModal';
 import { PlayerBadge } from '../components/PlayerBadge';
 import AdminFilmRecovery from '../components/AdminFilmRecovery';
 
@@ -702,12 +703,13 @@ function FilmsTab({ api }) {
         loading={deleteLoading}
       />
 
-      {/* Subsection tabs: film / tv_series / anime */}
+      {/* Subsection tabs: film / tv_series / anime / trailer */}
       <div className="flex gap-1.5 bg-[#0d0d0f] border border-white/5 rounded-lg p-1" data-testid="admin-content-type-tabs">
         {[
           { k: 'film', lbl: 'Film' },
           { k: 'tv_series', lbl: 'Serie TV' },
           { k: 'anime', lbl: 'Anime' },
+          { k: 'trailer', lbl: 'Trailer' },
         ].map(t => (
           <button key={t.k}
             onClick={() => setContentType(t.k)}
@@ -718,7 +720,11 @@ function FilmsTab({ api }) {
         ))}
       </div>
 
-      {/* Search */}
+      {contentType === 'trailer' ? (
+        <TrailersAdminPanel api={api} />
+      ) : (
+        <>
+        {/* Search */}
       <form onSubmit={handleSearch}>
         <div className="flex gap-2">
           <div className="flex-1 relative">
@@ -855,6 +861,166 @@ function FilmsTab({ api }) {
           )}
         </DialogContent>
       </Dialog>
+      </>
+      )}
+    </div>
+  );
+}
+
+/* ─── Trailers Admin Panel (owner + view + delete) ─── */
+function TrailersAdminPanel({ api }) {
+  const [trailers, setTrailers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState('');
+  const [selected, setSelected] = useState(null);
+  const [playing, setPlaying] = useState(null);
+  const [playingLoading, setPlayingLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get(`/admin/all-trailers?q=${encodeURIComponent(q)}`);
+      setTrailers(r.data.trailers || []);
+    } catch { toast.error('Errore caricamento'); }
+    finally { setLoading(false); }
+  }, [api, q]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/admin/delete-trailer/${deleteTarget.content_id}`);
+      toast.success('Trailer eliminato');
+      setDeleteTarget(null); setSelected(null);
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setDeleting(false); }
+  };
+
+  return (
+    <div className="space-y-3">
+      <ConfirmModal
+        open={!!deleteTarget}
+        title="Eliminazione Trailer"
+        message={`Eliminare definitivamente il trailer di "${deleteTarget?.title}" (${deleteTarget?.tier})? Azione IRREVERSIBILE.`}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleting}
+      />
+      <form onSubmit={(e) => { e.preventDefault(); load(); }}>
+        <div className="flex gap-2">
+          <input type="text" value={q} onChange={e => setQ(e.target.value)}
+            placeholder="Cerca trailer per titolo..."
+            className="flex-1 bg-[#111113] border border-gray-800 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:border-red-500/50 focus:outline-none"
+            data-testid="admin-trailer-search" />
+          <Button type="submit" size="sm" className="bg-red-600 hover:bg-red-700 text-xs px-3" disabled={loading}>
+            {loading ? '...' : 'Cerca'}
+          </Button>
+        </div>
+      </form>
+      <p className="text-[10px] text-gray-500">{trailers.length} trailer trovati</p>
+      <div className="grid gap-1 max-h-[70vh] overflow-y-auto pb-2"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(48px, 1fr))' }}
+        data-testid="admin-trailers-grid">
+        {trailers.map(t => (
+          <button key={`${t.collection}-${t.content_id}`}
+            onClick={() => setSelected(t)}
+            className="group relative bg-[#0d0d0f] border border-white/5 rounded overflow-hidden hover:border-red-500/40 transition-all text-left"
+            data-testid={`admin-trailer-card-${t.content_id}`}>
+            <div className="aspect-[2/3] bg-gray-900 relative">
+              {t.poster_url ? (
+                <img src={`${API_BASE}${t.poster_url}`} alt={t.title} loading="lazy" className="w-full h-full object-cover opacity-80" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-900"><Film className="w-3 h-3 text-gray-700" /></div>
+              )}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                <span className="text-[8px] text-white font-black bg-red-600/80 rounded px-1 py-px">{t.tier?.slice(0, 1).toUpperCase() || 'B'}</span>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+      {trailers.length === 0 && !loading && (
+        <p className="text-center text-xs text-gray-600 py-8">Nessun trailer trovato</p>
+      )}
+
+      {/* Trailer detail popup */}
+      <Dialog open={!!selected} onOpenChange={(o) => { if (!o) setSelected(null); }}>
+        <DialogContent className="bg-[#0d0d0f] border-white/10 max-w-sm p-4 [&>button]:hidden" data-testid="admin-trailer-detail-modal">
+          {selected && (
+            <div className="space-y-3">
+              <div className="flex items-start gap-2">
+                {selected.poster_url ? (
+                  <img src={`${API_BASE}${selected.poster_url}`} alt="" className="w-16 h-24 object-cover rounded" />
+                ) : null}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-gray-500">{selected.collection}</p>
+                  <p className="text-sm font-bold text-white truncate">{selected.title}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {selected.owner_exists ? 'Proprietario' : 'Ex-proprietario'}: @{selected.owner_nickname}
+                  </p>
+                  <p className="text-[10px] text-gray-500">{selected.studio_name}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-[9px]">
+                <div className="bg-white/[0.03] rounded p-1.5 text-center">
+                  <p className="text-gray-500 uppercase text-[7px] font-bold">Tier</p>
+                  <p className="text-white font-bold">{selected.tier}</p>
+                </div>
+                <div className="bg-white/[0.03] rounded p-1.5 text-center">
+                  <p className="text-gray-500 uppercase text-[7px] font-bold">Views</p>
+                  <p className="text-white font-bold">{selected.views_count}</p>
+                </div>
+                <div className="bg-white/[0.03] rounded p-1.5 text-center">
+                  <p className="text-gray-500 uppercase text-[7px] font-bold">Parent</p>
+                  <p className={selected.parent_exists ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                    {selected.parent_exists ? 'Esiste' : 'No'}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={async () => {
+                    setPlayingLoading(true);
+                    try {
+                      const r = await api.get(`/admin/trailer-detail/${selected.content_id}`);
+                      setPlaying({ ...r.data, content_id: selected.content_id });
+                    } catch { toast.error('Trailer non trovato'); }
+                    finally { setPlayingLoading(false); }
+                  }}
+                  disabled={playingLoading}
+                  data-testid="admin-trailer-view-btn"
+                  className="py-2.5 rounded-lg border border-amber-500/35 bg-amber-500/10 text-amber-300 text-[10px] font-bold hover:bg-amber-500/20 flex items-center justify-center gap-1 disabled:opacity-50"
+                >{playingLoading ? '...' : 'Visualizza Trailer'}</button>
+                <button
+                  onClick={() => setDeleteTarget(selected)}
+                  data-testid="admin-trailer-delete-btn"
+                  className="py-2.5 rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-[10px] font-bold hover:bg-rose-500/20 flex items-center justify-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" /> Elimina per sempre
+                </button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Trailer player */}
+      {playing && (
+        <TrailerPlayerModal
+          trailer={playing.trailer}
+          contentTitle={playing.title}
+          contentId={playing.content_id || playing.id}
+          contentGenre={playing.genre || ''}
+          contentOwnerId={playing.user_id}
+          api={api}
+          onClose={() => setPlaying(null)}
+        />
+      )}
     </div>
   );
 }

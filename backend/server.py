@@ -5811,6 +5811,97 @@ async def admin_delete_film(film_id: str, user: dict = Depends(get_current_user)
     }
 
 
+@api_router.get("/admin/all-trailers")
+async def admin_get_all_trailers(q: str = '', user: dict = Depends(get_current_user)):
+    """List all trailers across films/film_projects/tv_series/series_projects_v3 (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+
+    match = {"trailer.frames": {"$exists": True, "$ne": []}}
+    if q:
+        match["title"] = {"$regex": q, "$options": "i"}
+
+    proj = {"_id": 0, "id": 1, "title": 1, "poster_url": 1, "user_id": 1,
+            "trailer": 1, "type": 1, "status": 1, "pipeline_state": 1, "source_project_id": 1}
+    all_trailers = []
+    for coll, ctype in (("films", "film"), ("film_projects", "film"),
+                         ("tv_series", "series"), ("series_projects_v3", "series")):
+        async for d in db[coll].find(match, proj).limit(500):
+            t = d.get("trailer") or {}
+            resolved_type = d.get("type") or ctype
+            all_trailers.append({
+                "content_id": d["id"],
+                "collection": coll,
+                "content_type": resolved_type,
+                "title": d.get("title") or "(senza titolo)",
+                "poster_url": d.get("poster_url"),
+                "user_id": d.get("user_id"),
+                "tier": t.get("tier", "base"),
+                "mode": t.get("mode", "pre_launch"),
+                "generated_at": t.get("generated_at"),
+                "views_count": int(t.get("views_count", 0) or 0),
+                "likes_count": int(t.get("likes_count", 0) or 0),
+                "dislikes_count": int(t.get("dislikes_count", 0) or 0),
+                "parent_exists": True,
+                "parent_stage": d.get("status") or d.get("pipeline_state"),
+            })
+
+    # Enrich with owner nickname
+    user_ids = list({x["user_id"] for x in all_trailers if x.get("user_id")})
+    users_map = {}
+    if user_ids:
+        async for u in db.users.find({"id": {"$in": user_ids}}, {"_id": 0, "id": 1, "nickname": 1, "production_house_name": 1}):
+            users_map[u["id"]] = u
+    for x in all_trailers:
+        o = users_map.get(x.get("user_id") or "", {})
+        x["owner_nickname"] = o.get("nickname") or "???"
+        x["studio_name"] = o.get("production_house_name") or "Sconosciuto"
+        # If owner was deleted (user_id points to non-existent user), mark as ex-owner
+        x["owner_exists"] = x.get("user_id") in users_map
+
+    all_trailers.sort(key=lambda x: x.get("generated_at") or "", reverse=True)
+    return {"trailers": all_trailers, "count": len(all_trailers)}
+
+
+@api_router.get("/admin/trailer-detail/{content_id}")
+async def admin_get_trailer_detail(content_id: str, user: dict = Depends(get_current_user)):
+    """Fetch full trailer (with frames) for playback in admin popup."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    for coll in ("films", "film_projects", "tv_series", "series_projects_v3"):
+        d = await db[coll].find_one(
+            {"id": content_id, "trailer.frames": {"$exists": True, "$ne": []}},
+            {"_id": 0, "id": 1, "title": 1, "trailer": 1, "genre": 1, "user_id": 1}
+        )
+        if d:
+            return d
+    raise HTTPException(404, "Trailer non trovato")
+
+
+@api_router.delete("/admin/delete-trailer/{content_id}")
+async def admin_delete_trailer(content_id: str, user: dict = Depends(get_current_user)):
+    """Permanently remove the trailer from a content doc (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    total = 0
+    for coll in ("films", "film_projects", "tv_series", "series_projects_v3"):
+        r = await db[coll].update_many(
+            {"id": content_id, "trailer.frames": {"$exists": True}},
+            {"$unset": {"trailer": ""}}
+        )
+        total += r.modified_count
+    if total == 0:
+        raise HTTPException(404, "Trailer non trovato")
+    # Cleanup related votes if any
+    try:
+        await db.trailer_votes.delete_many({"content_id": content_id})
+    except Exception:
+        pass
+    return {"success": True, "modified": total}
+
+
+
+
 # ==================== ADMIN: TEST DATA CLEANUP ====================
 
 # Hardcoded list of 19 test usernames (nicknames) confirmed by the admin via screenshots

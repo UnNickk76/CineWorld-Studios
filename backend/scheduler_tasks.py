@@ -1296,6 +1296,19 @@ async def process_tv_pipeline_auto_apply():
         logger.error(f"[TV AUTO APPLY] job error: {e}")
 
 
+async def replenish_anime_crew_pool():
+    """Keep anime_director (300) and anime_illustrator (2000) at target by generating
+    fresh NPCs if the counts dropped (e.g. cleanup, manual deletions). Idempotent.
+    Runs weekly but the work is skipped if counts are already at target.
+    """
+    try:
+        from scripts.seed_anime_crew import main as _seed_main
+        await _seed_main(target_directors=300, target_illustrators=2000)
+    except Exception as e:
+        logger.warning(f"[ANIME CREW REPLENISH] error: {e}")
+
+
+
 
 
 async def auto_cleanup_corrupted_projects():

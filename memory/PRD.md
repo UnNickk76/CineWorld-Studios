@@ -10,6 +10,20 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 23, 2026 — CastPhase Serie/Anime V3 identico a Film + NPCs anime**
+  - **Seed anime NPCs** (`scripts/seed_anime_crew.py`): 300 `anime_director` + 2000 `anime_illustrator` in `db.people`. Ogni NPC ha: 8 skill da 50 anime-coerenti (director: storyboard/visual_style/pacing/animation_direction/storytelling/emotional_scoring/action_choreography/character_design_sense; illustrator: linework/character_design/background_art/color_palette/motion_frames/expressions/chibi_sd_style/mecha_detail), sex (male/female/non-binary), nationality (preferenza JP + KR/CN/IT/...), age 22-68, imdb_rating, 2 primary_skills (punti di forza) + 1 secondary_skill (punto debole), stars 1-5, cost e fame. Script idempotente.
+  - **Scheduler** `replenish_anime_crew_pool` ogni 14 giorni: rispawna NPCs se il pool scende sotto target.
+  - **Backend endpoints serie V3** (`routes/pipeline_series_v3.py`):
+    - `GET /projects/{pid}/cast-proposals`: per anime ritorna `directors=anime_director`, `illustrators=anime_illustrator`, `screenwriters=writer`, `composers=composer`. Per serie tv mantiene `directors/actors/screenwriters/composers`. Caps fama basati su livello/fame player (come film V3).
+    - `POST /projects/{pid}/select-cast-member`: aggiunge NPC al cast con ruolo (protagonista/supporto/generico).
+    - `POST /projects/{pid}/remove-cast-member`: rimuove.
+    - `POST /projects/{pid}/auto-cast`: completa automaticamente (1 regista + 1 compositore + 2 sceneggiatori + 4 main pool attori/disegnatori).
+  - **Frontend CastPhase** (`components/v3/PipelineSeriesV3.jsx` completamente riscritto):
+    - 4 slot: Regista/Showrunner (cyan), Sceneggiatori (violet, max 4), Attori o **Disegnatori** per anime (amber, max 30 con tag ruolo Prota/Sup/Generico), Compositore/OP-ED (purple).
+    - `CastPickerSheet`: bottom-sheet mobile con lista proposte, skill primary/weak chip, cost, click "Scegli".
+    - `NpcSkillSheet`: visualizzazione 8 skill con barra di avanzamento, primary/weak highlighted, dati completi (età/sesso/nazione/IMDb/cost).
+    - Bottone "Completamento Automatico" riusa auto-cast endpoint.
+
 - **Feb 23, 2026 — Admin Panel: sezione Trailer**
   - **Backend**: 3 nuovi endpoint admin-only:
     - `GET /admin/all-trailers?q=` scansiona `films + film_projects + tv_series + series_projects_v3` cercando `trailer.frames` not empty. Ritorna `{content_id, collection, content_type, title, poster_url, tier, mode, views/likes/dislikes, generated_at, parent_exists, parent_stage, owner_nickname, studio_name, owner_exists}`.

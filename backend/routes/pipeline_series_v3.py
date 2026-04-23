@@ -718,6 +718,169 @@ async def save_cast_series(pid: str, req: CastSaveRequest, user: dict = Depends(
     return await _update_project(pid, user["id"], {"cast": req.cast})
 
 
+@router.get("/projects/{pid}/cast-proposals")
+async def series_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
+    """NPC proposals for series/anime cast. Anime uses anime_director + anime_illustrator
+    instead of director + actor.
+    """
+    project = await _get_project(pid, user["id"])
+    is_anime = project.get("type") == "anime"
+
+    player_level = user.get("level", 1) or 1
+    player_fame = user.get("fame", 0) or 0
+    fame_cap_base = min(40 + player_level * 2 + player_fame * 0.05, 95)
+    fame_cap_star = min(60 + player_level * 3 + player_fame * 0.1, 100)
+
+    def _score(npc):
+        s = npc.get("skills") or {}
+        return sum(s.values()) + (npc.get("fame_score") or npc.get("fame", 0) or 0) * 0.5
+
+    # Role targets
+    role_targets = (
+        [('anime_director', 'directors', 10),
+         ('anime_illustrator', 'illustrators', 30),
+         ('writer', 'screenwriters', 10),
+         ('composer', 'composers', 8)]
+        if is_anime else
+        [('director', 'directors', 10),
+         ('actor', 'actors', 30),
+         ('writer', 'screenwriters', 10),
+         ('composer', 'composers', 8)]
+    )
+
+    proposals = {}
+    for role_type, key, target in role_targets:
+        proposals[key] = []
+        sample = await db.people.aggregate([
+            {'$match': {'role_type': role_type}},
+            {'$sample': {'size': target * 4}},
+            {'$project': {'_id': 0}},
+        ]).to_list(target * 4)
+        sample.sort(key=_score, reverse=True)
+
+        stars_added = 0
+        filtered = []
+        for npc in sample:
+            npc_fame = npc.get('fame_score') or npc.get('fame', 30) or 30
+            if not isinstance(npc_fame, (int, float)):
+                npc_fame = 30
+            if npc_fame > fame_cap_base and stars_added < 2:
+                if npc_fame <= fame_cap_star:
+                    filtered.append(npc)
+                    stars_added += 1
+            elif npc_fame <= fame_cap_base:
+                filtered.append(npc)
+            if len(filtered) >= target:
+                break
+        if len(filtered) < target:
+            for n in sample:
+                if n not in filtered:
+                    filtered.append(n)
+                if len(filtered) >= target:
+                    break
+        proposals[key] = filtered[:target]
+
+    return proposals
+
+
+class SelectMemberRequest(BaseModel):
+    npc_id: str
+    role: str  # director | actor | writer | composer | illustrator
+    cast_role: Optional[str] = "generico"  # protagonista | supporto | cameo | generico
+
+@router.post("/projects/{pid}/select-cast-member")
+async def series_select_cast_member(pid: str, req: SelectMemberRequest, user: dict = Depends(get_current_user)):
+    project = await _get_project(pid, user["id"])
+    is_anime = project.get("type") == "anime"
+    npc = await db.people.find_one({"id": req.npc_id}, {"_id": 0})
+    if not npc:
+        raise HTTPException(404, "NPC non trovato")
+
+    cast = project.get("cast") or {}
+    # Translate role name → storage slot
+    role = req.role
+    if role == 'director':
+        cast['director'] = npc
+    elif role == 'composer':
+        cast['composer'] = npc
+    elif role == 'writer':
+        sws = cast.get('screenwriters') or []
+        if not any(x.get('id') == npc['id'] for x in sws):
+            sws.append(npc)
+        cast['screenwriters'] = sws[:4]
+    elif role == 'actor' and not is_anime:
+        acts = cast.get('actors') or []
+        if not any(x.get('id') == npc['id'] for x in acts):
+            npc_copy = {**npc, 'cast_role': req.cast_role}
+            acts.append(npc_copy)
+        cast['actors'] = acts[:30]
+    elif role == 'illustrator' and is_anime:
+        ills = cast.get('illustrators') or []
+        if not any(x.get('id') == npc['id'] for x in ills):
+            npc_copy = {**npc, 'cast_role': req.cast_role}
+            ills.append(npc_copy)
+        cast['illustrators'] = ills[:30]
+    else:
+        raise HTTPException(400, "Ruolo non valido per questo tipo")
+
+    await _update_project(pid, user["id"], {"cast": cast})
+    return {"success": True, "cast": cast}
+
+
+class RemoveMemberRequest(BaseModel):
+    npc_id: str
+    role: str
+
+@router.post("/projects/{pid}/remove-cast-member")
+async def series_remove_cast_member(pid: str, req: RemoveMemberRequest, user: dict = Depends(get_current_user)):
+    project = await _get_project(pid, user["id"])
+    cast = project.get("cast") or {}
+    role = req.role
+    if role == 'director':
+        cast['director'] = None
+    elif role == 'composer':
+        cast['composer'] = None
+    elif role == 'writer':
+        cast['screenwriters'] = [x for x in (cast.get('screenwriters') or []) if x.get('id') != req.npc_id]
+    elif role == 'actor':
+        cast['actors'] = [x for x in (cast.get('actors') or []) if x.get('id') != req.npc_id]
+    elif role == 'illustrator':
+        cast['illustrators'] = [x for x in (cast.get('illustrators') or []) if x.get('id') != req.npc_id]
+    await _update_project(pid, user["id"], {"cast": cast})
+    return {"success": True, "cast": cast}
+
+
+@router.post("/projects/{pid}/auto-cast")
+async def series_auto_cast(pid: str, user: dict = Depends(get_current_user)):
+    """Auto-populate cast with top proposals. Mirrors film V3 autoCast."""
+    props = await series_cast_proposals(pid, user)  # reuse helper
+    project = await _get_project(pid, user["id"])
+    is_anime = project.get("type") == "anime"
+    cast = project.get("cast") or {}
+
+    # 1 director, 1 composer, 2 screenwriters, and 4 main actors/illustrators
+    if props.get('directors'):
+        cast['director'] = props['directors'][0]
+    if props.get('composers'):
+        cast['composer'] = props['composers'][0]
+    cast['screenwriters'] = (props.get('screenwriters') or [])[:2]
+
+    main_pool_key = 'illustrators' if is_anime else 'actors'
+    existing_main = cast.get(main_pool_key) or []
+    existing_ids = {m.get('id') for m in existing_main}
+    fresh = [m for m in (props.get(main_pool_key) or []) if m.get('id') not in existing_ids]
+    # Assign roles: 1 protagonista, 1 supporto, 2 generico
+    roles_order = ['protagonista', 'supporto', 'generico', 'generico']
+    for i, npc in enumerate(fresh[:4]):
+        existing_main.append({**npc, 'cast_role': roles_order[i]})
+    cast[main_pool_key] = existing_main[:30]
+
+    await _update_project(pid, user["id"], {"cast": cast})
+    return {"success": True, "cast": cast, "message": "Cast auto-completato"}
+
+
+
+
 class PrepSaveRequest(BaseModel):
     series_format: Optional[str] = None       # miniserie|stagionale|lunga|maratona
     episode_duration_min: Optional[int] = None  # 22, 30, 45, 60

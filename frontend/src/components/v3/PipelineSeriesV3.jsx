@@ -618,66 +618,288 @@ const HypePhase = ({ project, onRefresh }) => {
 /* ─── CAST PHASE (compact but complete) ─── */
 const CastPhase = ({ project, onRefresh, seriesType }) => {
   const [loading, setLoading] = useState(false);
+  const [proposals, setProposals] = useState({});
+  const [pickerRole, setPickerRole] = useState(null);  // 'director'|'composer'|'writer'|'actor'|'illustrator'
+  const [pickerCastRole, setPickerCastRole] = useState('generico');
+  const [skillNpc, setSkillNpc] = useState(null);
   const cast = project.cast || {};
-  const actors = cast.actors || [];
-  const actorLabel = seriesType === 'anime' ? 'Doppiatori' : 'Attori';
+  const isAnime = seriesType === 'anime' || project.type === 'anime';
+  const mainList = isAnime ? (cast.illustrators || []) : (cast.actors || []);
+  const mainLabel = isAnime ? 'Disegnatori' : 'Attori';
+  const mainRole = isAnime ? 'illustrator' : 'actor';
+
+  useEffect(() => {
+    sapi(`/projects/${project.id}/cast-proposals`).then(setProposals).catch(() => setProposals({}));
+  }, [project.id]);
+
+  const selectMember = async (npc, role, castRole) => {
+    setLoading(true);
+    try {
+      await sapi(`/projects/${project.id}/select-cast-member`, 'POST',
+        { npc_id: npc.id, role, cast_role: castRole || 'generico' });
+      toast.success(`${npc.name} aggiunto al cast`);
+      setPickerRole(null);
+      await onRefresh?.();
+    } catch (e) { toast.error(e.message); }
+    setLoading(false);
+  };
+
+  const removeMember = async (npc, role) => {
+    setLoading(true);
+    try {
+      await sapi(`/projects/${project.id}/remove-cast-member`, 'POST', { npc_id: npc.id || '', role });
+      await onRefresh?.();
+    } catch (e) { toast.error(e.message); }
+    setLoading(false);
+  };
 
   const autoCast = async () => {
     setLoading(true);
     try {
       await sapi(`/projects/${project.id}/auto-cast`, 'POST');
-      toast.success('Cast generato automaticamente!');
-      onRefresh?.();
+      toast.success('Cast auto-completato!');
+      await onRefresh?.();
     } catch (e) { toast.error(e.message); }
     setLoading(false);
   };
 
+  const proposalKey = {
+    director: 'directors', composer: 'composers', writer: 'screenwriters',
+    actor: 'actors', illustrator: 'illustrators',
+  }[pickerRole];
+  const pickerList = proposals[proposalKey] || [];
+
   return (
-    <PhaseWrapper title="Cast & Crew" subtitle={`Regia, compositore, ${actorLabel.toLowerCase()}`} icon={Users} color="cyan">
-      <div className="space-y-3">
-        {/* Showrunner / Regista */}
-        <div className="p-2 rounded-lg bg-cyan-500/5 border border-cyan-500/15">
-          <p className="text-[7px] text-gray-500 uppercase font-bold">Showrunner / Regista</p>
-          <p className="text-[10px] text-white font-bold mt-0.5">{cast.director?.name || <span className="text-gray-500 italic">Da assegnare</span>}</p>
-          {cast.director?.stars && <p className="text-[8px] text-amber-400">{'★'.repeat(cast.director.stars)}</p>}
-        </div>
+    <PhaseWrapper title="Cast & Crew" subtitle={`Regia, sceneggiatori, ${mainLabel.toLowerCase()}, compositore`} icon={Users} color="cyan">
+      <div className="space-y-2.5">
+        {/* Regista / Showrunner */}
+        <CastSlot
+          label={isAnime ? 'Regista (Anime)' : 'Showrunner / Regista'}
+          npc={cast.director}
+          color="cyan"
+          onPick={() => setPickerRole('director')}
+          onRemove={() => removeMember(cast.director, 'director')}
+          onInspect={() => cast.director && setSkillNpc(cast.director)}
+        />
+
+        {/* Sceneggiatori */}
+        <CastGroupSlot
+          label={`Sceneggiatori (${(cast.screenwriters || []).length}/4)`}
+          members={cast.screenwriters || []}
+          color="violet"
+          onAdd={() => setPickerRole('writer')}
+          onRemove={(n) => removeMember(n, 'writer')}
+          onInspect={setSkillNpc}
+          max={4}
+        />
+
+        {/* Attori / Disegnatori */}
+        <CastGroupSlot
+          label={`${mainLabel} (${mainList.length}/30)`}
+          members={mainList}
+          color="amber"
+          onAdd={(role = 'generico') => { setPickerCastRole(role); setPickerRole(mainRole); }}
+          onRemove={(n) => removeMember(n, mainRole)}
+          onInspect={setSkillNpc}
+          max={30}
+          showCastRoles
+        />
 
         {/* Compositore */}
-        <div className="p-2 rounded-lg bg-purple-500/5 border border-purple-500/15">
-          <p className="text-[7px] text-gray-500 uppercase font-bold">
-            {seriesType === 'anime' ? 'Compositore (OP/ED)' : 'Compositore'}
-          </p>
-          <p className="text-[10px] text-white font-bold mt-0.5">{cast.composer?.name || <span className="text-gray-500 italic">Da assegnare</span>}</p>
-        </div>
+        <CastSlot
+          label={isAnime ? 'Compositore (OP/ED)' : 'Compositore'}
+          npc={cast.composer}
+          color="purple"
+          onPick={() => setPickerRole('composer')}
+          onRemove={() => removeMember(cast.composer, 'composer')}
+          onInspect={() => cast.composer && setSkillNpc(cast.composer)}
+        />
 
-        {/* Attori/Doppiatori */}
-        <div className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/15">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[7px] text-gray-500 uppercase font-bold">{actorLabel} ({actors.length}/8)</p>
-          </div>
-          {actors.length > 0 ? (
-            <div className="grid grid-cols-2 gap-1">
-              {actors.slice(0, 8).map((a, i) => (
-                <div key={i} className="text-[9px] text-white truncate flex items-center gap-1" title={a.name}>
-                  <span className="text-gray-600 text-[7px]">#{i + 1}</span>
-                  <span className="truncate">{a.name}</span>
-                  {a.stars && <span className="text-amber-400 text-[7px] flex-shrink-0">{'★'.repeat(a.stars)}</span>}
-                </div>
-              ))}
-            </div>
+        {/* Auto-cast */}
+        <button onClick={autoCast} disabled={loading}
+          className="w-full py-2.5 rounded-lg bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 border border-cyan-500/35 text-cyan-300 text-[10px] font-bold disabled:opacity-40 active:scale-[0.98] transition-all"
+          data-testid="series-auto-cast-btn">
+          {loading ? '...' : 'Completamento Automatico'}
+        </button>
+      </div>
+
+      <CastPickerSheet
+        open={!!pickerRole}
+        role={pickerRole}
+        castRole={pickerCastRole}
+        list={pickerList}
+        onClose={() => setPickerRole(null)}
+        onPick={(npc) => selectMember(npc, pickerRole, pickerCastRole)}
+        onInspect={setSkillNpc}
+        isAnime={isAnime}
+      />
+
+      <NpcSkillSheet open={!!skillNpc} npc={skillNpc} onClose={() => setSkillNpc(null)} />
+    </PhaseWrapper>
+  );
+};
+
+/* ─── Cast UI helpers (local) ─── */
+const Stars = ({ n }) => {
+  const c = Math.max(0, Math.min(5, n || 0));
+  return <span className="text-[8px] text-amber-400">{'★'.repeat(c)}</span>;
+};
+
+const CastSlot = ({ label, npc, color, onPick, onRemove, onInspect }) => (
+  <div className={`p-2.5 rounded-lg bg-${color}-500/5 border border-${color}-500/20`}>
+    <div className="flex items-center justify-between">
+      <p className="text-[7px] text-gray-500 uppercase font-bold">{label}</p>
+      {!npc ? (
+        <button onClick={onPick} data-testid={`series-cast-pick-${label.replace(/[^a-z]/gi, '').toLowerCase()}`}
+          className={`text-[8px] font-bold text-${color}-400 px-2 py-0.5 rounded border border-${color}-500/25 hover:bg-${color}-500/10`}>
+          Seleziona
+        </button>
+      ) : (
+        <div className="flex gap-1">
+          <button onClick={onInspect} className="text-[8px] text-gray-400 hover:text-white">Skill</button>
+          <button onClick={onRemove} className="text-[8px] text-rose-400 hover:text-rose-300">✕</button>
+        </div>
+      )}
+    </div>
+    {npc && (
+      <button onClick={onInspect} className="flex items-center gap-2 w-full text-left mt-1">
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] text-white font-bold truncate">{npc.name}</p>
+          <p className="text-[8px] text-gray-400">{npc.age || '?'}a · {npc.nationality || '??'} · {npc.gender?.[0] || ''}</p>
+        </div>
+        <Stars n={npc.stars} />
+      </button>
+    )}
+  </div>
+);
+
+const CastGroupSlot = ({ label, members, color, onAdd, onRemove, onInspect, max = 30, showCastRoles = false }) => (
+  <div className={`p-2.5 rounded-lg bg-${color}-500/5 border border-${color}-500/20`}>
+    <div className="flex items-center justify-between mb-1">
+      <p className="text-[7px] text-gray-500 uppercase font-bold">{label}</p>
+      {members.length < max && (
+        <div className="flex gap-1">
+          {showCastRoles ? (
+            <>
+              <button onClick={() => onAdd('protagonista')} className={`text-[8px] font-bold text-${color}-400 px-1.5 py-0.5 rounded border border-${color}-500/25 hover:bg-${color}-500/10`}>+ Prota</button>
+              <button onClick={() => onAdd('supporto')} className={`text-[8px] font-bold text-${color}-400 px-1.5 py-0.5 rounded border border-${color}-500/25 hover:bg-${color}-500/10`}>+ Sup</button>
+              <button onClick={() => onAdd('generico')} className={`text-[8px] font-bold text-${color}-400 px-1.5 py-0.5 rounded border border-${color}-500/25 hover:bg-${color}-500/10`}>+</button>
+            </>
           ) : (
-            <p className="text-[9px] text-gray-500 italic">Nessuno selezionato</p>
+            <button onClick={() => onAdd()} className={`text-[8px] font-bold text-${color}-400 px-1.5 py-0.5 rounded border border-${color}-500/25 hover:bg-${color}-500/10`}>+ Aggiungi</button>
           )}
         </div>
-
-        {/* Auto-cast button */}
-        <button onClick={autoCast} disabled={loading}
-          className="w-full py-2 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold disabled:opacity-40" data-testid="series-auto-cast-btn">
-          {loading ? '...' : actors.length > 0 ? 'Rigenera Cast Automatico' : 'Genera Cast Automatico (6-8)'}
-        </button>
-        <p className="text-[7px] text-gray-600 text-center">Preleva dai tuoi attori in agenzia, completa con NPC stelle medie</p>
+      )}
+    </div>
+    {members.length === 0 ? (
+      <p className="text-[9px] text-gray-500 italic">Nessuno selezionato</p>
+    ) : (
+      <div className="space-y-0.5 max-h-40 overflow-y-auto">
+        {members.map((m, i) => (
+          <div key={m.id || i} className="flex items-center gap-1 bg-white/[0.02] rounded px-1.5 py-1">
+            <span className="text-gray-600 text-[7px] w-3">#{i + 1}</span>
+            <button onClick={() => onInspect(m)} className="flex-1 text-left min-w-0">
+              <p className="text-[9px] text-white truncate">{m.name}</p>
+              {m.cast_role && <p className="text-[7px] text-gray-500">{m.cast_role}</p>}
+            </button>
+            <Stars n={m.stars} />
+            <button onClick={() => onRemove(m)} className="text-[9px] text-rose-400 px-1">✕</button>
+          </div>
+        ))}
       </div>
-    </PhaseWrapper>
+    )}
+  </div>
+);
+
+const CastPickerSheet = ({ open, role, castRole, list, onClose, onPick, onInspect, isAnime }) => {
+  if (!open) return null;
+  const title = role === 'director' ? (isAnime ? 'Regista Anime' : 'Regista')
+    : role === 'composer' ? 'Compositore'
+    : role === 'writer' ? 'Sceneggiatore'
+    : role === 'illustrator' ? 'Disegnatore'
+    : 'Attore';
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-[#0d0d0f] border border-white/10 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="p-3 border-b border-white/5 flex items-center justify-between">
+          <div>
+            <p className="text-[9px] text-gray-500 uppercase">Seleziona {title}</p>
+            {castRole && role !== 'director' && role !== 'composer' && role !== 'writer' && <p className="text-[8px] text-amber-400">Ruolo: {castRole}</p>}
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-full bg-white/5 text-white">✕</button>
+        </div>
+        <div className="overflow-y-auto p-2 space-y-1">
+          {list.length === 0 ? (
+            <p className="text-center text-[9px] text-gray-500 py-6">Nessuna proposta</p>
+          ) : list.map(npc => {
+            const primary = npc.primary_skills || [];
+            const weak = npc.secondary_skill;
+            return (
+              <div key={npc.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.03] border border-white/5 hover:bg-white/[0.06]">
+                <button onClick={() => onInspect(npc)} className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[10px] font-bold text-white truncate">{npc.name}</p>
+                    <Stars n={npc.stars} />
+                  </div>
+                  <p className="text-[8px] text-gray-500">{npc.age}a · {npc.nationality} · {npc.gender?.[0] || ''} · IMDb {npc.imdb_rating}</p>
+                  <div className="flex gap-1 flex-wrap mt-0.5">
+                    {primary.slice(0, 2).map(s => (
+                      <span key={s} className="text-[7px] bg-emerald-500/15 text-emerald-400 px-1 rounded">{s}</span>
+                    ))}
+                    {weak && <span className="text-[7px] bg-rose-500/15 text-rose-400 px-1 rounded">⬇ {weak}</span>}
+                  </div>
+                </button>
+                <div className="text-right">
+                  <p className="text-[9px] text-amber-300 font-bold">${Math.round((npc.cost || 0) / 1000)}k</p>
+                  <button onClick={() => onPick(npc)} data-testid={`pick-${role}-${npc.id}`}
+                    className="mt-0.5 px-2 py-1 rounded bg-cyan-500/20 text-cyan-300 text-[9px] font-bold hover:bg-cyan-500/30">
+                    Scegli
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const NpcSkillSheet = ({ open, npc, onClose }) => {
+  if (!open || !npc) return null;
+  const skills = npc.skills || {};
+  const primary = npc.primary_skills || [];
+  const weak = npc.secondary_skill;
+  return (
+    <div className="fixed inset-0 z-[65] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-[#0d0d0f] border border-white/10 rounded-t-2xl sm:rounded-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="p-3 border-b border-white/5 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] text-gray-500">{npc.role_type}</p>
+            <p className="text-sm font-bold text-white">{npc.name} <Stars n={npc.stars} /></p>
+            <p className="text-[8px] text-gray-500">{npc.age}a · {npc.nationality} · {npc.gender} · IMDb {npc.imdb_rating} · ${Math.round((npc.cost || 0) / 1000)}k</p>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-full bg-white/5 text-white">✕</button>
+        </div>
+        <div className="p-3 space-y-1">
+          {Object.entries(skills).map(([k, v]) => {
+            const isPrimary = primary.includes(k);
+            const isWeak = k === weak;
+            return (
+              <div key={k} className="flex items-center gap-2">
+                <span className={`text-[9px] flex-1 ${isPrimary ? 'text-emerald-300 font-bold' : isWeak ? 'text-rose-300 font-bold' : 'text-gray-400'}`}>
+                  {isPrimary ? '⬆ ' : isWeak ? '⬇ ' : ''}{k}
+                </span>
+                <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div className={`h-full ${isPrimary ? 'bg-emerald-400' : isWeak ? 'bg-rose-400' : 'bg-cyan-400'}`} style={{ width: `${v}%` }} />
+                </div>
+                <span className="text-[9px] text-white w-7 text-right font-bold">{v}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 };
 

@@ -7838,7 +7838,8 @@ async def startup_event():
         process_coming_soon_dynamic_events,
         auto_cleanup_corrupted_projects,
         auto_revenue_tick,
-        process_tv_pipeline_auto_apply
+        process_tv_pipeline_auto_apply,
+        replenish_anime_crew_pool
     )
     from routes.city_dynamics import (
         initialize_city_dynamics,
@@ -8022,6 +8023,14 @@ async def startup_event():
         process_tv_pipeline_auto_apply,
         IntervalTrigger(minutes=5),
         id='tv_pipeline_auto_apply',
+        replace_existing=True
+    )
+
+    # Every 14 days: replenish anime crew pool (anime_director + anime_illustrator)
+    scheduler.add_job(
+        replenish_anime_crew_pool,
+        IntervalTrigger(days=14),
+        id='replenish_anime_crew',
         replace_existing=True
     )
 

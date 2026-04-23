@@ -10,6 +10,23 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 23, 2026 — Tripletta admin/owner + eventi globali**
+  - **Fix 1 (owner)**: aggiunto bottone "Elimina per sempre" con `CineConfirm` (Cineox+Velion, tono rose) in:
+    - `ContentTemplate.jsx` (qualsiasi stato del film, qualsiasi sezione, visibile solo al proprietario)
+    - `ProssimamenteDetailModal.jsx` (serie/anime V3 in fase idea/hype/etc.)
+    - Backend: `DELETE /admin-recovery/delete/{id}` ora accetta **owner oltre admin**, scansiona tutte le 4 collezioni (`films`, `film_projects`, `tv_series`, `series_projects_v3`) + `source_project_id`. Cleanup likes/ratings inclusi.
+  - **Fix 2 (eventi per tutti)**: `GET /api/events/history` ora restituisce gli eventi globali (non filtrati per `user_id`), con **campionamento deterministico 1/2** (fetch `limit*2`, keep alternati) per dimezzare il volume. Tutti i player vedono la stessa timeline ridotta.
+  - **Fix 3 (admin panel ampliato)**:
+    - `GET /api/admin/all-films?content_type={film|tv_series|anime}` unificato: scansiona `films + film_projects` per film, `tv_series + series_projects_v3` per serie/anime. Include stato V3 (idea, hype, cast, ciak, finalcut, distribution). Campi extra: `stage`, `collection`, `owner_nickname`, `studio_name`, `has_open_report`, `reports_count`, `needs_fix`.
+    - `DELETE /api/admin/delete-film/{id}` esteso a tutte e 4 le collezioni + `source_project_id`. Risolve le bug_reports linkate.
+    - **Frontend FilmsTab**:
+      - Tab sottosezioni: Film / Serie TV / Anime.
+      - Grid poster **ridotti del ~70%** (minmax 80→48px).
+      - Card cliccabile → popup con owner, stage, qualita', genere, badge segnalazioni.
+      - 2 bottoni: "Elimina definitivamente" (sempre) + "Fix" (abilitato se `needs_fix`).
+      - **Cards con bug report aperte**: scale 150% + **pulse amber animato** via keyframes `admin-report-pulse` → l'admin le individua subito.
+      - Badge sopra poster `"!<N>"` che indica il numero di segnalazioni.
+
 - **Feb 23, 2026 — Tripletta veloce: Prossimamente cliccabile + Trailer Serie/Anime + Progress trailer**
   - **Fix 1**: `ComingSoonSection` (Dashboard "PROSSIMAMENTE SERIE TV / ANIME") ora apre `ProssimamenteDetailModal` invece di navigare a `/series/{id}`. La modale usa `/api/series/{id}` con fallback su `series_projects_v3` che gia' gestisce progetti incompleti omettendo i campi mancanti (CONTENT_TYPE filter copre `series|anime|tv_series`).
   - **Fix 2**: `_collect_trailers` (in `routes/trailer_events.py`) ora scansiona anche la collezione `series_projects_v3`, oltre a `films + tv_series + film_projects`. I trailer di serie TV e anime V3 (sia pre-release che released) **compaiono automaticamente nella strip "Ultimi Trailer"** della dashboard e **competono nel contest giornaliero/settimanale** (`/events/trailers/daily` e `/weekly`) perche' usano la stessa util. Type risolto via `doc.type` → `tv_series` o `anime`.

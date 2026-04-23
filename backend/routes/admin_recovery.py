@@ -99,15 +99,40 @@ async def fix_one_film(film_id: str, user: dict = Depends(get_current_user)):
 
 @router.delete("/delete/{film_id}")
 async def delete_film(film_id: str, user: dict = Depends(get_current_user)):
-    if user.get('nickname') != 'NeoMorpheus' and user.get('role') not in ('admin', 'CO_ADMIN'):
-        raise HTTPException(403, "Solo admin")
+    """Delete a film forever from all collections. Allowed to admin/NeoMorpheus OR to the owner itself."""
+    is_admin = user.get('nickname') == 'NeoMorpheus' or user.get('role') in ('admin', 'CO_ADMIN')
 
-    r1 = await db.film_projects.delete_one({'id': film_id})
-    r2 = await db.films.delete_one({'id': film_id})
-    deleted = r1.deleted_count + r2.deleted_count
-    if deleted == 0:
-        raise HTTPException(404, "Film non trovato")
-    return {'status': 'deleted', 'deleted_count': deleted}
+    # Locate the doc to determine ownership
+    target = None
+    target_coll = None
+    for coll in ('films', 'film_projects', 'tv_series', 'series_projects_v3'):
+        doc = await db[coll].find_one({'id': film_id}, {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'source_project_id': 1})
+        if doc:
+            target, target_coll = doc, coll
+            break
+    if not target:
+        raise HTTPException(404, "Contenuto non trovato")
+
+    if not is_admin and target.get('user_id') != user.get('id'):
+        raise HTTPException(403, "Non autorizzato")
+
+    # Wipe from every collection the id could live in, plus the source project id for released films
+    total = 0
+    for coll in ('films', 'film_projects', 'tv_series', 'series_projects_v3'):
+        res = await db[coll].delete_many({'id': film_id})
+        total += res.deleted_count
+    if target.get('source_project_id'):
+        for coll in ('film_projects', 'series_projects_v3'):
+            res = await db[coll].delete_many({'id': target['source_project_id']})
+            total += res.deleted_count
+    # Best-effort cleanup of related artefacts (likes, ratings, news, scheduled_for_tv_station refs)
+    try:
+        await db.likes.delete_many({'film_id': film_id})
+        await db.film_ratings.delete_many({'film_id': film_id})
+    except Exception:
+        pass
+
+    return {'status': 'deleted', 'deleted_count': total, 'collection': target_coll, 'title': target.get('title')}
 
 
 @router.get("/broken-films")

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart, Image as ImageIcon, Video } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
+import { Dialog, DialogContent } from '../components/ui/dialog';
 import { PlayerBadge } from '../components/PlayerBadge';
 import AdminFilmRecovery from '../components/AdminFilmRecovery';
 
@@ -647,42 +648,75 @@ function FilmsTab({ api }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [contentType, setContentType] = useState('film'); // film | tv_series | anime
+  const [selected, setSelected] = useState(null);
+  const [fixLoading, setFixLoading] = useState(false);
 
-  const loadFilms = useCallback(async (q = '') => {
+  const loadFilms = useCallback(async (q = '', ct = contentType) => {
     setLoading(true);
     try {
-      const res = await api.get(`/admin/all-films?q=${encodeURIComponent(q)}`);
+      const res = await api.get(`/admin/all-films?q=${encodeURIComponent(q)}&content_type=${ct}`);
       setFilms(res.data.films || []);
-    } catch { toast.error('Errore caricamento film'); }
+    } catch { toast.error('Errore caricamento'); }
     finally { setLoading(false); }
-  }, [api]);
+  }, [api, contentType]);
 
-  useEffect(() => { loadFilms(); }, [loadFilms]);
+  useEffect(() => { loadFilms('', contentType); }, [loadFilms, contentType]);
 
-  const handleSearch = (e) => { e.preventDefault(); loadFilms(searchQuery); };
+  const handleSearch = (e) => { e.preventDefault(); loadFilms(searchQuery, contentType); };
 
   const handleDeleteFilm = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
     try {
       await api.delete(`/admin/delete-film/${deleteTarget.id}`);
-      toast.success(`Film "${deleteTarget.title}" eliminato definitivamente`);
+      toast.success(`"${deleteTarget.title}" eliminato definitivamente`);
       setDeleteTarget(null);
-      loadFilms(searchQuery);
+      setSelected(null);
+      loadFilms(searchQuery, contentType);
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore eliminazione'); }
     finally { setDeleteLoading(false); }
   };
+
+  const handleFix = async (film) => {
+    setFixLoading(true);
+    try {
+      await api.post(`/admin-recovery/fix-one/${film.id}`);
+      toast.success(`"${film.title}" riparato`);
+      setSelected(null);
+      loadFilms(searchQuery, contentType);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Fix non applicabile'); }
+    finally { setFixLoading(false); }
+  };
+
+  const typeLabel = contentType === 'film' ? 'film' : contentType === 'tv_series' ? 'serie tv' : 'anime';
 
   return (
     <div className="space-y-3" data-testid="admin-films-tab">
       <ConfirmModal
         open={!!deleteTarget}
-        title="Eliminazione Definitiva Film"
-        message={`Confermi eliminazione definitiva del film "${deleteTarget?.title}" di ${deleteTarget?.studio_name}? Il film verra' rimosso da classifiche e liste pubbliche. Questa azione e' IRREVERSIBILE.`}
+        title="Eliminazione Definitiva"
+        message={`Confermi eliminazione definitiva di "${deleteTarget?.title}" di ${deleteTarget?.studio_name}? Azione IRREVERSIBILE.`}
         onConfirm={handleDeleteFilm}
         onCancel={() => setDeleteTarget(null)}
         loading={deleteLoading}
       />
+
+      {/* Subsection tabs: film / tv_series / anime */}
+      <div className="flex gap-1.5 bg-[#0d0d0f] border border-white/5 rounded-lg p-1" data-testid="admin-content-type-tabs">
+        {[
+          { k: 'film', lbl: 'Film' },
+          { k: 'tv_series', lbl: 'Serie TV' },
+          { k: 'anime', lbl: 'Anime' },
+        ].map(t => (
+          <button key={t.k}
+            onClick={() => setContentType(t.k)}
+            data-testid={`admin-tab-${t.k}`}
+            className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${contentType === t.k ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+            {t.lbl}
+          </button>
+        ))}
+      </div>
 
       {/* Search */}
       <form onSubmit={handleSearch}>
@@ -690,7 +724,7 @@ function FilmsTab({ api }) {
           <div className="flex-1 relative">
             <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Cerca film per titolo..."
+              placeholder={`Cerca ${typeLabel} per titolo...`}
               className="w-full bg-[#111113] border border-gray-800 rounded-lg pl-8 pr-3 py-2 text-xs text-white placeholder-gray-600 focus:border-red-500/50 focus:outline-none"
               data-testid="admin-film-search-input" />
           </div>
@@ -701,52 +735,126 @@ function FilmsTab({ api }) {
         </div>
       </form>
 
-      <p className="text-[10px] text-gray-500">{films.length} film trovati</p>
+      <p className="text-[10px] text-gray-500">{films.length} {typeLabel} trovati</p>
 
-      {/* Compact film grid: 8 mobile / 12 tablet / 16 desktop */}
+      {/* Compact grid — poster reduced by ~70% (minmax 80 → 48). Cards with open bug reports
+          are scaled 150% + amber pulse ring so admin spots them immediately. */}
+      <style>{`
+        @keyframes admin-report-pulse {
+          0%, 100% { box-shadow: 0 0 0 2px rgba(251,146,60,0.45), 0 0 12px rgba(251,146,60,0.35); }
+          50% { box-shadow: 0 0 0 3px rgba(251,146,60,0.8), 0 0 22px rgba(251,146,60,0.8); }
+        }
+      `}</style>
       <div className="grid gap-1 max-h-[70vh] overflow-y-auto pb-2"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))' }}
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(48px, 1fr))' }}
         data-testid="admin-film-grid">
-        {films.map(f => (
-          <div key={f.id} className="group relative bg-[#0d0d0f] border border-white/5 rounded overflow-hidden hover:border-red-500/40 transition-all"
-            data-testid={`admin-film-card-${f.id}`}>
-            {/* Mini poster */}
-            <div className="aspect-[2/3] bg-gray-900 relative">
-              {f.poster_url ? (
-                <img src={`${API_BASE}${f.poster_url}`} alt={f.title} loading="lazy"
-                  className="w-full h-full object-cover"
-                  onError={e => { e.target.style.display='none'; }} />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Film className="w-3.5 h-3.5 text-gray-700" />
-                </div>
-              )}
-              {/* Delete icon - always visible, top-right */}
-              <button
-                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600/80 hover:bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => { e.stopPropagation(); setDeleteTarget(f); }}
-                data-testid={`admin-film-delete-${f.id}`}>
-                <Trash2 className="w-2 h-2 text-white" />
-              </button>
-              {/* Quality badge */}
-              {f.quality_score != null && (
-                <span className="absolute bottom-0.5 right-0.5 text-[7px] font-bold bg-black/70 text-yellow-400 px-0.5 rounded leading-none py-px">
-                  {Math.round(f.quality_score)}%
-                </span>
-              )}
-            </div>
-            {/* Compact info */}
-            <div className="px-0.5 py-0.5">
-              <p className="text-[7px] font-semibold text-white truncate leading-tight" title={f.title}>{f.title}</p>
-              <p className="text-[6px] text-gray-500 truncate leading-tight">{f.studio_name}</p>
-            </div>
-          </div>
-        ))}
+        {films.map(f => {
+          const highlighted = f.has_open_report;
+          return (
+            <button key={f.id}
+              onClick={() => setSelected(f)}
+              className={`group relative bg-[#0d0d0f] border border-white/5 rounded overflow-hidden hover:border-red-500/40 transition-all text-left ${highlighted ? 'transform scale-150 z-10 my-3' : ''}`}
+              style={highlighted ? { animation: 'admin-report-pulse 1.4s ease-in-out infinite', border: '1px solid rgba(251,146,60,0.6)' } : undefined}
+              data-testid={`admin-film-card-${f.id}`}
+            >
+              <div className="aspect-[2/3] bg-gray-900 relative">
+                {f.poster_url ? (
+                  <img src={`${API_BASE}${f.poster_url}`} alt={f.title} loading="lazy"
+                    className="w-full h-full object-cover"
+                    onError={e => { e.target.style.display='none'; }} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Film className="w-3 h-3 text-gray-700" />
+                  </div>
+                )}
+                {highlighted && (
+                  <span className="absolute top-0 left-0 bg-amber-500 text-black text-[6px] font-black px-0.5 rounded-br leading-none py-px">!{f.reports_count}</span>
+                )}
+                {f.quality_score != null && (
+                  <span className="absolute bottom-0 right-0 text-[6px] font-bold bg-black/70 text-yellow-400 px-0.5 rounded leading-none py-px">
+                    {Math.round(f.quality_score)}%
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {films.length === 0 && !loading && (
-        <p className="text-center text-xs text-gray-600 py-8">Nessun film trovato</p>
+        <p className="text-center text-xs text-gray-600 py-8">Nessun {typeLabel} trovato</p>
       )}
+
+      {/* Detail popup: owner, stage, delete + fix buttons */}
+      <Dialog open={!!selected} onOpenChange={(o) => { if (!o) setSelected(null); }}>
+        <DialogContent className="bg-[#0d0d0f] border-white/10 max-w-sm p-0 [&>button]:hidden" data-testid="admin-film-detail-modal">
+          {selected && (
+            <div>
+              <div className="relative h-40 bg-black overflow-hidden">
+                {selected.poster_url ? (
+                  <img src={`${API_BASE}${selected.poster_url}`} alt="" className="w-full h-full object-cover opacity-80" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-900"><Film className="w-6 h-6 text-gray-700" /></div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0f] to-transparent" />
+                <button onClick={() => setSelected(null)} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center">
+                  <X className="w-3.5 h-3.5 text-white" />
+                </button>
+                <div className="absolute bottom-2 left-2 right-2">
+                  <p className="text-[11px] text-gray-400">{(selected.studio_name) + ' · @' + (selected.owner_nickname)}</p>
+                  <p className="text-sm font-bold text-white truncate">{selected.title}</p>
+                </div>
+              </div>
+              <div className="p-3 space-y-2">
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  <div className="bg-white/[0.03] rounded p-2">
+                    <p className="text-gray-500 uppercase text-[8px] font-bold">Stato</p>
+                    <p className="text-white font-bold">{selected.stage}</p>
+                  </div>
+                  <div className="bg-white/[0.03] rounded p-2">
+                    <p className="text-gray-500 uppercase text-[8px] font-bold">Collezione</p>
+                    <p className="text-white font-bold text-[9px]">{selected.collection}</p>
+                  </div>
+                  {selected.quality_score != null && (
+                    <div className="bg-white/[0.03] rounded p-2">
+                      <p className="text-gray-500 uppercase text-[8px] font-bold">Qualita</p>
+                      <p className="text-yellow-400 font-bold">{Math.round(selected.quality_score)}%</p>
+                    </div>
+                  )}
+                  {selected.genre_name && (
+                    <div className="bg-white/[0.03] rounded p-2">
+                      <p className="text-gray-500 uppercase text-[8px] font-bold">Genere</p>
+                      <p className="text-white font-bold text-[9px]">{selected.genre_name}</p>
+                    </div>
+                  )}
+                </div>
+                {selected.has_open_report && (
+                  <div className="p-2 rounded bg-amber-500/10 border border-amber-500/30">
+                    <p className="text-[10px] text-amber-300 font-bold">{selected.reports_count} segnalazione(i) aperta(e)</p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => handleFix(selected)}
+                    disabled={fixLoading || !selected.needs_fix}
+                    data-testid="admin-fix-btn"
+                    className={`py-2.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${selected.needs_fix ? 'border border-amber-500/35 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' : 'border border-white/5 text-gray-600 cursor-not-allowed'}`}
+                  >
+                    Fix {selected.needs_fix ? '' : '(ok)'}
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(selected)}
+                    data-testid="admin-detail-delete-btn"
+                    className="py-2.5 rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-[10px] font-bold hover:bg-rose-500/20 transition-all flex items-center justify-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" /> Elimina definitivamente
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

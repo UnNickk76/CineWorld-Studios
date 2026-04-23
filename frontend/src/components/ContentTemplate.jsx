@@ -11,6 +11,8 @@ import {
 import LikeButton, { SystemLikeBadge, PreReleaseSnapshotBadge } from './LikeButton';
 import TrailerPlayerModal from './TrailerPlayerModal';
 import PStarBanner from './PStarBanner';
+import CineConfirm from './v3/CineConfirm';
+import { Trash2 } from 'lucide-react';
 import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
@@ -488,6 +490,8 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const [showCinemaModal, setShowCinemaModal] = useState(false);
   const [trailer, setTrailer] = useState(null);
   const [showTrailer, setShowTrailer] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [likes, setLikes] = useState({ poster: { count: 0, liked_by_me: false, system_count: 0 }, screenplay: { count: 0, liked_by_me: false, system_count: 0 }, trailer: { count: 0, liked_by_me: false, system_count: 0 } });
   const [likesSnapshot, setLikesSnapshot] = useState(null);
 
@@ -890,6 +894,40 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
       {/* Cast Popup */}
       <CastPopup open={showCast} onClose={setShowCast} cast={film?.cast} />
+
+      {/* Owner-only: Elimina per sempre (any status, any section) */}
+      {isOwner && film?.id && (
+        <div className="px-4 pb-6 pt-3 border-t border-white/5 mt-4">
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            data-testid="content-hard-delete-btn"
+            className="w-full py-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-300 text-[11px] font-bold flex items-center justify-center gap-2 hover:bg-rose-500/20 active:scale-[0.98] transition-all"
+          >
+            <Trash2 className="w-4 h-4" /> Elimina per sempre
+          </button>
+        </div>
+      )}
+
+      <CineConfirm
+        open={showDeleteConfirm}
+        title="Eliminare per sempre?"
+        subtitle={`"${film?.title || ''}" sara' rimosso da tutte le sezioni (cinema, TV, mercato, cataloghi). Azione irreversibile.`}
+        confirmLabel={deleting ? '...' : 'Elimina per sempre'}
+        confirmTone="rose"
+        onConfirm={async () => {
+          if (deleting) return;
+          setDeleting(true);
+          try {
+            await api.delete(`/admin-recovery/delete/${film.id}`);
+            toast.success('Contenuto eliminato definitivamente');
+            setShowDeleteConfirm(false);
+            setTimeout(() => { navigate('/'); }, 400);
+          } catch (e) {
+            toast.error(e?.response?.data?.detail || 'Errore eliminazione');
+          } finally { setDeleting(false); }
+        }}
+        onCancel={() => !deleting && setShowDeleteConfirm(false)}
+      />
 
       {/* Cinema Stats Modal */}
       {showCinemaModal && (

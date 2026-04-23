@@ -5660,8 +5660,13 @@ async def admin_delete_user(user_id: str, user: dict = Depends(get_current_user)
 
 
 @api_router.get("/admin/all-films")
-async def admin_get_all_films(q: str = '', user: dict = Depends(get_current_user)):
-    """Get all films for admin management (admin only)."""
+async def admin_get_all_films(q: str = '', content_type: str = 'film', user: dict = Depends(get_current_user)):
+    """Get all films/tv_series/anime for admin management (any state, admin only).
+
+    content_type ∈ {'film','tv_series','anime'}.
+    Returns both released items (films/tv_series collections) and in-progress V3
+    projects (film_projects/series_projects_v3).
+    """
     if user.get('nickname') != ADMIN_NICKNAME:
         raise HTTPException(status_code=403, detail="Solo l'admin")
 
@@ -5669,15 +5674,37 @@ async def admin_get_all_films(q: str = '', user: dict = Depends(get_current_user
     if q:
         query['title'] = {'$regex': q, '$options': 'i'}
 
-    films_cursor = db.films.find(
-        query,
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'genre': 1,
-         'quality_score': 1, 'status': 1, 'created_at': 1, 'total_revenue': 1}
-    ).sort('title', 1)
-    films = await films_cursor.to_list(500)
+    results = []
+    shared_proj = {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1,
+                   'genre': 1, 'genre_name': 1, 'quality_score': 1,
+                   'status': 1, 'pipeline_state': 1, 'pipeline_version': 1,
+                   'created_at': 1, 'total_revenue': 1, 'type': 1,
+                   'source_project_id': 1}
 
-    # Enrich with studio name
-    user_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
+    if content_type == 'film':
+        async for d in db.films.find(query, shared_proj).sort('title', 1).limit(500):
+            d['stage'] = d.get('status') or 'released'
+            d['collection'] = 'films'
+            results.append(d)
+        # V3 film projects (pre-release)
+        async for d in db.film_projects.find({**query, 'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}}, shared_proj).sort('title', 1).limit(500):
+            d['stage'] = d.get('pipeline_state') or d.get('status') or 'idea'
+            d['collection'] = 'film_projects'
+            results.append(d)
+    elif content_type in ('tv_series', 'anime'):
+        async for d in db.tv_series.find({**query, 'type': content_type}, shared_proj).sort('title', 1).limit(500):
+            d['stage'] = d.get('status') or 'released'
+            d['collection'] = 'tv_series'
+            results.append(d)
+        async for d in db.series_projects_v3.find({**query, 'type': content_type, 'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}}, shared_proj).sort('title', 1).limit(500):
+            d['stage'] = d.get('pipeline_state') or 'idea'
+            d['collection'] = 'series_projects_v3'
+            results.append(d)
+    else:
+        raise HTTPException(400, "content_type non valido")
+
+    # Enrich with studio name and owner nickname
+    user_ids = list({f.get('user_id') for f in results if f.get('user_id')})
     users_map = {}
     if user_ids:
         users_list = await db.users.find(
@@ -5686,12 +5713,29 @@ async def admin_get_all_films(q: str = '', user: dict = Depends(get_current_user
         ).to_list(500)
         users_map = {u['id']: u for u in users_list}
 
-    for f in films:
+    # Pull bug-report flags to highlight entries that players are asking admin to fix/delete
+    try:
+        content_ids = [f['id'] for f in results]
+        open_reports = await db.bug_reports.find(
+            {'content_id': {'$in': content_ids}, 'status': {'$in': ['pending', 'open', None]}},
+            {'_id': 0, 'content_id': 1, 'category': 1, 'status': 1}
+        ).to_list(1000)
+    except Exception:
+        open_reports = []
+    reports_by_id = {}
+    for r in open_reports:
+        reports_by_id.setdefault(r['content_id'], []).append(r)
+
+    for f in results:
         owner = users_map.get(f.get('user_id'), {})
         f['studio_name'] = owner.get('production_house_name', 'Sconosciuto')
         f['owner_nickname'] = owner.get('nickname', '???')
+        f['has_open_report'] = f['id'] in reports_by_id
+        f['reports_count'] = len(reports_by_id.get(f['id'], []))
+        # Simple heuristic for "needs fix": missing critical fields
+        f['needs_fix'] = not f.get('poster_url') or (f.get('quality_score') is None)
 
-    return {'films': films, 'count': len(films)}
+    return {'films': results, 'count': len(results)}
 
 
 @api_router.delete("/admin/delete-film/{film_id}")
@@ -5700,9 +5744,15 @@ async def admin_delete_film(film_id: str, user: dict = Depends(get_current_user)
     if user.get('nickname') != ADMIN_NICKNAME:
         raise HTTPException(status_code=403, detail="Solo l'admin")
 
-    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1})
+    # Locate the document in any of the 4 content collections
+    film = None
+    for coll in ('films', 'film_projects', 'tv_series', 'series_projects_v3'):
+        doc = await db[coll].find_one({'id': film_id}, {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'source_project_id': 1})
+        if doc:
+            film = doc
+            break
     if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+        raise HTTPException(status_code=404, detail="Contenuto non trovato")
 
     deleted_related = {}
 
@@ -5731,8 +5781,25 @@ async def admin_delete_film(film_id: str, user: dict = Depends(get_current_user)
     if pf.deleted_count > 0:
         deleted_related['poster_files'] = pf.deleted_count
 
-    # Delete the film
-    await db.films.delete_one({'id': film_id})
+    # Delete from every content collection + source project id fallback
+    total = 0
+    for coll in ('films', 'film_projects', 'tv_series', 'series_projects_v3'):
+        r = await db[coll].delete_many({'id': film_id})
+        total += r.deleted_count
+    if film.get('source_project_id'):
+        for coll in ('film_projects', 'series_projects_v3'):
+            r = await db[coll].delete_many({'id': film['source_project_id']})
+            total += r.deleted_count
+    deleted_related['content_docs'] = total
+
+    # Resolve bug reports linked to this content
+    try:
+        await db.bug_reports.update_many(
+            {'content_id': film_id},
+            {'$set': {'status': 'resolved', 'resolved_at': datetime.now(timezone.utc).isoformat(), 'resolution': 'content deleted by admin'}}
+        )
+    except Exception:
+        pass
 
     # Invalidate cache
     _cache.invalidate()

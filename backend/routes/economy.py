@@ -1184,10 +1184,12 @@ async def dismiss_auto_tick_events(user: dict = Depends(get_current_user)):
 
 @router.get("/events/history")
 async def get_event_history(limit: int = 50, user: dict = Depends(get_current_user)):
-    """Get permanent event history for this user."""
+    """Global event history for all players. The feed is halved (1 every 2) to avoid overload."""
     limit = min(limit, 100)
-    events = await db.event_history.find(
-        {'user_id': user['id']},
+    # Fetch 2x then keep every other one to reduce density by ~50%
+    raw = await db.event_history.find(
+        {},  # all users
         {'_id': 0}
-    ).sort('created_at', -1).to_list(limit)
+    ).sort('created_at', -1).to_list(limit * 2)
+    events = raw[::2][:limit]
     return {'events': events}

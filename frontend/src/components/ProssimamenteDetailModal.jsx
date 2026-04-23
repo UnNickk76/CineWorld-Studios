@@ -6,7 +6,9 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../contexts';
 import { Dialog, DialogContent } from './ui/dialog';
-import { Tv, Sparkles, Star, Film as FilmIcon, Clock, X, ChevronDown, ChevronUp, Play } from 'lucide-react';
+import { Tv, Sparkles, Star, Film as FilmIcon, Clock, X, ChevronDown, ChevronUp, Play, Trash2 } from 'lucide-react';
+import CineConfirm from './v3/CineConfirm';
+import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -38,6 +40,8 @@ export default function ProssimamenteDetailModal({ open, onClose, seriesId }) {
   const [stationsLoaded, setStationsLoaded] = useState(false);
   const [showStationPicker, setShowStationPicker] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!open || !seriesId) return;
@@ -247,8 +251,42 @@ export default function ProssimamenteDetailModal({ open, onClose, seriesId }) {
                 )}
               </div>
             )}
+
+            {/* Owner: Elimina per sempre (any state, any section) */}
+            {isOwner && seriesId && (
+              <div className="pt-1">
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  data-testid="series-hard-delete-btn"
+                  className="w-full py-2.5 rounded-xl border border-rose-500/35 bg-rose-500/5 text-rose-300 text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-rose-500/10 active:scale-[0.98] transition-all"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Elimina per sempre
+                </button>
+              </div>
+            )}
           </div>
         )}
+
+        <CineConfirm
+          open={showDeleteConfirm}
+          title="Eliminare per sempre?"
+          subtitle={`"${data?.title || ''}" sara' rimosso da tutte le sezioni. Azione irreversibile.`}
+          confirmLabel={deleting ? '...' : 'Elimina per sempre'}
+          confirmTone="rose"
+          onConfirm={async () => {
+            if (deleting) return;
+            setDeleting(true);
+            try {
+              await api.delete(`/admin-recovery/delete/${seriesId}`);
+              toast.success('Contenuto eliminato definitivamente');
+              setShowDeleteConfirm(false);
+              setTimeout(() => onClose(), 400);
+            } catch (e) {
+              toast.error(e?.response?.data?.detail || 'Errore eliminazione');
+            } finally { setDeleting(false); }
+          }}
+          onCancel={() => !deleting && setShowDeleteConfirm(false)}
+        />
 
         {loading && !data && (
           <div className="py-10 flex items-center justify-center">

@@ -104,7 +104,7 @@ def calculate_idea_prevoto(project: dict) -> dict:
     screenplay_source = project.get("screenplay_source", "")
 
     breakdown = {}
-    base = 5.0  # Starting point
+    base = 4.5  # New baseline (was 5.0 — films must earn their score)
 
     # ═══ TITOLO (max +0.8) ═══
     title_score = 0.0
@@ -228,14 +228,14 @@ def calculate_idea_prevoto(project: dict) -> dict:
         breakdown["difficolta_genere"] = round(diff, 2)
         base += diff
 
-    # ═══ CASUALITA' CONTROLLATA (±0.3) ═══
+    # ═══ CASUALITA' CONTROLLATA (±0.5, era ±0.3) ═══
     seed = _deterministic_seed(pid, "idea_luck")
-    luck = (seed - 0.5) * 0.6  # Range: -0.3 to +0.3
+    luck = (seed - 0.5) * 1.0  # Range: -0.5 to +0.5
     breakdown["fortuna"] = round(luck, 2)
     base += luck
 
-    # Clamp to valid range
-    prevoto = round(max(3.5, min(8.5, base)), 1)
+    # Clamp to wider range (was 3.5-8.5)
+    prevoto = round(max(3.0, min(9.0, base)), 1)
 
     return {
         "prevoto": prevoto,

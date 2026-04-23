@@ -261,11 +261,31 @@ async def _update_project(pid: str, user_id: str, update: dict) -> dict:
     return await _get_project(pid, user_id)
 
 
-async def _spend(user_id: str, funds: int = 0, cinepass: int = 0, source: str = 'production', ref_id: str = None, ref_type: str = None, title: str = None) -> dict:
+async def _spend(user_id: str, funds: int = 0, cinepass: int = 0, source: str = 'production', ref_id: str = None, ref_type: str = None, title: str = None, budget_tier: str = None) -> dict:
     user_doc = await _get_user_doc(user_id)
     # Guest users play the tutorial for free: skip all cost checks/deductions
     if user_doc.get("is_guest"):
         return {"funds": user_doc.get("funds", 0), "cinepass": user_doc.get("cinepass", 0), "guest_free": True}
+
+    # ═══ ECONOMY SCALING ═══
+    # Scale costs for scalable sources (production, cast, hype, marketing, distribution...)
+    # Non-scalable sources (cinepass_purchase, infrastructure, fees) keep their original price.
+    scaling_info = None
+    base_funds = funds
+    if funds > 0:
+        try:
+            from utils.economy_scaling import SCALABLE_SOURCES, compute_scaling_bundle
+            if source in SCALABLE_SOURCES:
+                scaling_info = compute_scaling_bundle(
+                    user_doc,
+                    source=source,
+                    budget_tier=budget_tier,
+                    films_made=user_doc.get('films_produced_count', 0),
+                )
+                funds = max(0, int(round(funds * scaling_info['multiplier'])))
+        except Exception:
+            scaling_info = None
+
     if funds > 0 and user_doc.get("funds", 0) < funds:
         raise HTTPException(400, f"Fondi insufficienti: servono ${funds:,}")
     if cinepass > 0 and user_doc.get("cinepass", 0) < cinepass:
@@ -285,7 +305,12 @@ async def _spend(user_id: str, funds: int = 0, cinepass: int = 0, source: str = 
         except Exception:
             pass
     updated = await _get_user_doc(user_id)
-    return {"funds": updated.get("funds", 0), "cinepass": updated.get("cinepass", 0)}
+    result = {"funds": updated.get("funds", 0), "cinepass": updated.get("cinepass", 0)}
+    if scaling_info:
+        result["base_funds"] = base_funds
+        result["scaled_funds"] = funds
+        result["scaling"] = scaling_info
+    return result
 
 
 class CreateProjectRequest(BaseModel):
@@ -914,7 +939,11 @@ async def generate_screenplay(pid: str, req: PromptRequest, user: dict = Depends
 
 @router.post("/films/{pid}/save-hype")
 async def save_hype(pid: str, req: HypeRequest, user: dict = Depends(get_current_user)):
-    balances = await _spend(user["id"], funds=max(0, req.budget), cinepass=0)
+    project_for_spend = await _get_project(pid, user["id"])
+    balances = await _spend(user["id"], funds=max(0, req.budget), cinepass=0,
+                            source='hype', ref_id=pid, ref_type='film_project',
+                            title=project_for_spend.get('title'),
+                            budget_tier=project_for_spend.get('budget_tier'))
     now = datetime.now(timezone.utc)
     duration_hours = max(1, req.budget) if req.budget else 12
     complete_at = now + timedelta(hours=duration_hours)
@@ -939,15 +968,35 @@ async def save_cast(pid: str, req: CastRequest, user: dict = Depends(get_current
 
 @router.get("/films/{pid}/cast-proposals")
 async def get_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
-    """Get NPC cast proposals filtered by player level/fame, with CRc rating."""
+    """Get NPC cast proposals filtered by player level/fame, with CRc rating.
+    
+    Level-gated star tiers:
+      Lv 1-2  → max 1★
+      Lv 3-5  → max 2★
+      Lv 6-15 → max 3★
+      Lv 16-40 → max 4★
+      Lv 40+  → 5★ unlocked
+    5% chance of an "Interessato" NPC of next tier (+50% cost).
+    """
+    import random
     project = await _get_project(pid, user["id"])
     genre = project.get("genre", "drama")
 
-    # Player level/fame caps (same logic as V2 agency system)
+    # Player level (used for level-gated star tiers below)
     player_level = user.get("level", 1) or 1
-    player_fame = user.get("fame", 0) or 0
-    fame_cap_base = min(40 + player_level * 2 + player_fame * 0.05, 95)
-    fame_cap_star = min(60 + player_level * 3 + player_fame * 0.1, 100)
+
+    # Level-gated star cap (tuned to actual NPC distribution)
+    # 1★ NPCs are ~nonexistent, 3★ is the majority. Tiers shift accordingly.
+    if player_level <= 2:
+        max_stars = 2   # Entry: small unknowns
+    elif player_level <= 5:
+        max_stars = 3   # Rising talent (largest pool)
+    elif player_level <= 15:
+        max_stars = 4   # Established pros
+    elif player_level <= 40:
+        max_stars = 5   # Almost-superstars
+    else:
+        max_stars = 5   # Full access (super-superstars are rare anyway)
 
     # Genre→skill affinity weights for scoring
     GENRE_SKILL_WEIGHT = {
@@ -978,7 +1027,7 @@ async def get_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
     role_counts = {'director': 10, 'screenwriter': 10, 'actor': 30, 'composer': 8}
 
     for role_type, target_count in role_counts.items():
-        sample_size = target_count * 4
+        sample_size = target_count * 8  # Larger pool for level-gating filters
         cursor = db.people.aggregate([
             {'$match': {'type': role_type}},
             {'$sample': {'size': sample_size}},
@@ -987,25 +1036,36 @@ async def get_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
         candidates = await cursor.to_list(sample_size)
         candidates.sort(key=_score_npc, reverse=True)
 
-        # Filter by player level: max 2 star picks above base cap
-        stars_added = 0
+        # Filter by level-gated stars + 5% chance of "Interessato" NPC of next tier (+50% cost)
         filtered = []
+        interessati_added = 0  # max 1 interessato per role to keep proposals believable
         for npc in candidates:
-            npc_fame = npc.get('fame_score', npc.get('fame', 30)) or 30
-            if not isinstance(npc_fame, (int, float)):
-                npc_fame = 30
-            if npc_fame > fame_cap_base and stars_added < 2:
-                if npc_fame <= fame_cap_star:
-                    filtered.append(npc)
-                    stars_added += 1
-            elif npc_fame <= fame_cap_base:
+            npc_stars = npc.get('stars', 1) or 1
+            if not isinstance(npc_stars, (int, float)):
+                npc_stars = 1
+
+            if npc_stars <= max_stars:
                 filtered.append(npc)
+            elif npc_stars == max_stars + 1 and interessati_added < 1 and max_stars < 5:
+                # 5% chance: higher-tier NPC "Interessato" at +50% cost
+                if random.random() < 0.05:
+                    npc_copy = dict(npc)
+                    base_cost = npc_copy.get('cost_per_film', npc_copy.get('cost', 50000)) or 50000
+                    npc_copy['cost_per_film'] = int(base_cost * 1.5)
+                    npc_copy['cost'] = int(base_cost * 1.5)
+                    npc_copy['is_interested'] = True
+                    npc_copy['interested_surcharge_pct'] = 50
+                    filtered.append(npc_copy)
+                    interessati_added += 1
             if len(filtered) >= target_count:
                 break
-        # Fill remaining if not enough
+        # Fill remaining if not enough (fallback to any NPC within star cap)
         if len(filtered) < target_count:
             for npc in candidates:
-                if npc not in filtered:
+                if npc in filtered:
+                    continue
+                npc_stars = npc.get('stars', 1) or 1
+                if isinstance(npc_stars, (int, float)) and npc_stars <= max_stars:
                     filtered.append(npc)
                 if len(filtered) >= target_count:
                     break
@@ -1028,6 +1088,8 @@ async def get_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
                 "avatar_url": npc.get("avatar_url", ""),
                 "avatar_initial": (npc.get("name", "?")[0]).upper(),
                 "crc": _calc_crc(npc),
+                "is_interested": npc.get("is_interested", False),
+                "interested_surcharge_pct": npc.get("interested_surcharge_pct", 0),
             }
             proposals[key].append(entry)
 
@@ -1753,9 +1815,11 @@ async def select_cast_member(pid: str, req: SelectCastBody, user: dict = Depends
         entry["cast_role"] = req.cast_role or "generico"
         cast["actors"].append(entry)
 
-    # Deduct cost
+    # Deduct cost (cast source: scales with level)
     try:
-        await _spend(user["id"], funds=entry["cost"], cinepass=0)
+        await _spend(user["id"], funds=entry["cost"], cinepass=0,
+                     source='cast', ref_id=pid, ref_type='film_project',
+                     title=project.get('title'), budget_tier=project.get('budget_tier'))
     except:
         pass  # V3 non blocca per fondi
 
@@ -2021,7 +2085,11 @@ async def save_marketing(pid: str, req: MarketingRequest, user: dict = Depends(g
         "Mega Campagna Globale": 150000,
     }
     total_cost = sum(package_costs.get(name, 0) for name in req.packages)
-    balances = await _spend(user["id"], funds=total_cost, cinepass=0)
+    project_for_spend = await _get_project(pid, user["id"])
+    balances = await _spend(user["id"], funds=total_cost, cinepass=0,
+                            source='marketing', ref_id=pid, ref_type='film_project',
+                            title=project_for_spend.get('title'),
+                            budget_tier=project_for_spend.get('budget_tier'))
     project = await _update_project(pid, user["id"], {
         "marketing_packages": req.packages,
         "marketing_completed": True,
@@ -2045,7 +2113,11 @@ async def set_release_type(pid: str, req: ReleaseTypeRequest, user: dict = Depen
 
 @router.post("/films/{pid}/schedule-release")
 async def schedule_release(pid: str, req: ScheduleReleaseRequest, user: dict = Depends(get_current_user)):
-    balances = await _spend(user["id"], funds=80000 if req.world else 0, cinepass=5 if req.world else 0)
+    project_for_spend = await _get_project(pid, user["id"])
+    balances = await _spend(user["id"], funds=80000 if req.world else 0, cinepass=5 if req.world else 0,
+                            source='distribution', ref_id=pid, ref_type='film_project',
+                            title=project_for_spend.get('title'),
+                            budget_tier=project_for_spend.get('budget_tier'))
     project = await _update_project(pid, user["id"], {
         "release_date_label": req.release_date_label or "Immediato",
         "distribution_world": req.world,
@@ -2184,10 +2256,11 @@ async def calc_distribution_cost_endpoint(pid: str, req: DistributionSaveRequest
 
 @router.get("/films/{pid}/production-cost")
 async def get_production_cost(pid: str, user: dict = Depends(get_current_user)):
-    """Get full production cost breakdown."""
+    """Get full production cost breakdown (with level scaling for transparency)."""
     from utils.calc_production_cost import calculate_production_cost
     project = await _get_project(pid, user["id"])
-    return calculate_production_cost(project)
+    user_doc = await db.users.find_one({'id': user['id']}, {'_id': 0, 'level': 1, 'films_produced_count': 1})
+    return calculate_production_cost(project, user_doc=user_doc)
 
 
 @router.get("/films/{pid}/savings-options")
@@ -2408,26 +2481,37 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         cwsv_data = {}
 
     # Calculate production cost (safe — handles missing data)
+    # Note: we pass base cost to _spend; scaling is applied INSIDE _spend to avoid double-scaling
     try:
-        cost = calculate_production_cost(project)
+        cost = calculate_production_cost(project)  # base cost, no user_doc
         total_funds = cost.get("total_funds", 0)
         total_cp = cost.get("total_cp", 0)
     except Exception:
         total_funds = 0
         total_cp = 0
 
-    # Deduct funds (if any cost) — with clear error message
+    # Deduct funds (if any cost) — scaling applied inside _spend based on level
     if total_funds > 0 or total_cp > 0:
-        user_doc = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1, 'cinepass': 1, 'is_guest': 1})
-        # Guest users: skip the balance pre-check (they release for free)
+        user_doc = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1, 'cinepass': 1, 'is_guest': 1, 'level': 1, 'films_produced_count': 1})
+        # Pre-check using scaled amount for a user-friendly error
         if not (user_doc or {}).get('is_guest'):
+            try:
+                from utils.economy_scaling import compute_scaling_bundle
+                bundle = compute_scaling_bundle(user_doc or {}, source='production',
+                                                 budget_tier=project.get('budget_tier'),
+                                                 films_made=(user_doc or {}).get('films_produced_count', 0))
+                scaled_funds = max(0, int(round(total_funds * bundle['multiplier'])))
+            except Exception:
+                scaled_funds = total_funds
             user_funds = (user_doc or {}).get('funds', 0) or 0
             user_cp = (user_doc or {}).get('cinepass', 0) or 0
-            if user_funds < total_funds:
-                raise HTTPException(400, f"Fondi insufficienti: servono ${total_funds:,.0f} ma hai ${user_funds:,.0f}")
+            if user_funds < scaled_funds:
+                raise HTTPException(400, f"Fondi insufficienti: servono ${scaled_funds:,.0f} ma hai ${user_funds:,.0f}")
             if user_cp < total_cp:
                 raise HTTPException(400, f"CinePass insufficienti: servono {total_cp} CP ma hai {user_cp}")
-        await _spend(user["id"], funds=total_funds, cinepass=total_cp)
+        await _spend(user["id"], funds=total_funds, cinepass=total_cp,
+                     source='production', ref_id=pid, ref_type='film_project',
+                     title=project.get('title'), budget_tier=project.get('budget_tier'))
 
     # ─── Calculate REAL total production cost from pipeline V3 cost calculator ───
     # This is the authoritative net cost (incl. sponsor offset, marketing, cast, distribution, ...).

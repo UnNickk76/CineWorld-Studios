@@ -10,6 +10,24 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 24, 2026 — Economics Overhaul (Cost Scaling + Level-Gating + CWSv Variance)**
+  - **Cost Scaling** (nuova util `utils/economy_scaling.py`): curva asintotica `0.35 + 1.15*(1-e^(-lvl/50))` → Lv 1 = 0.37x, Lv 30 = 0.87x, Lv 100 = 1.34x, asintoto 1.50x. Sconti extra: "Onramp esordiente" -10% per i primi 5 film (Lv≤5), "Bonus indie" -30% per veterani (Lv≥30) che fanno low/micro/indie budget.
+    - Applicato dentro `_spend()` di `routes/pipeline_v3.py`: hype, cast, marketing, distribution, production (release finale). Le fonti non-scalabili (cinepass_purchase, fees, market) restano al prezzo base.
+    - Applicato anche al save-hype di serie TV e anime (`routes/pipeline_series_v3.py`).
+    - Esposto bundle trasparente (`label`, `multiplier`, `bonuses[]`, `discount_pct`) nel response di `GET /production-cost` e nelle balances dopo ogni spesa.
+  - **Cast Level-Gating**: `GET /cast-proposals` di film/serie/anime filtra NPCs per livello player:
+    - Lv 1-2 → max 2★ · Lv 3-5 → max 3★ · Lv 6-15 → max 4★ · Lv 16+ → 5★ sbloccato.
+    - 5% chance (max 1 per ruolo) di un NPC "Interessato" del tier superiore a +50% costo. Flag `is_interested: true` nel response + `interested_surcharge_pct: 50`.
+  - **CWSv Variance Rework** (`utils/calc_quality.py`, `calc_quality_idea.py`, `calc_quality_cast.py`):
+    - Baseline idea: 5.0 → 4.5. Clamp 3.5-8.5 → 3.0-9.0. Luck ±0.3 → ±0.5.
+    - Cast modifier: regista ±4% → ±6%, attori ±6% → ±10%. Clamp totale ±12% → ±18%.
+    - Fattore fortuna finale: ±15% → ±25%. Cap finale: 10.0 → 9.8 (mai 10 perfetto).
+    - **Jackpot genre match** (+1.2 bonus): se 3+ attori principali hanno il genere del film nei `strong_genres` E avg skill ≥ 75.
+    - Test verifica: film pessimo → 3.9, film mediocre → 4.0, film eccellente → 9.8 (contro il precedente 7-8 compresso).
+  - Testato via curl end-to-end con account fandrex1 (Lv 1): 10M budget mid → scalato a 3.36M (-66% Lv 1 + Onramp), hype $100k→$33.5k, cast proposals solo 2-3★.
+  - Files: `utils/economy_scaling.py`, `utils/calc_production_cost.py`, `utils/calc_quality*.py`, `routes/pipeline_v3.py`, `routes/pipeline_series_v3.py`.
+
+
 - **Feb 23, 2026 — CastPhase Serie/Anime V3 identico a Film + NPCs anime**
   - **Seed anime NPCs** (`scripts/seed_anime_crew.py`): 300 `anime_director` + 2000 `anime_illustrator` in `db.people`. Ogni NPC ha: 8 skill da 50 anime-coerenti (director: storyboard/visual_style/pacing/animation_direction/storytelling/emotional_scoring/action_choreography/character_design_sense; illustrator: linework/character_design/background_art/color_palette/motion_frames/expressions/chibi_sd_style/mecha_detail), sex (male/female/non-binary), nationality (preferenza JP + KR/CN/IT/...), age 22-68, imdb_rating, 2 primary_skills (punti di forza) + 1 secondary_skill (punto debole), stars 1-5, cost e fame. Script idempotente.
   - **Scheduler** `replenish_anime_crew_pool` ogni 14 giorni: rispawna NPCs se il pool scende sotto target.

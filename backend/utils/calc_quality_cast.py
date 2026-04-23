@@ -105,23 +105,23 @@ def calculate_cast_modifier(project: dict, current_prevoto: float) -> dict:
 
     if not cast or not isinstance(cast, dict):
         # No cast at all — significant penalty
-        modifier_pct = -8.0
-        breakdown["cast_assente"] = "-8.0%"
+        modifier_pct = -12.0
+        breakdown["cast_assente"] = "-12.0%"
         new_prevoto = current_prevoto * (1 + modifier_pct / 100)
-        return {"prevoto": round(max(2.0, min(9.5, new_prevoto)), 1), "modifier_pct": modifier_pct, "breakdown": breakdown, "step": "cast"}
+        return {"prevoto": round(max(1.5, min(9.6, new_prevoto)), 1), "modifier_pct": modifier_pct, "breakdown": breakdown, "step": "cast"}
 
     # ═══ REGISTA (peso 0.30 del totale cast) ═══
     director = cast.get("director")
     if director and isinstance(director, dict):
         dir_score = _calc_npc_contribution(director, genre, 1.0)
-        dir_pct = (dir_score - 0.5) * 8.0  # Range: -4% to +4%
+        dir_pct = (dir_score - 0.5) * 12.0  # Range: -6% to +6% (era ±4%)
         modifier_pct += dir_pct
         breakdown["regista"] = f"{dir_pct:+.1f}%"
     else:
-        modifier_pct -= 3.0
-        breakdown["regista_assente"] = "-3.0%"
+        modifier_pct -= 4.5
+        breakdown["regista_assente"] = "-4.5%"
 
-    # ═══ ATTORI (peso variabile, max ±5%) ═══
+    # ═══ ATTORI (peso variabile, max ±8%) ═══
     actors = cast.get("actors", [])
     if isinstance(actors, list) and len(actors) > 0:
         actor_scores = []
@@ -133,12 +133,12 @@ def calculate_cast_modifier(project: dict, current_prevoto: float) -> dict:
             avg_actor = sum(actor_scores) / len(actor_scores)
             # Bonus for having more actors
             count_bonus = min(0.1, len(actor_scores) * 0.02)
-            actor_pct = (avg_actor + count_bonus - 0.5) * 6.0
+            actor_pct = (avg_actor + count_bonus - 0.5) * 10.0  # era *6
             modifier_pct += actor_pct
             breakdown["attori"] = f"{actor_pct:+.1f}% ({len(actor_scores)} attori)"
     else:
-        modifier_pct -= 2.0
-        breakdown["attori_assenti"] = "-2.0%"
+        modifier_pct -= 3.0
+        breakdown["attori_assenti"] = "-3.0%"
 
     # ═══ COMPOSITORE (peso variabile per genere) ═══
     composer = cast.get("composer")
@@ -184,10 +184,10 @@ def calculate_cast_modifier(project: dict, current_prevoto: float) -> dict:
     modifier_pct += luck
     breakdown["fortuna_cast"] = f"{luck:+.1f}%"
 
-    # Clamp
-    modifier_pct = max(-12.0, min(12.0, modifier_pct))
+    # Clamp (widened from ±12% to ±18%)
+    modifier_pct = max(-18.0, min(18.0, modifier_pct))
     new_prevoto = current_prevoto * (1 + modifier_pct / 100)
-    new_prevoto = round(max(2.0, min(9.5, new_prevoto)), 1)
+    new_prevoto = round(max(1.5, min(9.6, new_prevoto)), 1)
 
     return {
         "prevoto": new_prevoto,

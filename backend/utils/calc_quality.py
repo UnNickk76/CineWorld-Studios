@@ -109,25 +109,58 @@ def calculate_cwsv(project: dict) -> dict:
         current = current * (1 + cumul_malus / 100)
         final_breakdown["malus_velocizzazioni"] = f"{cumul_malus:.1f}%"
 
-    # Fattore fortuna finale (distribuzione gaussiana-like, ±15%)
+    # Fattore fortuna finale (distribuzione gaussiana-like, ±25% — era ±15%)
     # Usa 3 seed per simulare distribuzione gaussiana
     s1 = _seed(pid, "final_luck_1")
     s2 = _seed(pid, "final_luck_2")
     s3 = _seed(pid, "final_luck_3")
     gauss_approx = (s1 + s2 + s3) / 3  # Tende verso 0.5
-    luck_pct = (gauss_approx - 0.5) * 30  # Range: -15% to +15%, ma concentrato su ±5%
+    luck_pct = (gauss_approx - 0.5) * 50  # Range: -25% to +25%, concentrato su ±8%
     current = current * (1 + luck_pct / 100)
     final_breakdown["fattore_fortuna"] = f"{luck_pct:+.1f}%"
 
-    # Masterpiece ceiling: CWSv 10 quasi impossibile
+    # ═══ JACKPOT GENRE MATCH (+1.2 bonus) ═══
+    # Se TUTTI gli attori principali (primi 4) hanno il genere del film nei loro strong_genres
+    # E la media skill è >= 75 → masterpiece bonus
+    try:
+        cast_data = project.get("cast", {}) or {}
+        genre = project.get("genre", "") or ""
+        actors_list = (cast_data.get("actors") or [])[:4]
+        director = cast_data.get("director") or {}
+        all_match = len(actors_list) >= 3  # at least 3 main actors required
+        avg_skill_total = 0.0
+        avg_skill_count = 0
+        for m in actors_list + ([director] if director else []):
+            if not isinstance(m, dict):
+                all_match = False
+                break
+            strong = m.get("strong_genres", []) or m.get("strong_genres_names", [])
+            strong_norm = [g.lower().replace(" ", "_") for g in strong] if isinstance(strong, list) else []
+            if genre.lower() not in strong_norm:
+                all_match = False
+            skills = m.get("skills", {}) or {}
+            if isinstance(skills, dict) and skills:
+                vals = [v for v in skills.values() if isinstance(v, (int, float))]
+                if vals:
+                    avg_skill_total += sum(vals) / len(vals)
+                    avg_skill_count += 1
+        if all_match and avg_skill_count >= 3:
+            avg_skill = avg_skill_total / avg_skill_count
+            if avg_skill >= 75:
+                current = current + 1.2
+                final_breakdown["jackpot_genre_match"] = "+1.2 (cast perfetto per il genere)"
+    except Exception:
+        pass
+
+    # Masterpiece ceiling: CWSv 9.5+ quasi impossibile senza eccellenza reale
     # Solo se base pre-fortuna era >= 8.5 E fortuna > +10%
-    pre_luck = current / (1 + luck_pct / 100)
+    pre_luck = current / (1 + luck_pct / 100) if (1 + luck_pct / 100) != 0 else current
     if current >= 9.5 and pre_luck < 8.5:
         current = 9.4  # Cap: can't luck into masterpiece
         final_breakdown["cap_masterpiece"] = "CWSv 9.5+ richiede eccellenza reale"
 
-    # Final clamp and round
-    cwsv = round(max(1.0, min(10.0, current)), 1)
+    # Final clamp and round — cap 9.8 (was 10.0, per user request)
+    cwsv = round(max(1.0, min(9.8, current)), 1)
 
     # Voti X.0 → X
     cwsv_display = _format_cwsv(cwsv)

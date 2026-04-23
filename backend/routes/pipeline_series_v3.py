@@ -660,24 +660,44 @@ class HypeSaveRequest(BaseModel):
 
 @router.post("/projects/{pid}/save-hype")
 async def save_hype_series(pid: str, req: HypeSaveRequest, user: dict = Depends(get_current_user)):
-    """Start the hype timer. Budget spent reduces duration."""
+    """Start the hype timer. Budget spent reduces duration.
+    Economy scaling: hype cost scales with player level (cheap for newbies)."""
     project = await _get_project(pid, user["id"])
+
+    # Compute scaled cost once — displayed hype_budget is the BASE, spent is scaled
+    def _scale(base_amount: int, user_doc: dict) -> int:
+        if base_amount <= 0:
+            return 0
+        try:
+            from utils.economy_scaling import compute_scaling_bundle
+            bundle = compute_scaling_bundle(
+                user_doc,
+                source='hype',
+                budget_tier=project.get('budget_tier'),
+                films_made=user_doc.get('films_produced_count', 0),
+            )
+            return max(0, int(round(base_amount * bundle['multiplier'])))
+        except Exception:
+            return base_amount
+
     if project.get("hype_started_at"):
         # Already running — allow increasing budget
         if req.hype_budget > 0:
-            fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "funds": 1})
-            if int(fresh.get("funds", 0) or 0) < req.hype_budget:
-                raise HTTPException(400, "Fondi insufficienti")
-            await db.users.update_one({"id": user["id"]}, {"$inc": {"funds": -req.hype_budget}})
+            fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "funds": 1, "level": 1, "films_produced_count": 1})
+            scaled = _scale(req.hype_budget, fresh or {})
+            if int(fresh.get("funds", 0) or 0) < scaled:
+                raise HTTPException(400, f"Fondi insufficienti: servono ${scaled:,}")
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"funds": -scaled}})
             new_budget = int(project.get("hype_budget", 0) or 0) + req.hype_budget
             return await _update_project(pid, user["id"], {"hype_budget": new_budget})
         return {"success": True, "project": project}
 
     if req.hype_budget > 0:
-        fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "funds": 1})
-        if int(fresh.get("funds", 0) or 0) < req.hype_budget:
-            raise HTTPException(400, "Fondi insufficienti")
-        await db.users.update_one({"id": user["id"]}, {"$inc": {"funds": -req.hype_budget}})
+        fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "funds": 1, "level": 1, "films_produced_count": 1})
+        scaled = _scale(req.hype_budget, fresh or {})
+        if int(fresh.get("funds", 0) or 0) < scaled:
+            raise HTTPException(400, f"Fondi insufficienti: servono ${scaled:,}")
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"funds": -scaled}})
 
     # Hype duration: 24h base, 12h with budget >=50k, 6h with >=200k
     hours = 24 if req.hype_budget < 50000 else (12 if req.hype_budget < 200000 else 6)
@@ -722,14 +742,33 @@ async def save_cast_series(pid: str, req: CastSaveRequest, user: dict = Depends(
 async def series_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
     """NPC proposals for series/anime cast. Anime uses anime_director + anime_illustrator
     instead of director + actor.
+    
+    Level-gated star tiers:
+      Lv 1-2  → max 1★
+      Lv 3-5  → max 2★
+      Lv 6-15 → max 3★
+      Lv 16-40 → max 4★
+      Lv 40+  → 5★ unlocked
+    5% chance of an "Interessato" NPC of next tier (+50% cost).
     """
+    import random
     project = await _get_project(pid, user["id"])
     is_anime = project.get("type") == "anime"
 
     player_level = user.get("level", 1) or 1
-    player_fame = user.get("fame", 0) or 0
-    fame_cap_base = min(40 + player_level * 2 + player_fame * 0.05, 95)
-    fame_cap_star = min(60 + player_level * 3 + player_fame * 0.1, 100)
+
+    # Level-gated star cap (tuned to actual NPC distribution)
+    # 1★ NPCs are ~nonexistent, 3★ is the majority. Tiers shift accordingly.
+    if player_level <= 2:
+        max_stars = 2
+    elif player_level <= 5:
+        max_stars = 3
+    elif player_level <= 15:
+        max_stars = 4
+    elif player_level <= 40:
+        max_stars = 5
+    else:
+        max_stars = 5
 
     def _score(npc):
         s = npc.get("skills") or {}
@@ -753,28 +792,37 @@ async def series_cast_proposals(pid: str, user: dict = Depends(get_current_user)
         proposals[key] = []
         sample = await db.people.aggregate([
             {'$match': {'role_type': role_type}},
-            {'$sample': {'size': target * 4}},
+            {'$sample': {'size': target * 8}},
             {'$project': {'_id': 0}},
-        ]).to_list(target * 4)
+        ]).to_list(target * 8)
         sample.sort(key=_score, reverse=True)
 
-        stars_added = 0
         filtered = []
+        interessati_added = 0
         for npc in sample:
-            npc_fame = npc.get('fame_score') or npc.get('fame', 30) or 30
-            if not isinstance(npc_fame, (int, float)):
-                npc_fame = 30
-            if npc_fame > fame_cap_base and stars_added < 2:
-                if npc_fame <= fame_cap_star:
-                    filtered.append(npc)
-                    stars_added += 1
-            elif npc_fame <= fame_cap_base:
+            npc_stars = npc.get('stars', 1) or 1
+            if not isinstance(npc_stars, (int, float)):
+                npc_stars = 1
+            if npc_stars <= max_stars:
                 filtered.append(npc)
+            elif npc_stars == max_stars + 1 and interessati_added < 1 and max_stars < 5:
+                if random.random() < 0.05:
+                    npc_copy = dict(npc)
+                    base_cost = npc_copy.get('cost_per_film', npc_copy.get('cost', 50000)) or 50000
+                    npc_copy['cost_per_film'] = int(base_cost * 1.5)
+                    npc_copy['cost'] = int(base_cost * 1.5)
+                    npc_copy['is_interested'] = True
+                    npc_copy['interested_surcharge_pct'] = 50
+                    filtered.append(npc_copy)
+                    interessati_added += 1
             if len(filtered) >= target:
                 break
         if len(filtered) < target:
             for n in sample:
-                if n not in filtered:
+                if n in filtered:
+                    continue
+                ns = n.get('stars', 1) or 1
+                if isinstance(ns, (int, float)) and ns <= max_stars:
                     filtered.append(n)
                 if len(filtered) >= target:
                     break

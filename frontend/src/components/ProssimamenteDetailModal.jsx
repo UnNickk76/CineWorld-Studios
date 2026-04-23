@@ -162,7 +162,7 @@ export default function ProssimamenteDetailModal({ open, onClose, seriesId }) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[11px] font-bold text-white truncate">{ep.title || `Episodio ${epNum}`}</p>
-                            {ep.is_finale && <p className="text-[8px] text-amber-400 font-bold">FINALE STAGIONE</p>}
+                            {ep.is_finale ? <p className="text-[8px] text-amber-400 font-bold">FINALE STAGIONE</p> : ep.duration_min ? <p className="text-[8px] text-gray-500">{ep.duration_min}m</p> : null}
                           </div>
                           {ep.cwsv_display && <span className="text-[9px] text-yellow-400 font-bold">{ep.cwsv_display}</span>}
                           {hasPlot && (isOpen ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />)}

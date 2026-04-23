@@ -395,8 +395,9 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
 
       {/* Episode titles grid — 12 per column, click to show mini-plot */}
       {project.episodes?.length > 0 && (() => {
-        const epDur = estimateEpisodeDuration(project.type, project.genre);
-        const totalMin = project.episodes.length * epDur;
+        const baseDur = project.episode_duration_min || (project.type === 'anime' ? 22 : 45);
+        const durOf = (ep) => ep?.duration_min || baseDur;
+        const totalMin = project.episodes.reduce((s, ep) => s + durOf(ep), 0);
         const totalH = Math.floor(totalMin / 60);
         const totalR = totalMin % 60;
         return (
@@ -404,7 +405,7 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
             <div className="flex items-baseline justify-between mb-1.5">
               <p className="text-[8px] text-gray-500 font-bold uppercase">Titoli Episodi ({project.episodes.length})</p>
               <p className="text-[8px] text-amber-400/70 font-bold" data-testid="series-total-duration">
-                ~{epDur}m · tot {totalH > 0 ? `${totalH}h ${totalR}m` : `${totalR}m`}
+                ~{baseDur}m · tot {totalH > 0 ? `${totalH}h ${totalR}m` : `${totalR}m`}
               </p>
             </div>
             <div
@@ -422,7 +423,7 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
                 >
                   <span className="text-gray-600">{ep.number}.</span>
                   <span className="truncate flex-1">{ep.title}</span>
-                  <span className="text-gray-600 text-[7px] flex-shrink-0">{epDur}m</span>
+                  <span className="text-gray-600 text-[7px] flex-shrink-0">{durOf(ep)}m</span>
                 </button>
               ))}
             </div>
@@ -435,7 +436,7 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
         <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4" onClick={() => setSelectedEp(null)}>
           <div className="bg-[#111113] border border-amber-500/30 rounded-xl max-w-sm w-full p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
             <div>
-              <p className="text-[8px] text-amber-400/80 uppercase font-bold">Episodio {selectedEp.number}</p>
+              <p className="text-[8px] text-amber-400/80 uppercase font-bold">Episodio {selectedEp.number}{selectedEp.duration_min ? ` · ${selectedEp.duration_min}m` : ''}</p>
               <h4 className="text-base font-bold text-white mt-0.5">{selectedEp.title}</h4>
             </div>
             <div className="text-[11px] text-gray-300 leading-relaxed whitespace-pre-wrap min-h-[72px]">
@@ -1211,7 +1212,7 @@ const StepFinale = ({ project, onConfirm, loading, seriesType }) => {
         <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4" onClick={() => setSelectedEp(null)}>
           <div className="bg-[#111113] border border-amber-500/30 rounded-xl max-w-sm w-full p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
             <div>
-              <p className="text-[8px] text-amber-400/80 uppercase font-bold">Episodio {selectedEp.number}</p>
+              <p className="text-[8px] text-amber-400/80 uppercase font-bold">Episodio {selectedEp.number}{selectedEp.duration_min ? ` · ${selectedEp.duration_min}m` : ''}</p>
               <h4 className="text-base font-bold text-white mt-0.5">{selectedEp.title}</h4>
             </div>
             <div className="text-[11px] text-gray-300 leading-relaxed whitespace-pre-wrap min-h-[72px]">

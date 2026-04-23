@@ -10,6 +10,12 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 23, 2026 — Durata episodi variabile e coerente con scelta utente**
+  - **Bug**: la durata mostrata per ogni episodio era hardcoded via `estimateEpisodeDuration(type, genre)` che ritornava 55m per thriller/drama etc., ignorando la scelta utente `episode_duration_min` (30/45/60). Anche il totale era `num_ep * 55` errato.
+  - **Fix backend** (`routes/pipeline_series_v3.py`): nuova util `_episode_duration(base, pid, ep_num)` che usa MD5 seeded da `pid+ep_num` per distribuire variazioni deterministiche in `[base-3, base+7]` (es. base 45 → ep individuali 43/47/48/50/51/52m). Salvato come `duration_min` su ogni episodio in `generate-episode-titles` e preservato in `generate-screenplay`.
+  - **Fix frontend** (`components/v3/PipelineSeriesV3.jsx`): ora usa `project.episode_duration_min` come base e `ep.duration_min` per ogni singolo episodio. Totale = somma reale dei singoli. Badge modale episodio mostra `Ep N · Xm`. `ProssimamenteDetailModal` mostra anche la durata sotto il titolo.
+  - **Verifica**: per pid fisso, base=45 / 13 ep → 624m totali (≈10h24m), media 48m, range 43-52m.
+
 - **Feb 23, 2026 — IdeaPhase V3: Scarta + Ricomincia con Cineox+Velion**
   - **Nuovo componente condiviso** `components/v3/CineConfirm.jsx`: modale conferma con i mascot **Cineox + Velion**, glow tonale (rose/amber/violet), animazioni float dei personaggi, backdrop blur, auto-close su tap esterno. Mobile-first.
   - **Backend endpoints nuovi**:

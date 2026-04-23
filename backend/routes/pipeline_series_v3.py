@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta
 import uuid
 import logging
 import os
+import hashlib
 
 from database import db
 from auth_utils import get_current_user
@@ -17,6 +18,21 @@ logger = logging.getLogger(__name__)
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _episode_duration(base: int, pid: str, ep_num: int) -> int:
+    """Deterministic per-episode duration in [base-3, base+7] so episodes feel realistic
+    (44/51/47/53m when base=45) while staying stable across re-fetches.
+    """
+    try:
+        base_i = int(base) if base else 45
+    except (TypeError, ValueError):
+        base_i = 45
+    h = hashlib.md5(f"{pid}-{ep_num}".encode("utf-8")).hexdigest()
+    n = int(h[:4], 16)
+    offset = (n % 11) - 3  # -3..+7 (11 values)
+    return max(5, base_i + offset)
+
 
 
 # ─── GENRES ───
@@ -330,12 +346,14 @@ async def generate_episode_titles(pid: str, user: dict = Depends(get_current_use
         titles = [f"Episodio {i+1}" for i in range(num_ep)]
 
     # Build episodes
+    base_dur = project.get("episode_duration_min") or (22 if series_type == "anime" else 45)
     episodes = []
     for i, t in enumerate(titles):
         episodes.append({
             "number": i + 1,
             "title": t,
             "mini_plot": "",
+            "duration_min": _episode_duration(base_dur, pid, i + 1),
             "cwsv": None,
             "cwsv_display": None,
             "revealed": False,
@@ -488,6 +506,7 @@ async def generate_series_screenplay(pid: str, user: dict = Depends(get_current_
             by_num = {int(item.get("number", 0)): str(item.get("mini_plot", ""))[:220] for item in parsed if isinstance(item, dict)}
 
             # Merge onto existing episodes (or build new ones)
+            base_dur = project.get("episode_duration_min") or (22 if is_anime else 45)
             updated_episodes = []
             for i, (num, t) in enumerate(ep_titles_list):
                 base = existing_episodes[i] if i < len(existing_episodes) else {}
@@ -496,6 +515,7 @@ async def generate_series_screenplay(pid: str, user: dict = Depends(get_current_
                     "number": num,
                     "title": t,
                     "mini_plot": by_num.get(num, base.get("mini_plot", "")),
+                    "duration_min": base.get("duration_min") or _episode_duration(base_dur, pid, num),
                     "cwsv": base.get("cwsv"),
                     "cwsv_display": base.get("cwsv_display"),
                     "revealed": base.get("revealed", False),

@@ -145,9 +145,15 @@ const IdeaPhase = ({ project, onRefresh, seriesType }) => {
   const genreInfo = genres[genre] || {};
   const baseRange = genreInfo.ep_range || [4, 52];
   const formatRange = FORMAT_RANGES[fmt] || baseRange;
-  // Intersect format with genre's ep_range
-  const epMin = Math.max(baseRange[0], formatRange[0]);
-  const epMax = Math.min(baseRange[1], formatRange[1]);
+  // Intersect format with genre's ep_range. Format has priority: if intersection
+  // is empty (e.g. thriller 4-13 vs lunga 20-26), fall back to the format range
+  // so the user can actually pick the chosen format's episode count.
+  let epMin = Math.max(baseRange[0], formatRange[0]);
+  let epMax = Math.min(baseRange[1], formatRange[1]);
+  if (epMin > epMax) {
+    epMin = formatRange[0];
+    epMax = formatRange[1];
+  }
   const subOpts = SUBGENRE_MAP[genre] || [];
   const validIdea = title.trim().length >= 2 && genre && preplot.trim().length >= 30;
   const hasPoster = !!project.poster_url;

@@ -235,7 +235,21 @@ async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_cur
     project = await _get_project(pid, user["id"])
     genres = ANIME_GENRES if project.get("type") == "anime" else TV_GENRES
     genre_info = genres.get(req.genre, {})
-    ep_range = genre_info.get("ep_range", [4, 26])
+    ep_range = list(genre_info.get("ep_range", [4, 26]))
+
+    # If user picked a series_format (miniserie/stagionale/lunga/maratona),
+    # format takes priority. When format range does NOT overlap the genre range
+    # (e.g. thriller 4-13 vs lunga 20-26), honour the format range so the user
+    # can actually set the episode count they chose.
+    FORMAT_RANGES = {"miniserie": [4, 6], "stagionale": [8, 13], "lunga": [20, 26], "maratona": [40, 52]}
+    fmt_range = FORMAT_RANGES.get(req.series_format or project.get("series_format"))
+    if fmt_range:
+        lo = max(ep_range[0], fmt_range[0])
+        hi = min(ep_range[1], fmt_range[1])
+        if lo > hi:
+            lo, hi = fmt_range[0], fmt_range[1]
+        ep_range = [lo, hi]
+
     num_ep = max(ep_range[0], min(ep_range[1], req.num_episodes))
 
     return await _update_project(pid, user["id"], {

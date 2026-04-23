@@ -10,6 +10,12 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 23, 2026 — Fix formato serie Lunga/Maratona: slider 20-26 / 40-52 ora funziona**
+  - **Bug**: selezionando Thriller (range genere 4-13) + Lunga (20-26) o Maratona (40-52), la intersezione `max(lo)/min(hi)` dava range **invertito** (`[20,13]`), lo slider restava a max 13 e l'etichetta mostrava "20-13, formato: lunga" assurdo.
+  - **Fix frontend** (`components/v3/PipelineSeriesV3.jsx` L146-154): se intersezione vuota (`epMin > epMax`), fallback al `formatRange` puro. Formato ha priorita'.
+  - **Fix backend** (`routes/pipeline_series_v3.py save-idea`): stessa logica applicata lato server — il clamp a `num_ep` usa il range del formato quando estende oltre il range del genere. Cosi' un thriller Maratona puo' avere legittimamente 40+ episodi.
+  - **Coerenza AI**: `generate-episode-titles` e `generate-screenplay` usano `project.num_episodes` direttamente → generano il numero esatto di titoli + mini-trame (40 per maratona). `_episode_duration` calcola le varianti per ogni ep, totale coerente.
+
 - **Feb 23, 2026 — Durata episodi variabile e coerente con scelta utente**
   - **Bug**: la durata mostrata per ogni episodio era hardcoded via `estimateEpisodeDuration(type, genre)` che ritornava 55m per thriller/drama etc., ignorando la scelta utente `episode_duration_min` (30/45/60). Anche il totale era `num_ep * 55` errato.
   - **Fix backend** (`routes/pipeline_series_v3.py`): nuova util `_episode_duration(base, pid, ep_num)` che usa MD5 seeded da `pid+ep_num` per distribuire variazioni deterministiche in `[base-3, base+7]` (es. base 45 → ep individuali 43/47/48/50/51/52m). Salvato come `duration_min` su ogni episodio in `generate-episode-titles` e preservato in `generate-screenplay`.

@@ -10,6 +10,14 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 23, 2026 — Badge rosso "Produci" visibile anche in fase IDEA e HYPE (V3)**
+  - **Bug**: `GET /api/pipeline-v2/production-counts` (usato dal topbar + side-menu per il pallino rosso) non includeva gli stati V3 `idea`/`hype`/`cast`/`ciak`/`finalcut`/`distribution` per film. Non considerava la collezione `series_projects_v3` (tutte le serie/anime V3). Risultato: durante idea e hype il badge era 0.
+  - **Fix** (`routes/pipeline_v2.py` get_production_counts):
+    - Aggiunti stati V3 (`idea`, `hype`, `cast`, `ciak`, `finalcut`, `distribution`) al set `active_states` per `film_projects`.
+    - Aggiunta query su `series_projects_v3` (serie + anime) filtrando `pipeline_state $nin [released, discarded, deleted]`.
+    - Output totale = legacy V2 + V3.
+  - Test: curl per fandrex1 → `{"total":5,"film":5,...}` (prima 0 per film in idea).
+
 - **Feb 23, 2026 — Fix formato serie Lunga/Maratona: slider 20-26 / 40-52 ora funziona**
   - **Bug**: selezionando Thriller (range genere 4-13) + Lunga (20-26) o Maratona (40-52), la intersezione `max(lo)/min(hi)` dava range **invertito** (`[20,13]`), lo slider restava a max 13 e l'etichetta mostrava "20-13, formato: lunga" assurdo.
   - **Fix frontend** (`components/v3/PipelineSeriesV3.jsx` L146-154): se intersezione vuota (`epMin > epMax`), fallback al `formatRange` puro. Formato ha priorita'.

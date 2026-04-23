@@ -655,21 +655,39 @@ async def regenerate_poster_v2(pid: str, user: dict = Depends(get_current_user))
 
 @router.get("/production-counts")
 async def get_production_counts(user: dict = Depends(get_current_user)):
-    """Get count of active projects by type for badge display."""
-    active_states = {'draft', 'idea', 'proposed', 'hype_setup', 'hype_live', 'casting_live',
-                     'prep', 'shooting', 'postproduction', 'sponsorship', 'marketing',
-                     'premiere_setup', 'premiere_live', 'release_pending'}
+    """Get count of active projects (V2 + V3) by type for badge display."""
+    # V2 and V3 film pipeline states that count as "in production"
+    active_states = {
+        # V2 legacy
+        'draft', 'proposed', 'hype_setup', 'hype_live', 'casting_live',
+        'prep', 'shooting', 'postproduction', 'sponsorship', 'marketing',
+        'premiere_setup', 'premiere_live', 'release_pending',
+        # V3 (shared by films + series/anime)
+        'idea', 'hype', 'cast', 'ciak', 'finalcut', 'distribution',
+    }
     films = await db.film_projects.count_documents({
         'user_id': user['id'], 'pipeline_state': {'$in': list(active_states)}
     })
-    series = await db.tv_series.count_documents({
+    # V2 legacy series/anime sit in tv_series with these statuses
+    series_legacy = await db.tv_series.count_documents({
         'user_id': user['id'], 'type': 'tv_series',
         'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']}
     })
-    anime = await db.tv_series.count_documents({
+    anime_legacy = await db.tv_series.count_documents({
         'user_id': user['id'], 'type': 'anime',
         'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']}
     })
+    # V3 series/anime live in series_projects_v3. Count every non-terminal project.
+    series_v3 = await db.series_projects_v3.count_documents({
+        'user_id': user['id'], 'type': 'tv_series',
+        'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}
+    })
+    anime_v3 = await db.series_projects_v3.count_documents({
+        'user_id': user['id'], 'type': 'anime',
+        'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}
+    })
+    series = series_legacy + series_v3
+    anime = anime_legacy + anime_v3
     return {'total': films + series + anime, 'film': films, 'series': series, 'anime': anime}
 
 

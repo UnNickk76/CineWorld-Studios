@@ -1169,6 +1169,20 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     if target_station_id and not prossimamente:
         prossimamente = True
 
+    # Auto-adoption: se il flag prossimamente_tv è True ma l'utente non ha scelto una station
+    # specifica (errore comune / flusso che non l'ha richiesto), assegna alla prima TV del proprietario.
+    # Evita il bug "serie in dashboard ma assente dal palinsesto".
+    if prossimamente and not target_station_id:
+        try:
+            owner_station = await db.tv_stations.find_one(
+                {"user_id": user["id"]},
+                {"_id": 0, "id": 1}, sort=[("created_at", 1)]
+            )
+            if owner_station:
+                target_station_id = owner_station["id"]
+        except Exception:
+            pass
+
     # Determine destination
     if prossimamente:
         status = "in_tv"

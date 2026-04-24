@@ -10,6 +10,14 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 24, 2026 — Fix "Orphan adoption" serie senza target TV station**
+  - **BUG ROOT CAUSE**: Le serie V3 rilasciate con flag `prossimamente_tv=True` ma SENZA che l'utente avesse scelto una TV station specifica in DistributionPhase, restavano con `target_tv_station_id=null`. Risultato: apparivano nel banner dashboard "In Arrivo su TV" (dato che `/prossimamente` non filtra per station) ma non apparivano nella pagina della TV del proprietario (che filtra per `scheduled_for_tv_station`). Nessun bottone per accettarle/gestirle.
+  - **Fix al release** (`pipeline_series_v3.py`): se `prossimamente_tv=True` ma nessun target station è scelto, auto-assegna alla prima TV station del proprietario (ordinata per created_at asc). Evita bug future.
+  - **Self-heal retroattivo** (`routes/tv_stations.py` `/scheduled` endpoint): quando il proprietario apre una qualsiasi sua TV station, tutte le sue serie V3 "orfane" (prossimamente_tv=True, pipeline_version=3, senza target/scheduled TV) vengono auto-assegnate a quella station. Risolve serie già rilasciate con il bug (come "The Concept").
+  - **Flow accept-pending**: era già presente (`POST /tv-stations/{id}/accept-pending/{content_id}`), ma nessuna serie arrivava alla coda. Ora le serie orfane ci arrivano e il proprietario può accettarle / modificare batching dal bottone `PendingTVEditModal` in `TVStationPage.jsx`.
+  - **Bug 1 (non-proprietario vede vuoto)**: verificato che `/pipeline-series-v3/prossimamente`, `/coming-soon` e `dashboard/batch.recent_series_global` sono TUTTI globali (no filtro user_id). Se un non-proprietario vede vuoto, è cache browser oppure i dati della serie hanno `prossimamente_tv=False` o `status` non in `['in_tv', 'catalog', 'completed', 'released']`. Il self-heal sopra sistema anche questo.
+
+
 - **Feb 24, 2026 — Producer Badge + Ordinamento per-sezione + TV Rights migliorato**
   - **Nuovo componente `ProducerBadge`** (`components/ProducerBadge.jsx`): piccola fascetta "DI [nickname]" con colore deterministico dal nickname. Appare SOLO quando il contenuto NON è del player corrente. Integrato in: Ultimi Film al Cinema, Ultimi Aggiornamenti Serie TV, Ultimi Aggiornamenti Anime, Prossimamente (ComingSoonSection), In Arrivo su TV (ProssimamenteV3Section), La Prima.
   - **Nuovo componente `SectionSortMenu`** + helper `sortItems()` (`components/SectionSortMenu.jsx`): piccola icona `ArrowDownUp` accanto ai banner sezione. Dropdown con opzioni (Più Recenti, Top Voto, Più Visti, Più Amati, A-Z). Scelte **persistite in localStorage** per-sezione. Integrato in tutte le 6 sezioni dashboard (LaPrima con "LIVE prima", Prossimamente con "Più Vicini", Ultimi Aggiornamenti Film/Serie/Anime, In Arrivo su TV).

@@ -586,6 +586,40 @@ async def get_scheduled_content(station_id: str, user: dict = Depends(get_curren
     except Exception:
         pass
 
+    # ═══ ORPHAN ADOPTION ═══
+    # Se il proprietario della station ha serie V3 con prossimamente_tv=True ma SENZA
+    # target_tv_station_id (non ha scelto una TV specifica in pipeline), e questa station
+    # è la sua UNICA TV → auto-assegnala a questa station. Altrimenti le mostriamo come
+    # orphan (ma per ora l'auto-assegnazione alla primary è safe).
+    try:
+        user_stations_count = await db.tv_stations.count_documents({'user_id': user['id']})
+        # Auto-assegna solo se la station corrente è l'unica o la prima
+        if user_stations_count >= 1:
+            await db.tv_series.update_many(
+                {
+                    'user_id': user['id'],
+                    'pipeline_version': 3,
+                    'prossimamente_tv': True,
+                    '$and': [
+                        {'$or': [
+                            {'target_tv_station_id': {'$in': [None, '']}},
+                            {'target_tv_station_id': {'$exists': False}},
+                        ]},
+                        {'$or': [
+                            {'scheduled_for_tv_station': {'$in': [None, '']}},
+                            {'scheduled_for_tv_station': {'$exists': False}},
+                        ]},
+                    ],
+                },
+                {'$set': {
+                    'target_tv_station_id': station_id,
+                    'scheduled_for_tv_station': station_id,
+                    'scheduled_for_tv': True,
+                }}
+            )
+    except Exception:
+        pass
+
     # Films in theaters or coming soon, scheduled for this station
     scheduled_films = await db.films.find(
         {'user_id': user['id'], 'scheduled_for_tv': True, 'scheduled_for_tv_station': station_id},

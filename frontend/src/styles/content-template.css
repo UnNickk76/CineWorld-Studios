@@ -333,11 +333,19 @@
   color: #908060;
   line-height: 1.45;
   margin-top: 2px;
-  display: -webkit-box;
-  -webkit-line-clamp: 6;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  max-height: 78px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 166, 35, 0.4) transparent;
 }
+.ct2-info-plot::-webkit-scrollbar { width: 3px; }
+.ct2-info-plot::-webkit-scrollbar-thumb {
+  background: rgba(245, 166, 35, 0.4);
+  border-radius: 3px;
+}
+.ct2-info-plot::-webkit-scrollbar-track { background: transparent; }
 
 /* ═══════════════════════════════════
    3. TITLE

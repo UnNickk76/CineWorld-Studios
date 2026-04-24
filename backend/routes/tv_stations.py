@@ -565,6 +565,27 @@ async def get_scheduled_content(station_id: str, user: dict = Depends(get_curren
     if not station:
         raise HTTPException(404, "Stazione non trovata")
 
+    # Self-heal: repair previously-released series/anime that have target_tv_station_id==this
+    # but scheduled_for_tv=False/None due to the old pipeline bug. Owner's series only.
+    try:
+        await db.tv_series.update_many(
+            {
+                'user_id': user['id'],
+                'target_tv_station_id': station_id,
+                '$or': [
+                    {'scheduled_for_tv': {'$ne': True}},
+                    {'scheduled_for_tv_station': {'$ne': station_id}},
+                ],
+            },
+            {'$set': {
+                'scheduled_for_tv': True,
+                'scheduled_for_tv_station': station_id,
+                'prossimamente_tv': True,
+            }}
+        )
+    except Exception:
+        pass
+
     # Films in theaters or coming soon, scheduled for this station
     scheduled_films = await db.films.find(
         {'user_id': user['id'], 'scheduled_for_tv': True, 'scheduled_for_tv_station': station_id},

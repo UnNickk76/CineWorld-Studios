@@ -10,6 +10,27 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 24, 2026 — Dashboard "IN ARRIVO SU TV" + Pipeline→TV Prossimamente fix**
+  - **Dashboard**: `ProssimamenteV3Section` (`pages/Dashboard.jsx`) ora resta sempre visibile anche quando vuota. Stato vuoto: placeholder tratteggiato "Nessun contenuto in arrivo" (come altre sezioni della dashboard). Prima scompariva del tutto.
+  - **Pipeline V3 Serie/Anime → Prossimamente**: BUG risolto. Al release in `pipeline_series_v3.py` l'accoppiata `scheduled_for_tv + scheduled_for_tv_station` richiedeva SIA `target_tv_station_id` SIA `prossimamente_tv`. Ora basta il `target_tv_station_id`: se l'utente ha esplicitamente scelto una TV in DistributionPhase la serie finisce automaticamente in Prossimamente di quella TV.
+  - **Self-heal**: `GET /api/tv-stations/{id}/scheduled` ora ripara silenziosamente ogni serie dell'owner con `target_tv_station_id` impostato ma `scheduled_for_tv=False` (retrofit per serie rilasciate con il vecchio bug). Niente migrazione manuale necessaria.
+  - **Memoria / follow-up futuri**:
+    - **Sistema affitto (noleggio) TV rights**: risulta già implementato in `routes/market_v2.py` (`/market/tv-rights/list` + `/market/tv-rights/buy/{listing_id}`). Se un utente affitta la serie di un altro, oggi NON appare in Prossimamente della sua TV perché `/scheduled` filtra su `user_id`. Da valutare: estendere la query per accettare serie con licenza/affitto attivo verso il proprietario della station.
+    - **Flusso "accept-pending"**: già presente (`POST /api/tv-stations/{id}/accept-pending/{content_id}` + `edit-pending`). Frontend `TVStationPage.jsx` li chiama. Quindi il flow "Conferma Prossimamente" è già funzionante; era solo il routing a monte che non popolava la coda.
+
+
+- **Feb 24, 2026 — Content detail modal: 5 fix veloci (Serie TV/Anime)**
+  - **Pretrama scrollabile** (`ct2-info-plot`): rimosso `-webkit-line-clamp`, aggiunto `max-height:78px + overflow-y:auto` + scrollbar custom dorata. Ora la pretrama lunga si può scorrere invece di troncarsi.
+  - **Episodi cliccabili**: "24 EPISODI" nel data bar ora è un bottone sottolineato che apre `EpisodesModal`. Modal mostra tutti gli episodi; cliccando si espande la sinossi SOLO per quelli già andati in onda (+ il precedente). Regola di gating: se `release_policy === 'all_at_once'/'binge'` o `status === 'completed'/'catalog'` → tutte leggibili; altrimenti contiamo aired tramite `ep.air_date` oppure calcolo da `released_at + tv_eps_per_batch + tv_interval_days`.
+  - **Cinema bar "IN SALA" nascosto per serie/anime** (`hidden={isSeries}` + `display:none`). Prima appariva "IN SALA · 0g · 21g rimasti" anche per Serie TV che non vanno mai al cinema.
+  - **Screenplay per Serie V3 recuperato**: `db.tv_series` release ora include `screenplay_text`, `screenplay_source` e `trailer` nel doc (prima mancavano). Fallback runtime in `GET /api/series/{id}` che legge dal `source_project_id` → `series_projects_v3` se il field è mancante. Frontend ha inoltre fallback ulteriore: se nessuno screenplay top-level ma `episodes[]` ha `screenplay_text/synopsis` → concatena con separator per episodio.
+  - **Trailer Serie/Anime**: aggiunto fallback in `GET /api/trailers/{content_id}`: se `coll in (tv_series, anime_series)` e trailer mancante, cerca in `series_projects_v3` via `source_project_id`. Ora il banner "Guarda Trailer" compare correttamente per le serie rilasciate.
+  - Files: `components/ContentTemplate.jsx`, `styles/content-template.css`, `routes/pipeline_series_v3.py` (release), `routes/series_pipeline.py` (detail), `routes/trailers.py` (fallback).
+  - **Memoria / follow-up futuri**:
+    - **Da controllare**: Serie TV e Anime dovrebbero essere creabili SOLO se si possiede l'infrastruttura dedicata (acquistabile). Verificare lo stato attuale di questo check ed eventualmente ripristinarlo.
+    - **Da ripristinare (evento)**: esisteva in passato un evento che permetteva a Serie TV/Anime di andare al cinema. Verificare se è stato rimosso e valutare ripristino, collegando la meccanica ai livelli delle infrastrutture del player.
+
+
 - **Feb 24, 2026 — Economics Overhaul (Cost Scaling + Level-Gating + CWSv Variance)**
   - **Cost Scaling** (nuova util `utils/economy_scaling.py`): curva asintotica `0.35 + 1.15*(1-e^(-lvl/50))` → Lv 1 = 0.37x, Lv 30 = 0.87x, Lv 100 = 1.34x, asintoto 1.50x. Sconti extra: "Onramp esordiente" -10% per i primi 5 film (Lv≤5), "Bonus indie" -30% per veterani (Lv≥30) che fanno low/micro/indie budget.
     - Applicato dentro `_spend()` di `routes/pipeline_v3.py`: hype, cast, marketing, distribution, production (release finale). Le fonti non-scalabili (cinepass_purchase, fees, market) restano al prezzo base.

@@ -478,6 +478,133 @@ const CastPopup = ({ open, onClose, cast }) => {
   );
 }
 
+// ═══════════════════════════════════════
+// EPISODES MODAL — list episodes with gated minitrame
+// Rule: only the aired episode + previous are readable,
+// unless ALL episodes are available on TV (status: completed/catalog or all_at_once policy).
+// ═══════════════════════════════════════
+function EpisodesModal({ open, onClose, film }) {
+  const [selectedIdx, setSelectedIdx] = useState(null);
+  const episodes = Array.isArray(film?.episodes) ? film.episodes : [];
+
+  // Determine which episodes are "aired" (readable)
+  const now = Date.now();
+  const releasePolicy = film?.release_policy || film?.distribution_schedule || 'daily_1';
+  const isAllAtOnce = releasePolicy === 'all_at_once' || releasePolicy === 'binge';
+  const isCatalog = film?.status === 'completed' || film?.status === 'catalog';
+
+  // Count aired: episodes with air_date/aired_at in the past, OR (isAllAtOnce && released) → all
+  // Fallback: if release_date exists, assume episodes/day cadence based on policy
+  const epsPerBatch = film?.tv_eps_per_batch || 1;
+  const intervalDays = film?.tv_interval_days || 1;
+  const releasedAt = film?.released_at || film?.release_date || null;
+
+  const getAiredCount = () => {
+    if (isAllAtOnce || isCatalog) return episodes.length;
+    // Count explicit aired episodes
+    let aired = 0;
+    for (const ep of episodes) {
+      const airDate = ep.air_date || ep.aired_at || ep.scheduled_at;
+      if (airDate && new Date(airDate).getTime() <= now) aired++;
+    }
+    if (aired > 0) return aired;
+    // Fallback from releasedAt
+    if (releasedAt) {
+      const elapsed = Math.floor((now - new Date(releasedAt).getTime()) / 86400000);
+      if (elapsed < 0) return 0;
+      const batches = Math.floor(elapsed / Math.max(1, intervalDays)) + 1;
+      return Math.min(episodes.length, batches * epsPerBatch);
+    }
+    return 0;
+  };
+  const airedCount = getAiredCount();
+
+  const isReadable = (idx) => {
+    if (isAllAtOnce || isCatalog) return true;
+    // Readable: aired episode OR previous (airedCount - 1)
+    // E.g. aired=3 → episodes 1, 2, 3 all readable (current + previous)
+    return idx < airedCount;
+  };
+
+  if (!open) return null;
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose && onClose()}>
+      <DialogContent className="ct2-episodes-dialog max-w-md p-0 overflow-hidden bg-slate-950 border border-cyan-500/20" data-testid="episodes-modal">
+        <div className="sticky top-0 z-10 px-4 py-3 border-b border-cyan-500/10 bg-slate-950/95 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-cyan-400/70">Episodi</div>
+              <div className="text-sm font-bold text-cyan-200">{film?.title}</div>
+            </div>
+            <button onClick={onClose} className="text-cyan-300/60 hover:text-cyan-200 p-1" data-testid="episodes-close">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="text-[9px] text-cyan-300/50 mt-1">
+            {isAllAtOnce || isCatalog ? (
+              `Tutti i ${episodes.length} episodi disponibili`
+            ) : (
+              `${airedCount}/${episodes.length} episodi in onda · ${epsPerBatch} ep. ogni ${intervalDays}g`
+            )}
+          </div>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto p-3 space-y-1">
+          {episodes.map((ep, idx) => {
+            const num = ep.episode_number || ep.number || (idx + 1);
+            const title = ep.title || `Episodio ${num}`;
+            const readable = isReadable(idx);
+            const isSelected = selectedIdx === idx;
+            return (
+              <div key={idx} className="rounded-lg border border-cyan-500/10 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => readable && setSelectedIdx(isSelected ? null : idx)}
+                  disabled={!readable}
+                  data-testid={`episode-btn-${num}`}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
+                    readable
+                      ? 'bg-cyan-500/5 hover:bg-cyan-500/10 cursor-pointer'
+                      : 'bg-slate-900/60 cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  <div className={`w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold ${readable ? 'bg-cyan-500/20 text-cyan-200' : 'bg-slate-700/40 text-slate-500'}`}>
+                    {num}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-[11px] font-semibold truncate ${readable ? 'text-cyan-100' : 'text-slate-500'}`}>
+                      {title}
+                    </div>
+                    <div className="text-[9px] text-slate-400">
+                      {readable
+                        ? (idx === airedCount - 1 && !isAllAtOnce && !isCatalog ? 'In onda ora' : 'In onda')
+                        : 'Non ancora trasmesso'}
+                    </div>
+                  </div>
+                  <ChevronRight size={14} className={`${readable ? 'text-cyan-300/60' : 'text-slate-600'} transition-transform ${isSelected ? 'rotate-90' : ''}`} />
+                </button>
+                {isSelected && readable && (
+                  <div className="px-3 py-2 border-t border-cyan-500/10 bg-slate-900/40" data-testid={`episode-synopsis-${num}`}>
+                    <div className="text-[10px] leading-relaxed text-slate-300">
+                      {ep.synopsis || ep.short_plot || ep.description || 'Sinossi non disponibile.'}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {episodes.length === 0 && (
+            <div className="text-center py-8 text-[11px] text-slate-500">
+              Nessun episodio disponibile.
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+
 // === MAIN TEMPLATE COMPONENT ===
 export function ContentTemplate({ filmId, contentType = 'film' }) {
   const { api, user } = useContext(AuthContext);
@@ -492,6 +619,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const [showTrailer, setShowTrailer] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showEpisodes, setShowEpisodes] = useState(false);
   const [likes, setLikes] = useState({ poster: { count: 0, liked_by_me: false, system_count: 0 }, screenplay: { count: 0, liked_by_me: false, system_count: 0 }, trailer: { count: 0, liked_by_me: false, system_count: 0 } });
   const [likesSnapshot, setLikesSnapshot] = useState(null);
 
@@ -603,6 +731,18 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const trendPos = film.trend_position;
   const trendDelta = film.trend_delta;
   const screenplay = cleanText(toStr(film.screenplay) || toStr(film.screenplay_text) || toStr(film.pre_screenplay) || toStr(film.description) || '');
+  // Series fallback: if top-level screenplay is missing, concatenate episode synopses/screenplays
+  const episodes = Array.isArray(film?.episodes) ? film.episodes : [];
+  const isSeriesLike_local = contentType === 'series' || contentType === 'anime' || film?.type === 'tv_series' || film?.type === 'anime';
+  const seriesFallbackScreenplay = (!screenplay && isSeriesLike_local && episodes.length > 0) ? (
+    episodes.map((ep, i) => {
+      const num = ep.episode_number || ep.number || (i + 1);
+      const title = ep.title || `Episodio ${num}`;
+      const body = cleanText(toStr(ep.screenplay_text) || toStr(ep.screenplay) || toStr(ep.synopsis) || '');
+      return body ? `EPISODIO ${num} — ${title}\n\n${body}` : '';
+    }).filter(Boolean).join('\n\n═══════════════════════════════════\n\n')
+  ) : '';
+  const screenplayFinal = screenplay || seriesFallbackScreenplay;
   const perception = getPublicPerception(film);
   const events = getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
@@ -688,9 +828,9 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           )}
           {shortPlot ? (
             <div className="ct2-info-plot">{shortPlot}</div>
-          ) : screenplay ? (
+          ) : screenplayFinal ? (
             <div className="ct2-info-plot">{(() => {
-              let text = screenplay;
+              let text = screenplayFinal;
               text = text.replace(/^(Titolo|Logline|Genere|Sottogenere|Ambientazione|Tono|Cast|Regia|Sceneggiatura)[:\s].+$/gmi, '');
               text = text.replace(/^(ATTO|ACT|SCENA|SCENE|INT\.|EXT\.)[:\s].*/gmi, '');
               text = text.trim();
@@ -733,7 +873,19 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </>
         )}
         <Clock size={13} />
-        <span className="ct2-data-duration">{durationStr || '—'}</span>
+        {isSeries && (film?.num_episodes || film?.episode_count) ? (
+          <button
+            type="button"
+            onClick={() => setShowEpisodes(true)}
+            className="ct2-data-duration ct2-duration-clickable"
+            data-testid="ct-episodes-btn"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'rgba(144,176,208,0.45)', textUnderlineOffset: '2px' }}
+          >
+            {durationStr || '—'}
+          </button>
+        ) : (
+          <span className="ct2-data-duration">{durationStr || '—'}</span>
+        )}
         {trendPos && (
           <>
             <span className="ct2-data-sep">|</span>
@@ -758,7 +910,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
       )}
 
-      <div className={`ct2-cinema-bar ct2-perf-${cinemaPerf || 'ok'}`} onClick={() => setShowCinemaModal(true)} data-testid="ct-cinema-bar">
+      <div className={`ct2-cinema-bar ct2-perf-${cinemaPerf || 'ok'}`} onClick={() => setShowCinemaModal(true)} data-testid="ct-cinema-bar" hidden={isSeries} style={isSeries ? { display: 'none' } : undefined}>
         {hasCinemaDays && hasCinemaRemain ? (
           <>
             <div className="ct2-cinema-bar-main">
@@ -844,7 +996,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
         <div className="ct2-screenplay-box">
           <div className="ct2-screenplay-content">
-            {screenplay || 'Sceneggiatura non disponibile.'}
+            {screenplayFinal || 'Sceneggiatura non disponibile.'}
           </div>
           <div className="ct2-screenplay-fade-top" />
           <div className="ct2-screenplay-fade-bottom" />
@@ -894,6 +1046,15 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
       {/* Cast Popup */}
       <CastPopup open={showCast} onClose={setShowCast} cast={film?.cast} />
+
+      {/* Episodes modal — series/anime only */}
+      {showEpisodes && isSeries && (
+        <EpisodesModal
+          open={showEpisodes}
+          onClose={() => setShowEpisodes(false)}
+          film={film}
+        />
+      )}
 
       {/* Owner-only: Elimina per sempre (any status, any section) */}
       {isOwner && film?.id && (

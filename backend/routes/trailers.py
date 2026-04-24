@@ -774,6 +774,12 @@ async def get_trailer(content_id: str, request: Request, user: dict = Depends(_d
         src = await db.film_projects.find_one({"id": src_id}, {"_id": 0, "trailer": 1})
         if src and src.get("trailer"):
             tr = src["trailer"]
+    # Same issue for tv_series / anime_series → fall back to series_projects_v3
+    if not tr and coll in ("tv_series", "anime_series"):
+        src_id = content.get("source_project_id") or content_id
+        src = await db.series_projects_v3.find_one({"id": src_id}, {"_id": 0, "trailer": 1})
+        if src and src.get("trailer"):
+            tr = src["trailer"]
     if not tr:
         return {"trailer": None}
 

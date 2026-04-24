@@ -2100,6 +2100,23 @@ async def get_series_detail(series_id: str, user: dict = Depends(get_current_use
     """
     series = await db.tv_series.find_one({'id': series_id}, {'_id': 0})
 
+    # V3 released series may be stored in tv_series without the screenplay/trailer payload
+    # → fall back to the source project doc.
+    if series and series.get('source_project_id'):
+        needs = (not series.get('screenplay_text') and not series.get('screenplay')) or not series.get('trailer')
+        if needs:
+            src = await db.series_projects_v3.find_one(
+                {'id': series['source_project_id']},
+                {'_id': 0, 'screenplay_text': 1, 'screenplay': 1, 'screenplay_source': 1, 'trailer': 1}
+            )
+            if src:
+                if not series.get('screenplay_text') and src.get('screenplay_text'):
+                    series['screenplay_text'] = src['screenplay_text']
+                if not series.get('screenplay') and (src.get('screenplay') or src.get('screenplay_text')):
+                    series['screenplay'] = src.get('screenplay') or src.get('screenplay_text')
+                if not series.get('trailer') and src.get('trailer'):
+                    series['trailer'] = src['trailer']
+
     # Fallback 1: V3 series projects (series_projects_v3)
     if not series:
         v3 = await db.series_projects_v3.find_one({'id': series_id}, {'_id': 0})

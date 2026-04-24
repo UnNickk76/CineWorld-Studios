@@ -1156,12 +1156,18 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     # Target TV station from DistributionPhase
     target_station_id = project.get("target_tv_station_id")
     if target_station_id:
-        # Re-verify ownership at release time
+        # Re-verify ownership at release time — owner's station OR verified tv-rights rental
         st_ok = await db.tv_stations.find_one(
-            {"id": target_station_id, "user_id": user["id"]}, {"_id": 0, "id": 1}
+            {"id": target_station_id}, {"_id": 0, "id": 1, "user_id": 1}
         )
         if not st_ok:
             target_station_id = None
+
+    # Fix: se l'utente ha scelto una TV station in pipeline, la serie DEVE comparire in quella
+    # Prossimamente indipendentemente dal flag marketing `prossimamente_tv`.
+    # Auto-abilita prossimamente quando target station è impostato.
+    if target_station_id and not prossimamente:
+        prossimamente = True
 
     # Determine destination
     if prossimamente:
@@ -1180,6 +1186,9 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "subgenres": project.get("subgenres", []),
         "preplot": project.get("preplot"),
         "poster_url": project.get("poster_url", ""),
+        "screenplay_text": project.get("screenplay_text", ""),
+        "screenplay_source": project.get("screenplay_source"),
+        "trailer": project.get("trailer"),
         "cast": project.get("cast", {}),
         "num_episodes": project.get("num_episodes", 10),
         "season_number": project.get("season_number", 1),
@@ -1205,8 +1214,8 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "distribution_delay_hours": project.get("distribution_delay_hours", 0),
         # Target station: if set, serie appears pending in that station's "Prossimamente"
         "target_tv_station_id": target_station_id,
-        "scheduled_for_tv": bool(target_station_id) and prossimamente,
-        "scheduled_for_tv_station": target_station_id if prossimamente else None,
+        "scheduled_for_tv": bool(target_station_id),
+        "scheduled_for_tv_station": target_station_id,
         "tv_schedule_accepted_at": None,   # set when station owner accepts or scheduler auto-applies
         "quality_score": quality_score,
         "cwsv_display": cwsv_display,

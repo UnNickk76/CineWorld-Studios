@@ -10649,6 +10649,20 @@ app.include_router(market_v2_router, prefix="/api")
 app.include_router(medals_challenges_router, prefix="/api")
 app.include_router(tv_competition_router, prefix="/api")
 
+# Studio quota + infrastructure info (tooltip 'i')
+try:
+    from routes.studio_info import router as studio_info_router
+    app.include_router(studio_info_router)
+except Exception as _e:
+    logger.error(f"Failed to load studio_info router: {_e}")
+
+# Produzione LAMPO
+try:
+    from routes.lampo import router as lampo_router
+    app.include_router(lampo_router)
+except Exception as _e:
+    logger.error(f"Failed to load lampo router: {_e}")
+
 # Initialize Velion routes with db and JWT secret
 velion_init(db, JWT_SECRET)
 app.include_router(velion_router)

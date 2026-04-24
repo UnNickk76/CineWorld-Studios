@@ -23,6 +23,7 @@ import { Checkbox } from '../components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { toast } from 'sonner';
 import ProductionStudioPanel from '../components/ProductionStudioPanel';
+import { InfraInfoButton } from '../components/InfraInfoButton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import {
@@ -401,6 +402,7 @@ const InfrastructurePage = () => {
                     {isPromoEligible && (
                       <div className="absolute -top-2 -right-2 z-10 bg-gradient-to-br from-red-500 to-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-pulse">-80%</div>
                     )}
+                    <div onClick={(e) => e.stopPropagation()}><InfraInfoButton infraType={infra.type} variant="corner" /></div>
                     <CardContent className="p-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${activeCat.bg}`}>
                         {canBuy ? <Icon className={`w-5 h-5 ${activeCat.color}`} /> : <Lock className="w-5 h-5 text-gray-500" />}
@@ -443,9 +445,10 @@ const InfrastructurePage = () => {
                 return (
                   <Card
                     key={infra.id}
-                    className={`${activeCat.border} bg-white/5 cursor-pointer hover:bg-white/10 transition-all`}
+                    className={`${activeCat.border} bg-white/5 cursor-pointer hover:bg-white/10 transition-all relative`}
                     onClick={() => openInfraDetail(infra)}
                   >
+                    <div onClick={(e) => e.stopPropagation()}><InfraInfoButton infraType={infra.type} variant="corner" /></div>
                     <CardContent className="p-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${activeCat.bg}`}>
                         <Icon className={`w-5 h-5 ${activeCat.color}`} />

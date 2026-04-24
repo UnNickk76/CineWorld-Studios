@@ -166,14 +166,10 @@ async def create_project(req: CreateRequest, user: dict = Depends(get_current_us
     ep_min, ep_max = genre_info["ep_range"]
     num_ep = max(ep_min, min(ep_max, req.num_episodes))
 
-    # Check studio
+    # Check studio quota (includes ownership gate + parallel/cooldown limits)
     studio_type = "studio_anime" if req.series_type == "anime" else "studio_serie_tv"
-    studio = await db.infrastructure.find_one(
-        {"owner_id": user["id"], "type": studio_type}, {"_id": 0}
-    )
-    if not studio:
-        label = "Studio Anime" if req.series_type == "anime" else "Studio Serie TV"
-        raise HTTPException(400, f"Devi possedere uno {label}. Acquistalo nelle Infrastrutture.")
+    from utils.studio_quota import check_studio_quota
+    await check_studio_quota(db, user["id"], studio_type)
 
     pid = str(uuid.uuid4())
     now = _now()

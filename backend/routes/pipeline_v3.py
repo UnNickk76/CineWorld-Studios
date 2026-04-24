@@ -383,6 +383,10 @@ async def list_projects(user: dict = Depends(get_current_user)):
 
 @router.post("/films/create")
 async def create_project(req: CreateProjectRequest, user: dict = Depends(get_current_user)):
+    # Studio quota gating (production_studio — default Lv 1 per tutti)
+    from utils.studio_quota import check_studio_quota
+    await check_studio_quota(db, user["id"], "production_studio")
+
     pid = str(uuid.uuid4())
     doc = {
         "id": pid,

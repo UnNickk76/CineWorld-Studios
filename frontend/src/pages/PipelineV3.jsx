@@ -8,6 +8,7 @@ import { IdeaPhase } from '../components/v3/IdeaPhase';
 import { CastPhase } from '../components/v3/CastPhase';
 import { HypePhase, PrepPhase, CiakPhase, FinalCutPhase, MarketingPhase, LaPrimaPhase, DistributionPhase, StepFinale, DiscardFilmButton } from '../components/v3/Phases';
 import TrailerGeneratorCard from '../components/TrailerGeneratorCard';
+import LampoModal from '../components/LampoModal';
 import { AuthContext } from '../contexts';
 
 export default function PipelineV3() {
@@ -18,6 +19,7 @@ export default function PipelineV3() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showLampoModal, setShowLampoModal] = useState(false);
   const [dirty, setDirty] = useState(false);
   const autosaveRef = useRef(null);
 
@@ -110,7 +112,10 @@ export default function PipelineV3() {
     try {
       const res = await v3api('/films/create', 'POST', { title: 'Nuovo Film', genre: 'comedy', preplot: '' });
       setSelected(res.project); setDirty(false); await loadProjects(); showToast('Progetto V3 creato!');
-    } catch (e) { showToast(e.message, 'error'); }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || e?.message || 'Errore';
+      showToast(msg, 'error');
+    }
     setLoading(false);
   };
 
@@ -311,7 +316,7 @@ export default function PipelineV3() {
         <div className="px-3 pt-24">
           <p className="text-[10px] text-gray-500 mb-3">Inizia un nuovo film o continua quelli in lavorazione</p>
           <div className="grid grid-cols-3 gap-2">
-            <button onClick={createProject} disabled={loading}
+            <button onClick={() => setShowLampoModal(true)} disabled={loading}
               className="aspect-[2/3] rounded-xl border-2 border-dashed border-gray-700 hover:border-emerald-500/50 bg-gray-900/30 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
               data-testid="new-project-btn">
               <div className="w-8 h-8 rounded-full border-2 border-dashed border-gray-600 flex items-center justify-center">
@@ -337,6 +342,12 @@ export default function PipelineV3() {
           </div>
           {active.length === 0 && <p className="text-center text-gray-600 text-[10px] mt-4">Nessun film. Crea il tuo primo!</p>}
         </div>
+        <LampoModal
+          open={showLampoModal}
+          contentType="film"
+          onClose={() => setShowLampoModal(false)}
+          onPickCompleta={() => { createProject(); }}
+        />
       </div>
     );
   }

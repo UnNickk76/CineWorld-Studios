@@ -6,6 +6,7 @@ import { Check, TrendingUp, Users, Camera, Clapperboard, Scissors, Megaphone, Gl
 import { AuthContext } from '../../contexts';
 import TrailerGeneratorCard from '../TrailerGeneratorCard';
 import CineConfirm from './CineConfirm';
+import LampoModal from '../LampoModal';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -1468,6 +1469,7 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [prevoto, setPrevoto] = useState(null);
+  const [showLampoModal, setShowLampoModal] = useState(false);
 
   const isAnime = seriesType === 'anime';
   const typeLabel = isAnime ? 'Anime' : 'Serie TV';
@@ -1500,7 +1502,10 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
     try {
       const res = await sapi('/create', 'POST', { title: isAnime ? 'Nuovo Anime' : 'Nuova Serie', genre: isAnime ? 'shonen' : 'drama', series_type: seriesType, num_episodes: 10, preplot: '' });
       setSelected(res.project); setDirty(false); await loadProjects(); toast.success(`${typeLabel} creata!`);
-    } catch (e) { toast.error(e.message); }
+    } catch (e) {
+      const msg = e?.response?.data?.detail || e?.message || 'Errore';
+      toast.error(msg);
+    }
     setLoading(false);
   };
 
@@ -1544,7 +1549,7 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
           <h2 className="text-lg font-black text-white mb-1">{isAnime ? 'Produzione Anime' : 'Produzione Serie TV'}</h2>
           <p className="text-[10px] text-gray-500 mb-3">Crea o continua una {typeLabel.toLowerCase()}</p>
           <div className="grid grid-cols-3 gap-2">
-            <button onClick={createProject} disabled={loading}
+            <button onClick={() => setShowLampoModal(true)} disabled={loading}
               className="aspect-[2/3] rounded-xl border-2 border-dashed border-gray-700 hover:border-amber-500/50 bg-gray-900/30 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
               data-testid="new-series-btn">
               <div className="w-8 h-8 rounded-full border-2 border-dashed border-gray-600 flex items-center justify-center">
@@ -1570,6 +1575,12 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
           </div>
           {active.length === 0 && <p className="text-center text-gray-600 text-[10px] mt-4">Nessun progetto. Crea la tua prima {typeLabel.toLowerCase()}!</p>}
         </div>
+        <LampoModal
+          open={showLampoModal}
+          contentType={seriesType}
+          onClose={() => setShowLampoModal(false)}
+          onPickCompleta={() => { createProject(); }}
+        />
       </div>
     );
   }

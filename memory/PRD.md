@@ -10,6 +10,32 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 24, 2026 — FASE 1 (gating studio + tooltip i) + FASE 2 (Produzione LAMPO)**
+  - **Studio Quota Policy** (`utils/studio_quota.py`):
+    - Curva progettata con utente: Lv 0-2 = 1 parallel/5gg, Lv 3-5 = 2/5gg, Lv 6-8 = 3/3gg, Lv 9-14 = 5/2gg, Lv 15-24 = 8/1gg, Lv 25-49 = 12/12h, Lv 50-99 = 20/6h, Lv 100-199 = 40/1h, Lv 200+ = ∞/0.
+    - `production_studio` è di DEFAULT per tutti (Lv 1 base) — film sempre accessibili. Gli altri studi (serie_tv/anime) richiedono acquisto esplicito.
+    - Funzioni: `check_studio_quota`, `get_studio_quota_info`, `check_tv_station_slot`.
+  - **Applicato il gating a creazione progetti** (`pipeline_v3.py` + `pipeline_series_v3.py`): /films/create e /projects/create ora verificano parallel limit + cooldown prima di consentire il nuovo progetto.
+  - **Emittente TV**: slot per tipo = livello station (Lv 1 → 1 slot film + 1 serie + 1 anime, …, Lv 200+ → ∞). Funzione `check_tv_station_slot` pronta (integrata futura).
+  - **Endpoint UI**: `GET /api/studio/quota` (tutte), `GET /api/studio/quota/{type}` (una), `GET /api/infrastructure/info/{type}` (tooltip i), `GET /api/infrastructure/info` (catalogo).
+  - **Tooltip "i"** (`components/InfraInfoButton.jsx`): piccola "i" in alto a destra su ogni card infrastruttura. Modal con: descrizione breve, a cosa serve, sblocchi per livello (ogni tier spiegato), ROI. Integrato in `InfrastructurePage.jsx` sia su infrastrutture DISPONIBILI sia su POSSEDUTE. Catalogo descrittivo esposto in `routes/studio_info.py` (production_studio, studio_serie_tv, studio_anime, tv_station, cinema, agency).
+  - **Produzione LAMPO** (`routes/lampo.py` + `components/LampoModal.jsx`):
+    - `POST /api/lampo/start` — crea progetto + deduce fondi (con Economy Scaling) + avvia worker async 2 min.
+    - `GET /api/lampo/{pid}/progress` — polling stato 0-100% con messaggio AI.
+    - `POST /api/lampo/{pid}/release` — film va in `db.films` (in_theaters), serie/anime in `db.tv_series` (auto-adoption TV station dell'owner se target non impostato).
+    - CWSv per tier livello studio: Lv 1-5 = 3.0-4.5 (5% jackpot 7-8), Lv 6-10 = 4.0-6.0 (7% jackpot), Lv 11-20 = 5.0-7.0, Lv 21-50 = 6.0-8.0, Lv 51-100 = 7.0-8.5, Lv 101+ = 7.5-9.0 (15% jackpot 9.2-9.8).
+    - Budget tier: low (-1.0 CWSv), mid (baseline), high (+0.8 CWSv). Costi: 50k/150k/400k (film), 80k/250k/700k (serie), 100k/350k/900k (anime).
+    - Niente trailer, mai (come richiesto).
+    - Gating: LAMPO usa STESSO slot/cooldown dei progetti normali (bilanciamento).
+  - **Modal frontend LAMPO** a 4 fasi:
+    1. ModeChooser: 2 card grandi "Completa" vs "LAMPO!" (bene impaginate)
+    2. LampoForm: titolo + genere + pretrama + 3 budget cards
+    3. LampoProgress: cerchio SVG 0-100% con gradient amber + messaggi AI + bottone "Riduci a icona"
+    4. LampoResult: locandina + CWSv colorato + pretrama + cast + episodi + bottone Rilascia
+  - Integrato in `PipelineV3.jsx` (film) e `PipelineSeriesV3.jsx` (serie + anime) sul bottone "+ Nuovo progetto".
+  - **Backlog**: royalty auto TV Rights, scheduler scadenza TV Rights, estensione TV Rights a film, audit Major/Alleanze.
+
+
 - **Feb 24, 2026 — Fix "Aggiungi Serie TV" al palinsesto (bottone + su TV station)**
   - **BUG**: cliccando "+" per aggiungere "The Concept" al palinsesto della propria TV station, l'endpoint `POST /tv-stations/add-content` rifiutava con "Serie non trovata o non completata". Root cause: il filtro cercava `status: 'completed'` (legacy V2) ma le serie V3 rilasciate hanno `status: 'in_tv'` (Prossimamente TV) o `'catalog'` (My List only).
   - **Fix**: query ora accetta `status in ['completed', 'in_tv', 'catalog', 'released']` — compatibile con legacy V2 e serie V3.

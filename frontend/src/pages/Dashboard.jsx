@@ -11,6 +11,8 @@ import BestHighlightsLeaderboard from '../components/BestHighlightsLeaderboard';
 import FeaturedTrailersStrip from '../components/FeaturedTrailersStrip';
 import UltimiTrailerStrip from '../components/UltimiTrailerStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
+import { ProducerBadge } from '../components/ProducerBadge';
+import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from '../components/SectionSortMenu';
 import ProssimamenteDetailModal from '../components/ProssimamenteDetailModal';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
 import { PurchasedScreenplayBadge } from '../components/PurchasedScreenplayBadge';
@@ -84,20 +86,33 @@ const RiCinemaShowcase = ({ api, navigate }) => {
 
 /* ─── Prossimamente V3 Serie/Anime ─── */
 const ProssimamenteV3Section = ({ onItemClick }) => {
-  const { api } = useContext(AuthContext);
+  const { api, user } = useContext(AuthContext);
   const [data, setData] = useState({ coming_soon: [], airing: [] });
+  const [sortValue, setSortValue] = useState(() => localStorage.getItem('sort_prossimamente_v3') || 'newest');
+  useEffect(() => { localStorage.setItem('sort_prossimamente_v3', sortValue); }, [sortValue]);
   useEffect(() => {
     api.get('/pipeline-series-v3/prossimamente').then(r => setData(r.data || {})).catch(() => {});
   }, [api]);
-  const items = [...(data.coming_soon || []), ...(data.airing || [])];
+  const rawItems = [...(data.coming_soon || []), ...(data.airing || [])];
+  const items = sortItems(rawItems, sortValue);
   return (
     <div className="mb-4 rounded-xl" data-testid="prossimamente-v3">
       <Card className="bg-gradient-to-r from-indigo-500/10 to-purple-500/5 border border-indigo-500/20">
         <CardContent className="p-3">
-          <h3 className="font-['Bebas_Neue'] text-base flex items-center gap-2 mb-2">
-            <Tv className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-indigo-400">IN ARRIVO SU TV</span>
-          </h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-['Bebas_Neue'] text-base flex items-center gap-2">
+              <Tv className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="text-indigo-400">IN ARRIVO SU TV</span>
+            </h3>
+            {items.length > 0 && (
+              <SectionSortMenu
+                value={sortValue}
+                onChange={setSortValue}
+                options={DEFAULT_SORT_OPTIONS}
+                testId="sort-prossimamente-v3"
+              />
+            )}
+          </div>
           {items.length > 0 ? (
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
               {items.map(item => (
@@ -114,10 +129,17 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
                     {item.pipeline_state && item.pipeline_state !== 'released' && (
                       <div className="status-pulse-glow absolute top-0.5 left-0.5 px-1 py-0.5 rounded-full bg-amber-500/80 text-[5px] text-black font-black uppercase">{item.pipeline_state}</div>
                     )}
+                    <ProducerBadge
+                      producerNickname={item.producer?.nickname || item.producer_nickname}
+                      producerId={item.user_id || item.producer?.id}
+                      currentUserId={user?.id}
+                      variant="bottom-left"
+                      size="xs"
+                    />
                   </div>
                   <div className="p-1">
                     <p className="text-[7px] font-bold text-white truncate">{item.title}</p>
-                    <p className="text-[6px] text-gray-500">{item.producer?.nickname || ''}</p>
+                    <p className="text-[6px] text-gray-500">{item.producer?.nickname || item.producer_nickname || ''}</p>
                   </div>
                 </button>
               ))}
@@ -147,6 +169,14 @@ const Dashboard = () => {
   const [mySeries, setMySeries] = useState([]);
   const [myAnime, setMyAnime] = useState([]);
   const [eventiWow, setEventiWow] = useState([]);
+
+  // Ordinamento per-sezione (persistito in localStorage)
+  const [sortRecentFilms, setSortRecentFilms] = useState(() => localStorage.getItem('sort_recent_films') || 'newest');
+  const [sortRecentSeries, setSortRecentSeries] = useState(() => localStorage.getItem('sort_recent_series') || 'newest');
+  const [sortRecentAnime, setSortRecentAnime] = useState(() => localStorage.getItem('sort_recent_anime') || 'newest');
+  useEffect(() => { localStorage.setItem('sort_recent_films', sortRecentFilms); }, [sortRecentFilms]);
+  useEffect(() => { localStorage.setItem('sort_recent_series', sortRecentSeries); }, [sortRecentSeries]);
+  useEffect(() => { localStorage.setItem('sort_recent_anime', sortRecentAnime); }, [sortRecentAnime]);
 
   // Dialogs that must remain for gameplay
   const [pendingFilms, setPendingFilms] = useState([]);
@@ -562,9 +592,17 @@ const Dashboard = () => {
                     <Film className="w-3.5 h-3.5 text-yellow-400" />
                     ULTIMI FILM AL CINEMA
                   </h3>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/social')} className="h-5 text-[9px] text-purple-400 hover:text-purple-300 px-1.5">
-                    CineBoard <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <SectionSortMenu
+                      value={sortRecentFilms}
+                      onChange={setSortRecentFilms}
+                      options={DEFAULT_SORT_OPTIONS}
+                      testId="sort-recent-films"
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/social')} className="h-5 text-[9px] text-purple-400 hover:text-purple-300 px-1.5">
+                      CineBoard <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
+                    </Button>
+                  </div>
                 </div>
                 {(aBreveCinema.length > 0 || recentReleases.length > 0) ? (
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
@@ -609,7 +647,7 @@ const Dashboard = () => {
                         <p className="text-[6px] text-gray-500 truncate">{film.owner_nickname}</p>
                       </div>
                     ))}
-                    {recentReleases.slice(0, 10).map(film => (
+                    {sortItems(recentReleases, sortRecentFilms).slice(0, 10).map(film => (
                       <div key={film.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => {
                         if (film.user_id && user?.id && film.user_id === user.id) {
                           window.dispatchEvent(new CustomEvent('open-film-actions', { detail: { film } }));
@@ -650,6 +688,13 @@ const Dashboard = () => {
                               <span className="text-[6px] text-pink-300">{film.virtual_likes}</span>
                             </div>
                           )}
+                          <ProducerBadge
+                            producerNickname={film.producer_nickname}
+                            producerId={film.user_id}
+                            currentUserId={user?.id}
+                            variant="bottom-left"
+                            size="xs"
+                          />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{film.title}</p>
                         <p className="text-[6px] text-gray-500 truncate">{film.producer_nickname}</p>
@@ -683,13 +728,21 @@ const Dashboard = () => {
                     <Tv className="w-3.5 h-3.5 text-blue-400" />
                     ULTIMI AGGIORNAMENTI SERIE TV
                   </h3>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=series')} className="h-5 text-[9px] text-blue-400 hover:text-blue-300 px-1.5">
-                    Vedi <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <SectionSortMenu
+                      value={sortRecentSeries}
+                      onChange={setSortRecentSeries}
+                      options={DEFAULT_SORT_OPTIONS}
+                      testId="sort-recent-series"
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=series')} className="h-5 text-[9px] text-blue-400 hover:text-blue-300 px-1.5">
+                      Vedi <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
+                    </Button>
+                  </div>
                 </div>
                 {mySeries.length > 0 ? (
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
-                    {mySeries.slice(0, 10).map(s => (
+                    {sortItems(mySeries, sortRecentSeries).slice(0, 10).map(s => (
                       <div key={s.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate(`/series/${s.id}`)} data-testid={`recent-series-${s.id}`}>
                         <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
                           {s.poster_url ? (
@@ -700,6 +753,13 @@ const Dashboard = () => {
                           <Badge className={`absolute top-0.5 right-0.5 text-[5px] px-0.5 py-0 leading-tight ${s.status === 'completed' ? 'bg-green-500' : 'bg-blue-500'}`}>
                             {s.status === 'completed' ? 'DONE' : s.status}
                           </Badge>
+                          <ProducerBadge
+                            producerNickname={s.producer_nickname}
+                            producerId={s.user_id}
+                            currentUserId={user?.id}
+                            variant="bottom-left"
+                            size="xs"
+                          />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{s.title}</p>
                         {s.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{s.producer_nickname}</p>}
@@ -727,13 +787,21 @@ const Dashboard = () => {
                     <Sparkles className="w-3.5 h-3.5 text-orange-400" />
                     ULTIMI AGGIORNAMENTI ANIME
                   </h3>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=anime')} className="h-5 text-[9px] text-orange-400 hover:text-orange-300 px-1.5">
-                    Vedi <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <SectionSortMenu
+                      value={sortRecentAnime}
+                      onChange={setSortRecentAnime}
+                      options={DEFAULT_SORT_OPTIONS}
+                      testId="sort-recent-anime"
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=anime')} className="h-5 text-[9px] text-orange-400 hover:text-orange-300 px-1.5">
+                      Vedi <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
+                    </Button>
+                  </div>
                 </div>
                 {myAnime.length > 0 ? (
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
-                    {myAnime.slice(0, 10).map(a => (
+                    {sortItems(myAnime, sortRecentAnime).slice(0, 10).map(a => (
                       <div key={a.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate(`/series/${a.id}`)} data-testid={`recent-anime-${a.id}`}>
                         <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
                           {a.poster_url ? (
@@ -744,6 +812,13 @@ const Dashboard = () => {
                           <Badge className={`absolute top-0.5 right-0.5 text-[5px] px-0.5 py-0 leading-tight ${a.status === 'completed' ? 'bg-green-500' : 'bg-orange-500'}`}>
                             {a.status === 'completed' ? 'DONE' : a.status}
                           </Badge>
+                          <ProducerBadge
+                            producerNickname={a.producer_nickname}
+                            producerId={a.user_id}
+                            currentUserId={user?.id}
+                            variant="bottom-left"
+                            size="xs"
+                          />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{a.title}</p>
                         {a.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{a.producer_nickname}</p>}

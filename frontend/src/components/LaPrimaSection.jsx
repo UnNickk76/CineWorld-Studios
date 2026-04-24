@@ -5,6 +5,8 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Users, Flame, MapPin, Clock, ChevronRight, Eye, Sparkles, Loader2, Film } from 'lucide-react';
 import { LaPrimaPopup } from './LaPrimaPopup';
+import { ProducerBadge } from './ProducerBadge';
+import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from './SectionSortMenu';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -20,11 +22,31 @@ function formatNumber(n) {
 }
 
 export function LaPrimaSection({ compact = false }) {
-  const { api } = useContext(AuthContext);
+  const { api, user } = useContext(AuthContext);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilmId, setSelectedFilmId] = useState(null);
   const navigate = useNavigate();
+
+  // Ordinamento persistito per LaPrima
+  const [sortValue, setSortValue] = useState(() => localStorage.getItem('sort_la_prima') || 'live_first');
+  useEffect(() => { localStorage.setItem('sort_la_prima', sortValue); }, [sortValue]);
+
+  // Ordinamento: default 'live_first' (LIVE in cima, poi imminenti)
+  const sortedEvents = React.useMemo(() => {
+    if (sortValue === 'live_first') {
+      const live = events.filter(e => !e.is_waiting);
+      const waiting = events.filter(e => e.is_waiting);
+      return [...live, ...waiting];
+    }
+    if (sortValue === 'most_viewed') {
+      return [...events].sort((a, b) => (b.spectators_current || 0) - (a.spectators_current || 0));
+    }
+    if (sortValue === 'most_liked') {
+      return [...events].sort((a, b) => (b.hype_live || 0) - (a.hype_live || 0));
+    }
+    return sortItems(events, sortValue);
+  }, [events, sortValue]);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -92,22 +114,36 @@ export function LaPrimaSection({ compact = false }) {
             <Badge className="bg-cyan-500/20 text-cyan-300 text-[9px] h-4">IN ARRIVO</Badge>
           )}
         </h3>
-        <button
-          onClick={() => navigate('/events/la-prima')}
-          className="flex items-center gap-1 text-[9px] px-2 py-1 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-300 font-bold hover:bg-yellow-500/25 transition-colors"
-          data-testid="la-prima-events-link">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
-          Classifica &amp; premi
-        </button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate('/social?view=la-prima')}
-          className="h-6 text-[10px] text-red-400 hover:text-red-300 px-2"
-          data-testid="la-prima-see-all-btn"
-        >
-          Classifiche <ChevronRight className="w-3 h-3 ml-0.5" />
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <SectionSortMenu
+            value={sortValue}
+            onChange={setSortValue}
+            options={[
+              { value: 'live_first', label: 'LIVE prima' },
+              { value: 'most_viewed', label: 'Più Visti' },
+              { value: 'most_liked', label: 'Più Hype' },
+              { value: 'newest', label: 'Più Recenti' },
+              { value: 'alpha_asc', label: 'A-Z' },
+            ]}
+            testId="sort-la-prima"
+          />
+          <button
+            onClick={() => navigate('/events/la-prima')}
+            className="flex items-center gap-1 text-[9px] px-2 py-1 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-300 font-bold hover:bg-yellow-500/25 transition-colors"
+            data-testid="la-prima-events-link">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+            Classifica &amp; premi
+          </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/social?view=la-prima')}
+            className="h-6 text-[10px] text-red-400 hover:text-red-300 px-2"
+            data-testid="la-prima-see-all-btn"
+          >
+            Classifiche <ChevronRight className="w-3 h-3 ml-0.5" />
+          </Button>
+        </div>
       </div>
 
       {/* Horizontal scrollable row */}
@@ -116,7 +152,7 @@ export function LaPrimaSection({ compact = false }) {
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
         data-testid="la-prima-scroll-row"
       >
-        {events.map((ev) => {
+        {sortedEvents.map((ev) => {
           const isWaiting = !!ev.is_waiting;
           return (
           <div
@@ -169,6 +205,13 @@ export function LaPrimaSection({ compact = false }) {
                   <span className="text-[7px] font-bold text-amber-400 tracking-wider">LA PRIMA</span>
                 )}
               </div>
+              <ProducerBadge
+                producerNickname={ev.producer_nickname || ev.owner_nickname || ev.production_house}
+                producerId={ev.user_id || ev.owner_user_id}
+                currentUserId={user?.id}
+                variant="top-right"
+                size="xs"
+              />
             </div>
 
             {/* Info */}

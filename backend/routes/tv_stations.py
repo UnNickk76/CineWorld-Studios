@@ -626,6 +626,43 @@ async def get_scheduled_content(station_id: str, user: dict = Depends(get_curren
     scheduled_series = [_enrich_series(s) for s in scheduled_series]
     scheduled_anime = [_enrich_series(s) for s in scheduled_anime]
 
+    # ═══ SERIE IN LICENZA (TV RIGHTS) ═══
+    # Aggiungi al palinsesto le serie per cui la station owner ha acquistato i diritti TV
+    # (market_v2). Filtra solo licenze attive e non scadute.
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        licensed_rights = await db.tv_rights.find(
+            {
+                'license_holder_id': user['id'],
+                'active': True,
+                '$or': [
+                    {'expires_at': None},
+                    {'expires_at': {'$gt': now_iso}},
+                ],
+            },
+            {'_id': 0, 'series_id': 1, 'original_owner_id': 1, 'royalty_pct': 1, 'expires_at': 1, 'purchased_at': 1, 'duration_months': 1}
+        ).to_list(100)
+        licensed_ids = [r['series_id'] for r in licensed_rights]
+        rights_by_series = {r['series_id']: r for r in licensed_rights}
+        if licensed_ids:
+            licensed_docs = await db.tv_series.find(
+                {'id': {'$in': licensed_ids}, 'type': {'$in': ['tv_series', 'anime']}},
+                _series_proj
+            ).to_list(100)
+            for s in licensed_docs:
+                r = rights_by_series.get(s['id'], {})
+                s['is_licensed'] = True
+                s['license_expires_at'] = r.get('expires_at')
+                s['license_royalty_pct'] = r.get('royalty_pct')
+                s['original_owner_id'] = r.get('original_owner_id')
+                s['pending_tv_approval'] = False  # licenza già attiva → non serve approvazione
+                if s.get('type') == 'anime':
+                    scheduled_anime.append(s)
+                else:
+                    scheduled_series.append(s)
+    except Exception:
+        pass
+
     all_scheduled = scheduled_films + scheduled_fp + scheduled_series + scheduled_anime
     for item in all_scheduled:
         if item in scheduled_films or item in scheduled_fp:

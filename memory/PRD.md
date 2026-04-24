@@ -10,6 +10,19 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 24, 2026 — Producer Badge + Ordinamento per-sezione + TV Rights migliorato**
+  - **Nuovo componente `ProducerBadge`** (`components/ProducerBadge.jsx`): piccola fascetta "DI [nickname]" con colore deterministico dal nickname. Appare SOLO quando il contenuto NON è del player corrente. Integrato in: Ultimi Film al Cinema, Ultimi Aggiornamenti Serie TV, Ultimi Aggiornamenti Anime, Prossimamente (ComingSoonSection), In Arrivo su TV (ProssimamenteV3Section), La Prima.
+  - **Nuovo componente `SectionSortMenu`** + helper `sortItems()` (`components/SectionSortMenu.jsx`): piccola icona `ArrowDownUp` accanto ai banner sezione. Dropdown con opzioni (Più Recenti, Top Voto, Più Visti, Più Amati, A-Z). Scelte **persistite in localStorage** per-sezione. Integrato in tutte le 6 sezioni dashboard (LaPrima con "LIVE prima", Prossimamente con "Più Vicini", Ultimi Aggiornamenti Film/Serie/Anime, In Arrivo su TV).
+  - **Sistema TV Rights migliorato** (`routes/market_v2.py`):
+    - **Durata licenza**: `CreateTVRightsRequest` ora accetta `duration_months` (0=perpetuo, 6/12/24/36). Record `tv_rights` ora ha `expires_at` calcolato (+30 gg × mesi). Listing mostra label "12 mesi" / "Perpetuo".
+    - **Integrazione palinsesto**: `GET /api/tv-stations/{id}/scheduled` ora include anche le serie/anime per cui il proprietario della station ha `tv_rights` attive (non scadute). I doc ritornano con `is_licensed: true`, `license_expires_at`, `license_royalty_pct`, `original_owner_id`. Risolve il problema "ho affittato una serie ma non appare nella mia TV".
+  - **Backlog TV Rights** (non implementato, memoria per futuro):
+    - Royalty automatica: ogni airing/box-office della serie dovrebbe incrementare `total_royalties_due` del record `tv_rights`; owner originale può incassare manualmente o tramite pagamento auto.
+    - Estensione TV Rights anche per FILM (oggi solo serie/anime).
+    - Auto-disattivazione record `tv_rights.active=False` alla scadenza (scheduler task).
+  - Files: `components/ProducerBadge.jsx` (NEW), `components/SectionSortMenu.jsx` (NEW), `components/ComingSoonSection.jsx`, `components/LaPrimaSection.jsx`, `pages/Dashboard.jsx`, `routes/market_v2.py`, `routes/tv_stations.py`.
+
+
 - **Feb 24, 2026 — Badge "Produci" fantasma + Feed globale Serie/Anime**
   - **Badge fantasma risolto**: `GET /api/pipeline-v2/production-counts` ora esclude dal conteggio "series_legacy"/"anime_legacy" i doc `tv_series` con `pipeline_version: 3` (serie V3 già rilasciate, non ancora in produzione). Prima il campo `status='concept'` orfano le contava come "in produzione", accendendo il badge "Produci" ma senza aprire nessun progetto reale.
   - **Self-heal status orfani**: stesso endpoint riscrive silenziosamente `status → catalog` (o `in_tv` se `prossimamente_tv`) per doc V3 con status legacy residuo (`concept|casting|screenplay|production|ready_to_release|coming_soon`). Nessuna migrazione manuale richiesta — basta aprire la dashboard.

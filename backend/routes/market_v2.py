@@ -456,10 +456,13 @@ class CreateTVRightsRequest(BaseModel):
     series_id: str
     price_per_season: int
     royalty_pct: float = 10.0  # 5-15%
+    duration_months: int = 12  # Durata licenza in mesi (0 = perpetuo, default 12)
 
 @router.post("/market/tv-rights/list")
 async def list_tv_rights(req: CreateTVRightsRequest, user: dict = Depends(get_current_user)):
-    """List TV rights for a completed series."""
+    """List TV rights for a completed series.
+    duration_months: 0 = perpetuo, 6/12/24 = licenza a scadenza.
+    """
     series = await db.tv_series.find_one(
         {'id': req.series_id, 'user_id': user['id']},
         {'_id': 0, 'id': 1, 'title': 1, 'type': 1, 'genre_name': 1, 'poster_url': 1,
@@ -469,6 +472,7 @@ async def list_tv_rights(req: CreateTVRightsRequest, user: dict = Depends(get_cu
         raise HTTPException(404, "Serie non trovata o non tua")
 
     royalty = max(5.0, min(15.0, req.royalty_pct))
+    duration = req.duration_months if req.duration_months in (0, 6, 12, 24, 36) else 12
 
     existing = await db.market_listings.find_one({
         'item_id': req.series_id, 'item_type': 'tv_rights', 'status': 'active'
@@ -491,6 +495,8 @@ async def list_tv_rights(req: CreateTVRightsRequest, user: dict = Depends(get_cu
             'season_number': series.get('season_number', 1),
             'total_episodes': series.get('total_episodes', 0),
             'royalty_pct': royalty,
+            'duration_months': duration,
+            'duration_label': 'Perpetuo' if duration == 0 else f'{duration} mesi',
             'original_creator': user.get('nickname', '?'),
         },
         'sale_type': 'fixed',
@@ -508,7 +514,8 @@ async def list_tv_rights(req: CreateTVRightsRequest, user: dict = Depends(get_cu
     await db.market_listings.insert_one(listing)
     listing.pop('_id', None)
 
-    return {'listing': listing, 'message': f'Diritti TV di "{series["title"]}" in vendita a ${req.price_per_season:,}/stagione con {royalty}% royalty!'}
+    dur_msg = 'perpetua' if duration == 0 else f'per {duration} mesi'
+    return {'listing': listing, 'message': f'Diritti TV di "{series["title"]}" in vendita a ${req.price_per_season:,} ({dur_msg}) con {royalty}% royalty!'}
 
 
 @router.post("/market/tv-rights/buy/{listing_id}")
@@ -532,17 +539,28 @@ async def buy_tv_rights(listing_id: str, user: dict = Depends(get_current_user))
     await db.users.update_one({'id': user['id']}, {'$inc': {'funds': -price}})
     await db.users.update_one({'id': listing['seller_id']}, {'$inc': {'funds': seller_amount}})
 
-    # Create TV rights record
+    # Create TV rights record — con scadenza se duration_months > 0
+    extra = listing.get('extra_info', {}) or {}
+    duration = int(extra.get('duration_months', 12) or 12)
+    now = datetime.now(timezone.utc)
+    expires_at = None
+    if duration > 0:
+        # Approssimazione: 30 giorni per mese. Accettabile per meccanica di gioco.
+        expires_at = (now + timedelta(days=30 * duration)).isoformat()
+
     rights = {
         'id': str(uuid.uuid4()),
         'series_id': listing['item_id'],
         'original_owner_id': listing['seller_id'],
         'license_holder_id': user['id'],
-        'royalty_pct': listing['extra_info'].get('royalty_pct', 10),
-        'series_title': listing['extra_info'].get('series_title', ''),
-        'purchased_at': datetime.now(timezone.utc).isoformat(),
+        'royalty_pct': extra.get('royalty_pct', 10),
+        'duration_months': duration,
+        'series_title': extra.get('series_title', ''),
+        'purchased_at': now.isoformat(),
+        'expires_at': expires_at,
         'price_paid': price,
         'total_royalties_paid': 0,
+        'total_royalties_due': 0,
         'active': True,
     }
     await db.tv_rights.insert_one(rights)

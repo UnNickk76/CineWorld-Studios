@@ -1,3 +1,15 @@
+## LAMPO + Infrastrutture fix (Feb 2026)
+Tre fix critici post-rilascio LAMPO:
+1. **Auto-seed production_studio Lv 0** — ogni utente (nuovo o legacy) riceve automaticamente uno studio di produzione di default al Livello 0 all'apertura di `GET /api/infrastructure/my`, gratuito. Idempotente (non sovrascrive studi esistenti). Sblocca core gameplay anche senza acquisto.
+2. **Tooltip "i" infrastrutture popolato** — `INFRA_INFO` in `/app/backend/routes/studio_info.py` esteso a 17 tipi (prima: 6). Ogni infra ora mostra titolo, descrizione, a cosa serve, sblocchi per livello e ROI. Fix frontend: `InfrastructurePage.jsx` ora passa `infra.id` (non `infra.type` undefined) al tooltip nella tab Disponibili.
+3. **LAMPO cooldown SEPARATO** — `studio_quota.py` ora accetta `mode="classic" | "lampo"`:
+   - Tabella quota LAMPO dedicata (più veloce: 24h Lv 0-2, 12h Lv 3-5, 6h Lv 6-8, ...)
+   - Cooldown LAMPO ancorato a `created_at` del LAMPO project (anti-evasione refresh)
+   - Classic exclude `is_lampo: True` dai film/serie e `mode: lampo` dai pipeline V3
+   - Anti-evasione: LAMPO auto-salvato al POST `/api/lampo/start` (già esistente)
+- Touch target tooltip button maggiorato (w-6 h-6) con ring cyan per mobile UX
+
+
 # CineWorld Studio's — PRD
 
 ## Problema Originale

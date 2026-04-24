@@ -88,6 +88,21 @@ async def get_available_cities(country: Optional[str] = None):
 @router.get("/infrastructure/my")
 async def get_my_infrastructure(user: dict = Depends(get_current_user)):
     """Get player's owned infrastructure."""
+    # Self-heal: auto-seed production_studio Lv 0 per tutti gli utenti (fulcro del gioco)
+    has_studio = await db.infrastructure.count_documents({'owner_id': user['id'], 'type': 'production_studio'})
+    if has_studio == 0:
+        import uuid as _uuid
+        from datetime import datetime as _dt, timezone as _tz
+        await db.infrastructure.insert_one({
+            'id': str(_uuid.uuid4()),
+            'owner_id': user['id'],
+            'type': 'production_studio',
+            'name': 'Studio di Produzione',
+            'level': 0,
+            'xp': 0,
+            'created_at': _dt.now(_tz.utc).isoformat(),
+            'is_default': True,
+        })
     infrastructure = await db.infrastructure.find(
         {'owner_id': user['id']},
         {'_id': 0, 'films_showing': 0, 'tour_reviews': 0, 'revenue_history': 0, 'attendance_history': 0}

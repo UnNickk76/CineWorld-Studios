@@ -12,7 +12,7 @@
  *   onReleased: (result) => void  (callback dopo rilascio)
  */
 import React, { useState, useEffect, useContext, useMemo } from 'react';
-import { AuthContext } from '../App';
+import { AuthContext } from '../contexts';
 import { Dialog, DialogContent } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';

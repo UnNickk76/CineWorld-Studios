@@ -402,7 +402,7 @@ const InfrastructurePage = () => {
                     {isPromoEligible && (
                       <div className="absolute -top-2 -right-2 z-10 bg-gradient-to-br from-red-500 to-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-pulse">-80%</div>
                     )}
-                    <div onClick={(e) => e.stopPropagation()}><InfraInfoButton infraType={infra.type} variant="corner" /></div>
+                    <div onClick={(e) => e.stopPropagation()}><InfraInfoButton infraType={infra.id} variant="corner" /></div>
                     <CardContent className="p-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${activeCat.bg}`}>
                         {canBuy ? <Icon className={`w-5 h-5 ${activeCat.color}`} /> : <Lock className="w-5 h-5 text-gray-500" />}

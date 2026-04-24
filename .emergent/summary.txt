@@ -1,39 +1,57 @@
-<analysis><handoff summary>
-**original_problem_statement**: 
-The user requested a massive, multi-faceted overhaul of the game's economics and several UI/UX pipeline fixes. The core new requirement is an **Economics Scaling System** for the V3 Pipeline: production costs (cast, crew, equipment) must scale dynamically based on the player's level (e.g., Level 1 players should pay ~3-8M for a film, capping out at a 1.5x multiplier at Level 200+), cast recruitment must be level-gated (Level 1 players shouldn't easily recruit 5-star actors), and the CWSv (quality score) variance must be adjusted so films don't default to 7.0-8.0 regardless of the cast. Box office revenues must remain absolute (unscaled) for fair leaderboards.
+<analysis>Here is the handover summary for the next agent:
 
-**User's preferred language**: Italian (You MUST INSTRUCT next agent to respond in Italian only)
+<handoff summary>
+**original_problem_statement**: 
+The user requested a massive overhaul of the game's economics, multiple UI/UX pipeline fixes for the Dashboard and Content Templates, the integration of a new LAMPO! (Lightning) ultra-fast production pipeline for low-effort/rapid content creation, and an infrastructure gating system (Quota/Cooldowns) based on player level.
+
+PRODUCT REQUIREMENTS:
+- Complete Economics Overhaul (Cost Scaling, Level-gating cast, CWSv variance).
+- Dashboard and TV Section UI/UX fixes (Producer badges, sorting dropdowns, global visibility for Anime/Series).
+- TV Rights Market updates (License durations).
+- LAMPO! fast-production system: A streamlined pipeline bypassing UI steps to instantly generate Films/Series/Anime with a randomized distribution, top/flop XP events, and a flashing ⚡ UI badge.
+- Infrastructure Gating: Studio di produzione must be owned by default (Level 0). Production limits and cooldowns scale with infrastructure levels. LAMPO projects must have their own separated cooldown and must auto-save as 'idea' to prevent cooldown evasion.
+
+**User's preferred language**: Italian (You MUST INSTRUCT the next agent to respond in Italian only)
 
 **what currently exists?** 
-A highly complex full-stack multiplayer cinema management game. It features a unified V3 Pipeline for Films, TV Series, and Anime. The agent just completed a massive streak of UI/UX fixes (dashboard modals, admin panel expansions, anime casting systems, episode duration generators). The backend now includes a new  utility that calculates a cost multiplier using an asymptotic curve based on the player's level.
+A highly complex full-stack multiplayer cinema management game. The application now includes a working Economics Scaling system, global feeds for Anime and TV Series on the dashboard, a unified TV rights market, and the complete Phase 1 & 2 of the LAMPO! production system (including custom CSS animations, Flop/Top XP events, and randomized geographic distribution). 
 
 **Last working item**: 
-    - Last item agent was working: Implementing the **Economics Overhaul (Cost Scaling)**. The agent created  and successfully updated . It was in the middle of updating the  function and cost calculations inside  when the  tool failed due to a mismatched string, and the context window ended.
+    - Last item agent was working: The agent was addressing the user's final 3 fixes regarding Infrastructure and LAMPO. Specifically, the agent was in the middle of modifying  to auto-seed the  at Level 0 for all users when the context window ended.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? backend testing agent or manual curl / python -c to verify cost calculations and cast proposals.
+    - Which testing method agent to use? manual testing by curl / python -c for backend logic, and screenshot tool for the tooltip UI.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Complete the  integration in  (P0)
-     - Attempted fixes: Agent tried to use  on  in  to automatically apply the economy multiplier to scalable funds, but the string replacement failed.
-     - Next debug checklist: 
-       - View  around line 264.
-       - Manually apply the  logic to the  function or where  are deducted.
-       - Ensure the scaling is also applied to Series/Anime V3 pipelines ().
-     - Why fix this issue and what will be achieved with the fix? It is the core of the cost-reduction system for low-level players.
+  Issue 1: Auto-seed  at Level 0 (P0)
+     - Attempted fixes: Agent used  on  to automatically grant the studio if missing, but didn't finish the implementation.
+     - Next debug checklist: Check  in . Ensure that if a user has no , a default Level 1 (or 0) studio is automatically inserted into the DB and returned.
+     - Why fix this issue and what will be achieved with the fix? Core game mechanic; without a studio, new users cannot produce anything.
      - Status: IN PROGRESS
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Backend
-     - Blocked on other issue: None
+
+  Issue 2: Infrastructure i (info) Tooltip is empty (P0)
+     - Attempted fixes: None yet.
+     - Next debug checklist: Check  and . The descriptions for what each infrastructure does need to be mapped and passed properly to the tooltip so players understand what they are buying.
+     - Why fix this issue and what will be achieved with the fix? UI/UX clarity for the player.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Frontend
+
+  Issue 3: LAMPO Separate Cooldown & Auto-save (P0)
+     - Attempted fixes: None yet.
+     - Next debug checklist: 
+       - Update  to track LAMPO cooldowns separately from classic production cooldowns.
+       - Update  to ensure that as soon as a LAMPO project starts, it auto-saves in the DB (status: 'idea' or 'lampo_processing') so the cooldown is immediately consumed, preventing players from refreshing the page to bypass the cooldown.
+     - Why fix this issue and what will be achieved with the fix? Prevents game economy exploitation.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Backend
 
 **In progress Task List**:
-  Task 1: Complete the Economics Overhaul - Cast Level-Gating & CWSv Variance (P0)
-     - Where to resume: Update the  endpoints in  and  to restrict the maximum fame/stars visible based on the player's level (as agreed in the plan: Lvl 1-2 = 1★, Lvl 3-5 = 2★, etc., with a 5% chance of a higher tier Interested NPC at +50% cost). Update  to implement the new CWSv variance (baseline 4.5, wider spread based on cast average, +1.2 jackpot for perfect genre matching).
-     - What will be achieved with this? Complete the economic rebalancing, making the early game accessible and the late game challenging and meritocratic.
-     - Status: NOT STARTED
-     - Should Test frontend/backend/both after fix? Backend
-     - Blocked on something: Task 1 (Cost Scaling)
+  None (All feature requests were converted into Issues above).
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -48,18 +66,18 @@ A highly complex full-stack multiplayer cinema management game. It features a un
     - (P2) Refactoring  to split it into specialized background workers.
 
 **Completed work in this session**
-- Series/Anime TV Scheduling: Added , automated distribution scheduler, and Pending TV dashboard modals (DONE).
-- Scarta / Ricomincia Buttons: Added hard-delete and restart endpoints for V3 Idea Phase (Film, Series, Anime) with  modal (DONE).
-- Dynamic Episode Duration: Episodes now vary slightly (-3 to +7 mins) based on the user's selected base duration (DONE).
-- Lunga/Maratona constraints: Fixed a bug capping long series formats to 13 episodes (DONE).
-- Produci Badge counter: Now accurately counts V3 projects in Idea/Hype phases (DONE).
-- Admin Panel Expansions: Added All Films, All Series, All Anime, and All Trailers tabs with permanent delete buttons and fix actions (DONE).
-- Owner Permanent Delete: Added Elimina per sempre button on content modals for content owners (DONE).
-- Anime Cast Phase: Created  (generated 300 directors, 2000 illustrators) and fully implemented the Cast Phase for Anime/Series V3 (DONE).
-- Economics Overhaul Math: Created  with the approved asymptotic cost curve (DONE).
+- Economics Overhaul Math: Integrated  into   functions (DONE).
+- Cast Level-Gating & CWSv Variance: Applied level-based star caps to cast proposals and widened CWSv calculation variance (DONE).
+- Content Template Fixes: Made pre-plot scrollable, episodes clickable, and added fallbacks for missing screenplays/trailers (DONE).
+- Dashboard Global Feeds: Made TV Series and Anime feeds visible globally instead of just to the owner (DONE).
+- Produci Badge Fix: Excluded released V3 series from legacy production counts (DONE).
+- Producer Badges & Section Sort Menus: Added UI badges with the creator's name and sorting dropdowns to all dashboard sections (DONE).
+- TV Rights Market V2: Added license durations (e.g., 6 months, 1 year) and auto-scheduling to TV stations (DONE).
+- LAMPO! Fast Production System: Created the entire backend/frontend loop for instant productions, complete with UI modals, randomized geo-distribution, top/flop XP events, and  CSS animations (DONE).
+- Studio Quota Utility: Created  to gate parallel projects based on infrastructure level (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-None. Agent cleared the entire user backlog before hitting the context limit on the final feature.
+None.
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: None
@@ -67,30 +85,31 @@ None. Agent cleared the entire user backlog before hitting the context limit on 
   - Status: RESOLVED
 
 **Code Architecture**
-- Frontend:  (React). Heavily utilizes Context API (), Shadcn UI, and modular pipeline phase components (, , etc.).
-- Backend:  (FastAPI). Relies heavily on MongoDB collections separated by game state (e.g., , , , ).
+- Frontend:  (React). Uses , Shadcn UI. Modularized components (, , ).
+- Backend:  (FastAPI). Uses MongoDB. New modules include , , , .
 
 **Key Technical Concepts**
-- Pipeline V3 State Machine ( ->  ->  ->  ->  ->  ->  -> ).
-- Economics Scaling: A mathematical multiplier applied to production costs based on .
+- Economics Scaling: Asymptotic cost curve based on player level.
+- LAMPO Pipeline: Bypasses standard V3 pipeline phases for instant generation but applies separate cooldowns.
+- Infrastructure Gating: Checks  to determine how many concurrent projects a user can run.
 
 **key DB schema**
-  - : Contains actors, directors, writers, composers, , .
-  - : The main collection for active TV Series / Anime in production.
-  - : Contains , , , .
+  - : Maps users to their owned studios (e.g., , ).
+  - : Contains , .
+  -  / : Contains the  flag and  data.
 
 **changes in tech stack**
-  - None
+  - None.
 
 **All files of reference** 
-  -  (Created this session, contains multiplier logic)
-  -  (Updated to use scaling)
-  -  (Currently being edited to apply scaling to )
-  -  (Needs scaling applied)
-  -  (Needs updating for CWSv variance)
+  -  (Currently modifying for Issue 1)
+  -  (Needs update for Issue 2)
+  -  (Needs update for Issue 3)
+  -  (Needs update for Issue 3)
+  -  (Related to Issue 1 & 2)
 
 **Areas that need refactoring**: 
-  -  and  are massive. Extracting cast proposal logic to a shared utility would be beneficial.
+  -  and  are extremely large and handle too many endpoints. Consider splitting routes by phase in the future.
 
 **key api endpoints**
   - 
@@ -99,50 +118,54 @@ None. Agent cleared the entire user backlog before hitting the context limit on 
 
 **Critical Info for New Agent** 
 - **Language**: You MUST reply to the user in Italian.
-- The user has explicitly requested **No test agent** for UI/UX changes, preferring you to trust your code and use  or  to verify. However, for the backend Economics overhaul, you should use  or  to verify the math is working as expected.
-- The Economics Scaling rule: Costs (cast, crew, CGI, etc.) MUST scale based on player level. Revenues (Box office, tickets, spectators) MUST NOT scale, ensuring leaderboards remain purely meritocratic.
+- The user explicitly requested **No test agent**. Trust your code and verify using  / backend logs or the screenshot tool for UI updates.
+- Ensure that the LAMPO separate cooldown logic accurately prevents spamming while keeping standard productions gated by the regular  limits.
+- When fixing the  Level 0 seed, ensure it's idempotent (doesn't overwrite existing studios).
 
 **documents and test reports created in this job** 
-  -  (Continuously updated with all completed fixes)
+  -  (Updated with all latest UI fixes and LAMPO mechanics).
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Requested Scarta/Ricomincia buttons in Idea Phase V3.
-2. *Agent*: Implemented buttons using .
-3. *User*: Reported episodes always defaulting to 55m regardless of choice.
-4. *Agent*: Fixed variable episode generation duration.
-5. *User*: Reported Lunga/Maratona formats capping at 13 episodes.
-6. *Agent*: Fixed intersection range bug.
-7. *User*: Admin / Event fixes + Owner permanent delete + Produci badge fix + Anime casting system with Disegnatori.
-8. *Agent*: Fixed badge, created Anime casting system (), added Admin tabs, added owner delete.
-9. *User*: Requested massive Economics balancing (costs too high for early players, CWSv too compressed).
-10. *Agent*: Proposed mathematical curve for cost scaling, cast gating, and CWSv variance. User approved (Procedi tutto). Agent started implementation but context ended while editing . (PENDING COMPLETION).
+1. *User*: Pointed out bug where Series V3 remained in Produci badge and global series feeds were only visible to owner.
+2. *Agent*: Fixed badge counts and updated Dashboard/Batch to return global feeds.
+3. *User*: Requested Producer badges, global sorting feeds, and an audit of the TV rights rental system.
+4. *Agent*: Built , , and added license durations to TV Rights.
+5. *User*: Reported 2 bugs: Coming soon missing for non-owners, and missing from TV stations.
+6. *Agent*: Fixed TV station mapping for V3 released series without a target station.
+7. *User*: Asked about Infrastructure gating (Level 0-2 = 1 project, etc.), requested i tooltip for infrastructures, and proposed the LAMPO! fast-production system.
+8. *Agent*: Built , added Infrastructure gating, and built the complete LAMPO system (Phase 1 & 2).
+9. *User*: Requested LAMPO refinements: Animated lightning icon, random geo-distribution, and Flop/Top XP events.
+10. *Agent*: Created , , and added XP events.
+11. *User*: (PENDING) Reported 3 new bugs: LAMPO needs separate cooldowns and auto-saves to prevent evasion;  must be owned by default at Level 0; the i tooltip on infrastructure is completely empty.
 
 **Project Health Check:**
-- Broken: None
-- Mocked: None
+- Broken: Infrastructure tooltip empty, LAMPO missing separated cooldowns.
+- Mocked: None.
 
 **3rd Party Integrations** 
   - Emergent LLM Key (GPT-4o-mini + Gemini Nano Banana image gen) — uses Emergent LLM Key
-  - Pixazo / WaveSpeed AI (Image Generation) — uses User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (User requested No test agent for these rapid patches).
+  - Testing agent used after significant changes: NO (Per user request).
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
   - Known regressions: None
 
 **Credentials to test flow:**
-Use  (Email: fandrex1@gmail.com, Password: Fandrel2776).
+Check  (typically Email: fandrex1@gmail.com).
 
 **What agent forgot to execute**
-The agent failed to successfully execute the  tool on the  function in  just before context ran out. 
+The agent was in the exact middle of applying the auto-seed  logic via  in  when context ran out. It also hasn't touched the tooltip info mapping or the separated LAMPO cooldowns yet.
 
 **Debugging checklist for current issue**
-    Issue: Complete Economics Overhaul Implementation
+    Issue: Infrastructure Tooltips, Auto-Seed, and LAMPO Cooldowns
     
-    Backend files to check/edit:
-    -  (Apply  inside  or where total funds are calculated before deduction).
-    -  (Apply the same cost scaling logic to TV Series / Anime creation).
-    - Update  endpoints in both  and  to filter out high-tier actors based on the player's level (Level-gated cast tiers).
-    -  (Update the formula to have a baseline of 4.5, higher variance, and genre-matching bonuses as agreed in the chat history).
+    Backend files to check:
+    -  (Add  for  if it doesn't exist for the user in ).
+    -  (Add logic to distinguish between  and ).
+    -  (Ensure the project is immediately inserted into the database upon POST request before the heavy generation starts, to consume the cooldown immediately).
+    
+    Frontend files to check:
+    -  (Pass actual descriptions based on  instead of empty strings).
+    -  (Map the descriptions to pass down).
 </handoff summary></analysis>

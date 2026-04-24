@@ -1,6 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { Info, X, Check, Clock, Zap, Trophy } from 'lucide-react';
-import { AuthContext } from '../App';
+import { AuthContext } from '../contexts';
 import { Dialog, DialogContent } from './ui/dialog';
 
 /**
@@ -30,8 +30,8 @@ export function InfraInfoButton({ infraType, variant = 'default' }) {
   };
 
   const btnCls = variant === 'corner'
-    ? 'absolute top-1 right-1 z-20 w-5 h-5 rounded-full bg-black/50 hover:bg-black/80 flex items-center justify-center transition-all'
-    : 'w-5 h-5 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all';
+    ? 'absolute top-1 right-1 z-20 w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 active:scale-95 flex items-center justify-center transition-all shadow-md ring-1 ring-cyan-400/30'
+    : 'w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all';
 
   return (
     <>
@@ -43,7 +43,7 @@ export function InfraInfoButton({ infraType, variant = 'default' }) {
         aria-label="Info infrastruttura"
         title="Informazioni"
       >
-        <Info className="w-3 h-3 text-cyan-300" />
+        <Info className="w-3.5 h-3.5 text-cyan-300" />
       </button>
 
       <Dialog open={open} onOpenChange={(v) => !v && setOpen(false)}>

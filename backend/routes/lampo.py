@@ -255,7 +255,7 @@ async def start_lampo(req: StartLampoRequest, user: dict = Depends(get_current_u
     studio_type = "production_studio" if req.content_type == "film" else (
         "studio_anime" if req.content_type == "anime" else "studio_serie_tv"
     )
-    await check_studio_quota(db, user["id"], studio_type)
+    await check_studio_quota(db, user["id"], studio_type, mode="lampo")
 
     # Funds check (con economy scaling)
     base_cost = BUDGET_COSTS[req.content_type][req.budget_tier]

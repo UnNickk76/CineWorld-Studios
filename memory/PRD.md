@@ -10,6 +10,24 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 24, 2026 — LAMPO v2: Lightning Icon + Distribuzione Auto + Eventi Flop/Top + XP**
+  - **LampoLightning** (`components/LampoLightning.jsx` + keyframes CSS): icona ⚡ glow lampeggiante animata (flicker + pulse + drop-shadow amber/orange). Appare automaticamente su QUALSIASI poster di contenuto con `is_lampo=true` o `mode='lampo'`. Integrato in: `ContentTemplate` (modal dettaglio, top-right size md), `ComingSoonSection`, `LaPrimaSection`, Dashboard (tutte e 4 le sezioni serie/anime/film/prossimamente V3).
+  - **Distribuzione automatica film LAMPO** (`utils/lampo_distribution.py`): 8 bucket di rarità pesata (tot 100%):
+    - mondo 1% · 3 continenti 4% · 2 cont + 10 naz 8% · 1 cont + 20 naz 12% · 30 naz + 10 città 15% · 20 naz + 30 città 18% · 10 naz + 60 città 20% · 100 città 22%
+    - I bucket con "nazioni" specificano paesi di continenti NON coperti dal bucket stesso (evita duplicazioni). Le città sampled da `db.cities` escludendo le nazioni già elencate.
+    - Pool continenti: Europa, Nord/Sud America, Asia, Africa, Oceania. Pool nazioni: 76 in 6 continenti.
+    - Applicato nel worker LAMPO solo per film (serie/anime usano flow TV).
+    - Film doc ora include: `distribution_scope` (label), `distribution_bucket`, `release_continents`, `release_countries`, `release_cities`, `worldwide`.
+    - Visibile nel modal dettaglio film con icona ⚡ e label "Distribuzione: 1 Continente + 20 Nazioni" (verificato via curl: su 30 draws i bucket rispettano le probabilità).
+  - **Sistema flop/top + XP** integrato al release LAMPO:
+    - Film LAMPO chiamano `generate_release_event()` della pipeline classica → cultural_phenomenon / surprise_hit / cult_following / public_flop / polarizing / scandal, ecc.
+    - XP bonus per evento: cultural_phenomenon 300, surprise_hit 150, critics_rave 120, award_buzz 100, cult_following 80, soundtrack_charts 40, public_flop 30 (consolazione), polarizing/scandal/controversy 15-20, default 10.
+    - XP base proporzionale al CWSv: film `cwsv×10`, serie/anime `cwsv×8`.
+    - Serie/anime LAMPO: chance random (30% a CWSv<4) di "series_flop", (25% a CWSv≥8) di "series_phenomenon", (8% base) di "series_cult".
+    - `db.users.xp` e `total_xp` incrementati al release.
+  - Files: `utils/lampo_distribution.py` (NEW), `components/LampoLightning.jsx` (NEW), `routes/lampo.py` (enrichment release), `components/ContentTemplate.jsx`, `components/ComingSoonSection.jsx`, `components/LaPrimaSection.jsx`, `pages/Dashboard.jsx`, `index.css` (keyframes).
+
+
 - **Feb 24, 2026 — FASE 1 (gating studio + tooltip i) + FASE 2 (Produzione LAMPO)**
   - **Studio Quota Policy** (`utils/studio_quota.py`):
     - Curva progettata con utente: Lv 0-2 = 1 parallel/5gg, Lv 3-5 = 2/5gg, Lv 6-8 = 3/3gg, Lv 9-14 = 5/2gg, Lv 15-24 = 8/1gg, Lv 25-49 = 12/12h, Lv 50-99 = 20/6h, Lv 100-199 = 40/1h, Lv 200+ = ∞/0.

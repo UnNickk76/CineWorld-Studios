@@ -13,6 +13,7 @@ import TrailerPlayerModal from './TrailerPlayerModal';
 import PStarBanner from './PStarBanner';
 import CineConfirm from './v3/CineConfirm';
 import { Trash2 } from 'lucide-react';
+import { LampoLightning } from './LampoLightning';
 import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
@@ -808,6 +809,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           <div className="absolute right-2 bottom-2" data-testid="poster-like-system">
             <SystemLikeBadge count={likes.poster?.system_count || 0} variant="chip" />
           </div>
+          <LampoLightning item={film} variant="top-right" size="md" />
         </div>
         <div className="ct2-short-plot" data-testid="ct-short-plot">
           <div className="ct2-info-title">{film.title}</div>
@@ -824,6 +826,13 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           {castInfo.actors.length > 0 && (
             <div className="ct2-info-cast">
               {isAnime ? 'Disegnatori' : 'Cast'}: {castInfo.actors.map(a => a.name).join(', ')}
+            </div>
+          )}
+          {(film.is_lampo || film.mode === 'lampo') && film.distribution_scope && (
+            <div className="ct2-info-cast" style={{ color: '#fbbf24', fontWeight: 600 }} data-testid="ct-lampo-distribution">
+              <Zap size={10} style={{ display: 'inline', marginRight: 2, verticalAlign: 'middle' }} />
+              Distribuzione: {film.distribution_scope}
+              {film.worldwide && ' 🌍'}
             </div>
           )}
           {shortPlot ? (

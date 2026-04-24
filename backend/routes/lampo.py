@@ -197,6 +197,15 @@ async def _worker_generate(pid: str):
         cwsv = _cwsv_for_studio_level(studio_level, proj["budget_tier"])
         poster_url = await _generate_poster_lampo(proj["title"], proj["genre"], proj["content_type"])
 
+        # Distribuzione automatica (solo film — serie/anime usano il loro flow TV)
+        distribution_plan = None
+        if proj["content_type"] == "film":
+            try:
+                from utils.lampo_distribution import build_lampo_distribution
+                distribution_plan = await build_lampo_distribution(db)
+            except Exception as dist_err:
+                logger.warning(f"LAMPO distribution plan fail pid={pid}: {dist_err}")
+
         # Episodes per serie/anime
         episodes = []
         if proj["content_type"] in ("tv_series", "anime"):
@@ -223,6 +232,7 @@ async def _worker_generate(pid: str):
                 "marketing_tier": "mid" if proj["budget_tier"] != "high" else "high",
                 "sponsors": ["CineBrand", "StudioPartner"] if proj["budget_tier"] != "low" else ["StudioPartner"],
                 "equipment_tier": proj["budget_tier"],
+                "distribution_plan": distribution_plan,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }}
         )
@@ -340,6 +350,35 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
     ct = proj["content_type"]
 
     if ct == "film":
+        # Generate release event (LAMPO film possono avere flop/hit/cult come i classici)
+        release_event = None
+        xp_event_bonus = 0
+        try:
+            from routes.film_pipeline import generate_release_event
+            release_event = generate_release_event(
+                {"title": proj["title"]}, proj.get("cast", {}),
+                int(round(float(proj.get("cwsv") or 5) * 10)),  # 0-100 scale
+                proj["genre"]
+            )
+            if release_event:
+                ev_id = release_event.get("id", "")
+                # XP bonus per eventi di release (funzionano anche con CWSv bassi!)
+                XP_EVENT_BONUS = {
+                    "cultural_phenomenon": 300,
+                    "surprise_hit": 150,
+                    "critics_rave": 120,
+                    "award_buzz": 100,
+                    "cult_following": 80,
+                    "soundtrack_charts": 40,
+                    "public_flop": 30,       # consolazione: hai imparato dall'errore
+                    "polarizing": 20,
+                    "scandal": 15,
+                    "controversy": 15,
+                }
+                xp_event_bonus = XP_EVENT_BONUS.get(ev_id, 10)
+        except Exception:
+            pass
+
         # Insert into films collection
         film_id = str(uuid.uuid4())
         film_doc = {
@@ -348,6 +387,7 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
             "pipeline_version": 3,
             "source_project_id": pid,
             "mode": "lampo",
+            "is_lampo": True,  # marker per UI (icona ⚡ glow)
             "title": proj["title"],
             "genre": proj["genre"],
             "subgenre": proj.get("subgenre"),
@@ -364,10 +404,28 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
             "marketing_tier": proj.get("marketing_tier", "mid"),
             "budget_tier": proj.get("budget_tier"),
             "attendance_trend": [],
+            # Distribuzione auto
+            "distribution_scope": (proj.get("distribution_plan") or {}).get("scope_label"),
+            "distribution_bucket": (proj.get("distribution_plan") or {}).get("bucket"),
+            "release_continents": (proj.get("distribution_plan") or {}).get("continents", []),
+            "release_countries": (proj.get("distribution_plan") or {}).get("countries", []),
+            "release_cities": (proj.get("distribution_plan") or {}).get("cities", []),
+            "worldwide": bool((proj.get("distribution_plan") or {}).get("mondo", False)),
+            # Release event (flop/hit/cult/phenomenon…)
+            "release_event": release_event,
         }
         await db.films.insert_one(film_doc)
-        await db.lampo_projects.update_one({"id": pid}, {"$set": {"released": True, "released_film_id": film_id, "updated_at": now}})
-        return {"success": True, "type": "film", "released_id": film_id, "message": f"'{proj['title']}' è al cinema!"}
+        # XP base (proporzionale a CWSv) + bonus evento
+        try:
+            base_xp = int((proj.get("cwsv") or 5) * 10)  # 10-98 XP base
+            total_xp = base_xp + xp_event_bonus
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"total_xp": total_xp, "xp": total_xp}})
+        except Exception:
+            pass
+        await db.lampo_projects.update_one({"id": pid}, {"$set": {"released": True, "released_film_id": film_id, "release_event": release_event, "updated_at": now}})
+        ev_label = (release_event or {}).get("name", "")
+        msg = f"'{proj['title']}' è al cinema!" + (f" Evento: {ev_label}" if ev_label else "")
+        return {"success": True, "type": "film", "released_id": film_id, "message": msg, "release_event": release_event, "xp_gained": xp_event_bonus + int((proj.get('cwsv') or 5) * 10)}
 
     # tv_series / anime
     target_station_id = proj.get("target_tv_station_id")
@@ -389,6 +447,7 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
         "user_id": user["id"],
         "pipeline_version": 3,
         "mode": "lampo",
+        "is_lampo": True,  # marker per UI (icona ⚡ glow)
         "type": ct,
         "title": proj["title"],
         "genre": proj["genre"],
@@ -413,9 +472,31 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
         "total_revenue": 0,
     }
     await db.tv_series.insert_one(series_doc)
+    # XP per release serie/anime LAMPO (proporzionale a CWSv)
+    try:
+        base_xp = int((proj.get("cwsv") or 5) * 8)
+        # Chance random di evento cult/flop per serie/anime LAMPO (simile ai film)
+        series_event = None
+        roll = random.random()
+        cwsv_val = float(proj.get("cwsv") or 5)
+        if cwsv_val < 4.0 and roll < 0.30:
+            series_event = {"id": "series_flop", "name": "Flop Clamoroso", "type": "negative", "xp": 40}
+        elif cwsv_val >= 8.0 and roll < 0.25:
+            series_event = {"id": "series_phenomenon", "name": "Fenomeno Streaming", "type": "positive", "xp": 250}
+        elif roll < 0.08:
+            series_event = {"id": "series_cult", "name": "Serie Cult", "type": "neutral", "xp": 100}
+        event_xp = (series_event or {}).get("xp", 0)
+        total_xp = base_xp + event_xp
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"total_xp": total_xp, "xp": total_xp}})
+        if series_event:
+            await db.tv_series.update_one({"id": series_id}, {"$set": {"release_event": series_event}})
+    except Exception:
+        series_event = None
     await db.lampo_projects.update_one({"id": pid}, {"$set": {"released": True, "released_series_id": series_id, "updated_at": now}})
     msg = f"'{proj['title']}' in arrivo su TV!" if in_tv else f"'{proj['title']}' aggiunto al tuo catalogo."
-    return {"success": True, "type": ct, "released_id": series_id, "in_tv": in_tv, "message": msg}
+    if series_event:
+        msg += f" Evento: {series_event['name']}"
+    return {"success": True, "type": ct, "released_id": series_id, "in_tv": in_tv, "message": msg, "release_event": series_event}
 
 
 @router.post("/{pid}/discard")

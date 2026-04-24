@@ -12,6 +12,7 @@ import FeaturedTrailersStrip from '../components/FeaturedTrailersStrip';
 import UltimiTrailerStrip from '../components/UltimiTrailerStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { ProducerBadge } from '../components/ProducerBadge';
+import { LampoLightning } from '../components/LampoLightning';
 import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from '../components/SectionSortMenu';
 import ProssimamenteDetailModal from '../components/ProssimamenteDetailModal';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
@@ -136,6 +137,7 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
                       variant="bottom-left"
                       size="xs"
                     />
+                    <LampoLightning item={item} variant="top-right" size="xs" />
                   </div>
                   <div className="p-1">
                     <p className="text-[7px] font-bold text-white truncate">{item.title}</p>
@@ -695,6 +697,7 @@ const Dashboard = () => {
                             variant="bottom-left"
                             size="xs"
                           />
+                          <LampoLightning item={film} variant="top-right" size="xs" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{film.title}</p>
                         <p className="text-[6px] text-gray-500 truncate">{film.producer_nickname}</p>
@@ -760,6 +763,7 @@ const Dashboard = () => {
                             variant="bottom-left"
                             size="xs"
                           />
+                          <LampoLightning item={s} variant="top-right" size="xs" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{s.title}</p>
                         {s.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{s.producer_nickname}</p>}
@@ -819,6 +823,7 @@ const Dashboard = () => {
                             variant="bottom-left"
                             size="xs"
                           />
+                          <LampoLightning item={a} variant="top-right" size="xs" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{a.title}</p>
                         {a.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{a.producer_nickname}</p>}

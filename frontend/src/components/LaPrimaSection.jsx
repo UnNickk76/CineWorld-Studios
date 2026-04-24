@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { Users, Flame, MapPin, Clock, ChevronRight, Eye, Sparkles, Loader2, Film } from 'lucide-react';
 import { LaPrimaPopup } from './LaPrimaPopup';
 import { ProducerBadge } from './ProducerBadge';
+import { LampoLightning } from './LampoLightning';
 import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from './SectionSortMenu';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -212,6 +213,7 @@ export function LaPrimaSection({ compact = false }) {
                 variant="top-right"
                 size="xs"
               />
+              <LampoLightning item={ev} variant="top-left" size="sm" />
             </div>
 
             {/* Info */}

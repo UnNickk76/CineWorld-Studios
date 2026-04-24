@@ -260,16 +260,32 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     series_light = {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1, 'type': 1, 'status': 1, 'seasons_count': 1, 'total_revenue': 1, 'created_at': 1, 'genre': 1}
     my_series_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series'}, series_light).sort('created_at', -1).to_list(10)
     my_anime_task = db.tv_series.find({'user_id': uid, 'type': 'anime'}, series_light).sort('created_at', -1).to_list(10)
+    # Global feeds for dashboard "Ultimi aggiornamenti Serie TV / Anime" — visibili a TUTTI i player
+    # Mostriamo solo serie/anime già rilasciati (status in_tv/catalog/completed) di qualsiasi utente.
+    _released_statuses = ['in_tv', 'catalog', 'completed', 'released']
+    recent_series_global_task = db.tv_series.find(
+        {'type': 'tv_series', 'status': {'$in': _released_statuses}},
+        series_light
+    ).sort('created_at', -1).to_list(20)
+    recent_anime_global_task = db.tv_series.find(
+        {'type': 'anime', 'status': {'$in': _released_statuses}},
+        series_light
+    ).sort('created_at', -1).to_list(20)
     recent_releases_task = db.films.find(
         {'status': 'in_theaters'},
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1, 'status': 1, 'is_masterpiece': 1, 'pipeline_version': 1, 'attendance_trend': 1, 'source_project_id': 1, 'from_purchased_screenplay': 1, 'purchased_screenplay_mode': 1, 'purchased_screenplay_source': 1}
     ).sort('created_at', -1).to_list(20)
 
-    films, infrastructure, challenges, pending_films, pipeline_projects, series_pipeline, anime_pipeline, emerging_count, shooting_films, my_series, my_anime, recent_releases, v2_films = await asyncio.gather(
-        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, series_pipeline_task, anime_pipeline_task, emerging_task, shooting_films_task, my_series_task, my_anime_task, recent_releases_task, v2_films_task
+    films, infrastructure, challenges, pending_films, pipeline_projects, series_pipeline, anime_pipeline, emerging_count, shooting_films, my_series, my_anime, recent_releases, v2_films, recent_series_global, recent_anime_global = await asyncio.gather(
+        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, series_pipeline_task, anime_pipeline_task, emerging_task, shooting_films_task, my_series_task, my_anime_task, recent_releases_task, v2_films_task, recent_series_global_task, recent_anime_global_task
     )
 
     producer_ids = list(set(r.get('user_id') for r in recent_releases if r.get('user_id')))
+    # Merge with producer_ids from global series/anime feeds per arricchire con nickname
+    for lst in (recent_series_global, recent_anime_global):
+        for s in lst:
+            if s.get('user_id') and s['user_id'] not in producer_ids:
+                producer_ids.append(s['user_id'])
     producers = {}
     if producer_ids:
         producer_docs = await db.users.find({'id': {'$in': producer_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1}).to_list(50)
@@ -281,6 +297,12 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         r['producer_badge'] = p.get('badge', 'none')
         r['producer_badge_expiry'] = p.get('badge_expiry')
         r['producer_badges'] = p.get('badges', {})
+    # Enrich global series/anime feeds with producer nickname/house
+    for lst in (recent_series_global, recent_anime_global):
+        for s in lst:
+            p = producers.get(s.get('user_id'), {})
+            s['producer_nickname'] = p.get('nickname', '?')
+            s['producer_house'] = p.get('production_house_name', '')
 
     total_box_office = sum(max(f.get('realistic_box_office', 0) or 0, f.get('total_revenue', 0) or 0) for f in films)
     # Authoritative box office from wallet_transactions (source of truth for the new finance system)
@@ -439,6 +461,8 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         'featured_films': featured,
         'my_series': my_series[:5],
         'my_anime': my_anime[:5],
+        'recent_series_global': recent_series_global,
+        'recent_anime_global': recent_anime_global,
         'recent_releases': recent_releases,
         'challenges': challenges,
         'pending_revenue': {

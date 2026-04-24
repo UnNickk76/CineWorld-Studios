@@ -656,6 +656,26 @@ async def regenerate_poster_v2(pid: str, user: dict = Depends(get_current_user))
 @router.get("/production-counts")
 async def get_production_counts(user: dict = Depends(get_current_user)):
     """Get count of active projects (V2 + V3) by type for badge display."""
+    # Self-heal: V3 series/anime con status legacy orfano ('concept'/'casting'/...) ma pipeline_version=3
+    # → rimappa a 'catalog' (default post-release). Evita fantom badge dopo release bug storici.
+    try:
+        await db.tv_series.update_many(
+            {
+                'user_id': user['id'],
+                'pipeline_version': 3,
+                'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']},
+            },
+            [{'$set': {
+                'status': {
+                    '$cond': [
+                        {'$eq': ['$prossimamente_tv', True]}, 'in_tv', 'catalog'
+                    ]
+                }
+            }}]
+        )
+    except Exception:
+        pass
+
     # V2 and V3 film pipeline states that count as "in production"
     active_states = {
         # V2 legacy
@@ -669,12 +689,16 @@ async def get_production_counts(user: dict = Depends(get_current_user)):
         'user_id': user['id'], 'pipeline_state': {'$in': list(active_states)}
     })
     # V2 legacy series/anime sit in tv_series with these statuses
+    # NOTE: escludiamo i doc V3 (pipeline_version=3) che, se rilasciati, non sono mai "in produzione"
+    # anche se il campo legacy `status` fosse rimasto a 'concept' per bug storici.
     series_legacy = await db.tv_series.count_documents({
         'user_id': user['id'], 'type': 'tv_series',
+        'pipeline_version': {'$ne': 3},
         'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']}
     })
     anime_legacy = await db.tv_series.count_documents({
         'user_id': user['id'], 'type': 'anime',
+        'pipeline_version': {'$ne': 3},
         'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']}
     })
     # V3 series/anime live in series_projects_v3. Count every non-terminal project.

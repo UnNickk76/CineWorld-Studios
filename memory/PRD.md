@@ -10,6 +10,14 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 24, 2026 — Badge "Produci" fantasma + Feed globale Serie/Anime**
+  - **Badge fantasma risolto**: `GET /api/pipeline-v2/production-counts` ora esclude dal conteggio "series_legacy"/"anime_legacy" i doc `tv_series` con `pipeline_version: 3` (serie V3 già rilasciate, non ancora in produzione). Prima il campo `status='concept'` orfano le contava come "in produzione", accendendo il badge "Produci" ma senza aprire nessun progetto reale.
+  - **Self-heal status orfani**: stesso endpoint riscrive silenziosamente `status → catalog` (o `in_tv` se `prossimamente_tv`) per doc V3 con status legacy residuo (`concept|casting|screenplay|production|ready_to_release|coming_soon`). Nessuna migrazione manuale richiesta — basta aprire la dashboard.
+  - **"Ultimi Aggiornamenti Serie TV / Anime" diventa feed globale**: `dashboard/batch` espone nuovi campi `recent_series_global` e `recent_anime_global` (top 20 rilasci di tutti gli utenti, arricchiti con `producer_nickname` + `producer_house`). `pages/Dashboard.jsx` usa il feed globale quando disponibile, fallback su `my_series/my_anime`. Ogni card mostra ora anche il nickname del proprietario sotto il titolo.
+  - **Clic card anime** ora porta al dettaglio `/series/{id}` (prima andava genericamente a `/films?view=anime`).
+  - Files: `routes/pipeline_v2.py` (self-heal + filtro V3), `routes/economy.py` (feed globale + enrich), `pages/Dashboard.jsx` (rendering + producer sotto card).
+
+
 - **Feb 24, 2026 — Dashboard "IN ARRIVO SU TV" + Pipeline→TV Prossimamente fix**
   - **Dashboard**: `ProssimamenteV3Section` (`pages/Dashboard.jsx`) ora resta sempre visibile anche quando vuota. Stato vuoto: placeholder tratteggiato "Nessun contenuto in arrivo" (come altre sezioni della dashboard). Prima scompariva del tutto.
   - **Pipeline V3 Serie/Anime → Prossimamente**: BUG risolto. Al release in `pipeline_series_v3.py` l'accoppiata `scheduled_for_tv + scheduled_for_tv_station` richiedeva SIA `target_tv_station_id` SIA `prossimamente_tv`. Ora basta il `target_tv_station_id`: se l'utente ha esplicitamente scelto una TV in DistributionPhase la serie finisce automaticamente in Prossimamente di quella TV.

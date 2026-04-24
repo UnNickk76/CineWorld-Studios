@@ -223,8 +223,10 @@ const Dashboard = () => {
     if (!batchData) return;
     const d = batchData;
     if (d.recent_releases?.length) setRecentReleases(prev => prev.length ? prev : d.recent_releases);
-    setMySeries(d.my_series || []);
-    setMyAnime(d.my_anime || []);
+    // Ultimi aggiornamenti Serie TV/Anime: usa feed GLOBALE (visibile a tutti).
+    // Fallback alla lista del proprietario se il feed globale non è ancora popolato.
+    setMySeries((d.recent_series_global && d.recent_series_global.length > 0) ? d.recent_series_global : (d.my_series || []));
+    setMyAnime((d.recent_anime_global && d.recent_anime_global.length > 0) ? d.recent_anime_global : (d.my_anime || []));
     setPendingFilms(d.pending_films || []);
     setHasStudio(d.has_studio || false);
     setShootingFilms(d.shooting_films || []);
@@ -700,6 +702,7 @@ const Dashboard = () => {
                           </Badge>
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{s.title}</p>
+                        {s.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{s.producer_nickname}</p>}
                       </div>
                     ))}
                   </div>
@@ -731,7 +734,7 @@ const Dashboard = () => {
                 {myAnime.length > 0 ? (
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
                     {myAnime.slice(0, 10).map(a => (
-                      <div key={a.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate('/films?view=anime')} data-testid={`recent-anime-${a.id}`}>
+                      <div key={a.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate(`/series/${a.id}`)} data-testid={`recent-anime-${a.id}`}>
                         <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
                           {a.poster_url ? (
                             <img src={posterSrc(a.poster_url)} alt={a.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
@@ -743,6 +746,7 @@ const Dashboard = () => {
                           </Badge>
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{a.title}</p>
+                        {a.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{a.producer_nickname}</p>}
                       </div>
                     ))}
                   </div>

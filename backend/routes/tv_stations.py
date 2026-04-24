@@ -409,8 +409,10 @@ async def add_content(req: AddContentRequest, user: dict = Depends(get_current_u
             series = fp
             total_eps = fp.get('episode_count', 12)
         else:
+            # Include V3 rilasciate (status in_tv/catalog) oltre a V2 legacy 'completed'.
             ts = await db.tv_series.find_one(
-                {'id': req.content_id, 'user_id': user['id'], 'status': 'completed'},
+                {'id': req.content_id, 'user_id': user['id'],
+                 'status': {'$in': ['completed', 'in_tv', 'catalog', 'released']}},
                 {'_id': 0, 'id': 1, 'title': 1, 'type': 1, 'num_episodes': 1}
             )
             if ts:

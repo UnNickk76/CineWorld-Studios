@@ -10,6 +10,12 @@ Gioco manageriale multigiocatore di produzione cinematografica. Pipeline V3 a pi
 - Storage: Emergent Object Storage (trailer frames)
 
 ## Changelog
+- **Feb 24, 2026 — Fix "Aggiungi Serie TV" al palinsesto (bottone + su TV station)**
+  - **BUG**: cliccando "+" per aggiungere "The Concept" al palinsesto della propria TV station, l'endpoint `POST /tv-stations/add-content` rifiutava con "Serie non trovata o non completata". Root cause: il filtro cercava `status: 'completed'` (legacy V2) ma le serie V3 rilasciate hanno `status: 'in_tv'` (Prossimamente TV) o `'catalog'` (My List only).
+  - **Fix**: query ora accetta `status in ['completed', 'in_tv', 'catalog', 'released']` — compatibile con legacy V2 e serie V3.
+  - File: `routes/tv_stations.py` linea 415.
+
+
 - **Feb 24, 2026 — Fix "Orphan adoption" serie senza target TV station**
   - **BUG ROOT CAUSE**: Le serie V3 rilasciate con flag `prossimamente_tv=True` ma SENZA che l'utente avesse scelto una TV station specifica in DistributionPhase, restavano con `target_tv_station_id=null`. Risultato: apparivano nel banner dashboard "In Arrivo su TV" (dato che `/prossimamente` non filtra per station) ma non apparivano nella pagina della TV del proprietario (che filtra per `scheduled_for_tv_station`). Nessun bottone per accettarle/gestirle.
   - **Fix al release** (`pipeline_series_v3.py`): se `prossimamente_tv=True` ma nessun target station è scelto, auto-assegna alla prima TV station del proprietario (ordinata per created_at asc). Evita bug future.

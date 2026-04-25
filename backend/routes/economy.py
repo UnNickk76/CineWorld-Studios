@@ -261,19 +261,20 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     my_series_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series'}, series_light).sort('created_at', -1).to_list(10)
     my_anime_task = db.tv_series.find({'user_id': uid, 'type': 'anime'}, series_light).sort('created_at', -1).to_list(10)
     # Global feeds for dashboard "Ultimi aggiornamenti Serie TV / Anime" — visibili a TUTTI i player
-    # Mostriamo solo serie/anime già rilasciati (status in_tv/catalog/completed) di qualsiasi utente.
+    # Mostriamo serie/anime già rilasciati MA anche LAMPO programmati/bozze (sono comunque visibili).
     _released_statuses = ['in_tv', 'catalog', 'completed', 'released']
+    _global_series_statuses = _released_statuses + ['lampo_scheduled', 'lampo_ready']
     recent_series_global_task = db.tv_series.find(
-        {'type': 'tv_series', 'status': {'$in': _released_statuses}},
+        {'type': 'tv_series', 'status': {'$in': _global_series_statuses}},
         series_light
     ).sort('created_at', -1).to_list(20)
     recent_anime_global_task = db.tv_series.find(
-        {'type': 'anime', 'status': {'$in': _released_statuses}},
+        {'type': 'anime', 'status': {'$in': _global_series_statuses}},
         series_light
     ).sort('created_at', -1).to_list(20)
     recent_releases_task = db.films.find(
-        {'status': 'in_theaters'},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1, 'status': 1, 'is_masterpiece': 1, 'pipeline_version': 1, 'attendance_trend': 1, 'source_project_id': 1, 'from_purchased_screenplay': 1, 'purchased_screenplay_mode': 1, 'purchased_screenplay_source': 1}
+        {'status': {'$in': ['in_theaters', 'lampo_scheduled', 'lampo_ready']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1, 'status': 1, 'is_masterpiece': 1, 'pipeline_version': 1, 'attendance_trend': 1, 'source_project_id': 1, 'from_purchased_screenplay': 1, 'purchased_screenplay_mode': 1, 'purchased_screenplay_source': 1, 'is_lampo': 1, 'scheduled_release_at': 1}
     ).sort('created_at', -1).to_list(20)
 
     films, infrastructure, challenges, pending_films, pipeline_projects, series_pipeline, anime_pipeline, emerging_count, shooting_films, my_series, my_anime, recent_releases, v2_films, recent_series_global, recent_anime_global = await asyncio.gather(

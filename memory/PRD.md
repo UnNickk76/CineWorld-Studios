@@ -1,3 +1,23 @@
+## Mercato Diritti TV — Visibilità + Auto-Palinsesto (Apr 25, 2026 — sera 5)
+
+Implementati i due P1 in coda al sistema mercato:
+
+### 1. Visibilità contratti attivi nelle dashboard
+- **Backend `economy.py /dashboard/batch`**:
+  - `series_light` + `recent_releases` projection ora includono `tv_rights_*` fields.
+  - Dopo gather, batch lookup su `tv_stations` e `users` → ogni item con contratto attivo riceve `tv_rights_station_name`, `tv_rights_station_logo`, `tv_rights_buyer_house`, `tv_rights_buyer_nickname`.
+- **Backend `pipeline_series_v3.py /prossimamente`**: stesso enrichment per le serie/anime in arrivo TV.
+- **Frontend `TvRightsBadge.jsx`** (nuovo): pillola cyan (split) o amber (full) in basso a destra della locandina con icona TV + nome stazione. Click → apre `TvMarketModal` in panoramica per vedere tutti i contratti attivi sul contenuto.
+- Badge integrato in: Dashboard recent films / series / anime + ProssimamenteV3.
+- **Test verificato**: enrichment ritorna `tv_rights_station_name="Mia Super TV"` e `tv_rights_buyer_house="Anacapito Studio's"` per film con contratto attivo, `None` per film senza.
+
+### 2. Auto-integrazione palinsesto del buyer
+- **`tv_market._execute_payment_and_contract`**: alla firma del contratto, il content viene **auto-aggiunto** a `tv_stations.contents.{films|tv_series|anime}` del buyer con flag `via_tv_market: True` e `contract_id`. Idempotente (no duplicati).
+- **`auto_close_expired_contracts`**: alla scadenza, rimuove dal palinsesto del buyer **solo** le entry con `contract_id` corrispondente (preserva content posseduti dal buyer per altri motivi).
+- Il buyer vede subito il contenuto disponibile nel suo schedule TV senza passi manuali.
+
+Files: `backend/routes/tv_market.py`, `backend/routes/economy.py`, `backend/routes/pipeline_series_v3.py`, `frontend/src/components/TvRightsBadge.jsx`, `frontend/src/pages/Dashboard.jsx`.
+
 ## Mercato Diritti TV + UI Locandine (Apr 25, 2026 — sera 4)
 
 ### Fix #2 — UI locandine

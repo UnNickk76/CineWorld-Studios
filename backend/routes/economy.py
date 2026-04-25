@@ -257,7 +257,7 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     anime_pipeline_task = db.tv_series.find({'user_id': uid, 'type': 'anime', 'status': {'$nin': ['discarded', 'abandoned', 'completed', 'released']}}, {'_id': 0, 'status': 1}).to_list(50)
     emerging_task = db.emerging_screenplays.count_documents({'status': 'available'})
     shooting_films_task = db.films.find({'user_id': uid, 'status': {'$in': ['shooting', 'in_production']}}, films_light_fields).to_list(50)
-    series_light = {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1, 'type': 1, 'status': 1, 'seasons_count': 1, 'total_revenue': 1, 'created_at': 1, 'genre': 1, 'source_project_id': 1, 'is_lampo': 1}
+    series_light = {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1, 'type': 1, 'status': 1, 'seasons_count': 1, 'total_revenue': 1, 'created_at': 1, 'genre': 1, 'source_project_id': 1, 'is_lampo': 1, 'tv_rights_active_contract_id': 1, 'tv_rights_buyer_user_id': 1, 'tv_rights_buyer_station_id': 1, 'tv_rights_mode': 1, 'tv_rights_end_at': 1}
     my_series_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series'}, series_light).sort('created_at', -1).to_list(10)
     my_anime_task = db.tv_series.find({'user_id': uid, 'type': 'anime'}, series_light).sort('created_at', -1).to_list(10)
     # Global feeds for dashboard "Ultimi aggiornamenti Serie TV / Anime" — visibili a TUTTI i player
@@ -274,7 +274,7 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     ).sort('created_at', -1).to_list(20)
     recent_releases_task = db.films.find(
         {'status': {'$in': ['in_theaters', 'lampo_scheduled', 'lampo_ready']}},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1, 'status': 1, 'is_masterpiece': 1, 'pipeline_version': 1, 'attendance_trend': 1, 'source_project_id': 1, 'from_purchased_screenplay': 1, 'purchased_screenplay_mode': 1, 'purchased_screenplay_source': 1, 'is_lampo': 1, 'scheduled_release_at': 1}
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1, 'status': 1, 'is_masterpiece': 1, 'pipeline_version': 1, 'attendance_trend': 1, 'source_project_id': 1, 'from_purchased_screenplay': 1, 'purchased_screenplay_mode': 1, 'purchased_screenplay_source': 1, 'is_lampo': 1, 'scheduled_release_at': 1, 'tv_rights_active_contract_id': 1, 'tv_rights_buyer_user_id': 1, 'tv_rights_buyer_station_id': 1, 'tv_rights_mode': 1, 'tv_rights_end_at': 1}
     ).sort('created_at', -1).to_list(20)
 
     films, infrastructure, challenges, pending_films, pipeline_projects, series_pipeline, anime_pipeline, emerging_count, shooting_films, my_series, my_anime, recent_releases, v2_films, recent_series_global, recent_anime_global = await asyncio.gather(
@@ -324,6 +324,38 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
             p = producers.get(s.get('user_id'), {})
             s['producer_nickname'] = p.get('nickname', '?')
             s['producer_house'] = p.get('production_house_name', '')
+
+    # 📺 Enrich items with active TV rights contract info (station name + buyer house)
+    try:
+        all_items = list(recent_releases) + list(recent_series_global) + list(recent_anime_global)
+        rights_station_ids = list({i.get('tv_rights_buyer_station_id') for i in all_items if i.get('tv_rights_buyer_station_id')})
+        rights_buyer_ids = list({i.get('tv_rights_buyer_user_id') for i in all_items if i.get('tv_rights_buyer_user_id')})
+        stations_map, buyers_map = {}, {}
+        if rights_station_ids:
+            async for st in db.tv_stations.find(
+                {'id': {'$in': rights_station_ids}},
+                {'_id': 0, 'id': 1, 'name': 1, 'custom_name': 1, 'user_id': 1, 'logo_url': 1}
+            ):
+                stations_map[st['id']] = st
+        if rights_buyer_ids:
+            async for u in db.users.find(
+                {'id': {'$in': rights_buyer_ids}},
+                {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}
+            ):
+                buyers_map[u['id']] = u
+        for item in all_items:
+            sid = item.get('tv_rights_buyer_station_id')
+            bid = item.get('tv_rights_buyer_user_id')
+            if sid and sid in stations_map:
+                st = stations_map[sid]
+                item['tv_rights_station_name'] = st.get('custom_name') or st.get('name') or 'TV'
+                item['tv_rights_station_logo'] = st.get('logo_url') or ''
+            if bid and bid in buyers_map:
+                b = buyers_map[bid]
+                item['tv_rights_buyer_house'] = b.get('production_house_name') or b.get('nickname') or ''
+                item['tv_rights_buyer_nickname'] = b.get('nickname') or ''
+    except Exception as _re:
+        pass
 
     total_box_office = sum(max(f.get('realistic_box_office', 0) or 0, f.get('total_revenue', 0) or 0) for f in films)
     # Authoritative box office from wallet_transactions (source of truth for the new finance system)

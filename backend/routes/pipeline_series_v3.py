@@ -1692,7 +1692,9 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
          "poster_url": 1, "num_episodes": 1, "season_number": 1, "user_id": 1,
          "cwsv_display": 1, "quality_score": 1, "released_at": 1, "episodes": 1,
          "is_lampo": 1, "scheduled_release_at": 1, "status": 1, "source_project_id": 1,
-         "target_tv_station_id": 1, "pipeline_version": 1}
+         "target_tv_station_id": 1, "pipeline_version": 1,
+         "tv_rights_active_contract_id": 1, "tv_rights_buyer_user_id": 1,
+         "tv_rights_buyer_station_id": 1, "tv_rights_mode": 1, "tv_rights_end_at": 1}
     ).sort("released_at", -1).to_list(20)
 
     # Dedup: rimuovi dai 'projects' tutti quelli che hanno una versione 'released' equivalente
@@ -1718,6 +1720,36 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
         if uid:
             u = await db.users.find_one({"id": uid}, {"_id": 0, "nickname": 1, "production_house_name": 1})
             item["producer"] = u or {}
+
+    # 📺 Enrich con info contratto TV market attivo (station + buyer house)
+    try:
+        rights_station_ids = list({i.get('tv_rights_buyer_station_id') for i in released if i.get('tv_rights_buyer_station_id')})
+        rights_buyer_ids = list({i.get('tv_rights_buyer_user_id') for i in released if i.get('tv_rights_buyer_user_id')})
+        stations_map, buyers_map = {}, {}
+        if rights_station_ids:
+            async for st in db.tv_stations.find(
+                {'id': {'$in': rights_station_ids}},
+                {'_id': 0, 'id': 1, 'name': 1, 'custom_name': 1, 'logo_url': 1}
+            ):
+                stations_map[st['id']] = st
+        if rights_buyer_ids:
+            async for u in db.users.find(
+                {'id': {'$in': rights_buyer_ids}},
+                {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}
+            ):
+                buyers_map[u['id']] = u
+        for item in released:
+            sid = item.get('tv_rights_buyer_station_id')
+            bid = item.get('tv_rights_buyer_user_id')
+            if sid and sid in stations_map:
+                st = stations_map[sid]
+                item['tv_rights_station_name'] = st.get('custom_name') or st.get('name') or 'TV'
+                item['tv_rights_station_logo'] = st.get('logo_url') or ''
+            if bid and bid in buyers_map:
+                b = buyers_map[bid]
+                item['tv_rights_buyer_house'] = b.get('production_house_name') or b.get('nickname') or ''
+    except Exception:
+        pass
 
     # Mark aired status for released
     for r in released:

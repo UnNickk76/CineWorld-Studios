@@ -13,6 +13,8 @@ import UltimiTrailerStrip from '../components/UltimiTrailerStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { ProducerBadge } from '../components/ProducerBadge';
 import { LampoLightning } from '../components/LampoLightning';
+import TvRightsBadge from '../components/TvRightsBadge';
+import TvMarketModal from '../components/TvMarketModal';
 import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from '../components/SectionSortMenu';
 import ProssimamenteDetailModal from '../components/ProssimamenteDetailModal';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
@@ -138,6 +140,11 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
                       size="xs"
                     />
                     <LampoLightning item={item} variant="bottom-left" size="xs" />
+                    {item.tv_rights_active_contract_id && item.tv_rights_station_name && (
+                      <span className="absolute bottom-1 right-1 z-10 px-1 py-0.5 rounded text-[6px] font-black uppercase bg-cyan-400 text-black border border-cyan-300/50 shadow flex items-center gap-0.5 max-w-[80%] truncate">
+                        📺 {item.tv_rights_station_name}
+                      </span>
+                    )}
                   </div>
                   <div className="p-1">
                     <p className="text-[7px] font-bold text-white truncate">{item.title}</p>
@@ -170,6 +177,7 @@ const Dashboard = () => {
   const [selectedFilmId, setSelectedFilmId] = useState(null);
   const [mySeries, setMySeries] = useState([]);
   const [myAnime, setMyAnime] = useState([]);
+  const [rightsModalContent, setRightsModalContent] = useState(null);
   const [eventiWow, setEventiWow] = useState([]);
 
   // Ordinamento per-sezione (persistito in localStorage)
@@ -706,6 +714,7 @@ const Dashboard = () => {
                             size="xs"
                           />
                           <LampoLightning item={film} variant="bottom-left" size="xs" />
+                          <TvRightsBadge item={film} onClick={(it) => setRightsModalContent({ ...it, type: 'film' })} position="bottom-right" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{film.title}</p>
                         <p className="text-[6px] text-gray-500 truncate">{film.producer_house || film.producer_nickname}</p>
@@ -772,6 +781,7 @@ const Dashboard = () => {
                             size="xs"
                           />
                           <LampoLightning item={s} variant="bottom-left" size="xs" />
+                          <TvRightsBadge item={s} onClick={(it) => setRightsModalContent(it)} position="bottom-right" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{s.title}</p>
                         {(s.producer_house || s.producer_nickname) && <p className="text-[6px] text-gray-500 truncate">{s.producer_house || s.producer_nickname}</p>}
@@ -832,6 +842,7 @@ const Dashboard = () => {
                             size="xs"
                           />
                           <LampoLightning item={a} variant="bottom-left" size="xs" />
+                          <TvRightsBadge item={a} onClick={(it) => setRightsModalContent(it)} position="bottom-right" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{a.title}</p>
                         {(a.producer_house || a.producer_nickname) && <p className="text-[6px] text-gray-500 truncate">{a.producer_house || a.producer_nickname}</p>}
@@ -1139,6 +1150,15 @@ const Dashboard = () => {
         onClose={() => setProssimamenteDetailId(null)}
         seriesId={prossimamenteDetailId}
       />
+
+      {/* TV Rights Modal — apre il market in vista panoramica per mostrare contratto attivo */}
+      {rightsModalContent && (
+        <TvMarketModal
+          open={!!rightsModalContent}
+          onClose={() => setRightsModalContent(null)}
+          content={rightsModalContent}
+        />
+      )}
     </>
   );
 };

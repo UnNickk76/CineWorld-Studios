@@ -511,6 +511,38 @@ async def _execute_payment_and_contract(offer: dict, accepted_terms: dict) -> di
         }}
     )
 
+    # ⚙️ Auto-aggiunge il contenuto al palinsesto della stazione del buyer.
+    # Bypass dei controlli di ownership: il buyer ha legittimamente acquisito i diritti.
+    try:
+        ct = (offer.get("content_type") or "").lower()
+        # Map content_type → key dentro tv_stations.contents
+        if offer["content_collection"] == "films":
+            key = "films"
+        elif ct == "anime":
+            key = "anime"
+        else:
+            key = "tv_series"
+        entry = {
+            "content_id": offer["content_id"],
+            "added_at": _now_iso(),
+            "via_tv_market": True,
+            "contract_id": contract["id"],
+        }
+        # Idempotente: aggiungi solo se non già presente
+        station = await db.tv_stations.find_one(
+            {"id": offer["station_id"]},
+            {"_id": 0, "contents": 1}
+        )
+        if station:
+            existing_ids = {c.get("content_id") for c in (station.get("contents", {}) or {}).get(key, [])}
+            if offer["content_id"] not in existing_ids:
+                await db.tv_stations.update_one(
+                    {"id": offer["station_id"]},
+                    {"$push": {f"contents.{key}": entry}, "$set": {"updated_at": _now_iso()}}
+                )
+    except Exception as _se:
+        logger.warning(f"Auto-schedule on contract sign failed: {_se}")
+
     return contract
 
 
@@ -695,6 +727,21 @@ async def auto_close_expired_contracts():
                     "tv_rights_end_at": "",
                 }}
             )
+            # Rimuove dal palinsesto della stazione del buyer (solo le entry via_tv_market di questo contratto)
+            try:
+                ct = (c.get("content_type") or "").lower()
+                if c["content_collection"] == "films":
+                    key = "films"
+                elif ct == "anime":
+                    key = "anime"
+                else:
+                    key = "tv_series"
+                await db.tv_stations.update_one(
+                    {"id": c["station_id"]},
+                    {"$pull": {f"contents.{key}": {"contract_id": c["id"]}}}
+                )
+            except Exception as _re:
+                logger.warning(f"auto_close cleanup palinsesto failed: {_re}")
             # Notifiche
             await _push_notif(
                 c["owner_user_id"], "tv_market_contract_completed",

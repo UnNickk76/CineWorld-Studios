@@ -383,7 +383,9 @@ async def process_theater_film(db, film):
         update['theater_stats']['exit_reason'] = 'flop' if exit_now else 'scheduled'
         notifications.append(('exit_confirmed', {'days': day_number}))
     
+    # Aggiorna ENTRAMBE le collezioni se l'ID compare in entrambe (legacy V1 + V3)
     await db.film_projects.update_one({'id': pid}, {'$set': update})
+    await db.films.update_one({'id': pid}, {'$set': update})
     
     # Save notifications
     for ntype, kwargs in notifications:

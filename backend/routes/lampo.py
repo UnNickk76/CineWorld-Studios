@@ -46,16 +46,16 @@ BUDGET_CP = {
 }
 BUDGET_CWSV_MOD = {"low": -1.0, "mid": 0.0, "high": 0.8}
 
-# CWSv range per studio level tier
+# CWSv range per studio level tier — più variabilità: i progetti LAMPO possono uscire bene anche a basso livello (rare ma possibili)
 CWSV_TABLE = [
     # (lvl_cap, low, high, jackpot_low, jackpot_high, jackpot_prob)
-    (5,   3.0, 4.5, 7.0, 8.0, 0.05),
-    (10,  4.0, 6.0, 7.0, 8.5, 0.07),
-    (20,  5.0, 7.0, 8.0, 9.0, 0.08),
-    (50,  6.0, 8.0, 8.5, 9.5, 0.10),
-    (100, 7.0, 8.5, 9.0, 9.7, 0.12),
+    (5,   2.5, 6.0, 7.5, 8.5, 0.10),   # Lv 0-5: range largo (2.5-6) + jackpot 10% chance fino a 8.5
+    (10,  3.5, 6.8, 8.0, 9.0, 0.12),
+    (20,  4.5, 7.5, 8.5, 9.2, 0.13),
+    (50,  5.5, 8.2, 8.8, 9.5, 0.14),
+    (100, 6.5, 8.8, 9.0, 9.7, 0.15),
 ]
-CWSV_UNLIMITED = (7.5, 9.0, 9.2, 9.8, 0.15)
+CWSV_UNLIMITED = (7.0, 9.2, 9.3, 9.9, 0.18)
 
 DURATION_SECONDS = 120  # 2 minuti
 
@@ -128,19 +128,61 @@ async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5) 
     }
 
 
-async def _generate_poster_lampo(title: str, genre: str, content_type: str) -> str:
-    """Generate an AI poster via existing nano-banana/gemini pipeline. Falls back to placeholder."""
-    try:
-        # Reuse existing image generator if present
-        import aiohttp, os
-        # Skip if key missing
-        key = os.environ.get("EMERGENT_LLM_KEY")
-        if not key:
-            return ""
-        from emergentintegrations.llm.chat import LlmChat, UserMessage  # noqa
-        # Placeholder: generators require longer setup. Use a simple URL pattern / empty string
+async def _generate_poster_lampo(title: str, genre: str, content_type: str, project_id: str) -> str:
+    """Generate AI poster via Emergent OpenAI Image (gpt-image-1) + persist nello storage poster."""
+    import os
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
         return ""
-    except Exception:
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        from poster_storage import save_poster
+        ct_label = {"film": "movie", "tv_series": "TV series", "anime": "anime"}.get(content_type, "movie")
+        prompt = (
+            f"Cinematic {ct_label} poster, genre: {genre}, title: '{title}'. "
+            f"Bold typography, dramatic lighting, professional movie poster composition, vertical 2:3, "
+            f"high contrast, atmospheric. No watermark."
+        )
+        img_gen = OpenAIImageGeneration(api_key=key)
+        images = await img_gen.generate_images(
+            prompt=prompt,
+            model="gpt-image-1",
+            number_of_images=1,
+            quality="low",
+        )
+        if images and len(images) > 0:
+            filename = f"lampo_{project_id}.png"
+            await save_poster(filename, images[0], "image/png")
+            return f"/api/posters/{filename}"
+    except Exception as e:
+        logger.warning(f"LAMPO poster generation failed pid={project_id}: {e}")
+    return ""
+
+
+async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, preplot: str) -> str:
+    """Generate concise screenplay/synopsis text via Emergent LLM (gpt-4o-mini)."""
+    import os
+    key = os.environ.get("EMERGENT_LLM_KEY")
+    if not key:
+        return ""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        ct_label = {"film": "film", "tv_series": "serie TV", "anime": "anime"}.get(content_type, "film")
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"lampo-screenplay-{uuid.uuid4()}",
+            system_message="Sei uno sceneggiatore italiano. Scrivi sceneggiature concise ma di impatto.",
+        ).with_model("openai", "gpt-4o-mini")
+        prompt = (
+            f'Scrivi una sceneggiatura sintetica (max 350 parole) in italiano per un {ct_label} {genre} '
+            f'intitolato "{title}". Pretrama del produttore: "{preplot}".\n\n'
+            f"Includi: Logline (1-2 frasi), conflitto principale, 4-5 punti chiave della trama, "
+            f"climax e risoluzione, atmosfera/tono. Tutto in italiano, paragrafi brevi."
+        )
+        resp = await chat.send_message(UserMessage(text=prompt))
+        return (resp or "").strip()
+    except Exception as e:
+        logger.warning(f"LAMPO screenplay gen failed: {e}")
         return ""
 
 
@@ -157,21 +199,34 @@ def _random_episode_minitrama(ep_num: int, genre: str) -> str:
 
 
 async def _worker_generate(pid: str):
-    """Background worker: simulates 2-minute AI generation with progress updates."""
+    """Background worker: 2-min AI generation pipeline (poster + screenplay + cast + CWSv + episodes)."""
     try:
         steps = [
             (5,   "Analizzo la pretrama…"),
             (15,  "AI scrive la sceneggiatura…"),
-            (25,  "Casting automatico…"),
-            (35,  "Genero la locandina…"),
-            (45,  "Scelgo le location…"),
-            (55,  "Definisco attrezzature e troupe…"),
-            (65,  "Sponsor e marketing medio…"),
-            (78,  "Montaggio finale…"),
-            (90,  "Valutazione CWSv…"),
+            (28,  "Casting automatico…"),
+            (40,  "Genero la locandina…"),
+            (52,  "Scelgo le location…"),
+            (62,  "Definisco attrezzature e troupe…"),
+            (72,  "Sponsor e marketing…"),
+            (82,  "Montaggio finale…"),
+            (92,  "Valutazione CWSv…"),
             (100, "Completato!"),
         ]
         step_sleep = DURATION_SECONDS / len(steps)
+
+        # Avvia generazioni AI in parallelo (poster + sceneggiatura)
+        proj = await db.lampo_projects.find_one({"id": pid}, {"_id": 0})
+        if not proj:
+            return
+
+        screenplay_task = asyncio.create_task(
+            _generate_screenplay_lampo(proj["title"], proj["genre"], proj["content_type"], proj["preplot"])
+        )
+        poster_task = asyncio.create_task(
+            _generate_poster_lampo(proj["title"], proj["genre"], proj["content_type"], pid)
+        )
+
         for pct, msg in steps:
             await asyncio.sleep(step_sleep)
             await db.lampo_projects.update_one(
@@ -179,10 +234,15 @@ async def _worker_generate(pid: str):
                 {"$set": {"progress_pct": pct, "progress_message": msg, "updated_at": datetime.now(timezone.utc).isoformat()}}
             )
 
-        # Final enrichment: cast + CWSv + episodes
-        proj = await db.lampo_projects.find_one({"id": pid}, {"_id": 0})
-        if not proj:
-            return
+        # Wait for parallel AI tasks (with safety timeout)
+        try:
+            screenplay_text = await asyncio.wait_for(screenplay_task, timeout=10)
+        except Exception:
+            screenplay_text = ""
+        try:
+            poster_url = await asyncio.wait_for(poster_task, timeout=15)
+        except Exception:
+            poster_url = ""
 
         # Studio level for CWSv calculation
         studio_key = "production_studio" if proj["content_type"] == "film" else (
@@ -195,7 +255,6 @@ async def _worker_generate(pid: str):
 
         cast = await _pick_random_cast(proj["content_type"], studio_level, num_actors=5)
         cwsv = _cwsv_for_studio_level(studio_level, proj["budget_tier"])
-        poster_url = await _generate_poster_lampo(proj["title"], proj["genre"], proj["content_type"])
 
         # Distribuzione automatica (solo film — serie/anime usano il loro flow TV)
         distribution_plan = None
@@ -219,6 +278,17 @@ async def _worker_generate(pid: str):
                     "duration_minutes": base_duration + random.randint(-3, 7),
                 })
 
+        # Sponsor list (più ricca per budget alti)
+        sponsor_pool_low = ["StudioPartner"]
+        sponsor_pool_mid = ["CineBrand", "StudioPartner", "MovieMag"]
+        sponsor_pool_high = ["CineBrand", "StudioPartner", "MovieMag", "PopcornCo", "VisualFX Inc"]
+        if proj["budget_tier"] == "high":
+            sponsors = random.sample(sponsor_pool_high, k=min(4, len(sponsor_pool_high)))
+        elif proj["budget_tier"] == "mid":
+            sponsors = random.sample(sponsor_pool_mid, k=min(3, len(sponsor_pool_mid)))
+        else:
+            sponsors = sponsor_pool_low[:]
+
         await db.lampo_projects.update_one(
             {"id": pid},
             {"$set": {
@@ -228,9 +298,10 @@ async def _worker_generate(pid: str):
                 "cast": cast,
                 "cwsv": cwsv,
                 "poster_url": poster_url or "",
+                "screenplay": screenplay_text or "",
                 "episodes": episodes,
-                "marketing_tier": "mid" if proj["budget_tier"] != "high" else "high",
-                "sponsors": ["CineBrand", "StudioPartner"] if proj["budget_tier"] != "low" else ["StudioPartner"],
+                "marketing_tier": "high" if proj["budget_tier"] == "high" else ("mid" if proj["budget_tier"] == "mid" else "low"),
+                "sponsors": sponsors,
                 "equipment_tier": proj["budget_tier"],
                 "distribution_plan": distribution_plan,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
@@ -392,6 +463,8 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
             "genre": proj["genre"],
             "subgenre": proj.get("subgenre"),
             "preplot": proj["preplot"],
+            "screenplay": proj.get("screenplay", ""),
+            "synopsis": proj.get("screenplay", "") or proj.get("preplot", ""),
             "poster_url": proj.get("poster_url", ""),
             "cast": proj.get("cast", {}),
             "quality_score": proj.get("cwsv"),
@@ -403,6 +476,8 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
             "virtual_likes": 0,
             "marketing_tier": proj.get("marketing_tier", "mid"),
             "budget_tier": proj.get("budget_tier"),
+            "sponsors": proj.get("sponsors", []),
+            "equipment_tier": proj.get("equipment_tier"),
             "attendance_trend": [],
             # Distribuzione auto
             "distribution_scope": (proj.get("distribution_plan") or {}).get("scope_label"),
@@ -453,6 +528,8 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
         "genre": proj["genre"],
         "genre_name": proj["genre"],
         "preplot": proj["preplot"],
+        "screenplay": proj.get("screenplay", ""),
+        "synopsis": proj.get("screenplay", "") or proj.get("preplot", ""),
         "poster_url": proj.get("poster_url", ""),
         "cast": proj.get("cast", {}),
         "episodes": proj.get("episodes", []),

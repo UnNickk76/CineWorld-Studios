@@ -371,6 +371,18 @@ function LampoResult({ project, onReleased, onClose, api }) {
         <p className="text-[11px] text-slate-200 leading-snug">{project.preplot}</p>
       </div>
 
+      {/* Sceneggiatura AI */}
+      {project.screenplay && (
+        <div className="mb-3 p-3 rounded-lg bg-black/40 border border-amber-500/20">
+          <div className="text-[9px] uppercase text-amber-400/80 font-semibold mb-1 flex items-center gap-1">
+            <Sparkles className="w-3 h-3" /> Sceneggiatura AI
+          </div>
+          <div className="text-[11px] text-slate-200 leading-snug whitespace-pre-line max-h-40 overflow-y-auto">
+            {project.screenplay}
+          </div>
+        </div>
+      )}
+
       {/* Cast */}
       {project.cast && (
         <div className="mb-3 p-3 rounded-lg bg-black/40 border border-white/5">
@@ -382,6 +394,38 @@ function LampoResult({ project, onReleased, onClose, api }) {
             )}
             {project.cast.composer && <div className="text-[10px]"><span className="text-slate-500">Musiche:</span> <span className="text-white">{project.cast.composer.name}</span></div>}
           </div>
+        </div>
+      )}
+
+      {/* Sponsor */}
+      {project.sponsors?.length > 0 && (
+        <div className="mb-3 p-3 rounded-lg bg-black/40 border border-emerald-500/20">
+          <div className="text-[9px] uppercase text-emerald-400/80 font-semibold mb-2">Sponsor ({project.sponsors.length})</div>
+          <div className="flex gap-1 flex-wrap">
+            {project.sponsors.map((s, i) => (
+              <span key={i} className="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-200">
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Distribuzione (solo film) */}
+      {project.distribution_plan && (
+        <div className="mb-3 p-3 rounded-lg bg-black/40 border border-cyan-500/20">
+          <div className="text-[9px] uppercase text-cyan-400/80 font-semibold mb-1">Distribuzione</div>
+          <div className="text-[11px] text-cyan-200 font-medium">{project.distribution_plan.scope_label || '—'}</div>
+          {project.distribution_plan.cities?.length > 0 && (
+            <div className="text-[10px] text-slate-300 mt-1">
+              <span className="text-slate-500">Città:</span> {project.distribution_plan.cities.slice(0, 6).join(', ')}{project.distribution_plan.cities.length > 6 ? '…' : ''}
+            </div>
+          )}
+          {project.distribution_plan.countries?.length > 0 && (
+            <div className="text-[10px] text-slate-300">
+              <span className="text-slate-500">Paesi:</span> {project.distribution_plan.countries.slice(0, 6).join(', ')}{project.distribution_plan.countries.length > 6 ? '…' : ''}
+            </div>
+          )}
         </div>
       )}
 
@@ -412,15 +456,34 @@ function LampoResult({ project, onReleased, onClose, api }) {
         </div>
       </div>
 
-      {/* Action button */}
-      <Button onClick={handleRelease} disabled={releasing}
-        className="w-full h-11 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 text-black font-bold text-sm"
-        data-testid="lampo-release-btn">
-        {releasing ? <Loader2 className="w-4 h-4 animate-spin" /> :
-         project.content_type === 'film' ? '🎬 Rilascia al Cinema' : '📺 Manda alla mia TV'}
-      </Button>
+      {/* Action buttons */}
+      <div className="flex gap-2">
+        <Button
+          onClick={async () => {
+            if (!window.confirm('Scartare il progetto LAMPO? L\'azione è definitiva.')) return;
+            try {
+              await api.post(`/lampo/${project.id}/discard`);
+              toast.success('Progetto scartato');
+              onClose();
+            } catch (e) {
+              toast.error(e?.response?.data?.detail || 'Errore');
+            }
+          }}
+          variant="outline"
+          className="h-11 px-3 border-red-500/30 text-red-300 hover:bg-red-500/10"
+          data-testid="lampo-discard-btn"
+        >
+          Scarta
+        </Button>
+        <Button onClick={handleRelease} disabled={releasing}
+          className="flex-1 h-11 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 text-black font-bold text-sm"
+          data-testid="lampo-release-btn">
+          {releasing ? <Loader2 className="w-4 h-4 animate-spin" /> :
+           project.content_type === 'film' ? '🎬 Rilascia al Cinema' : '📺 Manda alla mia TV'}
+        </Button>
+      </div>
       <p className="text-[9px] text-slate-500 text-center mt-2 italic">
-        Nota: i progetti LAMPO non hanno trailer (né ora né in futuro).
+        Il progetto resta salvato finché non lo rilasci o scarti — puoi chiudere e tornare.
       </p>
     </div>
   );
@@ -433,8 +496,30 @@ export default function LampoModal({ open, contentType, onClose, onPickCompleta 
   const [activeProject, setActiveProject] = useState(null);
 
   useEffect(() => {
-    if (open) setPhase('chooser');
-  }, [open]);
+    if (!open) return;
+    // Recovery: se esiste un progetto LAMPO non ancora rilasciato, vai dritto allo stato giusto
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get('/lampo/mine');
+        const projects = (res.data?.projects || []).filter(
+          p => !p.released && (!contentType || p.content_type === contentType)
+        );
+        if (cancelled) return;
+        if (projects.length > 0) {
+          const p = projects[0];
+          setActiveProject(p);
+          setPhase(p.status === 'ready' ? 'result' : 'progress');
+          return;
+        }
+      } catch {}
+      if (!cancelled) {
+        setActiveProject(null);
+        setPhase('chooser');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, contentType]);
 
   const handleClose = () => {
     setPhase('chooser');

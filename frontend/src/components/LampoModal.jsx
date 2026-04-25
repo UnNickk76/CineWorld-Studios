@@ -319,6 +319,40 @@ function LampoProgress({ project, onDone, onClose }) {
   );
 }
 
+// ───── CastRow (riga membro cast con sesso/età/ruolo/punteggio + Guest Star badge) ─────
+function CastRow({ member, contentType }) {
+  if (!member) return null;
+  const score = Number(member.score || 0);
+  const scoreColor = score >= 75 ? 'text-emerald-300' : score >= 55 ? 'text-amber-300' : score >= 35 ? 'text-orange-300' : 'text-red-300';
+  return (
+    <div className="flex items-start gap-2 py-1.5 border-b border-white/5 last:border-b-0" data-testid={`cast-row-${member.id || member.name}`}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px] font-bold text-white truncate">{member.name}</span>
+          {member.is_guest_star && (
+            <span className="px-1.5 py-0.5 rounded bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white text-[7px] font-black uppercase tracking-wider shadow-[0_0_8px_rgba(217,70,239,0.6)] animate-pulse">
+              ★ Guest Star!
+            </span>
+          )}
+        </div>
+        <div className="text-[9px] text-slate-400 flex items-center gap-1.5 flex-wrap mt-0.5">
+          <span className="text-amber-300/90">{member.role_label || member.role_type}</span>
+          {member.character_role && <span className="text-cyan-300/90">· {member.character_role}</span>}
+          <span className="text-slate-500">·</span>
+          <span>{member.gender_label || '—'}</span>
+          {member.age && (<><span className="text-slate-500">·</span><span>{member.age} anni</span></>)}
+          {member.stars && (<><span className="text-slate-500">·</span><span className="text-yellow-300">{'★'.repeat(member.stars)}</span></>)}
+        </div>
+      </div>
+      <div className="flex-shrink-0 flex flex-col items-end">
+        <div className={`text-[14px] font-['Bebas_Neue'] leading-none ${scoreColor}`}>{score.toFixed(0)}</div>
+        <div className="text-[7px] uppercase text-slate-500 tracking-wider">Punt.</div>
+      </div>
+    </div>
+  );
+}
+
+
 // ───── LampoResult ─────
 function LampoResult({ project, onReleased, onClose, api }) {
   const [releasing, setReleasing] = useState(false);
@@ -436,16 +470,23 @@ function LampoResult({ project, onReleased, onClose, api }) {
         </div>
       </div>
 
-      {/* Cast */}
+      {/* Cast — arricchito con sesso/età/ruolo/punteggio + badge Guest Star */}
       {project.cast && (
         <div className="mb-3 p-3 rounded-lg bg-black/40 border border-white/5">
           <div className="text-[9px] uppercase text-slate-400 font-semibold mb-2">Cast</div>
-          <div className="space-y-1">
-            {project.cast.director && <div className="text-[10px]"><span className="text-slate-500">Regia:</span> <span className="text-white">{project.cast.director.name}</span></div>}
-            {project.cast.actors?.length > 0 && (
-              <div className="text-[10px]"><span className="text-slate-500">{project.content_type === 'anime' ? 'Disegnatori' : 'Attori'}:</span> <span className="text-white">{project.cast.actors.map(a => a.name).join(', ')}</span></div>
+          <div className="space-y-1.5">
+            {project.cast.director && (
+              <CastRow member={project.cast.director} />
             )}
-            {project.cast.composer && <div className="text-[10px]"><span className="text-slate-500">Musiche:</span> <span className="text-white">{project.cast.composer.name}</span></div>}
+            {(project.cast.actors || []).map((a, i) => (
+              <CastRow key={i} member={a} contentType={project.content_type} />
+            ))}
+            {(project.cast.screenwriters || []).map((s, i) => (
+              <CastRow key={`s${i}`} member={s} />
+            ))}
+            {project.cast.composer && (
+              <CastRow member={project.cast.composer} />
+            )}
           </div>
         </div>
       )}

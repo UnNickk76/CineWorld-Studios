@@ -96,8 +96,13 @@ def _cwsv_for_studio_level(level: int, budget_tier: str) -> float:
     return round(max(1.0, min(9.8, score)), 1)
 
 
-async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5) -> dict:
-    """Random NPC cast selection, filtered by player level (reuses level-gating logic)."""
+async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5, budget_tier: str = "mid", cwsv: float = 5.0) -> dict:
+    """Random NPC cast selection, filtered by player level (reuses level-gating logic).
+
+    Arricchisce ogni membro con: gender_label, age, role_label, character_role (solo attori),
+    score (coerente con livello/fama/budget/qualità + piccolo random) e is_guest_star (rara!).
+    """
+    import random as _rnd
     if level <= 2: max_stars = 2
     elif level <= 5: max_stars = 3
     elif level <= 15: max_stars = 4
@@ -106,25 +111,91 @@ async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5) 
     is_anime = content_type == "anime"
     director_type = "anime_director" if is_anime else "director"
     actor_type = "anime_illustrator" if is_anime else "actor"
+    actor_label_it = "Disegnatore" if is_anime else "Attore"
 
-    async def _sample(rtype: str, count: int):
+    # Probabilità ridotta che UN membro sia "guest star" (livello > progetto+3)
+    # Eventro RARISSIMO: ~3% che capiti almeno un guest in tutto il cast
+    guest_pool_max = min(5, max_stars + 3)
+    guest_chance = 0.03
+
+    async def _sample(rtype: str, count: int, allow_guest: bool = False):
+        cap = guest_pool_max if (allow_guest and _rnd.random() < guest_chance) else max_stars
         pool = await db.people.aggregate([
-            {"$match": {"$or": [{"type": rtype}, {"role_type": rtype}], "stars": {"$lte": max_stars}}},
+            {"$match": {"$or": [{"type": rtype}, {"role_type": rtype}], "stars": {"$lte": cap}}},
             {"$sample": {"size": count}},
             {"$project": {"_id": 0}},
         ]).to_list(count)
         return pool
 
-    director = (await _sample(director_type, 1) or [None])[0]
-    actors = await _sample(actor_type, num_actors)
-    writer = (await _sample("screenwriter" if not is_anime else "writer", 1) or [None])[0]
-    composer = (await _sample("composer", 1) or [None])[0]
+    director_list = await _sample(director_type, 1, allow_guest=True)
+    actors = await _sample(actor_type, num_actors, allow_guest=True)
+    writer_list = await _sample("screenwriter" if not is_anime else "writer", 1, allow_guest=True)
+    composer_list = await _sample("composer", 1, allow_guest=True)
+    director = director_list[0] if director_list else None
+    writer = writer_list[0] if writer_list else None
+    composer = composer_list[0] if composer_list else None
+
+    # Ruoli occupati (it)
+    ROLE_LABELS = {
+        "director": "Regista",
+        "anime_director": "Regista Anime",
+        "actor": "Attore",
+        "anime_illustrator": "Disegnatore",
+        "screenwriter": "Sceneggiatore",
+        "writer": "Scrittore",
+        "composer": "Compositore",
+    }
+    # Ruoli dei personaggi (solo attori)
+    CHARACTER_ROLES = ["Protagonista", "Co-protagonista", "Antagonista", "Spalla", "Personaggio secondario", "Cameo"]
+
+    def _enrich(member, role_type, character_role=None):
+        if not member:
+            return None
+        # Gender → label leggibile
+        g = (member.get("gender") or "").lower()
+        gender_label = "M" if g.startswith("m") else ("F" if g.startswith("f") else "—")
+        # Score coerente: base = livello giocatore + stars*5 + budget_mod + cwsv*1.5 + skill_level*0.2 + random
+        budget_bonus = {"low": 0, "mid": 6, "high": 12}.get(budget_tier, 6)
+        stars_val = int(member.get("stars") or 1)
+        skill_val = int(member.get("skill_level") or 50)
+        fame_val = float(member.get("fame_score") or 50.0)
+        score = (
+            level * 0.8
+            + stars_val * 5
+            + budget_bonus
+            + cwsv * 1.5
+            + skill_val * 0.2
+            + fame_val * 0.15
+            + _rnd.uniform(-3, 4)
+        )
+        score = max(1.0, min(99.0, round(score, 1)))
+        # Guest star: stelle del cast > stelle "consentite" da player_level + 3
+        is_guest = stars_val > (max_stars + 0)  # qualsiasi cast oltre il cap normale = guest
+        out = {
+            **member,
+            "gender_label": gender_label,
+            "role_type": role_type,
+            "role_label": ROLE_LABELS.get(role_type, role_type),
+            "score": score,
+            "is_guest_star": bool(is_guest),
+        }
+        if character_role:
+            out["character_role"] = character_role
+        return out
+
+    enriched_actors = []
+    if actors:
+        # Assegna ruoli specifici al cast (Protagonista per il primo, Co-protagonista per il secondo, ecc.)
+        for i, actor in enumerate(actors):
+            char_role = CHARACTER_ROLES[i] if i < len(CHARACTER_ROLES) else "Comparsa"
+            enriched_actors.append(_enrich(actor, actor_type, character_role=char_role))
 
     return {
-        "director": director,
-        "actors": actors,
-        "screenwriters": [writer] if writer else [],
-        "composer": composer,
+        "director": _enrich(director, director_type),
+        "actors": enriched_actors,
+        "screenwriters": [_enrich(writer, "screenwriter" if not is_anime else "writer")] if writer else [],
+        "composer": _enrich(composer, "composer"),
+        "actor_label": actor_label_it,
     }
 
 
@@ -342,8 +413,12 @@ async def _worker_generate(pid: str):
         )
         studio_level = (studio_doc or {}).get("level", 1) if studio_key != "production_studio" else max(1, (studio_doc or {}).get("level", 1))
 
-        cast = await _pick_random_cast(proj["content_type"], studio_level, num_actors=5)
         cwsv = _cwsv_for_studio_level(studio_level, proj["budget_tier"])
+
+        cast = await _pick_random_cast(
+            proj["content_type"], studio_level, num_actors=5,
+            budget_tier=proj.get("budget_tier", "mid"), cwsv=cwsv
+        )
 
         # Distribuzione automatica (solo film — serie/anime usano il loro flow TV)
         distribution_plan = None

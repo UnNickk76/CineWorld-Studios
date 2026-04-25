@@ -51,23 +51,10 @@ export function ProducerBadge({
   size = 'xs',
   color,
 }) {
-  // Mostra solo quando il contenuto NON è del player corrente
-  if (!producerNickname) return null;
-  if (producerId && currentUserId && producerId === currentUserId) return null;
-
-  const bg = color || colorForName(producerNickname);
-  const pos = POS_MAP[variant] || POS_MAP['top-left'];
-  const sz = SIZE_MAP[size] || SIZE_MAP.xs;
-
-  return (
-    <div
-      className={`absolute ${pos} ${bg} ${sz} rounded-sm text-white font-bold uppercase tracking-wider shadow-md backdrop-blur-sm pointer-events-none max-w-[80%] truncate`}
-      data-testid={`producer-badge-${producerId || 'unknown'}`}
-      title={`Di ${producerNickname}`}
-    >
-      DI {producerNickname}
-    </div>
-  );
+  // ⚠️ Disabilitato per richiesta utente: il nome del produttore è già mostrato
+  // sotto la locandina (come nome casa di produzione), quindi questo badge sopra
+  // la locandina è ridondante. Restituiamo null in tutti i call site.
+  return null;
 }
 
 export default ProducerBadge;

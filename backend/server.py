@@ -8008,6 +8008,18 @@ async def startup_event():
         )
     except Exception as _le:
         print(f"[scheduler] Could not register LAMPO finalizer: {_le}")
+
+    # Every 10 minutes: Auto-close expired TV market contracts
+    try:
+        from routes.tv_market import auto_close_expired_contracts
+        scheduler.add_job(
+            auto_close_expired_contracts,
+            IntervalTrigger(minutes=10),
+            id='tv_market_close_expired',
+            replace_existing=True,
+        )
+    except Exception as _tme:
+        print(f"[scheduler] Could not register tv_market closer: {_tme}")
     
     # Every 20 minutes: Dynamic events for Coming Soon content
     scheduler.add_job(
@@ -10725,6 +10737,15 @@ try:
     app.include_router(lampo_router)
 except Exception as _e:
     logger.error(f"Failed to load lampo router: {_e}")
+
+# TV Market — vendita/affitto diritti TV
+try:
+    from routes.tv_market import router as tv_market_router
+    app.include_router(tv_market_router)
+except Exception as _e:
+    print(f"Failed to load tv_market router: {_e}")
+    import traceback
+    traceback.print_exc()
 
 # Initialize Velion routes with db and JWT secret
 velion_init(db, JWT_SECRET)

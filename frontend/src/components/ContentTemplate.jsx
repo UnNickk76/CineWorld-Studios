@@ -16,6 +16,7 @@ import { Trash2 } from 'lucide-react';
 import { LampoLightning } from './LampoLightning';
 import { getPreReleasePressReviews, getPreReleaseAudience } from '../utils/preReleasePhrases';
 import DistributionPopup, { hasDistributionData, getDistributionLabel } from './DistributionPopup';
+import TvMarketModal from './TvMarketModal';
 import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
@@ -660,6 +661,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const [likesSnapshot, setLikesSnapshot] = useState(null);
   const [tvStationInfo, setTvStationInfo] = useState(null);  // {id, name, owner_id}
   const [showDistribution, setShowDistribution] = useState(false);
+  const [showTvMarket, setShowTvMarket] = useState(false);
 
   const isSeries = contentType === 'series' || contentType === 'anime';
   const isAnime = contentType === 'anime' || film?.type === 'anime' || film?.content_type === 'anime';
@@ -874,7 +876,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           <div className="absolute right-2 bottom-2" data-testid="poster-like-system">
             <SystemLikeBadge count={likes.poster?.system_count || 0} variant="chip" />
           </div>
-          <LampoLightning item={film} variant="top-right" size="md" />
+          <LampoLightning item={film} variant="bottom-left" size="md" />
         </div>
         <div className="ct2-short-plot" data-testid="ct-short-plot">
           <div className="ct2-info-title">{film.title}</div>
@@ -961,11 +963,19 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       </div>
       {/* Production House — clickable */}
       {(film.production_house_name || film.producer_nickname || film.user_id) && (
-        <div className="px-4 -mt-1 mb-1">
+        <div className="px-4 -mt-1 mb-1 flex items-center justify-between gap-2 flex-wrap">
           <button className="text-[10px] text-amber-400/70 italic hover:text-amber-300 transition-colors"
             onClick={(e) => { e.stopPropagation(); if (film.producer_nickname) window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
             data-testid="ct-production-house-title">
             una produzione {film.logo_url && <img src={film.logo_url} alt="" className="inline w-3 h-3 rounded-sm object-contain mx-0.5" />}<span className="font-bold not-italic">{film.production_house_name || film.producer_nickname || 'Indipendente'}</span>
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowTvMarket(true); }}
+            data-testid="ct-tv-market-btn"
+            className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black active:scale-95 transition-all touch-manipulation flex items-center gap-1 shadow-[0_0_8px_rgba(251,191,36,0.3)]"
+            aria-label="Apri mercato diritti TV"
+          >
+            <Tv size={10} /> Mercato TV
           </button>
         </div>
       )}
@@ -1206,6 +1216,13 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         open={showDistribution}
         onClose={() => setShowDistribution(false)}
         film={film}
+      />
+
+      {/* Mercato Diritti TV */}
+      <TvMarketModal
+        open={showTvMarket}
+        onClose={() => setShowTvMarket(false)}
+        content={film}
       />
 
       {/* Episodes modal — series/anime only */}

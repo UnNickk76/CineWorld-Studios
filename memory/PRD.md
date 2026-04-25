@@ -1,3 +1,36 @@
+## Mercato Diritti TV + UI Locandine (Apr 25, 2026 — sera 4)
+
+### Fix #2 — UI locandine
+- `ProducerBadge.jsx`: ora ritorna sempre `null` (badge "DI [nickname]" rimosso).
+- `Dashboard.jsx`, `ComingSoonSection.jsx`, `LaPrimaSection.jsx`: testo sotto la locandina ora usa `producer_house || producer_nickname` (nome casa di produzione) invece del solo nickname.
+- `LampoLightning`: posizionato a `bottom-left` su tutte le locandine (Dashboard recent series/anime/films, ComingSoon, LaPrima, Prossimamente V3).
+
+### Fix #1 — Mercato Diritti TV (sistema completo)
+**Backend** (`routes/tv_market.py` — nuovo modulo, ~600 righe):
+- 3 collections: `tv_market_listings`, `tv_market_offers`, `tv_market_contracts`, `tv_market_credits_pool`.
+- 12 endpoints REST: `/suggested-price`, `/list`, `/listings` (GET pubblico), `/listings/{id}` (DELETE), `/listings/{id}/offer`, `/incoming-offers`, `/my-offers`, `/offers/{id}/{accept|reject|counter}`, `/contracts/active/{content_id}`, `/contracts/mine`.
+- **Pricing helper** `compute_suggested_price`: deriva da CWSv, likes, revenue + modificatori (in_theaters ×0.7, lampo ×1.10, recency, full ×2.5).
+- **Modalità FULL (100% diritti)**: esclusiva, owner non può trasmettere durante il contratto. Owner riceve 100% del prezzo.
+- **Modalità SPLIT (50% diritti)**: buyer paga al seller il 50% del prezzo upfront. Entrambi possono trasmettere su tutte le proprie TV. I crediti vanno al `tv_market_credits_pool` (premi futuri).
+- **Notifiche** via `db.notifications` per: nuova offerta, controproposta, accettata, rifiutata, listing cancellato, contratto scaduto.
+- **Wallet transactions** registrate per tracciabilità (`tv_market_purchase`, `tv_market_sale`).
+- **Scheduler hook** `auto_close_expired_contracts`: ogni 10 minuti chiude contratti scaduti, libera il content da metadati di contratto attivo, notifica entrambe le parti.
+- **Metadati sul content**: alla firma vengono settati `tv_rights_active_contract_id`, `tv_rights_buyer_user_id`, `tv_rights_buyer_station_id`, `tv_rights_mode`, `tv_rights_end_at` per visibilità futura nelle dashboard.
+- Validazioni: ownership, possesso TV per il buyer, fondi/CP sufficienti, no relisting con contratto FULL attivo.
+
+**Frontend** (`TvMarketModal.jsx` + `ContentTemplate.jsx`):
+- Bottone "🎬 Mercato TV" sotto il titolo del film/serie/anime in `ContentTemplate`.
+- Modal con 4 tab dinamici basati sul ruolo:
+  - **Panoramica**: status listing, contratti attivi (con TV name + scadenza), prezzi suggeriti per entrambe le modalità.
+  - **Pubblica/Modifica** (owner): form con modalità, denaro, crediti, durata, note + bottone "Usa prezzo consigliato".
+  - **Offerte ricevute** (owner): card per ogni offerta con accept/reject/counter (controproposta inline con form $/CP/giorni/messaggio).
+  - **Fai Offerta** (buyer con TV): selezione stazione TV, modalità, prezzo personalizzabile, messaggio.
+- Mobile-first: bottom-sheet su mobile, dialog su desktop.
+- Touch targets larghi, `touch-manipulation`, scroll fluidi.
+- Toast feedback per ogni azione.
+
+Files: `backend/routes/tv_market.py`, `backend/server.py` (router + scheduler), `frontend/src/components/TvMarketModal.jsx`, `frontend/src/components/ContentTemplate.jsx`, `frontend/src/components/ProducerBadge.jsx`, `frontend/src/pages/Dashboard.jsx`, `frontend/src/components/ComingSoonSection.jsx`, `frontend/src/components/LaPrimaSection.jsx`.
+
 ## Admin: Editor stato contenuti cliccabile (Apr 25, 2026 — sera 3)
 
 ### Backend (`server.py`)

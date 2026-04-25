@@ -137,11 +137,11 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
                       variant="bottom-left"
                       size="xs"
                     />
-                    <LampoLightning item={item} variant="top-right" size="xs" />
+                    <LampoLightning item={item} variant="bottom-left" size="xs" />
                   </div>
                   <div className="p-1">
                     <p className="text-[7px] font-bold text-white truncate">{item.title}</p>
-                    <p className="text-[6px] text-gray-500">{item.producer?.nickname || item.producer_nickname || ''}</p>
+                    <p className="text-[6px] text-gray-500">{item.producer?.production_house_name || item.producer_house || item.producer?.nickname || item.producer_nickname || ''}</p>
                   </div>
                 </button>
               ))}
@@ -705,10 +705,10 @@ const Dashboard = () => {
                             variant="bottom-left"
                             size="xs"
                           />
-                          <LampoLightning item={film} variant="top-right" size="xs" />
+                          <LampoLightning item={film} variant="bottom-left" size="xs" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{film.title}</p>
-                        <p className="text-[6px] text-gray-500 truncate">{film.producer_nickname}</p>
+                        <p className="text-[6px] text-gray-500 truncate">{film.producer_house || film.producer_nickname}</p>
                       </div>
                     ))}
                   </div>
@@ -771,10 +771,10 @@ const Dashboard = () => {
                             variant="bottom-left"
                             size="xs"
                           />
-                          <LampoLightning item={s} variant="top-right" size="xs" />
+                          <LampoLightning item={s} variant="bottom-left" size="xs" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{s.title}</p>
-                        {s.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{s.producer_nickname}</p>}
+                        {(s.producer_house || s.producer_nickname) && <p className="text-[6px] text-gray-500 truncate">{s.producer_house || s.producer_nickname}</p>}
                       </div>
                     ))}
                   </div>
@@ -831,10 +831,10 @@ const Dashboard = () => {
                             variant="bottom-left"
                             size="xs"
                           />
-                          <LampoLightning item={a} variant="top-right" size="xs" />
+                          <LampoLightning item={a} variant="bottom-left" size="xs" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{a.title}</p>
-                        {a.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{a.producer_nickname}</p>}
+                        {(a.producer_house || a.producer_nickname) && <p className="text-[6px] text-gray-500 truncate">{a.producer_house || a.producer_nickname}</p>}
                       </div>
                     ))}
                   </div>

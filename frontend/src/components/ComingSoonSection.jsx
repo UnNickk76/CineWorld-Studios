@@ -228,7 +228,7 @@ function ComingSoonThumb({ item, onClick }) {
           variant="bottom-right"
           size="xs"
         />
-        <LampoLightning item={item} variant="top-right" size="sm" />
+        <LampoLightning item={item} variant="bottom-left" size="sm" />
       </div>
       <p className="text-[8px] font-semibold truncate mt-1 group-hover:text-cyan-400 transition-colors">{item.title}</p>
       <div className="flex items-center gap-1">

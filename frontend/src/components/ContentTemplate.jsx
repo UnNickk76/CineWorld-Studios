@@ -515,7 +515,15 @@ function EpisodesModal({ open, onClose, film }) {
   const now = Date.now();
   const releasePolicy = film?.release_policy || film?.distribution_schedule || 'daily_1';
   const isAllAtOnce = releasePolicy === 'all_at_once' || releasePolicy === 'binge';
-  const isCatalog = film?.status === 'completed' || film?.status === 'catalog';
+  // Series in catalog → solo se davvero rilasciate (non se schedulate in futuro!)
+  const scheduledFuture = (() => {
+    const sch = film?.scheduled_release_at;
+    if (!sch) return false;
+    try { return new Date(sch).getTime() > now; } catch { return false; }
+  })();
+  const isCatalog = !scheduledFuture && (film?.status === 'completed' || film?.status === 'catalog');
+  // LAMPO scheduled / lampo_ready → trattati come "non ancora rilasciati"
+  const isLampoUnreleased = film?.status === 'lampo_scheduled' || film?.status === 'lampo_ready';
 
   // Count aired: episodes with air_date/aired_at in the past, OR (isAllAtOnce && released) → all
   // Fallback: if release_date exists, assume episodes/day cadence based on policy
@@ -524,6 +532,7 @@ function EpisodesModal({ open, onClose, film }) {
   const releasedAt = film?.released_at || film?.release_date || null;
 
   const getAiredCount = () => {
+    if (isLampoUnreleased) return 0;  // Nessun episodio "in onda" se programmato
     if (isAllAtOnce || isCatalog) return episodes.length;
     // Count explicit aired episodes
     let aired = 0;
@@ -532,9 +541,10 @@ function EpisodesModal({ open, onClose, film }) {
       if (airDate && new Date(airDate).getTime() <= now) aired++;
     }
     if (aired > 0) return aired;
-    // Fallback from releasedAt
-    if (releasedAt) {
-      const elapsed = Math.floor((now - new Date(releasedAt).getTime()) / 86400000);
+    // Fallback from releasedAt (e scheduled_release_at se in passato)
+    const refDate = scheduledFuture ? null : (releasedAt || film?.scheduled_release_at);
+    if (refDate) {
+      const elapsed = Math.floor((now - new Date(refDate).getTime()) / 86400000);
       if (elapsed < 0) return 0;
       const batches = Math.floor(elapsed / Math.max(1, intervalDays)) + 1;
       return Math.min(episodes.length, batches * epsPerBatch);
@@ -646,6 +656,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const [showEpisodes, setShowEpisodes] = useState(false);
   const [likes, setLikes] = useState({ poster: { count: 0, liked_by_me: false, system_count: 0 }, screenplay: { count: 0, liked_by_me: false, system_count: 0 }, trailer: { count: 0, liked_by_me: false, system_count: 0 } });
   const [likesSnapshot, setLikesSnapshot] = useState(null);
+  const [tvStationInfo, setTvStationInfo] = useState(null);  // {id, name, owner_id}
 
   const isSeries = contentType === 'series' || contentType === 'anime';
   const isAnime = contentType === 'anime' || film?.type === 'anime' || film?.content_type === 'anime';
@@ -702,6 +713,21 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       setLikesSnapshot(r.data?.snapshot || null);
     }).catch(() => {});
   }, [filmId, api]);
+
+  // Fetch station info se la serie/film è in palinsesto TV
+  useEffect(() => {
+    if (!film) return;
+    const stationId = film.target_tv_station_id || film.scheduled_for_tv_station;
+    if (!stationId) { setTvStationInfo(null); return; }
+    let cancelled = false;
+    api.get(`/tv-stations/public/${stationId}`).then(r => {
+      const st = r.data?.station || r.data;
+      if (!cancelled && st) setTvStationInfo({ id: stationId, name: st.station_name || st.name || 'Emittente TV', owner_id: st.user_id });
+    }).catch(() => {
+      if (!cancelled) setTvStationInfo({ id: stationId, name: 'Emittente TV', owner_id: null });
+    });
+    return () => { cancelled = true; };
+  }, [film, api]);
 
   if (loading || (!film && !notFound)) {
     return (
@@ -940,6 +966,22 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         <div className="mx-4 mb-1 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20 text-center">
           <span className="text-[9px] font-bold text-blue-400">PROSSIMAMENTE IN TV</span>
         </div>
+      )}
+
+      {/* Emittente TV (cliccabile) — visibile per serie/anime/film in palinsesto */}
+      {tvStationInfo?.id && (
+        <button
+          type="button"
+          onClick={() => navigate(`/tv-station/${tvStationInfo.id}`)}
+          className="mx-4 mb-2 w-[calc(100%-2rem)] px-3 py-2 rounded-md bg-gradient-to-r from-blue-500/15 to-cyan-500/10 border border-blue-400/30 hover:bg-blue-500/25 active:scale-[0.98] transition-all flex items-center justify-between gap-2"
+          data-testid="ct-tv-station-link"
+        >
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[8px] uppercase tracking-wider text-blue-300/70 flex-shrink-0">In onda su</span>
+            <span className="text-[12px] font-bold text-blue-100 truncate">{tvStationInfo.name}</span>
+          </span>
+          <span className="text-[10px] text-blue-300/80 flex-shrink-0">Vai alla TV →</span>
+        </button>
       )}
 
       <div className={`ct2-cinema-bar ct2-perf-${cinemaPerf || 'ok'}`} onClick={() => setShowCinemaModal(true)} data-testid="ct-cinema-bar" hidden={isSeries} style={isSeries ? { display: 'none' } : undefined}>

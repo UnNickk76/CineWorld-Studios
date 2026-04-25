@@ -1684,14 +1684,34 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
 
     # Also get released series marked prossimamente that haven't started airing
     released = await db.tv_series.find(
-        {"prossimamente_tv": True, "pipeline_version": 3, "status": "in_tv"},
+        {"prossimamente_tv": True, "pipeline_version": 3,
+         "status": {"$in": ["in_tv", "lampo_scheduled", "lampo_ready"]}},
         {"_id": 0, "id": 1, "title": 1, "genre": 1, "genre_name": 1, "type": 1,
          "poster_url": 1, "num_episodes": 1, "season_number": 1, "user_id": 1,
-         "cwsv_display": 1, "quality_score": 1, "released_at": 1, "episodes": 1}
+         "cwsv_display": 1, "quality_score": 1, "released_at": 1, "episodes": 1,
+         "is_lampo": 1, "scheduled_release_at": 1, "status": 1, "source_project_id": 1,
+         "target_tv_station_id": 1}
     ).sort("released_at", -1).to_list(20)
 
+    # Dedup: rimuovi dai 'projects' tutti quelli che hanno una versione 'released' equivalente
+    # (stesso source_project_id OR stesso (user_id, title, type))
+    released_keys = set()
+    for r in released:
+        if r.get("source_project_id"):
+            released_keys.add(("src", r["source_project_id"]))
+        released_keys.add(("ut", r.get("user_id"), (r.get("title") or "").strip().lower(), r.get("type") or "tv_series"))
+    deduped_projects = []
+    for p in projects:
+        keys = [
+            ("src", p.get("id")),  # se id del project = source_project_id del released → match
+            ("ut", p.get("user_id"), (p.get("title") or "").strip().lower(), p.get("type") or "tv_series"),
+        ]
+        if any(k in released_keys for k in keys):
+            continue  # già presente in 'released', skippa
+        deduped_projects.append(p)
+
     # Enrich with producer names
-    for item in projects + released:
+    for item in deduped_projects + released:
         uid = item.get("user_id")
         if uid:
             u = await db.users.find_one({"id": uid}, {"_id": 0, "nickname": 1, "production_house_name": 1})
@@ -1705,4 +1725,4 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
         if "episodes" in r:
             del r["episodes"]  # Don't send full episodes list
 
-    return {"coming_soon": projects, "airing": released}
+    return {"coming_soon": deduped_projects, "airing": released}

@@ -238,12 +238,14 @@ export default function FilmActionsSheet() {
             {/* Body: main menu or La Mia TV panel */}
             {!tvSection ? (
               <div className="p-3 space-y-1 max-h-[65vh] overflow-y-auto">
-                {/* Trailer banner */}
-                <TrailerBanner film={film} trailer={trailer} trailerLoading={trailerLoading} onGo={() => {
-                  const pid = film.source_project_id || film.id;
-                  navigate(`/create-film?p=${pid}`);
-                  close();
-                }} />
+                {/* Trailer banner — nascosto per progetti LAMPO (no trailer) */}
+                {!film.is_lampo && film.mode !== 'lampo' && (
+                  <TrailerBanner film={film} trailer={trailer} trailerLoading={trailerLoading} onGo={() => {
+                    const pid = film.source_project_id || film.id;
+                    navigate(`/create-film?p=${pid}`);
+                    close();
+                  }} />
+                )}
                 <ActionRow icon={<Eye className="w-4 h-4" />} color="text-cyan-400" label="Dettaglio Film" hint="Pipeline, stats, locandina" onClick={handleView} testId="fa-view" />
                 {isInTheaters && (
                   <ActionRow icon={<Megaphone className="w-4 h-4" />} color="text-yellow-400" label="Campagna ADV" hint="Promuovi il film al cinema" onClick={handleAdv} testId="fa-adv" />

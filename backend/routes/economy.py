@@ -257,7 +257,7 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     anime_pipeline_task = db.tv_series.find({'user_id': uid, 'type': 'anime', 'status': {'$nin': ['discarded', 'abandoned', 'completed', 'released']}}, {'_id': 0, 'status': 1}).to_list(50)
     emerging_task = db.emerging_screenplays.count_documents({'status': 'available'})
     shooting_films_task = db.films.find({'user_id': uid, 'status': {'$in': ['shooting', 'in_production']}}, films_light_fields).to_list(50)
-    series_light = {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1, 'type': 1, 'status': 1, 'seasons_count': 1, 'total_revenue': 1, 'created_at': 1, 'genre': 1}
+    series_light = {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1, 'type': 1, 'status': 1, 'seasons_count': 1, 'total_revenue': 1, 'created_at': 1, 'genre': 1, 'source_project_id': 1, 'is_lampo': 1}
     my_series_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series'}, series_light).sort('created_at', -1).to_list(10)
     my_anime_task = db.tv_series.find({'user_id': uid, 'type': 'anime'}, series_light).sort('created_at', -1).to_list(10)
     # Global feeds for dashboard "Ultimi aggiornamenti Serie TV / Anime" — visibili a TUTTI i player
@@ -297,6 +297,26 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         r['producer_badge'] = p.get('badge', 'none')
         r['producer_badge_expiry'] = p.get('badge_expiry')
         r['producer_badges'] = p.get('badges', {})
+    # Dedup recent_series_global / recent_anime_global per (user_id, title, type) — evita duplicati LAMPO + V3
+    def _dedup_by_user_title_type(lst):
+        seen = set()
+        out = []
+        for it in lst:
+            key = (it.get('user_id'), (it.get('title') or '').strip().lower(), it.get('type', 'tv_series'))
+            sp = it.get('source_project_id')
+            if sp:
+                key2 = ('src', sp)
+                if key2 in seen:
+                    continue
+                seen.add(key2)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(it)
+        return out
+    recent_series_global = _dedup_by_user_title_type(recent_series_global)
+    recent_anime_global = _dedup_by_user_title_type(recent_anime_global)
+
     # Enrich global series/anime feeds with producer nickname/house
     for lst in (recent_series_global, recent_anime_global):
         for s in lst:

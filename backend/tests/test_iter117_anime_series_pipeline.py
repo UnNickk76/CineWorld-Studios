@@ -13,7 +13,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://cinema-economics-v2.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://level-bug-debug.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "testmod99@test.com"

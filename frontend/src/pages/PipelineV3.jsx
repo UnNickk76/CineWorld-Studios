@@ -20,6 +20,8 @@ export default function PipelineV3() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [showLampoModal, setShowLampoModal] = useState(false);
+  const [lampoExisting, setLampoExisting] = useState(null);   // ⚡ progetto LAMPO esistente da aprire (draft)
+  const [lampoDrafts, setLampoDrafts] = useState([]);          // ⚡ lista draft LAMPO
   const [dirty, setDirty] = useState(false);
   const autosaveRef = useRef(null);
 
@@ -44,6 +46,12 @@ export default function PipelineV3() {
 
   const loadProjects = useCallback(async () => {
     try { const d = await v3api('/films'); setProjects(d.items || []); } catch {}
+    // ⚡ Fetch LAMPO drafts (status=ready, not yet released)
+    try {
+      const r = await v3api('/lampo/mine');
+      const drafts = (r?.projects || []).filter(p => !p.released && p.content_type === 'film');
+      setLampoDrafts(drafts);
+    } catch { setLampoDrafts([]); }
   }, []);
 
   const refreshSelected = useCallback(async () => {
@@ -310,13 +318,16 @@ export default function PipelineV3() {
 
   // ═══ BOARD VIEW ═══
   if (!selected) {
+    // Studio logo fallback per locandine mancanti (proprio + altri produttori)
+    const studioLogo = user?.production_house_logo || user?.studio_logo || null;
+    const studioName = user?.production_house_name || user?.studio_name || user?.nickname || 'Studio';
     return (
       <div className="min-h-screen bg-black text-white pb-28" data-testid="v3-board">
         {toastEl}
         <div className="px-3 pt-24">
           <p className="text-[10px] text-gray-500 mb-3">Inizia un nuovo film o continua quelli in lavorazione</p>
           <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => setShowLampoModal(true)} disabled={loading}
+            <button onClick={() => { setLampoExisting(null); setShowLampoModal(true); }} disabled={loading}
               className="aspect-[2/3] rounded-xl border-2 border-dashed border-gray-700 hover:border-emerald-500/50 bg-gray-900/30 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
               data-testid="new-project-btn">
               <div className="w-8 h-8 rounded-full border-2 border-dashed border-gray-600 flex items-center justify-center">
@@ -324,13 +335,60 @@ export default function PipelineV3() {
               </div>
               <p className="text-[9px] font-bold text-gray-400">Nuovo Film</p>
             </button>
+
+            {/* ⚡ LAMPO drafts — sempre prima dei progetti V3 */}
+            {lampoDrafts.map(d => (
+              <button key={`lampo-${d.id}`} onClick={() => { setLampoExisting(d); setShowLampoModal(true); }}
+                className="aspect-[2/3] rounded-xl border border-amber-500/40 bg-gradient-to-br from-amber-950/40 to-orange-950/40 hover:border-amber-400 flex flex-col overflow-hidden transition-all active:scale-95 relative"
+                data-testid={`lampo-draft-card-${d.id}`}>
+                <div className="flex-1 w-full bg-gray-900 relative">
+                  {d.poster_url ? (
+                    <img src={d.poster_url} alt="" className="w-full h-full object-cover"
+                      onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex'); }} />
+                  ) : null}
+                  {/* Fallback: logo studio o iniziale */}
+                  <div className="w-full h-full absolute inset-0 flex items-center justify-center" style={{ display: d.poster_url ? 'none' : 'flex' }}>
+                    {studioLogo ? (
+                      <img src={studioLogo} alt={studioName} className="w-12 h-12 object-contain opacity-80" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 font-bold text-lg">
+                        {studioName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  {/* Badge ⚡ LAMPO */}
+                  <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-full bg-amber-500/90 text-black text-[6px] font-black uppercase shadow-lg flex items-center gap-0.5 animate-pulse">
+                    <span className="text-[8px] leading-none">⚡</span> LAMPO!
+                  </div>
+                  {/* Status badge */}
+                  <div className="absolute top-1 right-1 px-1 py-0.5 rounded-full bg-black/70 text-[5px] font-bold text-amber-300 uppercase">
+                    {d.status === 'ready' ? 'Pronto' : 'In lavorazione'}
+                  </div>
+                </div>
+                <div className="p-1.5 bg-amber-900/30">
+                  <p className="text-[8px] font-bold text-amber-100 truncate">{d.title || 'Senza titolo'}</p>
+                  <p className="text-[6px] text-amber-400/70">{GENRE_LABELS[d.genre] || d.genre || ''}</p>
+                </div>
+              </button>
+            ))}
+
             {active.map(p => (
               <button key={p.id} onClick={() => selectProject(p)}
                 className="aspect-[2/3] rounded-xl border border-gray-800 bg-gray-900/60 hover:border-emerald-500/30 flex flex-col overflow-hidden transition-all active:scale-95"
                 data-testid={`project-card-${p.id}`}>
                 <div className="flex-1 w-full bg-gray-800 relative">
-                  {p.poster_url ? <img src={p.poster_url} alt="" className="w-full h-full object-cover" /> :
-                    <div className="w-full h-full flex items-center justify-center"><Film className="w-5 h-5 text-gray-700" /></div>}
+                  {p.poster_url ? (
+                    <img src={p.poster_url} alt="" className="w-full h-full object-cover"
+                      onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex'); }} />
+                  ) : null}
+                  {/* Fallback logo studio */}
+                  <div className="w-full h-full absolute inset-0 flex items-center justify-center" style={{ display: p.poster_url ? 'none' : 'flex' }}>
+                    {studioLogo ? (
+                      <img src={studioLogo} alt={studioName} className="w-12 h-12 object-contain opacity-80" />
+                    ) : (
+                      <Film className="w-5 h-5 text-gray-700" />
+                    )}
+                  </div>
                   <div className="absolute top-1 right-1 px-1 py-0.5 rounded-full bg-black/70 text-[5px] font-bold text-emerald-400 uppercase">{p.pipeline_state || 'idea'}</div>
                 </div>
                 <div className="p-1.5">
@@ -340,12 +398,13 @@ export default function PipelineV3() {
               </button>
             ))}
           </div>
-          {active.length === 0 && <p className="text-center text-gray-600 text-[10px] mt-4">Nessun film. Crea il tuo primo!</p>}
+          {active.length === 0 && lampoDrafts.length === 0 && <p className="text-center text-gray-600 text-[10px] mt-4">Nessun film. Crea il tuo primo!</p>}
         </div>
         <LampoModal
           open={showLampoModal}
           contentType="film"
-          onClose={() => setShowLampoModal(false)}
+          existingProject={lampoExisting}
+          onClose={() => { setShowLampoModal(false); setLampoExisting(null); loadProjects(); }}
           onPickCompleta={() => { createProject(); }}
         />
       </div>

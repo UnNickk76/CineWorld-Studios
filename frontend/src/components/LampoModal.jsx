@@ -374,12 +374,10 @@ function LampoResult({ project, onReleased, onClose, api }) {
 
   return (
     <div className="p-4 max-h-[80vh] overflow-y-auto" data-testid="lampo-result">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Check className="w-5 h-5 text-emerald-400" />
-          <h2 className="text-xl font-['Bebas_Neue'] text-white">Produzione Completa!</h2>
-        </div>
-        <button onClick={onClose} className="text-white/50 hover:text-white p-1"><X className="w-4 h-4" /></button>
+      {/* Header — niente X qui (shadcn DialogContent ne ha già una fissa in alto) */}
+      <div className="flex items-center gap-2 mb-3">
+        <Check className="w-5 h-5 text-emerald-400" />
+        <h2 className="text-xl font-['Bebas_Neue'] text-white">Produzione Completa!</h2>
       </div>
 
       {/* Poster placeholder + CWSv */}
@@ -398,23 +396,27 @@ function LampoResult({ project, onReleased, onClose, api }) {
         </div>
       </div>
 
-      {/* Pretrama */}
+      {/* Pretrama (scrollabile se lunga) */}
       <div className="mb-3 p-3 rounded-lg bg-black/40 border border-white/5">
         <div className="text-[9px] uppercase text-slate-400 font-semibold mb-1">Pretrama</div>
-        <p className="text-[11px] text-slate-200 leading-snug">{project.preplot}</p>
+        <div className="text-[11px] text-slate-200 leading-snug max-h-28 overflow-y-auto pr-1">
+          {project.preplot || '—'}
+        </div>
       </div>
 
-      {/* Sceneggiatura AI */}
-      {project.screenplay && (
-        <div className="mb-3 p-3 rounded-lg bg-black/40 border border-amber-500/20">
-          <div className="text-[9px] uppercase text-amber-400/80 font-semibold mb-1 flex items-center gap-1">
-            <Sparkles className="w-3 h-3" /> Sceneggiatura AI
-          </div>
-          <div className="text-[11px] text-slate-200 leading-snug whitespace-pre-line max-h-40 overflow-y-auto">
-            {project.screenplay}
-          </div>
+      {/* Sceneggiatura AI — sempre visibile */}
+      <div className="mb-3 p-3 rounded-lg bg-black/40 border border-amber-500/20">
+        <div className="text-[9px] uppercase text-amber-400/80 font-semibold mb-1 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> Sceneggiatura AI
         </div>
-      )}
+        <div className="text-[11px] text-slate-200 leading-snug whitespace-pre-line max-h-44 overflow-y-auto pr-1">
+          {project.screenplay || (
+            <span className="text-slate-500 italic">
+              Sceneggiatura non disponibile per questo progetto LAMPO. La pretrama sopra è il riferimento.
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* Cast */}
       {project.cast && (
@@ -450,13 +452,19 @@ function LampoResult({ project, onReleased, onClose, api }) {
           <div className="text-[9px] uppercase text-cyan-400/80 font-semibold mb-1">Distribuzione</div>
           <div className="text-[11px] text-cyan-200 font-medium">{project.distribution_plan.scope_label || '—'}</div>
           {project.distribution_plan.cities?.length > 0 && (
-            <div className="text-[10px] text-slate-300 mt-1">
-              <span className="text-slate-500">Città:</span> {project.distribution_plan.cities.slice(0, 6).join(', ')}{project.distribution_plan.cities.length > 6 ? '…' : ''}
+            <div className="text-[10px] text-slate-300 mt-1 flex items-baseline gap-1">
+              <span className="text-slate-500 flex-shrink-0">Città:</span>
+              <div className="overflow-x-auto whitespace-nowrap pr-1 flex-1 scrollbar-thin">
+                {project.distribution_plan.cities.join(' · ')}
+              </div>
             </div>
           )}
           {project.distribution_plan.countries?.length > 0 && (
-            <div className="text-[10px] text-slate-300">
-              <span className="text-slate-500">Paesi:</span> {project.distribution_plan.countries.slice(0, 6).join(', ')}{project.distribution_plan.countries.length > 6 ? '…' : ''}
+            <div className="text-[10px] text-slate-300 flex items-baseline gap-1 mt-0.5">
+              <span className="text-slate-500 flex-shrink-0">Paesi:</span>
+              <div className="overflow-x-auto whitespace-nowrap pr-1 flex-1 scrollbar-thin">
+                {project.distribution_plan.countries.join(' · ')}
+              </div>
             </div>
           )}
         </div>
@@ -568,7 +576,7 @@ function LampoResult({ project, onReleased, onClose, api }) {
 }
 
 // ───── Main Dialog ─────
-export default function LampoModal({ open, contentType, onClose, onPickCompleta }) {
+export default function LampoModal({ open, contentType, onClose, onPickCompleta, existingProject }) {
   const { api } = useContext(AuthContext);
   const [phase, setPhase] = useState('chooser'); // chooser|form|progress|result
   const [activeProject, setActiveProject] = useState(null);
@@ -578,29 +586,16 @@ export default function LampoModal({ open, contentType, onClose, onPickCompleta 
 
   useEffect(() => {
     if (!open) return;
-    // Recovery: se esiste un progetto LAMPO non ancora rilasciato, vai dritto allo stato giusto
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.get('/lampo/mine');
-        const projects = (res.data?.projects || []).filter(
-          p => !p.released && (!contentType || p.content_type === contentType)
-        );
-        if (cancelled) return;
-        if (projects.length > 0) {
-          const p = projects[0];
-          setActiveProject(p);
-          setPhase(p.status === 'ready' ? 'result' : 'progress');
-          return;
-        }
-      } catch {}
-      if (!cancelled) {
-        setActiveProject(null);
-        setPhase('chooser');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [open, contentType]);
+    // Se viene fornito un progetto esistente (click da card draft), salta direttamente al suo stato
+    if (existingProject) {
+      setActiveProject(existingProject);
+      setPhase(existingProject.status === 'ready' ? 'result' : 'progress');
+      return;
+    }
+    // Altrimenti start fresh: chooser
+    setActiveProject(null);
+    setPhase('chooser');
+  }, [open, existingProject]);
 
   const handleClose = () => {
     setPhase('chooser');

@@ -1712,14 +1712,32 @@ async def get_coming_soon():
     ).sort('created_at', -1)
     v3_series_items = await v3_series_cursor.to_list(50)
     
+    # ⚡ LAMPO drafts/scheduled — devono apparire in "Prossimamente"
+    lampo_films_cursor = db.films.find(
+        {'status': {'$in': ['lampo_ready', 'lampo_scheduled']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'poster_url': 1,
+         'user_id': 1, 'scheduled_release_at': 1, 'released_at': 1, 'created_at': 1,
+         'cwsv': 1, 'quality_score': 1, 'status': 1, 'is_lampo': 1}
+    ).sort('created_at', -1)
+    lampo_films = await lampo_films_cursor.to_list(50)
+    lampo_series_cursor = db.tv_series.find(
+        {'status': {'$in': ['lampo_ready', 'lampo_scheduled']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'genre_name': 1, 'type': 1, 'poster_url': 1,
+         'user_id': 1, 'scheduled_release_at': 1, 'released_at': 1, 'created_at': 1,
+         'num_episodes': 1, 'cwsv': 1, 'status': 1, 'is_lampo': 1}
+    ).sort('created_at', -1)
+    lampo_series = await lampo_series_cursor.to_list(50)
+
     # Enrich with production house names
     user_ids = list(set(
         [s['user_id'] for s in series_items] +
         [f['user_id'] for f in film_items] +
         [r['user_id'] for r in remaster_items] +
         [v['user_id'] for v in v2_items] +
-        [v3['user_id'] for v3 in v3_items] +
-        [vs['user_id'] for vs in v3_series_items]
+        [v['user_id'] for v in v3_items] +
+        [v['user_id'] for v in v3_series_items] +
+        [l['user_id'] for l in lampo_films if l.get('user_id')] +
+        [l['user_id'] for l in lampo_series if l.get('user_id')]
     ))
     users = {}
     if user_ids:
@@ -1827,6 +1845,31 @@ async def get_coming_soon():
             'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
             'pipeline_status_label': state_label,
             'is_v2': True,  # reuse pipeline pill styling
+        })
+
+    # ⚡ LAMPO drafts/scheduled — film
+    for lf in lampo_films:
+        owner = users.get(lf.get('user_id'), {})
+        st = lf.get('status', 'lampo_ready')
+        items.append({
+            **lf,
+            'content_type': 'film',
+            'genre_name': lf.get('genre', ''),
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+            'is_lampo': True,
+            'pipeline_status_label': 'Lampo · Programmato' if st == 'lampo_scheduled' else 'Lampo · A breve',
+        })
+    # ⚡ LAMPO drafts/scheduled — serie/anime
+    for ls in lampo_series:
+        owner = users.get(ls.get('user_id'), {})
+        st = ls.get('status', 'lampo_ready')
+        items.append({
+            **ls,
+            'content_type': ls.get('type') or 'tv_series',
+            'genre_name': ls.get('genre_name') or ls.get('genre', ''),
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+            'is_lampo': True,
+            'pipeline_status_label': 'Lampo · Programmato' if st == 'lampo_scheduled' else 'Lampo · A breve',
         })
     
     # Deduplicate and filter out released films

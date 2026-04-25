@@ -25,8 +25,9 @@ export default function LampoReleaseOverlay({ mode = 'immediate', contentType = 
     const t1 = setTimeout(() => setPhase(1), 200);
     const t2 = setTimeout(() => setPhase(2), 900);
     const t3 = setTimeout(() => setPhase(3), 1700);
-    const t4 = setTimeout(() => setPhase(4), 3000);
-    const t5 = setTimeout(() => { setDone(true); document.body.style.overflow = ''; onComplete?.(); }, 3600);
+    // Tagline visibile per ~6 secondi (per essere letta con calma)
+    const t4 = setTimeout(() => setPhase(4), 7700);
+    const t5 = setTimeout(() => { setDone(true); document.body.style.overflow = ''; onComplete?.(); }, 8400);
     return () => { [t1, t2, t3, t4, t5].forEach(clearTimeout); document.body.style.overflow = ''; };
   }, [onComplete]);
 
@@ -57,8 +58,14 @@ export default function LampoReleaseOverlay({ mode = 'immediate', contentType = 
 
   if (done) return null;
 
+  const handleSkip = () => {
+    setDone(true);
+    document.body.style.overflow = '';
+    onComplete?.();
+  };
+
   return (
-    <div className="fixed inset-0 z-[9999]" style={{ background: '#000' }} data-testid="lampo-release-overlay">
+    <div className="fixed inset-0 z-[9999] cursor-pointer" style={{ background: '#000' }} data-testid="lampo-release-overlay" onClick={handleSkip}>
       {/* Film grain */}
       <div className="absolute inset-0 pointer-events-none" style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.1'/%3E%3C/svg%3E")`,
@@ -205,6 +212,13 @@ export default function LampoReleaseOverlay({ mode = 'immediate', contentType = 
         opacity: phase >= 4 ? 1 : 0,
         transition: 'opacity 0.5s',
       }} />
+
+      {/* Tap-to-skip hint (visibile solo durante phase 3, soft fade in) */}
+      {phase >= 3 && phase < 4 && (
+        <div className="absolute bottom-6 left-0 right-0 text-center pointer-events-none">
+          <span className="text-[10px] text-amber-300/40 italic tracking-wider">tocca per continuare</span>
+        </div>
+      )}
 
       <style>{`
         @keyframes lampoShockwave {

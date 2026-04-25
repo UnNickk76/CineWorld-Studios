@@ -15,6 +15,7 @@ import CineConfirm from './v3/CineConfirm';
 import { Trash2 } from 'lucide-react';
 import { LampoLightning } from './LampoLightning';
 import { getPreReleasePressReviews, getPreReleaseAudience } from '../utils/preReleasePhrases';
+import DistributionPopup, { hasDistributionData, getDistributionLabel } from './DistributionPopup';
 import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
@@ -658,6 +659,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const [likes, setLikes] = useState({ poster: { count: 0, liked_by_me: false, system_count: 0 }, screenplay: { count: 0, liked_by_me: false, system_count: 0 }, trailer: { count: 0, liked_by_me: false, system_count: 0 } });
   const [likesSnapshot, setLikesSnapshot] = useState(null);
   const [tvStationInfo, setTvStationInfo] = useState(null);  // {id, name, owner_id}
+  const [showDistribution, setShowDistribution] = useState(false);
 
   const isSeries = contentType === 'series' || contentType === 'anime';
   const isAnime = contentType === 'anime' || film?.type === 'anime' || film?.content_type === 'anime';
@@ -891,12 +893,47 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
               {isAnime ? 'Disegnatori' : 'Cast'}: {castInfo.actors.map(a => a.name).join(', ')}
             </div>
           )}
-          {(film.is_lampo || film.mode === 'lampo') && film.distribution_scope && (
-            <div className="ct2-info-cast" style={{ color: '#fbbf24', fontWeight: 600 }} data-testid="ct-lampo-distribution">
-              <Zap size={10} style={{ display: 'inline', marginRight: 2, verticalAlign: 'middle' }} />
-              Distribuzione: {film.distribution_scope}
+          {hasDistributionData(film) && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setShowDistribution(true); }}
+              className="ct2-info-cast text-left w-full hover:opacity-80 active:opacity-60 transition-opacity touch-manipulation"
+              style={{
+                color: (film.is_lampo || film.mode === 'lampo') ? '#fbbf24' : '#67e8f9',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 4,
+              }}
+              data-testid="ct-distribution-row"
+              aria-label="Vedi dove viene trasmesso il film"
+            >
+              {(film.is_lampo || film.mode === 'lampo')
+                ? <Zap size={10} style={{ display: 'inline', verticalAlign: 'middle' }} />
+                : <span style={{ fontSize: 11, lineHeight: 1 }}>🎬</span>
+              }
+              <span style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }}>
+                Distribuzione: {getDistributionLabel(film) || '—'}
+              </span>
               {film.worldwide && ' 🌍'}
-            </div>
+              <span style={{
+                fontSize: 9,
+                opacity: 0.7,
+                background: 'rgba(255,255,255,0.08)',
+                padding: '1px 6px',
+                borderRadius: 6,
+                marginLeft: 2,
+                fontWeight: 700,
+                letterSpacing: 0.5,
+              }}>
+                VEDI DOVE
+              </span>
+            </button>
           )}
           {shortPlot ? (
             <div className="ct2-info-plot">{shortPlot}</div>
@@ -1163,6 +1200,13 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
       {/* Cast Popup */}
       <CastPopup open={showCast} onClose={setShowCast} cast={film?.cast} />
+
+      {/* Distribution Popup — dove viene trasmesso il film */}
+      <DistributionPopup
+        open={showDistribution}
+        onClose={() => setShowDistribution(false)}
+        film={film}
+      />
 
       {/* Episodes modal — series/anime only */}
       {showEpisodes && isSeries && (

@@ -1,3 +1,24 @@
+## LAMPO Fix Bundle (Apr 25, 2026 — pomeriggio)
+Tre fix critici basati su feedback foto utente:
+
+### 1. Episodi LAMPO scrollabili + cliccabili (LampoResult)
+- Nuovo componente `EpisodesList` in `LampoModal.jsx`: ora mostra TUTTI gli episodi (non solo i primi 5), in container scrollabile (max-h 72) con touch-manipulation per mobile.
+- Ogni episodio è cliccabile: tap → si espande mostrando trama completa, titolo, durata. Tap di nuovo → collassa.
+- Accent ambra quando aperto, indicatore chevron `›` ruotato.
+- Hint "tap per dettagli" nell'header degli episodi.
+
+### 2. AI screenplay: prompt rinforzato per non invertire ruoli
+- `_generate_screenplay_lampo` in `routes/lampo.py`: system_message + prompt molto più direttivi.
+- Nuova "REGOLA ASSOLUTA": rileggere la pretrama 2 volte, identificare protagonista/antagonista/vittima/ruoli/generi, NON invertire MAI relazioni (es. "lei deve uccidere lui" → mai il contrario), NON cambiare nomi né generi, NON aggiungere personaggi.
+- Logline deve riassumere FEDELMENTE il conflitto. Test: "Kudakodu/Nakisha" ora corretto ("il suo ultimo incarico è uccidere proprio Kudakodu" riferito a Nakisha).
+
+### 3. LAMPO drafts visibili nei pannelli Produzione (Anime/Serie/Film)
+- **Anime + Serie TV** (`PipelineSeriesV3.jsx`): nuovo state `lampoProjects`, fetch da `/api/lampo/mine` filtrato per `content_type === seriesType` e `!released && status !== 'discarded'`. Card ⚡ accanto a "Nuova Anime/Serie" con poster, badge "LAMPO" + status (PRONTO/X%/etc.), click → riapre `LampoModal` con `existingProject` (salta direttamente al recap o progress bar).
+- **Film** (`FilmPipeline.jsx` + `FilmCarousel`): stessa logica con `lampoFilmDrafts`. Nuove card LAMPO nel carousel cinematic. Glow ambra quando pronto, pulse animato quando in generazione.
+- Auto-refresh dopo chiusura modal (`loadLampoDrafts() + loadProjects()`).
+
+Files: `frontend/src/components/LampoModal.jsx`, `frontend/src/components/v3/PipelineSeriesV3.jsx`, `frontend/src/pages/FilmPipeline.jsx`, `backend/routes/lampo.py`.
+
 ## LAMPO Generi & Sub-generi AI (Apr 25, 2026)
 - **GENRES espansi** in `LampoModal.jsx`: 24 film (era 8), 25 serie TV (era 6), 28 anime (era 5). Ogni genere ha `desc` con descrizione breve in italiano.
 - **Descrizione genere** mostrata nel form sotto il select in box ambra (testid `lampo-genre-desc`) + nota "L'AI sceglierà 1-3 sotto-generi dalla tua pretrama".

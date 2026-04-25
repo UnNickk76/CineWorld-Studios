@@ -422,6 +422,67 @@ function CastRow({ member, contentType }) {
 }
 
 
+// ───── EpisodesList — Lista scrollabile + click per mini-trama ─────
+function EpisodesList({ episodes }) {
+  const [expanded, setExpanded] = useState(null);
+  const total = episodes.length;
+  return (
+    <div className="mb-3 p-3 rounded-lg bg-black/40 border border-white/5">
+      <div className="text-[9px] uppercase text-slate-400 font-semibold mb-2 flex items-center justify-between">
+        <span>Episodi ({total})</span>
+        <span className="text-[8px] text-amber-300/70 normal-case tracking-normal italic">tap per dettagli</span>
+      </div>
+      <div className="space-y-1 max-h-72 overflow-y-auto pr-1 -mr-1" data-testid="lampo-episodes-list">
+        {episodes.map((ep, i) => {
+          const isOpen = expanded === i;
+          const synopsis = ep.synopsis || `Episodio ${ep.episode_number || (i + 1)}`;
+          const epNum = ep.episode_number || (i + 1);
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setExpanded(isOpen ? null : i)}
+              className={`w-full text-left rounded-md px-2 py-1.5 transition-all touch-manipulation ${
+                isOpen
+                  ? 'bg-amber-500/10 border border-amber-500/30'
+                  : 'border border-transparent hover:bg-white/5 active:bg-amber-500/5'
+              }`}
+              data-testid={`lampo-episode-${epNum}`}
+            >
+              <div className="flex items-start gap-2">
+                <span className={`text-[11px] font-bold flex-shrink-0 ${isOpen ? 'text-amber-300' : 'text-amber-400'}`}>
+                  Ep.{epNum}
+                </span>
+                <div className="flex-1 min-w-0">
+                  {!isOpen ? (
+                    <span className="text-[10px] text-slate-300 leading-snug line-clamp-1">— {synopsis}</span>
+                  ) : (
+                    <div className="text-[10px] text-amber-100 leading-relaxed">
+                      {ep.title && ep.title !== `Ep. ${epNum}` && (
+                        <div className="font-bold text-amber-200 mb-0.5">{ep.title}</div>
+                      )}
+                      <div>{synopsis}</div>
+                      {ep.duration_minutes && (
+                        <div className="text-[9px] text-amber-300/60 mt-1 italic">
+                          Durata: ~{ep.duration_minutes} min
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <span className={`text-[10px] flex-shrink-0 transition-transform ${isOpen ? 'rotate-90 text-amber-300' : 'text-slate-500'}`}>
+                  ›
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 // ───── LampoResult ─────
 function LampoResult({ project, onReleased, onClose, api }) {
   const [releasing, setReleasing] = useState(false);
@@ -607,19 +668,9 @@ function LampoResult({ project, onReleased, onClose, api }) {
         </div>
       )}
 
-      {/* Episodes (serie/anime) */}
+      {/* Episodes (serie/anime) — scrollabile + cliccabili per mini-trama */}
       {project.episodes?.length > 0 && (
-        <div className="mb-3 p-3 rounded-lg bg-black/40 border border-white/5">
-          <div className="text-[9px] uppercase text-slate-400 font-semibold mb-2">Episodi ({project.episodes.length})</div>
-          <div className="space-y-1 max-h-32 overflow-y-auto">
-            {project.episodes.slice(0, 5).map((ep, i) => (
-              <div key={i} className="text-[10px] leading-snug">
-                <span className="text-amber-400 font-bold">Ep.{ep.episode_number || (i + 1)}</span> <span className="text-slate-300">— {ep.synopsis}</span>
-              </div>
-            ))}
-            {project.episodes.length > 5 && <div className="text-[9px] text-slate-500 italic">…e altri {project.episodes.length - 5} episodi</div>}
-          </div>
-        </div>
+        <EpisodesList episodes={project.episodes} />
       )}
 
       {/* Marketing + sponsor */}

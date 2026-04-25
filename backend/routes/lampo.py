@@ -338,16 +338,29 @@ async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, 
             api_key=key,
             session_id=f"lampo-screenplay-{uuid.uuid4()}",
             system_message=(
-                "Sei uno sceneggiatore italiano esperto. Rispondi SEMPRE e SOLO con un oggetto JSON valido, "
-                "senza markdown, senza testo extra prima o dopo."
+                "Sei uno sceneggiatore italiano fedele. La tua REGOLA ASSOLUTA è rispettare ESATTAMENTE "
+                "la pretrama del produttore: chi fa cosa, chi ama chi, chi uccide chi, ruoli, generi (M/F), "
+                "moventi e relazioni. NON invertire MAI i ruoli. NON inventare fatti non presenti. "
+                "Se la pretrama dice 'Lei deve uccidere Lui', allora nella sceneggiatura DEVE essere lei "
+                "incaricata di ucciderlo, mai il contrario. Rispondi SEMPRE e SOLO con un oggetto JSON "
+                "valido, senza markdown, senza testo extra prima o dopo."
             ),
         ).with_model("openai", "gpt-4o-mini")
         prompt = (
-            f'Per un {ct_label} {genre} intitolato "{title}" con pretrama del produttore: "{preplot}"\n\n'
+            f'TIPO: {ct_label} {genre}\n'
+            f'TITOLO: "{title}"\n'
+            f'PRETRAMA DEL PRODUTTORE (DA RISPETTARE LETTERALMENTE):\n"""\n{preplot}\n"""\n\n'
             f"Restituisci ESATTAMENTE un JSON con questa struttura:\n"
             f'{{"screenplay": "<sceneggiatura sintetica max 350 parole in italiano: logline, conflitto, '
             f'4-5 punti chiave di trama, climax, risoluzione, atmosfera. Paragrafi brevi separati da \\n>",\n'
             f' "subgenres": ["sotto-genere1", "sotto-genere2", "sotto-genere3"]}}\n\n'
+            f"REGOLE TASSATIVE per la sceneggiatura:\n"
+            f"1. RILEGGI la pretrama 2 volte prima di scrivere. Identifica: protagonista, antagonista, "
+            f"vittima/e, persone amate, chi compie l'azione e chi la subisce.\n"
+            f"2. NON invertire i ruoli (es. se 'lei deve uccidere lui', NON scrivere 'lui deve uccidere lei').\n"
+            f"3. NON cambiare i nomi dei personaggi né il loro genere.\n"
+            f"4. NON aggiungere personaggi non menzionati a meno che non siano comparse generiche.\n"
+            f"5. La logline deve riassumere FEDELMENTE il conflitto della pretrama.\n\n"
             f"REGOLE per i sotto-generi:\n"
             f"- Estrai 1-3 sotto-generi pertinenti analizzando la pretrama (es: 'thriller psicologico', "
             f"'distopico', 'noir', 'survival', 'commedia romantica', 'coming of age', 'mystery', 'satirico', "

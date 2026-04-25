@@ -1465,6 +1465,8 @@ const StepFinale = ({ project, onConfirm, loading, seriesType }) => {
 export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
+  const [lampoProjects, setLampoProjects] = useState([]);
+  const [activeLampoProject, setActiveLampoProject] = useState(null);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -1481,11 +1483,28 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
     } catch { /* */ }
   }, [seriesType]);
 
+  // ⚡ Carica anche i progetti LAMPO non ancora rilasciati per questo tipo di contenuto
+  const loadLampoDrafts = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('cineworld_token');
+      const res = await fetch(`${API}/api/lampo/mine`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      const all = Array.isArray(data?.projects) ? data.projects : [];
+      // Tieni solo quelli non rilasciati e del content_type corretto
+      const filtered = all.filter(
+        p => p && !p.released && p.content_type === seriesType && p.status !== 'discarded'
+      );
+      setLampoProjects(filtered);
+    } catch { setLampoProjects([]); }
+  }, [seriesType]);
+
   const selectProject = useCallback(async (p) => {
     try { const d = await sapi(`/projects/${p.id}`); setSelected(d); setDirty(false); } catch (e) { toast.error(e.message); }
   }, []);
 
-  useEffect(() => { loadProjects(); }, [loadProjects]);
+  useEffect(() => { loadProjects(); loadLampoDrafts(); }, [loadProjects, loadLampoDrafts]);
 
   const currentStep = selected?.pipeline_state || 'idea';
   const stepIndex = SERIES_STEPS.findIndex(s => s.id === currentStep);
@@ -1549,7 +1568,7 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
           <h2 className="text-lg font-black text-white mb-1">{isAnime ? 'Produzione Anime' : 'Produzione Serie TV'}</h2>
           <p className="text-[10px] text-gray-500 mb-3">Crea o continua una {typeLabel.toLowerCase()}</p>
           <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => setShowLampoModal(true)} disabled={loading}
+            <button onClick={() => { setActiveLampoProject(null); setShowLampoModal(true); }} disabled={loading}
               className="aspect-[2/3] rounded-xl border-2 border-dashed border-gray-700 hover:border-amber-500/50 bg-gray-900/30 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
               data-testid="new-series-btn">
               <div className="w-8 h-8 rounded-full border-2 border-dashed border-gray-600 flex items-center justify-center">
@@ -1557,6 +1576,55 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
               </div>
               <p className="text-[9px] font-bold text-gray-400">Nuova {typeLabel}</p>
             </button>
+
+            {/* ⚡ LAMPO drafts (in progress / pronti / schedulati) */}
+            {lampoProjects.map(lp => {
+              const isReady = lp.status === 'ready';
+              const isGenerating = lp.status === 'generating';
+              const badgeLabel = isReady ? 'PRONTO' : isGenerating ? `${lp.progress_pct || 0}%` : (lp.status || '').toUpperCase();
+              const ringClass = isReady
+                ? 'border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.4)]'
+                : isGenerating
+                  ? 'border-amber-500/40 animate-pulse'
+                  : 'border-amber-500/30';
+              return (
+                <button
+                  key={`lampo-${lp.id}`}
+                  onClick={() => { setActiveLampoProject(lp); setShowLampoModal(true); }}
+                  className={`aspect-[2/3] rounded-xl border-2 ${ringClass} bg-gradient-to-br from-amber-900/20 to-orange-950/30 hover:from-amber-800/30 flex flex-col overflow-hidden transition-all active:scale-95 relative`}
+                  data-testid={`lampo-draft-card-${lp.id}`}
+                >
+                  <div className="flex-1 w-full bg-gray-800 relative">
+                    {lp.poster_url ? (
+                      <img
+                        src={lp.poster_url.startsWith('/') ? `${API}${lp.poster_url}` : lp.poster_url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-900/40 to-orange-950/40">
+                        <span className="text-2xl">⚡</span>
+                      </div>
+                    )}
+                    {/* Badge LAMPO */}
+                    <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-full bg-amber-400 text-black text-[6px] font-black uppercase tracking-wider shadow flex items-center gap-0.5">
+                      ⚡ LAMPO
+                    </div>
+                    {/* Status badge */}
+                    <div className="absolute top-1 right-1 px-1 py-0.5 rounded-full bg-black/80 text-[6px] font-bold text-amber-300 uppercase border border-amber-500/30">
+                      {badgeLabel}
+                    </div>
+                  </div>
+                  <div className="p-1.5">
+                    <p className="text-[8px] font-bold text-amber-100 truncate">{lp.title || 'Senza titolo'}</p>
+                    <p className="text-[6px] text-amber-300/70">
+                      {isReady ? '✓ Da rilasciare' : isGenerating ? 'In produzione…' : 'Bozza'} · {lp.num_episodes || 0} ep
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+
             {active.map(p => (
               <button key={p.id} onClick={() => selectProject(p)}
                 className="aspect-[2/3] rounded-xl border border-gray-800 bg-gray-900/60 hover:border-amber-500/30 flex flex-col overflow-hidden transition-all active:scale-95"
@@ -1578,7 +1646,8 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
         <LampoModal
           open={showLampoModal}
           contentType={seriesType}
-          onClose={() => setShowLampoModal(false)}
+          existingProject={activeLampoProject}
+          onClose={() => { setShowLampoModal(false); setActiveLampoProject(null); loadLampoDrafts(); loadProjects(); }}
           onPickCompleta={() => { createProject(); }}
         />
       </div>

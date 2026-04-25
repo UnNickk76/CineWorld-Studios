@@ -1683,14 +1683,16 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
     ).sort("created_at", -1).to_list(20)
 
     # Also get released series marked prossimamente that haven't started airing
+    # Nota: rimosso filtro `pipeline_version: 3` per essere robusto contro item con metadati legacy/mancanti.
+    # I LAMPO scheduled/ready hanno comunque pipeline_version=3, ma alcuni item legacy potrebbero mancarlo.
     released = await db.tv_series.find(
-        {"prossimamente_tv": True, "pipeline_version": 3,
+        {"prossimamente_tv": True,
          "status": {"$in": ["in_tv", "lampo_scheduled", "lampo_ready"]}},
         {"_id": 0, "id": 1, "title": 1, "genre": 1, "genre_name": 1, "type": 1,
          "poster_url": 1, "num_episodes": 1, "season_number": 1, "user_id": 1,
          "cwsv_display": 1, "quality_score": 1, "released_at": 1, "episodes": 1,
          "is_lampo": 1, "scheduled_release_at": 1, "status": 1, "source_project_id": 1,
-         "target_tv_station_id": 1}
+         "target_tv_station_id": 1, "pipeline_version": 1}
     ).sort("released_at", -1).to_list(20)
 
     # Dedup: rimuovi dai 'projects' tutti quelli che hanno una versione 'released' equivalente

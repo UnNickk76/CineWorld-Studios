@@ -59,6 +59,17 @@ class MakeOfferReq(BaseModel):
     message: Optional[str] = None
 
 
+class SpontaneousOfferReq(BaseModel):
+    content_id: str
+    content_collection: Literal["films", "tv_series"]
+    station_id: str
+    offered_money: int = Field(ge=0)
+    offered_credits: int = Field(ge=0)
+    mode_proposed: Literal["full", "split"]
+    duration_days_proposed: int = Field(ge=1, le=180)
+    message: Optional[str] = None
+
+
 class CounterOfferReq(BaseModel):
     counter_money: int = Field(ge=0)
     counter_credits: int = Field(ge=0)
@@ -350,6 +361,78 @@ async def make_offer(listing_id: str, req: MakeOfferReq, user: dict = Depends(ge
         f"Hai ricevuto un'offerta per '{listing.get('title')}': "
         f"${req.offered_money:,} + {req.offered_credits} CP ({req.mode_proposed}, {req.duration_days_proposed}gg).",
         {"listing_id": listing_id, "offer_id": offer["id"]}
+    )
+    return {"success": True, "offer": offer}
+
+
+@router.post("/content/{content_id}/spontaneous-offer")
+async def make_spontaneous_offer(content_id: str, req: SpontaneousOfferReq, user: dict = Depends(get_current_user)):
+    """Allow a buyer (with TV station) to send an unsolicited offer to the owner
+    of a content that is NOT currently listed on the market.
+    The offer is identical in shape to a regular offer but `listing_id` is None
+    and `is_spontaneous=True`. Owner can accept/reject/counter just like any other offer.
+    """
+    if req.content_id != content_id:
+        raise HTTPException(400, "content_id mismatch")
+    content = await _load_content(req.content_collection, content_id)
+    if not content:
+        raise HTTPException(404, "Contenuto non trovato")
+    if content.get("user_id") == user["id"]:
+        raise HTTPException(400, "Non puoi fare offerte sui tuoi contenuti")
+    if not await _user_owns_station(user["id"], req.station_id):
+        raise HTTPException(403, "Devi essere proprietario della stazione TV indicata")
+
+    # Block spontaneous offers if there's an active FULL contract (exclusive)
+    full = await _has_active_full_contract(content_id)
+    if full and req.mode_proposed == "full":
+        raise HTTPException(409, "Esiste già un contratto esclusivo (100%) attivo su questo contenuto")
+
+    # Verify funds
+    me = await db.users.find_one({"id": user["id"]}, {"_id": 0, "funds": 1, "cinepass": 1})
+    if (me.get("funds") or 0) < req.offered_money:
+        raise HTTPException(400, "Fondi insufficienti per l'offerta")
+    if (me.get("cinepass") or 0) < req.offered_credits:
+        raise HTTPException(400, "CinePass insufficienti per l'offerta")
+
+    # Anti-spam: at most 3 pending spontaneous offers per (buyer, content)
+    pending_count = await db.tv_market_offers.count_documents({
+        "buyer_user_id": user["id"],
+        "content_id": content_id,
+        "is_spontaneous": True,
+        "status": {"$in": ["pending", "countered_by_owner_pending_buyer"]},
+    })
+    if pending_count >= 3:
+        raise HTTPException(429, "Hai già 3 offerte spontanee pendenti su questo contenuto")
+
+    offer = {
+        "id": str(uuid.uuid4()),
+        "listing_id": None,
+        "is_spontaneous": True,
+        "content_id": content_id,
+        "content_collection": req.content_collection,
+        "content_type": content.get("type"),
+        "owner_user_id": content["user_id"],
+        "buyer_user_id": user["id"],
+        "station_id": req.station_id,
+        "offered_money": int(req.offered_money),
+        "offered_credits": int(req.offered_credits),
+        "mode_proposed": req.mode_proposed,
+        "duration_days_proposed": int(req.duration_days_proposed),
+        "message": (req.message or "")[:300],
+        "status": "pending",
+        "created_at": _now_iso(),
+        "updated_at": _now_iso(),
+        "history": [],
+    }
+    await db.tv_market_offers.insert_one(dict(offer))
+    offer.pop("_id", None)
+
+    await _push_notif(
+        content["user_id"], "tv_market_spontaneous_offer",
+        "Offerta spontanea ricevuta!",
+        f"Hai ricevuto un'offerta spontanea per '{content.get('title')}': "
+        f"${req.offered_money:,} + {req.offered_credits} CP ({req.mode_proposed}, {req.duration_days_proposed}gg).",
+        {"offer_id": offer["id"], "content_id": content_id}
     )
     return {"success": True, "offer": offer}
 

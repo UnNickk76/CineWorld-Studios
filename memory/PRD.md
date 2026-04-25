@@ -1,3 +1,33 @@
+## Bundle 4 fix (Apr 25, 2026 — sera 8)
+
+### 1. Mercato TV — Offerte Spontanee
+- Backend: nuovo endpoint `POST /api/tv-market/content/{content_id}/spontaneous-offer` (`routes/tv_market.py`). Permette a qualunque player con TV di inviare un'offerta diretta al proprietario anche se il contenuto NON è sul mercato. `listing_id=None`, `is_spontaneous=True`. Stesso flusso accept/reject/counter. Limite: max 3 spontanee pendenti per (buyer, content). Notifica `tv_market_spontaneous_offer`.
+- Frontend `TvMarketModal.jsx`: tab "Fai Offerta" sempre visibile per chi possiede ≥1 TV (non solo quando esiste un listing). Banner cyan "Offerta spontanea" nel form quando non c'è listing. Testo Panoramica chiarito: invita a usare "Fai Offerta" quando il proprietario non ha ancora pubblicato.
+
+### 2. Palinsesto TV — Orario corretto + Episodi scrollabili
+- `PalinsestoModal.jsx`: l'orario inserito dal player viene convertito da datetime locale a UTC ISO (`new Date(...).toISOString()`) prima dell'invio al backend. Risolve il bug "ora salva sempre 23:00" causato da fuso orario non gestito (l'orario locale veniva interpretato come UTC dal backend e poi riconvertito a locale, generando uno shift di +2h).
+- `SeriesDetailModal.jsx`: nuovo componente `EpisodeList` che mostra TUTTI gli episodi in container scrollabile (max-h 260px) con thin scrollbar custom. Ogni episodio è cliccabile e apre la trama inline:
+  - Episodi `aired`/`on_air`: mostrano `plot` o `mini_plot`.
+  - Episodi non ancora trasmessi: mostrano "Trama non ancora disponibile — sarà visibile quando l'episodio verrà trasmesso." (gating coerente con la richiesta utente).
+  - Badge LIVE per `on_air`, data uscita per pendenti, % consenso per aired.
+
+### 3. Boost guadagni Lv 1-10 (silent)
+- `utils/silent_bonuses.py`: aggiunto Layer 4 "Level-based revenue boost":
+  - Lv 1-5: $40K × min(films, 5) per heartbeat (≈ 10 min). Cap giornaliero $5M.
+  - Lv 6-10: $15K × min(films, 5) per heartbeat. Cap giornaliero $2M.
+  - Lv 11+: 0 (economia normale).
+  - Lv 0 senza film: $1K token per non far percepire "vuoto totale".
+- Boost atomico in `wallet_transactions` con `source="level_boost"`, `silent=True`. Nessun toast, ma percettibile dalla crescita del saldo.
+- Test: Lv 2 con 6 film → $200K/heartbeat; Lv 7 → $75K/heartbeat; Lv 16 → $0 (correttamente disattivato).
+
+### 4. Avatar mini cast — DiceBear v9 → v7 fix
+- `cast_system.py generate_cast_member()`: switch da `9.x/avataaars` a `7.x/avataaars`. La v9 rifiutava i parametri `top=*` e `facialHair=*` legacy con HTTP 400 → tutte le immagini erano broken e mostravano "?" (placeholder iOS).
+- Migrazione retroattiva: aggiornati `21.448` NPCs in `db.people` + tutte le emerging_screenplays con avatar v9 → v7 (stripping di `&top=` e `&facialHair=` prima del replace). Coerenza sex/gender preservata via seed deterministico (`{first}{last}{role}`) + bgColor differenziato per genere (rosa per female, azzurro per male).
+- Test: URL v7 ritorna HTTP 200 con SVG valido (~7KB).
+
+Files: `backend/routes/tv_market.py`, `backend/utils/silent_bonuses.py`, `backend/cast_system.py`, `frontend/src/components/TvMarketModal.jsx`, `frontend/src/components/PalinsestoModal.jsx`, `frontend/src/components/SeriesDetailModal.jsx`.
+
+
 ## Fix Infrastructure Upgrade Player Level (Apr 25, 2026 — sera 7)
 
 **Bug**: il popup "Upgrade infrastruttura" mostrava `Lv. giocatore: 0/1` (o simili) anche se il giocatore era a livello 16, bloccando il bottone "Migliora".

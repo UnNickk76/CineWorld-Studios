@@ -54,7 +54,14 @@ export function PalinsestoModal({ open, onClose, series, stationId, onRefresh })
     if (schedImmediate) {
       startDt = new Date().toISOString();
     } else {
-      startDt = `${schedDate}T${schedTime}:00`;
+      // Convert local datetime to UTC ISO so backend stores the moment the
+      // user actually chose (not naive UTC of the local clock).
+      const localDt = new Date(`${schedDate}T${schedTime}:00`);
+      if (Number.isNaN(localDt.getTime())) {
+        toast.error('Data o orario non validi');
+        return;
+      }
+      startDt = localDt.toISOString();
     }
     setActionLoading('schedule');
     try {

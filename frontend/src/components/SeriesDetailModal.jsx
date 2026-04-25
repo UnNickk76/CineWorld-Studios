@@ -104,30 +104,11 @@ export function SeriesDetailModal({ open, onClose, series, stationId, isOwner, o
               </Card>
             )}
 
-            {/* Episode list preview (first 4 aired) */}
+            {/* Episode list — scrollable, all clickable, plot only if aired */}
             {broadcastInfo?.episodes && broadcastInfo.episodes.length > 0 && (
               <div>
-                <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Episodi</p>
-                <div className="space-y-1">
-                  {broadcastInfo.episodes.slice(0, 4).map(ep => {
-                    const isAired = ep.broadcast_state === 'aired';
-                    return (
-                      <div key={ep.number} className={`flex items-center gap-2 rounded-lg p-2 ${isAired ? 'bg-white/[0.03] border border-green-500/10' : 'bg-black/20 opacity-40'}`}>
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold ${isAired ? 'bg-green-500/20 text-green-400' : 'bg-white/5 text-gray-600'}`}>{ep.number}</div>
-                        <p className="text-[10px] flex-1 truncate">{ep.title || `Ep. ${ep.number}`}</p>
-                        {isAired && ep.consensus_pct > 0 && (
-                          <span className={`text-[9px] font-bold ${ep.consensus_pct >= 70 ? 'text-green-400' : ep.consensus_pct >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>{ep.consensus_pct}%</span>
-                        )}
-                        {!isAired && ep.release_datetime && (
-                          <span className="text-[8px] text-gray-600"><Clock className="w-2.5 h-2.5 inline mr-0.5" />{new Date(ep.release_datetime).toLocaleDateString('it-IT', {day:'numeric',month:'short'})}</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {broadcastInfo.episodes.length > 4 && (
-                    <p className="text-[9px] text-gray-600 text-center">+{broadcastInfo.episodes.length - 4} altri episodi</p>
-                  )}
-                </div>
+                <p className="text-[10px] text-gray-500 mb-1.5 uppercase tracking-wider">Episodi ({broadcastInfo.episodes.length})</p>
+                <EpisodeList episodes={broadcastInfo.episodes} />
               </div>
             )}
 
@@ -154,6 +135,83 @@ function StatBox({ label, value, icon, color }) {
       <div className={`flex items-center justify-center mb-1 ${color}`}>{icon}</div>
       <p className="text-xs font-bold">{value}</p>
       <p className="text-[8px] text-gray-500">{label}</p>
+    </div>
+  );
+}
+
+function EpisodeList({ episodes }) {
+  const [expanded, setExpanded] = useState(null);
+  const typeLabels = { peak: 'PEAK', filler: 'FILLER', plot_twist: 'TWIST', season_finale: 'FINALE' };
+  const typeColors = { peak: 'text-amber-400', filler: 'text-gray-500', plot_twist: 'text-purple-400', season_finale: 'text-red-400' };
+  return (
+    <div
+      className="space-y-1 max-h-[260px] overflow-y-auto pr-1"
+      style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.15) transparent' }}
+      data-testid="series-detail-episode-list"
+    >
+      {episodes.map((ep) => {
+        const isAired = ep.broadcast_state === 'aired';
+        const isOnAir = ep.broadcast_state === 'on_air';
+        const isExpanded = expanded === ep.number;
+        return (
+          <div key={ep.number}>
+            <div
+              onClick={() => setExpanded(isExpanded ? null : ep.number)}
+              className={`flex items-center gap-2 rounded-lg p-2 cursor-pointer transition-all touch-manipulation ${
+                isAired ? 'bg-white/[0.03] border border-green-500/10 hover:bg-white/[0.06]'
+                : isOnAir ? 'bg-green-500/5 border border-green-500/20 hover:bg-green-500/10'
+                : 'bg-black/20 border border-white/5 hover:bg-white/[0.04]'
+              }`}
+              data-testid={`series-detail-ep-${ep.number}`}
+            >
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${
+                isAired ? 'bg-green-500/20 text-green-400'
+                : isOnAir ? 'bg-green-500 text-white'
+                : 'bg-white/5 text-gray-500'
+              }`}>{ep.number}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className={`text-[11px] font-medium truncate ${isAired || isOnAir ? '' : 'text-gray-400'}`}>{ep.title || `Episodio ${ep.number}`}</p>
+                  {typeLabels[ep.episode_type] && (isAired || isOnAir) && (
+                    <span className={`text-[7px] font-bold ${typeColors[ep.episode_type]}`}>{typeLabels[ep.episode_type]}</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {isAired && ep.consensus_pct > 0 && (
+                  <span className={`text-[9px] font-bold ${ep.consensus_pct >= 70 ? 'text-green-400' : ep.consensus_pct >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>{ep.consensus_pct}%</span>
+                )}
+                {isOnAir && (
+                  <>
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                    <span className="text-[8px] text-green-400 font-bold">LIVE</span>
+                  </>
+                )}
+                {!isAired && !isOnAir && ep.release_datetime && (
+                  <span className="text-[8px] text-gray-500">
+                    <Clock className="w-2.5 h-2.5 inline mr-0.5" />
+                    {new Date(ep.release_datetime).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+                  </span>
+                )}
+                <ChevronRight className={`w-3 h-3 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+              </div>
+            </div>
+            {isExpanded && (
+              <div className="ml-8 mt-1 mb-1 p-2 rounded-lg bg-white/[0.02] border border-white/5">
+                {(isAired || isOnAir) ? (
+                  (ep.plot || ep.mini_plot)
+                    ? <p className="text-[10px] text-gray-300 italic leading-relaxed">{ep.plot || ep.mini_plot}</p>
+                    : <p className="text-[10px] text-gray-500 italic">Trama non disponibile.</p>
+                ) : (
+                  <p className="text-[10px] text-gray-500 italic">
+                    Trama non ancora disponibile — sarà visibile quando l'episodio verrà trasmesso.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

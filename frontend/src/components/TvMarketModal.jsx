@@ -156,18 +156,32 @@ export default function TvMarketModal({ open, onClose, content }) {
 
   // ── Buyer action ───────────────────────────────────
   const sendOffer = async () => {
-    if (!listing?.id) return toast.error('Nessun listing aperto');
     if (!offerStation) return toast.error('Seleziona una tua stazione TV');
     setLoading(true);
     try {
-      await api.post(`/tv-market/listings/${listing.id}/offer`, {
-        station_id: offerStation,
-        offered_money: Math.max(0, parseInt(offerMoney || 0)),
-        offered_credits: Math.max(0, parseInt(offerCredits || 0)),
-        mode_proposed: offerMode,
-        duration_days_proposed: Math.max(1, parseInt(offerDuration || 7)),
-        message: offerMessage,
-      });
+      if (listing?.id) {
+        // Standard offer on an open listing
+        await api.post(`/tv-market/listings/${listing.id}/offer`, {
+          station_id: offerStation,
+          offered_money: Math.max(0, parseInt(offerMoney || 0)),
+          offered_credits: Math.max(0, parseInt(offerCredits || 0)),
+          mode_proposed: offerMode,
+          duration_days_proposed: Math.max(1, parseInt(offerDuration || 7)),
+          message: offerMessage,
+        });
+      } else {
+        // Spontaneous offer (no listing): direct to owner
+        await api.post(`/tv-market/content/${content.id}/spontaneous-offer`, {
+          content_id: content.id,
+          content_collection: collection,
+          station_id: offerStation,
+          offered_money: Math.max(0, parseInt(offerMoney || 0)),
+          offered_credits: Math.max(0, parseInt(offerCredits || 0)),
+          mode_proposed: offerMode,
+          duration_days_proposed: Math.max(1, parseInt(offerDuration || 7)),
+          message: offerMessage,
+        });
+      }
       toast.success('Offerta inviata!');
       await loadAll();
       setActiveTab('overview');
@@ -219,7 +233,7 @@ export default function TvMarketModal({ open, onClose, content }) {
               <TabBtn active={activeTab === 'offers'} onClick={() => setActiveTab('offers')} icon={Users} label={`Offerte ${incomingOffers.length ? `(${incomingOffers.length})` : ''}`} />
             </>
           ) : (
-            listing && <TabBtn active={activeTab === 'offer'} onClick={() => setActiveTab('offer')} icon={Send} label="Fai Offerta" />
+            myStations.length > 0 && <TabBtn active={activeTab === 'offer'} onClick={() => setActiveTab('offer')} icon={Send} label="Fai Offerta" />
           )}
         </div>
 
@@ -267,7 +281,7 @@ export default function TvMarketModal({ open, onClose, content }) {
           )}
 
           {/* FAI OFFERTA (buyer) */}
-          {activeTab === 'offer' && !isOwner && listing && (
+          {activeTab === 'offer' && !isOwner && (
             <OfferForm
               listing={listing}
               suggestion={suggestion}
@@ -322,7 +336,7 @@ const Overview = ({ suggestion, listing, activeContracts, isOwner, onCancelListi
       </div>
     ) : (
       <div className="mb-3 p-3 rounded-lg bg-white/[0.02] border border-white/5 text-center">
-        <p className="text-[11px] text-white/50">{isOwner ? 'Non hai ancora pubblicato questo contenuto sul mercato.' : 'Il proprietario non ha ancora messo questo contenuto sul mercato.'}</p>
+        <p className="text-[11px] text-white/50">{isOwner ? 'Non hai ancora pubblicato questo contenuto sul mercato.' : 'Questo contenuto non è sul mercato — puoi comunque inviare un\'offerta spontanea al proprietario tramite "Fai Offerta".'}</p>
       </div>
     )}
 
@@ -465,6 +479,14 @@ const OfferForm = ({ listing, suggestion, myStations, offerStation, setOfferStat
   }
   return (
     <div className="space-y-2.5">
+      {!listing && (
+        <div className="p-2 rounded bg-cyan-500/10 border border-cyan-500/30 flex items-start gap-1.5">
+          <Send size={12} className="text-cyan-300 mt-0.5 flex-shrink-0" />
+          <p className="text-[10px] text-cyan-100 leading-snug">
+            <span className="font-bold">Offerta spontanea</span> — questo contenuto non è sul mercato, ma puoi proporre direttamente al proprietario. Lui decide se accettare.
+          </p>
+        </div>
+      )}
       {hasActiveFullContract && (
         <div className="p-2 rounded bg-amber-500/10 border border-amber-500/30 flex items-center gap-1.5">
           <Lock size={12} className="text-amber-300" />

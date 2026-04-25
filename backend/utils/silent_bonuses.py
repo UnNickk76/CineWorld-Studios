@@ -54,6 +54,19 @@ DAILY_LOGIN_BONUS = 50_000
 HOURLY_BONUS = 20_000
 MAX_HOURLY_PER_DAY = 5
 
+# ─── Level-based revenue boost (silent) ────────────────────────────
+# Goal: make early levels (1-5) feel financially rewarding so the player
+# wants to keep producing films. Mid (6-10) gives a softer top-up.
+# Past Lv 10 the regular economy takes over with no boost.
+# Per-heartbeat amounts (≈ every 10 min). Scales linearly with films owned
+# up to a soft cap of 5 films. With 0 films the player still gets a tiny
+# token amount so they never see literal $0.
+LEVEL_BOOST_PER_FILM_TIER1 = 40_000   # Lv 1-5 ⇒ up to 5×40k = 200k / beat
+LEVEL_BOOST_PER_FILM_TIER2 = 15_000   # Lv 6-10 ⇒ up to 5×15k = 75k / beat
+LEVEL_BOOST_NO_FILM = 1_000           # tiny token if 0 films
+LEVEL_BOOST_DAILY_CAP_TIER1 = 5_000_000   # max $5M/day for Lv 1-5
+LEVEL_BOOST_DAILY_CAP_TIER2 = 2_000_000   # max $2M/day for Lv 6-10
+
 
 def _cap_for_films(films_count: int) -> int:
     """Return the 6-day cumulative cap in $ based on films owned."""
@@ -211,5 +224,60 @@ async def apply_silent_bonuses(db, user_id: str) -> dict:
         "last_login_bonus_date": today_iso,
         "hourly_bonus_today": hourly_today,
     }})
+
+    # ───── Layer 4: Level-based revenue boost (Lv 1-10, silent) ─────
+    try:
+        # Use the same level source as the rest of the game (game_systems formula)
+        from game_systems import get_level_from_xp as _gs_lvl
+        lvl_info = _gs_lvl(int(user.get("total_xp", 0) or user.get("xp", 0) or 0))
+        player_lvl = int(lvl_info.get("level", 0) if isinstance(lvl_info, dict) else (lvl_info or 0))
+    except Exception:
+        player_lvl = 0
+
+    # Determine tier
+    if 1 <= player_lvl <= 5:
+        per_film = LEVEL_BOOST_PER_FILM_TIER1
+        daily_cap = LEVEL_BOOST_DAILY_CAP_TIER1
+        tier_label = "tier1"
+    elif 6 <= player_lvl <= 10:
+        per_film = LEVEL_BOOST_PER_FILM_TIER2
+        daily_cap = LEVEL_BOOST_DAILY_CAP_TIER2
+        tier_label = "tier2"
+    else:
+        per_film = 0
+        daily_cap = 0
+        tier_label = None
+
+    if tier_label:
+        # Count released films owned (cap effective contribution at 5)
+        try:
+            films_count = await db.films.count_documents(
+                {"user_id": user_id, "status": {"$in": ["in_theaters", "released", "market"]}}
+            )
+        except Exception:
+            films_count = 0
+
+        if films_count <= 0:
+            beat_amount = LEVEL_BOOST_NO_FILM
+        else:
+            beat_amount = per_film * min(films_count, 5)
+
+        # Daily cap tracking
+        boost_today = user.get("level_boost_today", {}) or {}
+        if boost_today.get("date") != today_iso:
+            boost_today = {"date": today_iso, "granted": 0}
+        granted_today = int(boost_today.get("granted", 0))
+        room = max(0, daily_cap - granted_today)
+        actual = min(beat_amount, room)
+        if actual > 0:
+            await _log_silent_credit(
+                db, user_id, actual, "level_boost",
+                f"Lv.{player_lvl} {tier_label} · {films_count} film"
+            )
+            boost_today["granted"] = granted_today + actual
+            await db.users.update_one(
+                {"id": user_id}, {"$set": {"level_boost_today": boost_today}}
+            )
+            diag["level_boost"] = actual
 
     return {"applied": True, **diag}

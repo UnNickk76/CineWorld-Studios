@@ -22,6 +22,8 @@ import {
   Zap, Film as FilmIcon, Sparkles, Tv, X, DollarSign, TrendingUp,
   TrendingDown, Check, Loader2, Trophy, ChevronRight
 } from 'lucide-react';
+import CiakIntroOverlay from './CiakIntroOverlay';
+import LampoReleaseOverlay from './LampoReleaseOverlay';
 
 const GENRES = {
   film: [
@@ -570,6 +572,9 @@ export default function LampoModal({ open, contentType, onClose, onPickCompleta 
   const { api } = useContext(AuthContext);
   const [phase, setPhase] = useState('chooser'); // chooser|form|progress|result
   const [activeProject, setActiveProject] = useState(null);
+  // Wow overlays
+  const [introOverlay, setIntroOverlay] = useState(null);   // null | 'ciak' | 'wait'
+  const [releaseOverlay, setReleaseOverlay] = useState(null); // null | { mode, contentType, releaseAt }
 
   useEffect(() => {
     if (!open) return;
@@ -600,44 +605,97 @@ export default function LampoModal({ open, contentType, onClose, onPickCompleta 
   const handleClose = () => {
     setPhase('chooser');
     setActiveProject(null);
+    setIntroOverlay(null);
+    setReleaseOverlay(null);
     onClose();
   };
 
+  // Form ha completato POST → mostra ciak overlay, poi 3s, poi progress
+  const handleFormStart = (p) => {
+    setActiveProject(p);
+    setIntroOverlay('ciak');
+  };
+  const handleCiakComplete = () => {
+    setIntroOverlay('wait');
+    setTimeout(() => {
+      setIntroOverlay(null);
+      setPhase('progress');
+    }, 3000);
+  };
+
+  // Result ha rilasciato → mostra release overlay, poi chiudi
+  const handleReleased = (data) => {
+    setReleaseOverlay({
+      mode: data?.scheduled ? 'scheduled' : 'immediate',
+      contentType: data?.type || activeProject?.content_type || 'film',
+      releaseAt: data?.release_at || null,
+    });
+  };
+  const handleReleaseOverlayDone = () => {
+    setReleaseOverlay(null);
+    handleClose();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="max-w-md p-0 bg-gradient-to-b from-[#0c0a08] to-[#050302] border border-amber-500/20" data-testid="lampo-modal">
-        {phase === 'chooser' && (
-          <ModeChooser
-            contentType={contentType}
-            onPickCompleta={() => { handleClose(); onPickCompleta?.(); }}
-            onPickLampo={() => setPhase('form')}
-            onClose={handleClose}
-          />
-        )}
-        {phase === 'form' && (
-          <LampoForm
-            contentType={contentType}
-            onStart={(p) => { setActiveProject(p); setPhase('progress'); }}
-            onBack={() => setPhase('chooser')}
-            onClose={handleClose}
-          />
-        )}
-        {phase === 'progress' && activeProject && (
-          <LampoProgress
-            project={activeProject}
-            onDone={(p) => { setActiveProject(p); setPhase('result'); }}
-            onClose={handleClose}
-          />
-        )}
-        {phase === 'result' && activeProject && (
-          <LampoResult
-            project={activeProject}
-            api={api}
-            onReleased={() => handleClose()}
-            onClose={handleClose}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open && !introOverlay && !releaseOverlay} onOpenChange={(v) => !v && handleClose()}>
+        <DialogContent className="max-w-md p-0 bg-gradient-to-b from-[#0c0a08] to-[#050302] border border-amber-500/20" data-testid="lampo-modal">
+          {phase === 'chooser' && (
+            <ModeChooser
+              contentType={contentType}
+              onPickCompleta={() => { handleClose(); onPickCompleta?.(); }}
+              onPickLampo={() => setPhase('form')}
+              onClose={handleClose}
+            />
+          )}
+          {phase === 'form' && (
+            <LampoForm
+              contentType={contentType}
+              onStart={handleFormStart}
+              onBack={() => setPhase('chooser')}
+              onClose={handleClose}
+            />
+          )}
+          {phase === 'progress' && activeProject && (
+            <LampoProgress
+              project={activeProject}
+              onDone={(p) => { setActiveProject(p); setPhase('result'); }}
+              onClose={handleClose}
+            />
+          )}
+          {phase === 'result' && activeProject && (
+            <LampoResult
+              project={activeProject}
+              api={api}
+              onReleased={handleReleased}
+              onClose={handleClose}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Wow effect 1 — CIAK intro dopo Step 1 (form submit) */}
+      {introOverlay === 'ciak' && (
+        <CiakIntroOverlay onComplete={handleCiakComplete} />
+      )}
+      {/* Wait phase: 3s di tela nera tra ciak e progress (anticipazione) */}
+      {introOverlay === 'wait' && (
+        <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center" data-testid="lampo-anticipation">
+          <div className="text-amber-300/40 text-sm tracking-[0.4em] animate-pulse font-['Bebas_Neue']">
+            ⚡ MOTORE ⚡
+          </div>
+        </div>
+      )}
+
+      {/* Wow effect 2 — LAMPO release overlay dopo conferma rilascio */}
+      {releaseOverlay && (
+        <LampoReleaseOverlay
+          mode={releaseOverlay.mode}
+          contentType={releaseOverlay.contentType}
+          releaseAt={releaseOverlay.releaseAt}
+          onComplete={handleReleaseOverlayDone}
+        />
+      )}
+    </>
   );
 }

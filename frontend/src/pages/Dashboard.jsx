@@ -15,6 +15,7 @@ import { ProducerBadge } from '../components/ProducerBadge';
 import { LampoLightning } from '../components/LampoLightning';
 import TvRightsBadge from '../components/TvRightsBadge';
 import TvMarketModal from '../components/TvMarketModal';
+import TvMarketDashboardWidget from '../components/TvMarketDashboardWidget';
 import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from '../components/SectionSortMenu';
 import ProssimamenteDetailModal from '../components/ProssimamenteDetailModal';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
@@ -590,6 +591,11 @@ const Dashboard = () => {
           {/* 3. Prossimamente FILM */}
           <div className="mb-4 rounded-xl glow-blue" data-testid="dashboard-coming-soon-film">
             <ComingSoonSection compact filterType="film" sectionTitle="PROSSIMAMENTE FILM" />
+          </div>
+
+          {/* TV Market Dashboard Widget — cruscotto produttore TV */}
+          <div className="mb-4">
+            <TvMarketDashboardWidget />
           </div>
 
           {/* 4. Ultimi Aggiornamenti FILM */}

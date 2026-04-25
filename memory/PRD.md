@@ -1,3 +1,23 @@
+## Cruscotto TV Market in Dashboard (Apr 25, 2026 — sera 6)
+
+Nuovo widget dedicato `TvMarketDashboardWidget.jsx` integrato in Dashboard sopra "ULTIMI FILM AL CINEMA".
+
+**Vista compatta** (sempre visibile):
+- Header con icona TV + titolo "Cruscotto TV Market"
+- Badge rosa pulsante con totale alert (offerte ricevute pendenti + controproposte da approvare)
+- 4 mini-stat: Offerte ricevute (rosa se >0), Offerte fatte, Contratti attivi, Storico
+- Click → apre modal full-screen
+
+**Modal full** con 4 tab:
+- **Ricevute** (badge offerte pending): per ogni offerta → buyer, station, prezzo/modo/durata, messaggio, pulsanti Accetta/Rifiuta inline
+- **Inviate** (badge controproposte): le mie offerte con status; controproposte ricevute mostrano box cyan con prezzo + messaggio + bottone "Accetta controproposta"
+- **Attivi**: contratti attivi con countdown "Resta X gg" (rosso se ≤3 giorni dalla scadenza), modalità 100%/50% colorata
+- **Storico**: contratti completati con data conclusione
+
+Mobile-first con touch-manipulation, 4 colonne stat con responsive shrink, scroll fluido nel modal.
+
+Files: `frontend/src/components/TvMarketDashboardWidget.jsx`, `frontend/src/pages/Dashboard.jsx`.
+
 ## Mercato Diritti TV — Visibilità + Auto-Palinsesto (Apr 25, 2026 — sera 5)
 
 Implementati i due P1 in coda al sistema mercato:

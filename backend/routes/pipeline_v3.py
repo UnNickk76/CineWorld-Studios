@@ -1145,8 +1145,9 @@ async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user))
         aid = actor.get('id', '')
         is_returning = aid in past_actor_ids
         base_cost = actor.get('cost_per_film', 100000)
-        discount = 0.30 if is_returning else 0.15  # -30% returning, -15% own agency
-        final_cost = int(base_cost * (1 - discount))
+        # Player's own roster → costo 0 (richiesta utente)
+        final_cost = 0
+        discount = 1.0
 
         result.append({
             "id": aid,
@@ -1161,9 +1162,10 @@ async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user))
             "primary_skills": actor.get("primary_skills", []),
             "cost": final_cost,
             "original_cost": base_cost,
-            "discount_pct": int(discount * 100),
+            "discount_pct": 100,
             "is_returning": is_returning,
             "is_agency": True,
+            "is_own_roster": True,
             "source": "agency",
             "crc": _calc_crc_from_npc(actor),
             "already_cast": aid in cast_ids,
@@ -1183,11 +1185,12 @@ async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user))
             "fame_category": "emerging",
             "skills": student.get("skills", {}),
             "primary_skills": [],
-            "cost": 50000,
+            "cost": 0,
             "original_cost": 50000,
-            "discount_pct": 0,
+            "discount_pct": 100,
             "is_returning": False,
             "is_agency": True,
+            "is_own_roster": True,
             "source": "school",
             "crc": _calc_crc_from_npc(student),
             "already_cast": sid in cast_ids,
@@ -1692,9 +1695,10 @@ async def cast_agency_actor_v3(pid: str, data: dict, user: dict = Depends(get_cu
             if a.get('id'): past_ids.add(a['id'])
 
     is_returning = actor_id in past_ids
+    # Player's own actors (school/agency) → costo 0 (richiesta utente)
+    final_cost = 0
     base_cost = actor.get('cost_per_film', 100000)
-    discount = 0.30 if is_returning else 0.15
-    final_cost = int(base_cost * (1 - discount))
+    discount = 1.0  # 100% (own roster)
 
     # Check funds
     if user.get('funds', 0) < final_cost:
@@ -1720,6 +1724,8 @@ async def cast_agency_actor_v3(pid: str, data: dict, user: dict = Depends(get_cu
         "primary_skills": actor.get("primary_skills", []),
         "crc": _calc_crc_from_npc(actor),
         "is_agency_actor": True,
+        "is_own_roster": True,
+        "own_source": source,  # 'school' or 'agency'
         "is_returning": is_returning,
         "discount_pct": int(discount * 100),
     }
@@ -2484,6 +2490,31 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         cwsv_display = "5"
         cwsv_data = {}
 
+    # ─── Bonus "Propri Attori" (scuola/agenzia del player) ───────────
+    # Premia i player che usano i propri attori. Il bonus è proporzionale
+    # al valore (stelle) di ogni attore proprio nel cast del film.
+    try:
+        cast_data = project.get("cast", {}) or {}
+        own_actor_bonus = 0.0
+        own_count = 0
+        for a in (cast_data.get("actors", []) or []):
+            if a.get("is_own_roster"):
+                stars = float(a.get("stars", 0) or 0)
+                # Curva quadratica: attori top contribuiscono di più.
+                # Es: 4★ → 0.4%, 7★ → 1.225%, 9★ → 2.025% per attore.
+                own_actor_bonus += (stars * stars) * 0.025
+                own_count += 1
+        # Cap a +5% sul punteggio finale
+        own_actor_bonus = min(own_actor_bonus, 5.0)
+        if own_actor_bonus > 0:
+            # Applica come moltiplicatore percentuale sul CWSv
+            quality_score = round(min(10.0, quality_score * (1.0 + own_actor_bonus / 100.0)), 2)
+            cwsv_data["own_actor_bonus_pct"] = round(own_actor_bonus, 2)
+            cwsv_data["own_actor_count"] = own_count
+            cwsv_display = str(int(round(quality_score * 10)))
+    except Exception:
+        pass
+
     # Calculate production cost (safe — handles missing data)
     # Note: we pass base cost to _spend; scaling is applied INSIDE _spend to avoid double-scaling
     try:
@@ -2624,6 +2655,27 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
             revenue=film_doc.get('realistic_box_office', 0) or 0,
             title=film_doc.get('title'),
         )
+    except Exception:
+        pass
+
+    # Bonus XP per uso dei propri attori (scuola/agenzia)
+    try:
+        cast_data = project.get("cast", {}) or {}
+        own_xp = 0
+        for a in (cast_data.get("actors", []) or []):
+            if a.get("is_own_roster"):
+                stars = float(a.get("stars", 0) or 0)
+                own_xp += int(50 * stars)  # 4★→200, 7★→350, 9★→450 per attore
+        own_xp = min(own_xp, 1000)
+        if own_xp > 0:
+            from utils.xp_fame import grant_xp
+            try:
+                await grant_xp(db, user['id'], own_xp, source='own_actors_bonus',
+                               detail=f"{cast_data.get('actors', []) and sum(1 for a in cast_data.get('actors', []) if a.get('is_own_roster')) or 0} attori propri")
+            except Exception:
+                # fallback diretto
+                await db.users.update_one({'id': user['id']},
+                                          {'$inc': {'total_xp': own_xp, 'xp': own_xp}})
     except Exception:
         pass
 

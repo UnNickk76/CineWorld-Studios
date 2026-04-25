@@ -535,6 +535,54 @@ async def _worker_generate(pid: str):
             budget_tier=proj.get("budget_tier", "mid"), cwsv=cwsv
         )
 
+        # LAMPO auto-include: sostituisci fino a 2 attori NPC con attori
+        # del roster del player (scuola/agenzia) se disponibili. Costo 0
+        # e badge "is_own_roster" → bonus CWSv/XP automatici al rilascio.
+        try:
+            own_pool = []
+            agency_actors_doc = await db.agency_actors.find(
+                {"user_id": proj["user_id"]}, {"_id": 0}
+            ).limit(20).to_list(20)
+            for a in agency_actors_doc:
+                own_pool.append({**a, "_own_source": "agency"})
+            school_students = await db.casting_school_students.find(
+                {"user_id": proj["user_id"], "status": {"$in": ["training", "max_potential"]}},
+                {"_id": 0}
+            ).limit(20).to_list(20)
+            for s in school_students:
+                own_pool.append({**s, "_own_source": "school"})
+
+            if own_pool and cast.get("actors"):
+                import random as _rnd2
+                # max 2 own actors per LAMPO project
+                k = min(2, len(own_pool), len(cast["actors"]))
+                own_pick = _rnd2.sample(own_pool, k)
+                for i, ow in enumerate(own_pick):
+                    # Replace the i-th actor (preserve character_role)
+                    char_role = cast["actors"][i].get("character_role") if i < len(cast["actors"]) else None
+                    enriched = {
+                        **ow,
+                        "id": ow.get("id"),
+                        "name": ow.get("name", "?"),
+                        "stars": ow.get("stars", 2),
+                        "gender": ow.get("gender", ""),
+                        "gender_label": "M" if str(ow.get("gender", "")).lower().startswith("m") else "F",
+                        "role_type": "actor" if proj["content_type"] != "anime" else "anime_illustrator",
+                        "role_label": "Attore" if proj["content_type"] != "anime" else "Disegnatore",
+                        "skills": ow.get("skills", {}),
+                        "fame_score": ow.get("fame_score", 30),
+                        "score": 60 + (ow.get("stars", 2) * 4),
+                        "is_guest_star": False,
+                        "is_own_roster": True,
+                        "own_source": ow.get("_own_source", "agency"),
+                        "is_agency_actor": True,
+                    }
+                    if char_role:
+                        enriched["character_role"] = char_role
+                    cast["actors"][i] = enriched
+        except Exception as _own_err:
+            logger.warning(f"LAMPO own-roster injection fail pid={pid}: {_own_err}")
+
         # Distribuzione automatica (solo film — serie/anime usano il loro flow TV)
         distribution_plan = None
         if proj["content_type"] == "film":

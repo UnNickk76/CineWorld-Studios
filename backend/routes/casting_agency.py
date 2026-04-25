@@ -850,7 +850,8 @@ async def send_agency_actor_to_school(actor_id: str, user: dict = Depends(get_cu
     # Check if school has capacity
     from routes.acting_school import get_training_slots
     school = await db.infrastructure.find_one(
-        {'owner_id': user['id'], 'type': 'acting_school'}, {'_id': 0, 'level': 1}
+        {'owner_id': user['id'], 'type': {'$in': ['cinema_school', 'acting_school', 'scuola_recitazione', 'casting_school']}},
+        {'_id': 0, 'level': 1}
     )
     if not school:
         raise HTTPException(400, "Non possiedi una Scuola di Recitazione. Acquistala dalle Infrastrutture!")

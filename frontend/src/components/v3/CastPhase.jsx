@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Star, Zap, X, Lock, Unlock } from 'lucide-react';
+import { Users, Star, Zap, X, Lock, Unlock, GraduationCap, Briefcase } from 'lucide-react';
 import { PhaseWrapper, v3api } from './V3Shared';
 
 const CAST_TABS = [
@@ -330,7 +330,9 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                 <button onClick={() => setSkillNpc(a)} className="text-[8px] font-bold text-cyan-400 hover:text-cyan-300 underline decoration-dotted underline-offset-2">{a.name}</button>
                 {a.gender && GENDER_SYMBOL[a.gender] && <span className={`text-[9px] ${GENDER_COLOR[a.gender] || ''}`}>{GENDER_SYMBOL[a.gender]}</span>}
                 <span className="text-[7px] text-gray-500">({roleDisplay(a.cast_role)})</span>
-                {a.is_agency_actor && <span className="text-[6px] px-1 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">Agenzia</span>}
+                {a.is_own_roster && a.own_source === 'school' && <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-0.5"><GraduationCap className="w-2 h-2" />Scuola</span>}
+                {a.is_own_roster && a.own_source === 'agency' && <span className="text-[6px] px-1 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-0.5"><Briefcase className="w-2 h-2" />Mia Agenzia</span>}
+                {a.is_agency_actor && !a.is_own_roster && <span className="text-[6px] px-1 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">Agenzia</span>}
                 {a.is_returning && <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">Ritorno</span>}
               </div>
             ))}
@@ -399,52 +401,67 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
 
         {/* === SOURCE: MY AGENCY === */}
         {castSource === 'agency' && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {agencyInfo && (
-              <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-purple-500/5 border border-purple-500/15">
-                <div>
-                  <p className="text-[9px] font-bold text-purple-300">{agencyInfo.agency_name}</p>
-                  <p className="text-[7px] text-gray-500">Lv.{agencyInfo.agency_level} \u2022 {agencyInfo.total} attori</p>
-                </div>
+              <div className="px-2 py-1.5 rounded-lg bg-purple-500/5 border border-purple-500/15">
+                <p className="text-[9px] font-bold text-purple-300">{agencyInfo.agency_name}</p>
+                <p className="text-[7px] text-gray-500">Lv.{agencyInfo.agency_level} • {agencyInfo.total} attori propri • <span className="text-emerald-400 font-bold">Costo $0</span></p>
+                <p className="text-[6px] text-emerald-300/70 mt-0.5">+XP e bonus CWSv all'uscita del film (proporzionale a stelle/numero attori propri)</p>
               </div>
             )}
             {availableAgency.length === 0 ? (
-              <p className="text-center text-[8px] text-gray-600 py-4">Nessun attore disponibile nella tua agenzia. Recluta dalla pagina Agenzia!</p>
+              <p className="text-center text-[8px] text-gray-600 py-4">Nessun attore disponibile. Recluta dalla pagina Agenzia o forma in Scuola di Recitazione!</p>
             ) : (
-              <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                {availableAgency.map(actor => (
-                  <div key={actor.id} className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all bg-purple-500/5 border-purple-500/20 hover:border-purple-500/40`}>
-                    <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-xs font-bold text-purple-300 shrink-0">
-                      {(actor.name || '?')[0]}
+              <>
+                {/* Group by source: school vs agency */}
+                {[
+                  { key: 'school', label: 'Scuola di Recitazione', icon: GraduationCap, color: 'emerald', tint: 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40', avatarBg: 'bg-emerald-500/20 text-emerald-300', btnCls: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' },
+                  { key: 'agency', label: 'La Mia Agenzia', icon: Briefcase, color: 'purple', tint: 'bg-purple-500/5 border-purple-500/20 hover:border-purple-500/40', avatarBg: 'bg-purple-500/20 text-purple-300', btnCls: 'bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20' },
+                ].map(group => {
+                  const items = availableAgency.filter(a => (a.source || 'agency') === group.key);
+                  if (items.length === 0) return null;
+                  const Icon = group.icon;
+                  return (
+                    <div key={group.key} className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Icon className={`w-3 h-3 text-${group.color}-400`} />
+                        <p className={`text-[8px] font-bold text-${group.color}-300 uppercase tracking-wider`}>{group.label}</p>
+                        <span className={`text-[7px] text-${group.color}-400/70`}>({items.length})</span>
+                      </div>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {items.map(actor => (
+                          <div key={actor.id} className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${group.tint}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${group.avatarBg}`}>
+                              {(actor.name || '?')[0]}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <button onClick={() => setSkillNpc(actor)} className={`text-[9px] font-bold text-white truncate hover:text-${group.color}-400 underline decoration-dotted underline-offset-2`}>{actor.name}</button>
+                                {actor.gender && GENDER_SYMBOL[actor.gender] && <span className={`text-[10px] ${GENDER_COLOR[actor.gender] || ''}`}>{GENDER_SYMBOL[actor.gender]}</span>}
+                                <span className={`text-[6px] px-1 py-0.5 rounded font-black border ${
+                                  actor.crc >= 80 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
+                                  actor.crc >= 60 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' :
+                                  'bg-amber-500/15 text-amber-400 border-amber-500/25'
+                                }`}>CRc {actor.crc}</span>
+                              </div>
+                              <div className="flex items-center gap-1 mt-0.5 text-[7px]">
+                                <span className="text-gray-500">{actor.nationality}</span>
+                                <span className="text-gray-700">•</span>
+                                <span className="text-emerald-400 font-bold">GRATIS</span>
+                              </div>
+                              <div className="flex items-center gap-0.5 mt-0.5">
+                                {Array.from({ length: actor.stars || 1 }).map((_, i) => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}
+                              </div>
+                            </div>
+                            <button onClick={() => !isFull && castAgencyActor(actor, 'actor', actorRoles[actor.id] || 'generico')} disabled={loading || isFull}
+                              className={`text-[7px] px-2 py-1 rounded-lg font-bold shrink-0 border ${group.btnCls} disabled:opacity-30`} data-testid={`cast-own-${actor.id}`}>+</button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <button onClick={() => setSkillNpc(actor)} className="text-[9px] font-bold text-white truncate hover:text-purple-400 underline decoration-dotted underline-offset-2">{actor.name}</button>
-                        {actor.gender && GENDER_SYMBOL[actor.gender] && <span className={`text-[10px] ${GENDER_COLOR[actor.gender] || ''}`}>{GENDER_SYMBOL[actor.gender]}</span>}
-                        <span className={`text-[6px] px-1 py-0.5 rounded font-black border ${
-                          actor.crc >= 80 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
-                          actor.crc >= 60 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' :
-                          'bg-amber-500/15 text-amber-400 border-amber-500/25'
-                        }`}>CRc {actor.crc}</span>
-                        {actor.is_returning && <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">Ritorno</span>}
-                      </div>
-                      <div className="flex items-center gap-1 mt-0.5 text-[7px] text-gray-500">
-                        <span>{actor.nationality}</span>
-                        <span>\u2022</span>
-                        <span className="text-emerald-400 font-bold">-{actor.discount_pct}%</span>
-                        <span>\u2022</span>
-                        <span>${(actor.cost || 0).toLocaleString()}</span>
-                        {actor.original_cost !== actor.cost && <span className="line-through text-gray-700">${(actor.original_cost || 0).toLocaleString()}</span>}
-                      </div>
-                      <div className="flex items-center gap-0.5 mt-0.5">
-                        {Array.from({ length: actor.stars || 1 }).map((_, i) => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}
-                      </div>
-                    </div>
-                    <button onClick={() => !isFull && castAgencyActor(actor, 'actor', actorRoles[actor.id] || 'generico')} disabled={loading || isFull}
-                      className="text-[7px] px-2 py-1 rounded-lg font-bold shrink-0 bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 disabled:opacity-30">+</button>
-                  </div>
-                ))}
-              </div>
+                  );
+                })}
+              </>
             )}
           </div>
         )}

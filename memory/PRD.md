@@ -1,3 +1,27 @@
+## Bundle 5 fix (Apr 25, 2026 — sera 9)
+
+### 1. Bug "Non possiedi una Scuola di Recitazione"
+- `routes/casting_agency.py` send-to-school cercava `type='acting_school'`, ma in DB l'infrastruttura è salvata come **`cinema_school`**. Fix: query `$in: ['cinema_school','acting_school','scuola_recitazione','casting_school']` (allineata alla query che già funziona altrove). Verificato via curl: attore Jin Garcia iscritto correttamente.
+
+### 2. Menu PRODUCI: "La Tua TV" → "Sceneggiature"
+- `App.js` linea 1436: rimosso bottone "La Tua TV" (resta in topnav "LE MIE TV"). Aggiunto bottone "Sceneggiature" → `/emerging-screenplays` (icona BookOpen, verde smeraldo). Visibile in screenshot.
+
+### 3. Cast Pipeline V3: "I Miei Attori" Scuola/Agenzia + Bonus
+- `routes/pipeline_v3.py`:
+  - `GET /films/{pid}/my-agency-actors`: cost=0 per tutti gli attori del proprio roster (scuola+agenzia). Flag `is_own_roster=True`. Mantenuto campo `source` (school/agency).
+  - `POST /films/{pid}/cast-agency-actor`: cost=0, salva `is_own_roster` e `own_source` nell'entry del cast.
+  - `POST /films/{pid}/release`: nuovo bonus CWSv proporzionale: per ogni attore proprio nel cast, `(stars²) × 0.025%` cumulativo, capped a +5%. Esempi: 4★ → +0.4%, 7★ → +1.225%, 9★ → +2.025% per attore.
+  - Bonus XP al rilascio: `50 × stars` per attore proprio, max 1000 XP totale. Source `own_actors_bonus` in `wallet_transactions`.
+- `components/v3/CastPhase.jsx`:
+  - Tab "La Mia Agenzia" ora mostra **due sezioni separate** (Scuola di Recitazione 🎓 verde / La Mia Agenzia 💼 viola), con icona dedicata e badge "GRATIS".
+  - Cast selezionato: badge distinti per source (Scuola/Mia Agenzia/Agenzia generica).
+
+### 4. LAMPO Auto-Cast: include propri attori
+- `routes/lampo.py`: dopo `_pick_random_cast`, sostituisce fino a **2 attori NPC** con attori dal roster del player (se disponibili). Preservato `character_role`, marcato `is_own_roster=True` con `own_source`. Trigger automatico bonus CWSv/XP al rilascio LAMPO.
+
+Files: `backend/routes/casting_agency.py`, `backend/routes/pipeline_v3.py`, `backend/routes/lampo.py`, `frontend/src/App.js`, `frontend/src/components/v3/CastPhase.jsx`.
+
+
 ## Bundle 4 fix (Apr 25, 2026 — sera 8)
 
 ### 1. Mercato TV — Offerte Spontanee

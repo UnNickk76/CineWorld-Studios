@@ -1433,7 +1433,7 @@ const TopNavbar = () => {
                 { icon: Copy, label: 'Sequel', path: '/create-sequel', color: 'bg-orange-500/15 border-orange-500/30 text-orange-400', count: 0 },
                 { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', count: prodCounts.series },
                 { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400', count: prodCounts.anime },
-                { icon: Radio, label: 'La Tua TV', path: '/my-tv', color: 'bg-teal-500/15 border-teal-500/30 text-teal-400', count: 0 },
+                { icon: BookOpen, label: 'Sceneggiature', path: '/emerging-screenplays', color: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400', count: 0 },
                 { icon: Users, label: 'Agenzia', path: '/agenzia', color: 'bg-purple-500/15 border-purple-500/30 text-purple-400', count: 0 },
               ].map(item => (
                 <button key={item.path}

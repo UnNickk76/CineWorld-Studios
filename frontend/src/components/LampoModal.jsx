@@ -320,13 +320,44 @@ function LampoProgress({ project, onDone, onClose }) {
 // ───── LampoResult ─────
 function LampoResult({ project, onReleased, onClose, api }) {
   const [releasing, setReleasing] = useState(false);
+  const [timing, setTiming] = useState('immediate'); // immediate|6h|12h|18h|1d|2d|4d|6d|8d
+  const [dayTime, setDayTime] = useState('20:00');   // HH:mm for "days" options
   const CT = CT_META[project.content_type];
   const ContentIcon = CT.icon;
+
+  const TIMING_OPTIONS = [
+    { id: 'immediate', label: '⚡ Immediato', sub: 'Esci subito' },
+    { id: '6h',  label: 'Tra 6 ore',  sub: 'Hype leggero' },
+    { id: '12h', label: 'Tra 12 ore', sub: 'Hype leggero' },
+    { id: '18h', label: 'Tra 18 ore', sub: 'Hype medio' },
+    { id: '1d',  label: 'Tra 1 giorno', sub: 'Hype medio' },
+    { id: '2d',  label: 'Tra 2 giorni', sub: 'Hype alto' },
+    { id: '4d',  label: 'Tra 4 giorni', sub: 'Hype alto' },
+    { id: '6d',  label: 'Tra 6 giorni', sub: 'Hype massimo' },
+    { id: '8d',  label: 'Tra 8 giorni', sub: 'Hype massimo' },
+  ];
+  const isDayOption = ['1d', '2d', '4d', '6d', '8d'].includes(timing);
+
+  const computeReleaseAt = () => {
+    if (timing === 'immediate') return { release_in_hours: 0 };
+    const hourMap = { '6h': 6, '12h': 12, '18h': 18 };
+    if (hourMap[timing]) return { release_in_hours: hourMap[timing] };
+    const dayMap = { '1d': 1, '2d': 2, '4d': 4, '6d': 6, '8d': 8 };
+    const days = dayMap[timing];
+    if (!days) return { release_in_hours: 0 };
+    // Build an ISO date for X days from now at the chosen HH:mm (local)
+    const [hh, mm] = (dayTime || '20:00').split(':').map(Number);
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    d.setHours(hh || 20, mm || 0, 0, 0);
+    return { release_at: d.toISOString() };
+  };
 
   const handleRelease = async () => {
     setReleasing(true);
     try {
-      const res = await api.post(`/lampo/${project.id}/release`);
+      const body = computeReleaseAt();
+      const res = await api.post(`/lampo/${project.id}/release`, body);
       toast.success(res.data.message || 'Rilasciato!');
       onReleased(res.data);
     } catch (e) {
@@ -456,6 +487,49 @@ function LampoResult({ project, onReleased, onClose, api }) {
         </div>
       </div>
 
+      {/* ─── Timing release picker ─── */}
+      <div className="mb-3 p-3 rounded-lg bg-gradient-to-br from-amber-500/5 to-orange-500/5 border border-amber-400/20">
+        <div className="text-[10px] uppercase text-amber-300/90 font-semibold mb-2 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> Quando vuoi rilasciarlo?
+        </div>
+        <div className="grid grid-cols-3 gap-1.5 mb-2">
+          {TIMING_OPTIONS.map(opt => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setTiming(opt.id)}
+              className={`p-1.5 rounded-md text-[10px] font-semibold transition-all border ${
+                timing === opt.id
+                  ? 'bg-amber-400/20 border-amber-400 text-amber-100 shadow-[0_0_8px_rgba(251,191,36,0.4)]'
+                  : 'bg-black/30 border-white/10 text-slate-300 hover:border-amber-400/30'
+              }`}
+              data-testid={`lampo-timing-${opt.id}`}
+            >
+              <div className="leading-tight">{opt.label}</div>
+              <div className="text-[8px] opacity-60 mt-0.5">{opt.sub}</div>
+            </button>
+          ))}
+        </div>
+        {isDayOption && (
+          <div className="flex items-center gap-2 mt-1">
+            <label className="text-[10px] text-slate-300">Orario:</label>
+            <input
+              type="time"
+              value={dayTime}
+              onChange={e => setDayTime(e.target.value)}
+              className="bg-black/40 border border-amber-400/30 rounded px-2 py-1 text-[11px] text-amber-100 focus:outline-none focus:border-amber-400"
+              data-testid="lampo-timing-time-input"
+            />
+            <span className="text-[9px] text-slate-500">(ora locale)</span>
+          </div>
+        )}
+        {timing !== 'immediate' && (
+          <p className="text-[9px] text-emerald-300/80 mt-2 italic">
+            ✨ I rilasci posticipati creano hype: spettatori extra anche per progetti modesti.
+          </p>
+        )}
+      </div>
+
       {/* Action buttons */}
       <div className="flex gap-2">
         <Button
@@ -479,7 +553,9 @@ function LampoResult({ project, onReleased, onClose, api }) {
           className="flex-1 h-11 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 text-black font-bold text-sm"
           data-testid="lampo-release-btn">
           {releasing ? <Loader2 className="w-4 h-4 animate-spin" /> :
-           project.content_type === 'film' ? '🎬 Rilascia al Cinema' : '📺 Manda alla mia TV'}
+           timing === 'immediate'
+             ? (project.content_type === 'film' ? '🎬 Rilascia subito' : '📺 Manda in TV ora')
+             : '📅 Pianifica uscita'}
         </Button>
       </div>
       <p className="text-[9px] text-slate-500 text-center mt-2 italic">

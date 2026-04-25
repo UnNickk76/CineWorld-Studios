@@ -12,7 +12,7 @@ import asyncio
 import logging
 import random
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -157,6 +157,95 @@ async def _generate_poster_lampo(title: str, genre: str, content_type: str, proj
     except Exception as e:
         logger.warning(f"LAMPO poster generation failed pid={project_id}: {e}")
     return ""
+
+
+async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay_text, episodes, sponsors, distribution_plan):
+    """Inserisce nello standard films/tv_series uno stub 'lampo_ready' (bozza pre-rilascio).
+    Idempotente: se già esiste uno stub con source_project_id == pid, non duplica."""
+    ct = proj["content_type"]
+    now = datetime.now(timezone.utc).isoformat()
+    if ct == "film":
+        existing = await db.films.find_one({"source_project_id": pid}, {"_id": 0, "id": 1})
+        if existing:
+            return
+        film_id = str(uuid.uuid4())
+        await db.films.insert_one({
+            "id": film_id,
+            "user_id": proj["user_id"],
+            "pipeline_version": 3,
+            "source_project_id": pid,
+            "mode": "lampo",
+            "is_lampo": True,
+            "title": proj["title"],
+            "genre": proj["genre"],
+            "subgenre": proj.get("subgenre"),
+            "preplot": proj["preplot"],
+            "screenplay": screenplay_text or "",
+            "synopsis": screenplay_text or proj.get("preplot", ""),
+            "poster_url": poster_url or "",
+            "cast": cast,
+            "quality_score": cwsv,
+            "cwsv": cwsv,
+            "status": "lampo_ready",
+            "prossimamente": True,
+            "released_at": None,
+            "scheduled_release_at": None,
+            "created_at": now,
+            "total_revenue": 0,
+            "virtual_likes": 0,
+            "marketing_tier": proj.get("marketing_tier", "mid"),
+            "budget_tier": proj.get("budget_tier"),
+            "sponsors": sponsors or [],
+            "equipment_tier": proj.get("budget_tier"),
+            "distribution_scope": (distribution_plan or {}).get("scope_label"),
+            "release_continents": (distribution_plan or {}).get("continents", []),
+            "release_countries": (distribution_plan or {}).get("countries", []),
+            "release_cities": (distribution_plan or {}).get("cities", []),
+            "worldwide": bool((distribution_plan or {}).get("mondo", False)),
+            "release_event": None,
+        })
+        await db.lampo_projects.update_one({"id": pid}, {"$set": {"linked_film_id": film_id}})
+        return
+
+    # tv_series / anime
+    existing = await db.tv_series.find_one({"source_project_id": pid}, {"_id": 0, "id": 1})
+    if existing:
+        return
+    series_id = str(uuid.uuid4())
+    await db.tv_series.insert_one({
+        "id": series_id,
+        "source_project_id": pid,
+        "user_id": proj["user_id"],
+        "pipeline_version": 3,
+        "mode": "lampo",
+        "is_lampo": True,
+        "type": ct,
+        "title": proj["title"],
+        "genre": proj["genre"],
+        "genre_name": proj["genre"],
+        "preplot": proj["preplot"],
+        "screenplay": screenplay_text or "",
+        "synopsis": screenplay_text or proj.get("preplot", ""),
+        "poster_url": poster_url or "",
+        "cast": cast,
+        "episodes": episodes or [],
+        "num_episodes": len(episodes or []),
+        "total_episodes": len(episodes or []),
+        "season_number": 1,
+        "status": "lampo_ready",
+        "prossimamente_tv": True,
+        "scheduled_for_tv": False,
+        "target_tv_station_id": proj.get("target_tv_station_id"),
+        "quality_score": cwsv,
+        "cwsv": cwsv,
+        "released_at": None,
+        "scheduled_release_at": None,
+        "created_at": now,
+        "total_revenue": 0,
+        "sponsors": sponsors or [],
+        "marketing_tier": proj.get("marketing_tier", "mid"),
+    })
+    await db.lampo_projects.update_one({"id": pid}, {"$set": {"linked_series_id": series_id}})
 
 
 async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, preplot: str) -> str:
@@ -307,6 +396,13 @@ async def _worker_generate(pid: str):
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }}
         )
+
+        # ⚡ Insert "lampo_ready" stub into films/tv_series so drafts appear in standard dashboards
+        # Status: lampo_ready → frontend mostra "A breve al cinema" / "A breve in TV"
+        try:
+            await _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay_text, episodes, sponsors, distribution_plan)
+        except Exception as stub_err:
+            logger.warning(f"LAMPO ready stub insert failed pid={pid}: {stub_err}")
     except Exception as e:
         logger.error(f"LAMPO worker error pid={pid}: {e}")
         await db.lampo_projects.update_one(
@@ -406,9 +502,51 @@ async def get_my_lampo_projects(user: dict = Depends(get_current_user)):
     return {"projects": docs}
 
 
+async def _upsert_lampo_film(film_doc: dict) -> str:
+    pid = film_doc.get("source_project_id")
+    existing = await db.films.find_one({"source_project_id": pid}, {"_id": 0, "id": 1}) if pid else None
+    if existing:
+        fid = existing["id"]
+        film_doc["id"] = fid
+        # Don't overwrite created_at on update
+        film_doc.pop("created_at", None)
+        await db.films.update_one({"id": fid}, {"$set": film_doc})
+        return fid
+    await db.films.insert_one(film_doc)
+    return film_doc["id"]
+
+
+async def _upsert_lampo_series(series_doc: dict) -> str:
+    pid = series_doc.get("source_project_id")
+    existing = await db.tv_series.find_one({"source_project_id": pid}, {"_id": 0, "id": 1}) if pid else None
+    if existing:
+        sid = existing["id"]
+        series_doc["id"] = sid
+        series_doc.pop("created_at", None)
+        await db.tv_series.update_one({"id": sid}, {"$set": series_doc})
+        return sid
+    await db.tv_series.insert_one(series_doc)
+    return series_doc["id"]
+
+
 @router.post("/{pid}/release")
-async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
-    """Rilascia il progetto LAMPO: film va al cinema, serie/anime vanno in catalogo/TV."""
+async def release_lampo(
+    pid: str,
+    payload: dict = None,
+    user: dict = Depends(get_current_user),
+):
+    """Rilascia il progetto LAMPO con timing.
+
+    Body:
+      release_in_hours: int  (0=immediato, 6/12/18, 24*1/2/4/6/8, oppure custom)
+      release_at: ISO str opzionale (sovrascrive release_in_hours, formato '2026-04-30T20:00:00Z')
+
+    Comportamenti:
+      • Immediato (release_in_hours <= 0): inserisce film/serie con status finale (in_theaters / in_tv) e ritorna release_event.
+      • Programmato: inserisce film/serie con status di "lampo_scheduled" + released_at futuro + hype_bonus
+        invisibile (1.18-1.32, leggermente superiore al sistema classico). Lo scheduler lo finalizzerà.
+    """
+    payload = payload or {}
     proj = await db.lampo_projects.find_one({"id": pid, "user_id": user["id"]}, {"_id": 0})
     if not proj:
         raise HTTPException(404, "Progetto non trovato")
@@ -417,48 +555,121 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
     if proj.get("released"):
         raise HTTPException(400, "Già rilasciato")
 
-    now = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
     ct = proj["content_type"]
 
+    # ── Calcola data di rilascio ──
+    release_in_hours = int(payload.get("release_in_hours") or 0)
+    release_at_str = payload.get("release_at")
+    if release_at_str:
+        try:
+            release_dt = datetime.fromisoformat(str(release_at_str).replace("Z", "+00:00"))
+            if release_dt.tzinfo is None:
+                release_dt = release_dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            raise HTTPException(400, "Formato release_at non valido (usa ISO 8601)")
+    elif release_in_hours > 0:
+        release_dt = now_dt + timedelta(hours=release_in_hours)
+    else:
+        release_dt = now_dt
+
+    is_scheduled = release_dt > now_dt + timedelta(minutes=2)
+
+    # Hype bonus invisibile (silenzioso) — leggermente > del sistema classico (1.10-1.20)
+    # per dare valore alla scelta di posticipare. Più tempo aspetti, più hype maturi.
+    hype_bonus = 1.0
+    if is_scheduled:
+        hours = max(1.0, (release_dt - now_dt).total_seconds() / 3600.0)
+        # 6h → +18%, 24h → +24%, 48h → +28%, 96h → +30%, 192h (8gg) → +32%
+        # Curva soft-cap: 1 + 0.10 * log2(hours) clamp 1.18..1.32
+        import math
+        boost = 0.10 * math.log2(hours)
+        hype_bonus = max(1.18, min(1.32, 1.0 + boost))
+
+    # ───────────────── FILM ─────────────────
     if ct == "film":
-        # Generate release event (LAMPO film possono avere flop/hit/cult come i classici)
+        film_id = str(uuid.uuid4())
+        if is_scheduled:
+            # Stub coming-soon LAMPO. Nessun release_event ora — lo scheduler lo genererà.
+            film_doc = {
+                "id": film_id,
+                "user_id": user["id"],
+                "pipeline_version": 3,
+                "source_project_id": pid,
+                "mode": "lampo",
+                "is_lampo": True,
+                "lampo_scheduled": True,
+                "lampo_hype_bonus": round(hype_bonus, 3),
+                "title": proj["title"],
+                "genre": proj["genre"],
+                "subgenre": proj.get("subgenre"),
+                "preplot": proj["preplot"],
+                "screenplay": proj.get("screenplay", ""),
+                "synopsis": proj.get("screenplay", "") or proj.get("preplot", ""),
+                "poster_url": proj.get("poster_url", ""),
+                "cast": proj.get("cast", {}),
+                "quality_score": proj.get("cwsv"),
+                "cwsv": proj.get("cwsv"),
+                "status": "lampo_scheduled",
+                "prossimamente": True,
+                "released_at": release_dt.isoformat(),
+                "scheduled_release_at": release_dt.isoformat(),
+                "created_at": now,
+                "total_revenue": 0,
+                "virtual_likes": 0,
+                "marketing_tier": proj.get("marketing_tier", "mid"),
+                "budget_tier": proj.get("budget_tier"),
+                "sponsors": proj.get("sponsors", []),
+                "equipment_tier": proj.get("equipment_tier"),
+                "attendance_trend": [],
+                "distribution_scope": (proj.get("distribution_plan") or {}).get("scope_label"),
+                "distribution_bucket": (proj.get("distribution_plan") or {}).get("bucket"),
+                "release_continents": (proj.get("distribution_plan") or {}).get("continents", []),
+                "release_countries": (proj.get("distribution_plan") or {}).get("countries", []),
+                "release_cities": (proj.get("distribution_plan") or {}).get("cities", []),
+                "worldwide": bool((proj.get("distribution_plan") or {}).get("mondo", False)),
+                "release_event": None,
+            }
+            film_id = await _upsert_lampo_film(film_doc)
+            await db.lampo_projects.update_one(
+                {"id": pid},
+                {"$set": {"released": True, "released_film_id": film_id, "scheduled_release_at": release_dt.isoformat(), "updated_at": now}}
+            )
+            return {
+                "success": True, "type": "film", "released_id": film_id, "scheduled": True,
+                "release_at": release_dt.isoformat(),
+                "message": f"'{proj['title']}' uscirà nei cinema il {release_dt.strftime('%d/%m/%Y %H:%M')} UTC.",
+            }
+
+        # Immediato — release_event + XP
         release_event = None
         xp_event_bonus = 0
         try:
             from routes.film_pipeline import generate_release_event
             release_event = generate_release_event(
                 {"title": proj["title"]}, proj.get("cast", {}),
-                int(round(float(proj.get("cwsv") or 5) * 10)),  # 0-100 scale
+                int(round(float(proj.get("cwsv") or 5) * 10)),
                 proj["genre"]
             )
             if release_event:
                 ev_id = release_event.get("id", "")
-                # XP bonus per eventi di release (funzionano anche con CWSv bassi!)
                 XP_EVENT_BONUS = {
-                    "cultural_phenomenon": 300,
-                    "surprise_hit": 150,
-                    "critics_rave": 120,
-                    "award_buzz": 100,
-                    "cult_following": 80,
-                    "soundtrack_charts": 40,
-                    "public_flop": 30,       # consolazione: hai imparato dall'errore
-                    "polarizing": 20,
-                    "scandal": 15,
-                    "controversy": 15,
+                    "cultural_phenomenon": 300, "surprise_hit": 150, "critics_rave": 120,
+                    "award_buzz": 100, "cult_following": 80, "soundtrack_charts": 40,
+                    "public_flop": 30, "polarizing": 20, "scandal": 15, "controversy": 15,
                 }
                 xp_event_bonus = XP_EVENT_BONUS.get(ev_id, 10)
         except Exception:
             pass
 
-        # Insert into films collection
-        film_id = str(uuid.uuid4())
         film_doc = {
             "id": film_id,
             "user_id": user["id"],
             "pipeline_version": 3,
             "source_project_id": pid,
             "mode": "lampo",
-            "is_lampo": True,  # marker per UI (icona ⚡ glow)
+            "is_lampo": True,
             "title": proj["title"],
             "genre": proj["genre"],
             "subgenre": proj.get("subgenre"),
@@ -479,37 +690,36 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
             "sponsors": proj.get("sponsors", []),
             "equipment_tier": proj.get("equipment_tier"),
             "attendance_trend": [],
-            # Distribuzione auto
             "distribution_scope": (proj.get("distribution_plan") or {}).get("scope_label"),
             "distribution_bucket": (proj.get("distribution_plan") or {}).get("bucket"),
             "release_continents": (proj.get("distribution_plan") or {}).get("continents", []),
             "release_countries": (proj.get("distribution_plan") or {}).get("countries", []),
             "release_cities": (proj.get("distribution_plan") or {}).get("cities", []),
             "worldwide": bool((proj.get("distribution_plan") or {}).get("mondo", False)),
-            # Release event (flop/hit/cult/phenomenon…)
             "release_event": release_event,
         }
-        await db.films.insert_one(film_doc)
-        # XP base (proporzionale a CWSv) + bonus evento
+        film_id = await _upsert_lampo_film(film_doc)
         try:
-            base_xp = int((proj.get("cwsv") or 5) * 10)  # 10-98 XP base
+            base_xp = int((proj.get("cwsv") or 5) * 10)
             total_xp = base_xp + xp_event_bonus
             await db.users.update_one({"id": user["id"]}, {"$inc": {"total_xp": total_xp, "xp": total_xp}})
         except Exception:
             pass
-        await db.lampo_projects.update_one({"id": pid}, {"$set": {"released": True, "released_film_id": film_id, "release_event": release_event, "updated_at": now}})
+        await db.lampo_projects.update_one(
+            {"id": pid},
+            {"$set": {"released": True, "released_film_id": film_id, "release_event": release_event, "updated_at": now}}
+        )
         ev_label = (release_event or {}).get("name", "")
         msg = f"'{proj['title']}' è al cinema!" + (f" Evento: {ev_label}" if ev_label else "")
-        return {"success": True, "type": "film", "released_id": film_id, "message": msg, "release_event": release_event, "xp_gained": xp_event_bonus + int((proj.get('cwsv') or 5) * 10)}
+        return {"success": True, "type": "film", "released_id": film_id, "scheduled": False, "message": msg, "release_event": release_event, "xp_gained": xp_event_bonus + int((proj.get('cwsv') or 5) * 10)}
 
-    # tv_series / anime
+    # ───────────────── tv_series / anime ─────────────────
     target_station_id = proj.get("target_tv_station_id")
     if target_station_id:
         st = await db.tv_stations.find_one({"id": target_station_id, "user_id": user["id"]}, {"_id": 0, "id": 1})
         if not st:
             target_station_id = None
     if not target_station_id:
-        # Auto-adopt to owner's first station (same logic as pipeline_series_v3)
         st = await db.tv_stations.find_one({"user_id": user["id"]}, {"_id": 0, "id": 1}, sort=[("created_at", 1)])
         if st:
             target_station_id = st["id"]
@@ -522,7 +732,7 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
         "user_id": user["id"],
         "pipeline_version": 3,
         "mode": "lampo",
-        "is_lampo": True,  # marker per UI (icona ⚡ glow)
+        "is_lampo": True,
         "type": ct,
         "title": proj["title"],
         "genre": proj["genre"],
@@ -536,23 +746,46 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
         "num_episodes": len(proj.get("episodes", [])),
         "total_episodes": len(proj.get("episodes", [])),
         "season_number": 1,
-        "status": "in_tv" if in_tv else "catalog",
-        "prossimamente_tv": in_tv,
-        "scheduled_for_tv": in_tv,
         "scheduled_for_tv_station": target_station_id,
         "target_tv_station_id": target_station_id,
         "tv_schedule_accepted_at": None,
         "quality_score": proj.get("cwsv"),
         "cwsv": proj.get("cwsv"),
-        "released_at": now,
         "created_at": now,
         "total_revenue": 0,
     }
-    await db.tv_series.insert_one(series_doc)
-    # XP per release serie/anime LAMPO (proporzionale a CWSv)
+
+    if is_scheduled:
+        series_doc.update({
+            "status": "lampo_scheduled",
+            "lampo_scheduled": True,
+            "lampo_hype_bonus": round(hype_bonus, 3),
+            "prossimamente_tv": True,
+            "scheduled_for_tv": True,
+            "released_at": release_dt.isoformat(),
+            "scheduled_release_at": release_dt.isoformat(),
+        })
+        series_id = await _upsert_lampo_series(series_doc)
+        await db.lampo_projects.update_one(
+            {"id": pid},
+            {"$set": {"released": True, "released_series_id": series_id, "scheduled_release_at": release_dt.isoformat(), "updated_at": now}}
+        )
+        return {
+            "success": True, "type": ct, "released_id": series_id, "scheduled": True,
+            "release_at": release_dt.isoformat(), "in_tv": in_tv,
+            "message": f"'{proj['title']}' arriverà in TV il {release_dt.strftime('%d/%m/%Y %H:%M')} UTC.",
+        }
+
+    # Immediato serie/anime
+    series_doc.update({
+        "status": "in_tv" if in_tv else "catalog",
+        "prossimamente_tv": in_tv,
+        "scheduled_for_tv": in_tv,
+        "released_at": now,
+    })
+    series_id = await _upsert_lampo_series(series_doc)
     try:
         base_xp = int((proj.get("cwsv") or 5) * 8)
-        # Chance random di evento cult/flop per serie/anime LAMPO (simile ai film)
         series_event = None
         roll = random.random()
         cwsv_val = float(proj.get("cwsv") or 5)
@@ -573,16 +806,153 @@ async def release_lampo(pid: str, user: dict = Depends(get_current_user)):
     msg = f"'{proj['title']}' in arrivo su TV!" if in_tv else f"'{proj['title']}' aggiunto al tuo catalogo."
     if series_event:
         msg += f" Evento: {series_event['name']}"
-    return {"success": True, "type": ct, "released_id": series_id, "in_tv": in_tv, "message": msg, "release_event": series_event}
+    return {"success": True, "type": ct, "released_id": series_id, "scheduled": False, "in_tv": in_tv, "message": msg, "release_event": series_event}
 
 
 @router.post("/{pid}/discard")
 async def discard_lampo(pid: str, user: dict = Depends(get_current_user)):
-    """Scarta un progetto LAMPO prima del rilascio (no refund). """
-    res = await db.lampo_projects.update_one(
-        {"id": pid, "user_id": user["id"], "released": {"$ne": True}},
+    """Scarta un progetto LAMPO prima del rilascio (no refund). Rimuove anche eventuali stub bozza/schedulati."""
+    proj = await db.lampo_projects.find_one({"id": pid, "user_id": user["id"]}, {"_id": 0})
+    if not proj:
+        raise HTTPException(404, "Progetto non trovato")
+    # Rimuovi qualsiasi stub LAMPO non ancora finalizzato (lampo_ready / lampo_scheduled)
+    await db.films.delete_many({"source_project_id": pid, "status": {"$in": ["lampo_ready", "lampo_scheduled"]}})
+    await db.tv_series.delete_many({"source_project_id": pid, "status": {"$in": ["lampo_ready", "lampo_scheduled"]}})
+    await db.lampo_projects.update_one(
+        {"id": pid, "user_id": user["id"]},
         {"$set": {"status": "discarded", "released": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
-    if res.matched_count == 0:
-        raise HTTPException(404, "Progetto non trovato")
     return {"success": True}
+
+
+# ═══════════════════════════════════════════════════════════════
+# Scheduler finalizer — esposto per essere chiamato dallo scheduler globale
+# ═══════════════════════════════════════════════════════════════
+
+async def finalize_scheduled_lampo_releases():
+    """Trova film/serie LAMPO con status='lampo_scheduled' e released_at <= now e li promuove a in_theaters/in_tv.
+    Applica il hype bonus invisibile (boost a virtual_likes e marketing_tier) e genera release_event.
+    Chiamato periodicamente dal scheduler APS."""
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+
+    # ─── Films ───
+    pending_films = await db.films.find(
+        {"status": "lampo_scheduled", "is_lampo": True},
+        {"_id": 0}
+    ).to_list(200)
+    for film in pending_films:
+        try:
+            ra = film.get("scheduled_release_at") or film.get("released_at")
+            if not ra:
+                continue
+            rdt = datetime.fromisoformat(str(ra).replace("Z", "+00:00"))
+            if rdt.tzinfo is None:
+                rdt = rdt.replace(tzinfo=timezone.utc)
+            if rdt > now_dt:
+                continue  # not yet
+            release_event = None
+            xp_event_bonus = 0
+            try:
+                from routes.film_pipeline import generate_release_event
+                release_event = generate_release_event(
+                    {"title": film["title"]}, film.get("cast", {}),
+                    int(round(float(film.get("cwsv") or 5) * 10)),
+                    film["genre"]
+                )
+                if release_event:
+                    XP_EVENT_BONUS = {
+                        "cultural_phenomenon": 300, "surprise_hit": 150, "critics_rave": 120,
+                        "award_buzz": 100, "cult_following": 80, "soundtrack_charts": 40,
+                        "public_flop": 30, "polarizing": 20, "scandal": 15, "controversy": 15,
+                    }
+                    xp_event_bonus = XP_EVENT_BONUS.get(release_event.get("id", ""), 10)
+            except Exception:
+                pass
+            hype = film.get("lampo_hype_bonus", 1.0) or 1.0
+            initial_likes = int(50 * hype)  # boost iniziale invisibile
+            await db.films.update_one(
+                {"id": film["id"]},
+                {"$set": {
+                    "status": "in_theaters",
+                    "prossimamente": False,
+                    "released_at": now,
+                    "release_event": release_event,
+                    "lampo_finalized_at": now,
+                }, "$inc": {"virtual_likes": initial_likes}}
+            )
+            base_xp = int((film.get("cwsv") or 5) * 10)
+            total_xp = base_xp + xp_event_bonus
+            await db.users.update_one(
+                {"id": film["user_id"]}, {"$inc": {"total_xp": total_xp, "xp": total_xp}}
+            )
+            # Notifica al giocatore
+            try:
+                from social_system import create_notification
+                notif = create_notification(
+                    film["user_id"], "lampo_release",
+                    "⚡ Il tuo film LAMPO è uscito!",
+                    f"'{film['title']}' è ora al cinema. {('Evento: ' + release_event['name']) if release_event else ''}",
+                    data={"film_id": film["id"]},
+                    link=f"/films/{film['id']}"
+                )
+                await db.notifications.insert_one(notif)
+            except Exception:
+                pass
+        except Exception as e:
+            logger.error(f"Error finalizing scheduled LAMPO film {film.get('id')}: {e}")
+
+    # ─── Series / anime ───
+    pending_series = await db.tv_series.find(
+        {"status": "lampo_scheduled", "is_lampo": True},
+        {"_id": 0}
+    ).to_list(200)
+    for s in pending_series:
+        try:
+            ra = s.get("scheduled_release_at") or s.get("released_at")
+            if not ra:
+                continue
+            rdt = datetime.fromisoformat(str(ra).replace("Z", "+00:00"))
+            if rdt.tzinfo is None:
+                rdt = rdt.replace(tzinfo=timezone.utc)
+            if rdt > now_dt:
+                continue
+            in_tv = bool(s.get("target_tv_station_id"))
+            series_event = None
+            roll = random.random()
+            cwsv_val = float(s.get("cwsv") or 5)
+            if cwsv_val < 4.0 and roll < 0.30:
+                series_event = {"id": "series_flop", "name": "Flop Clamoroso", "type": "negative", "xp": 40}
+            elif cwsv_val >= 8.0 and roll < 0.25:
+                series_event = {"id": "series_phenomenon", "name": "Fenomeno Streaming", "type": "positive", "xp": 250}
+            elif roll < 0.08:
+                series_event = {"id": "series_cult", "name": "Serie Cult", "type": "neutral", "xp": 100}
+            await db.tv_series.update_one(
+                {"id": s["id"]},
+                {"$set": {
+                    "status": "in_tv" if in_tv else "catalog",
+                    "prossimamente_tv": in_tv,
+                    "released_at": now,
+                    "release_event": series_event,
+                    "lampo_finalized_at": now,
+                }}
+            )
+            base_xp = int((s.get("cwsv") or 5) * 8)
+            event_xp = (series_event or {}).get("xp", 0)
+            await db.users.update_one(
+                {"id": s["user_id"]}, {"$inc": {"total_xp": base_xp + event_xp, "xp": base_xp + event_xp}}
+            )
+            try:
+                from social_system import create_notification
+                notif = create_notification(
+                    s["user_id"], "lampo_release",
+                    "⚡ Il tuo " + ("anime" if s.get("type") == "anime" else "serie") + " LAMPO è uscito!",
+                    f"'{s['title']}' è ora disponibile.",
+                    data={"series_id": s["id"]},
+                    link=f"/tv-series/{s['id']}"
+                )
+                await db.notifications.insert_one(notif)
+            except Exception:
+                pass
+        except Exception as e:
+            logger.error(f"Error finalizing scheduled LAMPO series {s.get('id')}: {e}")

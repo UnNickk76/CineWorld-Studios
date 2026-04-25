@@ -7945,6 +7945,18 @@ async def startup_event():
         id='auto_release_coming_soon',
         replace_existing=True
     )
+
+    # Every 5 minutes: Finalize scheduled LAMPO releases
+    try:
+        from routes.lampo import finalize_scheduled_lampo_releases
+        scheduler.add_job(
+            finalize_scheduled_lampo_releases,
+            IntervalTrigger(minutes=5),
+            id='finalize_scheduled_lampo',
+            replace_existing=True,
+        )
+    except Exception as _le:
+        print(f"[scheduler] Could not register LAMPO finalizer: {_le}")
     
     # Every 20 minutes: Dynamic events for Coming Soon content
     scheduler.add_job(

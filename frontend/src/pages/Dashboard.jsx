@@ -676,9 +676,17 @@ const Dashboard = () => {
                             <div className={`status-pulse-glow absolute bottom-0 inset-x-0 py-0.5 flex items-center justify-center gap-0.5 text-[5px] font-bold tracking-wider ${
                               film.status === 'premiere_live' ? 'bg-amber-600/90 text-amber-100' :
                               film.status === 'in_theaters' ? 'bg-green-600/90 text-green-100' :
+                              film.status === 'lampo_ready' ? 'bg-amber-500/90 text-amber-50' :
+                              film.status === 'lampo_scheduled' ? 'bg-orange-500/90 text-orange-50' :
                               'bg-blue-600/80 text-blue-100'
                             }`}>
-                              <span>{film.status === 'premiere_live' ? 'LA PRIMA' : film.status === 'in_theaters' ? 'AL CINEMA' : 'IN USCITA'}</span>
+                              <span>
+                                {film.status === 'premiere_live' ? 'LA PRIMA' :
+                                 film.status === 'in_theaters' ? 'AL CINEMA' :
+                                 film.status === 'lampo_ready' ? '⚡ LAMPO! · A BREVE AL CINEMA' :
+                                 film.status === 'lampo_scheduled' ? `⚡ LAMPO! · DAL ${new Date(film.scheduled_release_at || film.released_at).toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit'})}` :
+                                 'IN USCITA'}
+                              </span>
                             </div>
                           )}
                           {film.status === 'in_theaters' && (

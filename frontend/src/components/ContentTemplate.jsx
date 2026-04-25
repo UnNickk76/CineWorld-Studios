@@ -222,6 +222,29 @@ function getStatusInfo(film, contentType) {
   const onTv = film?.on_tv || film?.tv_broadcast || false;
   const isSeriesLike = contentType === 'series' || contentType === 'anime' || film?.type === 'tv_series' || film?.type === 'anime';
 
+  // ⚡ LAMPO — bozza pronta o uscita schedulata
+  if (s === 'lampo_ready') {
+    return {
+      label: isSeriesLike ? '⚡ LAMPO! · A breve in TV' : '⚡ LAMPO! · A breve al cinema',
+      cls: 'ct2-status-coming'
+    };
+  }
+  if (s === 'lampo_scheduled') {
+    const dt = film?.scheduled_release_at || film?.released_at;
+    let when = '';
+    try {
+      if (dt) {
+        const d = new Date(dt);
+        when = d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+               ' ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+      }
+    } catch {}
+    return {
+      label: isSeriesLike ? `⚡ LAMPO! · In tutte le TV dal ${when}` : `⚡ LAMPO! · In tutti i cinema dal ${when}`,
+      cls: 'ct2-status-coming'
+    };
+  }
+
   // 1) AL CINEMA / IN TV — release state (highest priority for released content)
   if (cinemas > 0 || s === 'in_theaters') {
     return { label: isSeriesLike ? 'In TV' : 'Al Cinema', cls: isSeriesLike ? 'ct2-status-ontv' : 'ct2-status-cinema' };

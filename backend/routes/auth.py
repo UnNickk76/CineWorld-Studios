@@ -28,32 +28,14 @@ from pydantic import BaseModel
 
 
 async def persist_base64_avatar(user_dict: dict) -> str:
-    """If avatar_url is a base64 data URI, save to file and return the file URL.
-    Also updates the DB so this conversion only happens once."""
-    avatar_url = user_dict.get('avatar_url', '') or ''
-    if not avatar_url.startswith('data:image'):
-        return avatar_url
-    try:
-        header, b64data = avatar_url.split(',', 1)
-        ext = 'png'
-        if 'jpeg' in header or 'jpg' in header:
-            ext = 'jpg'
-        elif 'webp' in header:
-            ext = 'webp'
-        avatar_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', 'avatars')
-        os.makedirs(avatar_dir, exist_ok=True)
-        filename = f"{user_dict.get('id', uuid.uuid4().hex)}.{ext}"
-        filepath = os.path.join(avatar_dir, filename)
-        raw = base64.b64decode(b64data)
-        with open(filepath, 'wb') as f:
-            f.write(raw)
-        file_url = f"/api/avatar/image/{filename}"
-        await db.users.update_one({'id': user_dict['id']}, {'$set': {'avatar_url': file_url}})
-        logging.info(f"Converted base64 avatar to file for user {user_dict.get('nickname')}: {file_url}")
-        return file_url
-    except Exception as e:
-        logging.error(f"Failed to persist base64 avatar: {e}")
-        return avatar_url
+    """No-op: base64 data URIs are the source of truth in MongoDB.
+
+    Previously this converted base64 → ephemeral file under /app/backend/uploads,
+    but that directory is not persistent in k8s containers: files vanished on
+    restart and the conversion overwrote the DB-stored base64, causing Avatar
+    loss after fresh login. We now keep the base64 data URI directly in DB.
+    """
+    return user_dict.get('avatar_url', '') or ''
 
 router = APIRouter()
 
@@ -188,7 +170,10 @@ async def convert_guest(data: GuestConvertRequest, user: dict = Depends(get_curr
 
 
 # Tutorial steps: 0=welcome, 1=click_produci, 2=select_film, 3=start_coming_soon, 4=use_speedup, 5=watch_progress, 6=complete
-TUTORIAL_STEPS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+TUTORIAL_STEPS = set(range(0, 18))  # V3 pipeline tutorial: 0..17
+
+# Tutorial is considered completed after the finale (step 16) or at convert (17)
+TUTORIAL_COMPLETE_STEP = 17
 
 
 class TutorialStepRequest(BaseModel):
@@ -209,11 +194,11 @@ async def advance_tutorial(data: TutorialStepRequest, user: dict = Depends(get_c
         return {'tutorial_step': current, 'tutorial_completed': user.get('tutorial_completed', False)}
 
     update = {'tutorial_step': data.step, 'updated_at': datetime.now(timezone.utc).isoformat()}
-    if data.step >= 12:
+    if data.step >= TUTORIAL_COMPLETE_STEP:
         update['tutorial_completed'] = True
 
     await db.users.update_one({'id': user['id']}, {'$set': update})
-    return {'tutorial_step': data.step, 'tutorial_completed': data.step >= 12}
+    return {'tutorial_step': data.step, 'tutorial_completed': data.step >= TUTORIAL_COMPLETE_STEP}
 
 
 @router.post("/auth/tutorial-skip")
@@ -223,7 +208,7 @@ async def skip_tutorial(user: dict = Depends(get_current_user)):
         return {'success': True}
     await db.users.update_one(
         {'id': user['id']},
-        {'$set': {'tutorial_step': 12, 'tutorial_completed': True, 'updated_at': datetime.now(timezone.utc).isoformat()}}
+        {'$set': {'tutorial_step': TUTORIAL_COMPLETE_STEP, 'tutorial_completed': True, 'updated_at': datetime.now(timezone.utc).isoformat()}}
     )
     return {'success': True, 'tutorial_completed': True}
 
@@ -320,6 +305,13 @@ async def login(credentials: UserLogin):
         
         # Update last_active timestamp
         await db.users.update_one({'id': user['id']}, {'$set': {'last_active': datetime.now(timezone.utc).isoformat()}})
+
+        # Daily login XP (once per UTC day)
+        try:
+            from utils.xp_fame import award_daily_login
+            await award_daily_login(db, user['id'])
+        except Exception:
+            pass
         
         # Persist base64 avatar to file if needed (prevents 2MB+ responses)
         avatar_url = await persist_base64_avatar(user)
@@ -646,6 +638,7 @@ async def confirm_reset(request: ResetConfirmRequest, user: dict = Depends(get_c
     user_id = user['id']
     
     deleted_films = await db.films.delete_many({'user_id': user_id})
+    deleted_projects = await db.film_projects.delete_many({'user_id': user_id})
     deleted_infra = await db.infrastructure.delete_many({'owner_id': user_id})
     deleted_awards = await db.festival_awards.delete_many({'owner_id': user_id})
     await db.festival_votes.delete_many({'user_id': user_id})
@@ -655,6 +648,11 @@ async def confirm_reset(request: ResetConfirmRequest, user: dict = Depends(get_c
     await db.notifications.delete_many({'user_id': user_id})
     await db.chat_messages.delete_many({'sender_id': user_id})
     await db.premiere_invites.delete_many({'$or': [{'inviter_id': user_id}, {'invitee_id': user_id}]})
+    await db.agency_actors.delete_many({'user_id': user_id})
+    await db.exclusive_contracts.delete_many({'user_id': user_id})
+    await db.preferred_agencies.delete_many({'user_id': user_id})
+    await db.pvp_arena_actions.delete_many({'$or': [{'attacker_id': user_id}, {'target_owner': user_id}]})
+    await db.market_listings.delete_many({'seller_id': user_id})
     
     new_avatar = f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.get('nickname', 'Player')}{random.randint(1000,9999)}"
     
@@ -676,7 +674,7 @@ async def confirm_reset(request: ResetConfirmRequest, user: dict = Depends(get_c
     return {
         'success': True,
         'message': 'Reset completato!',
-        'deleted': {'films': deleted_films.deleted_count, 'infrastructure': deleted_infra.deleted_count, 'awards': deleted_awards.deleted_count},
+        'deleted': {'films': deleted_films.deleted_count, 'projects': deleted_projects.deleted_count, 'infrastructure': deleted_infra.deleted_count, 'awards': deleted_awards.deleted_count},
         'new_stats': {'funds': 10000000.0, 'level': 1, 'xp': 0, 'fame': 50}
     }
 
@@ -742,16 +740,57 @@ async def generate_ai_avatar(request: AvatarGenerationRequest, user: dict = Depe
 @router.put("/auth/avatar")
 async def update_user_avatar(avatar_data: AvatarUpdate, user: dict = Depends(get_current_user)):
     new_url = avatar_data.avatar_url
-    # If the avatar is base64, persist to file first to avoid DB bloat
-    if new_url and str(new_url).startswith('data:image'):
-        temp_user = {**user, 'avatar_url': new_url}
-        new_url = await persist_base64_avatar(temp_user)
+    # Keep base64 data URIs in DB (persistent) — don't convert to files (ephemeral)
     await db.users.update_one(
         {'id': user['id']},
         {'$set': {'avatar_url': new_url, 'avatar_source': getattr(avatar_data, 'avatar_source', 'preset')}}
     )
     updated_user = await db.users.find_one({'id': user['id']}, {'_id': 0, 'password': 0})
     return updated_user
+
+
+
+@router.post("/logo/generate")
+async def generate_studio_logo(request: dict, user: dict = Depends(get_current_user)):
+    """Generate AI logo for the production house."""
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=400, detail="AI generation not available")
+
+    studio_name = user.get('production_house_name', 'Studio')
+    custom_prompt = request.get('prompt', '')
+
+    try:
+        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+        from PIL import Image
+        import io, base64
+
+        image_gen = OpenAIImageGeneration(api_key=EMERGENT_LLM_KEY)
+        prompt = (
+            f"Professional minimalist film studio logo for '{studio_name}'. "
+            f"{custom_prompt + '. ' if custom_prompt else ''}"
+            f"Clean vector-style logo, cinematic theme, suitable for a movie production company. "
+            f"No text unless it's the studio name. Transparent or dark background. Iconic, memorable design."
+        )
+
+        images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+
+        if images and len(images) > 0:
+            img = Image.open(io.BytesIO(images[0]))
+            img = img.convert('RGBA')
+            img.thumbnail((128, 128), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format='PNG', optimize=True)
+            b64 = base64.b64encode(buf.getvalue()).decode('ascii')
+            data_uri = f"data:image/png;base64,{b64}"
+            await db.users.update_one({'id': user['id']}, {'$set': {'logo_url': data_uri}})
+            logging.info(f"Studio logo saved for {user.get('nickname')}, size: {len(buf.getvalue())} bytes")
+            return {'logo_url': data_uri, 'prompt': prompt}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to generate logo")
+    except Exception as e:
+        logging.error(f"Logo generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
 
 
 # ==================== GUEST LOGIN ====================
@@ -925,31 +964,47 @@ async def get_player_profile(nickname: str, user: dict = Depends(get_current_use
     
     uid = target['id']
     
-    # Fetch stats
-    films = await db.film_projects.find({'user_id': uid}, {'_id': 0, 'title': 1, 'quality_score': 1, 'pre_imdb_score': 1, 'theater_stats': 1, 'box_office': 1}).to_list(200)
+    # Fetch films from both collections (V2 film_projects + V3 films)
+    films_v3 = await db.films.find(
+        {'$or': [{'user_id': uid}, {'producer_id': uid}]},
+        {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'type': 1}
+    ).to_list(200)
     
-    total_films = len(films)
-    total_revenue = sum(f.get('box_office', {}).get('total', 0) if isinstance(f.get('box_office'), dict) else 0 for f in films)
-    total_spectators = 0
-    for f in films:
-        ts = f.get('theater_stats', {}).get('total_spectators', 0)
-        if ts > 0:
-            total_spectators += ts
-        else:
-            bo = f.get('box_office', {})
-            rev = bo.get('total', 0) if isinstance(bo, dict) else 0
-            if rev > 0:
-                total_spectators += int(rev / 11)
+    # Fetch series/anime
+    series = await db.tv_series.find(
+        {'user_id': uid},
+        {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'type': 1}
+    ).to_list(100)
     
+    tv_series_list = [s for s in series if s.get('type') == 'tv_series']
+    anime_list = [s for s in series if s.get('type') == 'anime']
+    
+    total_films = len(films_v3)
+    total_series = len(tv_series_list)
+    total_anime = len(anime_list)
+    
+    all_content = films_v3 + series
+    total_revenue = sum((c.get('total_revenue', 0) or 0) for c in all_content)
+    
+    # CWSv average (normalized from V2 0-100 scale)
+    scores = []
+    for c in all_content:
+        q = c.get('quality_score')
+        if q is not None and q > 0:
+            scores.append(q / 10 if q > 10 else q)
+    avg_cwsv = round(sum(scores) / len(scores), 1) if scores else 0
+    
+    # Best production
     best_film = ''
-    best_quality = 0
-    for f in films:
-        q = f.get('quality_score', f.get('pre_imdb_score', 0))
-        if q > best_quality:
-            best_quality = q
-            best_film = f.get('title', '')
-    
-    avg_quality = sum(f.get('quality_score', f.get('pre_imdb_score', 50)) for f in films) / max(1, total_films)
+    best_cwsv = 0
+    best_display = ''
+    for c in all_content:
+        q = c.get('quality_score') or 0
+        norm = q / 10 if q > 10 else q
+        if norm > best_cwsv:
+            best_cwsv = norm
+            best_film = c.get('title', '')
+            best_display = c.get('cwsv_display') or (str(int(norm)) if norm == int(norm) else f"{norm:.1f}")
     
     # Challenge stats
     wins = await db.game_challenges.count_documents({'$or': [{'challenger_id': uid}, {'challenged_id': uid}], 'winner_id': uid})
@@ -958,7 +1013,17 @@ async def get_player_profile(nickname: str, user: dict = Depends(get_current_use
     # Online status (active in last 10 minutes)
     import datetime as dt
     ten_min_ago = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=10)
-    is_online = (target.get('last_active') or dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)) > ten_min_ago
+    last_active = target.get('last_active')
+    is_online = False
+    if last_active:
+        try:
+            if isinstance(last_active, str):
+                la = dt.datetime.fromisoformat(last_active.replace('Z', '+00:00'))
+            else:
+                la = last_active if last_active.tzinfo else last_active.replace(tzinfo=dt.timezone.utc)
+            is_online = la > ten_min_ago
+        except Exception:
+            pass
     
     return {
         'user_id': uid,
@@ -969,9 +1034,11 @@ async def get_player_profile(nickname: str, user: dict = Depends(get_current_use
         'fame': target.get('fame', 0),
         'is_online': is_online,
         'total_films': total_films,
+        'total_series': total_series,
+        'total_anime': total_anime,
         'total_revenue': total_revenue,
-        'total_spectators': total_spectators,
-        'average_quality': round(avg_quality, 1),
+        'avg_cwsv': avg_cwsv,
         'best_film': best_film,
+        'best_cwsv_display': best_display,
         'challenge_stats': {'wins': wins, 'losses': losses},
     }

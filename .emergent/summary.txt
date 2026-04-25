@@ -1,145 +1,162 @@
-<analysis><handoff summary>
-**original_problem_statement**: 
-OBIETTIVO: 
-1) Nuova impaginazione della UI per la pagina dettaglio Film/Serie/Anime (), in ordine specifico (barra stato top, blocco locandina+trama breve, titolo, cast, barra dati con IMDb/durata, box giornali, box pubblico/eventi, sceneggiatura completa scrollabile internamente, placeholder trailer). 
-2) Aggiungere un nuovo Sistema Durata in pipeline *solo* per i nuovi contenuti (il player sceglie la categoria es: Cortometraggio/Kolossal, il backend calcola i minuti in base a genere/trama).
-REGOLE FONDAMENTALI: Retrocompatibilità assoluta. Nessuna rottura per i vecchi contenuti. Fallback sicuri. Mobile-first.
-VINCOLO DI PROCESSO: L'agente DEVE presentare il piano esatto dei file da toccare e attendere la conferma dell'utente prima di scrivere il codice.
+<analysis>Here is the handover summary for the next agent:
 
-**User's preferred language**: Italiano (INSTRUCT NEXT AGENT TO RESPOND IN ITALIAN ONLY)
+<handoff summary>
+**original_problem_statement**: 
+The user requested a massive overhaul of the game's economics, multiple UI/UX pipeline fixes for the Dashboard and Content Templates, the integration of a new LAMPO! (Lightning) ultra-fast production pipeline for low-effort/rapid content creation, and an infrastructure gating system. 
+
+PRODUCT REQUIREMENTS:
+- Complete Economics Overhaul.
+- Dashboard and TV Section UI/UX fixes.
+- LAMPO! fast-production system: A streamlined pipeline bypassing UI steps to instantly generate Films/Series/Anime with randomized distribution, scheduled releases, AI posters, full AI screenplays, and enriched NPC casts.
+- Infrastructure Gating:  owned by default (Level 0), rename feature, and softened upgrade scaling.
+
+**User's preferred language**: Italian (You MUST INSTRUCT the next agent to respond in Italian only)
 
 **what currently exists?** 
-CineWorld Studio's è un browser game gestionale cinematografico. In questa sessione sono stati implementati enormi aggiornamenti: 
-- Fase 3 completa (Dinamiche città nascoste, Hype dei film, sistema di suggerimento Velion per LaPrima, notifiche narrative senza numeri).
-- Un sofisticato Tutorial Manager nell'Admin Panel in grado di generare tutorial guidati tramite AI (Emergent LLM Key).
-- Le pagine Note di Rilascio e Note di Sistema sono state visivamente congelate/disattivate.
-- Bugfix per l'accumulo infinito delle notifiche fantasma.
-- Aggiunta funzione Azzera Palinsesto e UI per palinsesto vuoto nella gestione Emittente TV.
-- Aggiunto un tool nell'Admin Panel per migrare le vecchie Serie/Anime (V1) nel nuovo sistema Pipeline (V2) generando titoli e trame episodi tramite AI.
-- Sostituito il tasto Eventi con La Mia TV nella bottom nav mobile.
+A complex full-stack multiplayer cinema management game. The LAMPO! system is now highly advanced, featuring real AI-generated posters and screenplays, dynamic scheduling (release immediate vs later), animated Wow! release overlays, rich randomized cast generation (with ages, roles, and a Guest Star badge), and pre-release hype phrases for unreleased films. Infrastructure logic handles auto-seeding, renaming, and softer level upgrades. Dashboard properly shows global feeds for LAMPO drafts and scheduled releases.
 
 **Last working item**: 
-    - Last item agent was working: Analisi del codice (, ,  e backend associato) per implementare il nuovo restyling della pagina di dettaglio e il sistema di durata.
-    - Status: USER VERIFICATION PENDING (L'agente ha raccolto il contesto ma deve ancora stampare il piano d'azione e chiedere conferma all'utente, come esplicitamente richiesto nell'ultimo prompt).
+    - Last item agent was working: Expanding the Genre selection in the LAMPO form. The user requested a much larger list of genres (especially for Anime) with brief descriptive tooltips/text so players know what they mean. Furthermore, the user requested that sub-genres should no longer be manually selected; instead, the AI should automatically extract up to 3 sub-genres based on the plot/pre-plot provided by the user. The agent was inspecting  to update the  dictionary when the session ended.
+    - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? Frontend testing agent (una volta implementato).
+    - Which testing method agent to use? manual testing by curl / python -c for backend AI logic, and screenshot tool for the frontend form UI.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-Nessun bug bloccante. L'unica issue è la task in corso (P0).
+  Issue 1: Expand LAMPO Genres with descriptions (P0)
+     - Attempted fixes: Agent grepped for  in  but made no edits yet.
+     - Next debug checklist: Update  in  to include a comprehensive list of genres for Film, Series, and Anime. Add a  field to each genre object and display it in the dropdown or as a small helper text below the select input.
+     - Why fix this issue and what will be achieved with the fix? Improves UX so players understand niche genres (especially Anime sub-categories).
+     - Status: IN PROGRESS
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Frontend
 
-**In progress Task List**: 
-  Task 1: Restyling UI Dettaglio Contenuti & Sistema Durata (P0)
-     - Where to resume: L'agente ha appena letto  e i file backend. Deve ORA usare l'output testuale (nessun tool) per rispondere all'utente con il piano esatto di implementazione (file che toccherà, dove inserirà la logica, come gestirà la retrocompatibilità), ed eventualmente usare  o attendere risposta.
-     - What will be achieved with this? Una UI molto più pulita, stile Netflix/IMDb per i dettagli film, senza popup invasivi per le locandine e con un sistema di durata generato proceduralmente per le nuove pipeline.
-     - Status: NOT STARTED (Analysis complete, waiting to present plan).
-     - Should Test frontend/backend/both after fix? Both (Frontend UI overhaul + Backend pipeline logic).
-     - Blocked on something: Approvazione del piano da parte dell'utente.
+  Issue 2: AI Auto-selection of Sub-genres (P0)
+     - Attempted fixes: None yet.
+     - Next debug checklist: Update . Remove manual  input from the LAMPO frontend form. In the backend AI prompt ( or the main generation logic), instruct the LLM to analyze the  and output 1 to 3 relevant sub-genres, saving them into the document.
+     - Why fix this issue and what will be achieved with the fix? Reduces friction for the user and leverages AI for better categorization.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Both
+
+  Issue 3: Align Classic Pipeline Cast with LAMPO Cast (P1)
+     - Attempted fixes: None. The agent proposed this, and the user hasn't strictly confirmed, but it's a logical follow-up. 
+     - Next debug checklist: The LAMPO cast now includes , , , synthetic , and a rare  badge. The Classic V3 pipeline ( or ) lacks these rich features at the final release stage. Discuss with the user if they want these retrofitted.
+     - Status: USER VERIFICATION PENDING
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Backend
+
+**In progress Task List**:
+  None (All active work is captured in the Issues above).
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) Fase 3 Mercato: Possibilità di vendere le serie/anime e far gestire la distribuzione a chi acquista.
-    - (P2) Sfida della Settimana (minigioco rotante con premi extra).
-    - Completare la migrazione delle restanti 5 serie V1 -> V2 dal pannello Admin (azione manuale dell'utente, ma il tool è pronto).
+    - (P1) Mappa geo-finanziaria interattiva: Global heatmap in the Finance Geo tab using  +  to show profitable cities.
+    - (P1) Serie TV and Anime financial/spectator historical tracking (apply the existing  and  logic to Series/Anime).
     
     Future Tasks:
-    - (P3) Previsioni Festival.
-    - (P3) Marketplace diritti TV/Anime.
-    - (P3) Velion Mood Indicator, Chat Evolution, CinePass+Stripe, Livelli.
-    - (P3) Refactoring  (diventato molto grande).
+    - (P2) Rigenera locandine in batch: Admin button to regenerate AI posters for all recovered legacy films.
+    - (P2) Ricalcolo CWSv forzato: Admin button to recalculate exact CWSv scores for old V3 legacy films.
+    - (P2) Monetizzazione AI premium: Stripe integration for high-tier trailers.
+    - (P2) PvP Tournaments module.
 
 **Completed work in this session**
-- Test e validazione  post-refactoring (DONE)
-- Sistema dinamico Città invisibili + Hype film + Velion LaPrima suggestion (DONE)
-- Sistema notifiche narrative text-based per performance città (DONE)
-- Tutorial Manager in Admin Panel con generazione AI (Emergent LLM Key) (DONE)
-- Freeze UI delle pagine Note Rilascio e Note Sistema (DONE)
-- Pulsanti manuali per avvio Tutorial Velion e Guest Pipeline (DONE)
-- Bugfix: risolto counter sessionStorage che accumulava notifiche fantasma (DONE)
-- Feature: Aggiunto Azzera Palinsesto in Gestione TV mantenendo le statistiche (DONE)
-- Feature: UI slot vuoti per palinsesto TV azzerato (DONE)
-- Feature: Tool di migrazione Admin per vecchie Serie TV / Anime verso Pipeline V2 con generazione AI di episodi e mini-plot (DONE)
-- UX: Bottom Nav mobile aggiornata (Eventi rimosso, aggiunto La Mia TV se sbloccata) (DONE)
+-  auto-seed race condition and name duplication fixes (DONE)
+- Infrastructure Rename () and softer upgrade cost scaling (DONE)
+- LAMPO full AI poster generation () and screenplay generation () (DONE)
+- LAMPO Scheduled releases (12h, 24h, etc.) via APScheduler () (DONE)
+- UI Effects:  on generation start,  on completion (DONE)
+- Fixed  stuck at 1 day bug in  (DONE)
+- Frontend dashboard mappings for LAMPO drafts/scheduled items (DONE)
+- Hype pre-release phrases: Added  (175+ phrases) for unreleased content in  (DONE)
+- LAMPO rich cast generation: added gender, age, role, score, and Guest Star logic (DONE)
+- Dashboard global feed fix for  and  items (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-  Nessuna.
+- The user noted that The Concept (a series) was not displaying correctly globally. The agent confirmed the code is fixed, but the user is testing on their Production app which hasn't been deployed yet. Keep this in mind if the user reports older bugs recurring—they might just need to deploy.
 
 **Known issue recurrence from previous fork**
-  Nessuna ricorrenza.
+  - Issue recurrence in previous fork: None
+  - Recurrence count: 0
+  - Status: RESOLVED
 
 **Code Architecture**
-- Frontend: 
-  -  (FILE CHIAVE per la task corrente: gestisce l'UI unificata per Dettaglio Film, Serie e Anime).
-  -  e  (Wrappers per ContentTemplate).
-  -  (Contiene ora il Tutorial Manager e il Migration Tool).
-- Backend:
-  -  (Nuovo router per generazione AI tutorial).
-  -  (Gestione emittenti, ora include reset palinsesto e tool di migrazione serie).
-  -  (Nuovo motore per calcolo città/hype).
+- Frontend:  (React). Key components: , , .
+- Backend:  (FastAPI). Key modules: , , , , .
 
 **Key Technical Concepts**
-- **Emergent LLM Key**: Usata pesantemente (tramite l'integrazione interna) per generare i testi dei tutorial dinamicamente e per generare i titoli/plot degli episodi durante la migrazione delle serie TV dal vecchio al nuovo formato.
-- **Retrocompatibilità**: È il concetto cardine della task corrente. I nuovi campi (duration_category, short_plot) non esisteranno sui documenti vecchi. Il frontend in  dovrà usare accessi sicuri ().
+- **LAMPO Pipeline**: Bypasses standard phases for instant/scheduled generation. Uses  and  via Emergent LLM Key.
+- **APScheduler**: Manages the  and  background jobs.
+- **ContentTemplate**: A highly dynamic React component that renders UI differently based on whether the project is a film/series, released/unreleased, and its pipeline state.
 
 **key DB schema**
-  -  / : 
-    (Nuovi campi da aggiungere):  (string),  (int),  (string).
-  -  / :
-    (Nuovi campi da aggiungere):  (string),  (int),  (int),  (string).
-  - : Nuova collection usata per salvare gli step generati dall'AI.
+  - : Maps users to their owned studios.
+  -  / : Legacy and finalized projects.
+  -  / : In-progress projects. LAMPO items live here temporarily with  or .
 
 **changes in tech stack**
-  - Installata libreria  per l'uso dell'AI via Emergent LLM Key.
+  - None.
 
 **All files of reference** 
-  -  (Da modificare interamente per la UX della pagina di dettaglio).
-  -  /  (Dove inserire lo step di calcolo della durata).
-  -  (Modificato massivamente in questa sessione).
+  -  (Currently exploring for Genre expansion)
+  -  (Needs update for AI subgenre extraction)
+  -  (Created in this session)
 
 **Areas that need refactoring**: 
-  -  (già segnalato in backlog).
-  -  (Sta per essere rifattorizzato nella task corrente. Attenzione a non romperlo!).
+  -  is getting extremely massive (>1200 lines) with many conditional renders for LAMPO/Classic/V1/V2 states.
 
 **key api endpoints**
-  -  (Generazione AI/Statica tutorial).
-  -  (Azzeramento palinsesto).
-  -  (Migrazione vecchie serie).
+  -  & 
+  - 
+  - 
 
 **Critical Info for New Agent** 
-- **LINGUA:** Rispondi SEMPRE in Italiano.
-- **STATO CORRENTE:** L'utente ti ha inviato le specifiche lunghissime per il restyling di  e il Sistema Durata. L'ultima riga del suo prompt dice: *Prima di procedere... 1. dimmi esattamente quali file tocchi 2. dimmi dove inserisci la nuova fase durata 3. confermami come garantisci retrocompatibilità assoluta 4. solo dopo la mia conferma applichi il codice. Chiedi conferma prima di procedere.*
-- **TUA PRIMA AZIONE:** NON SCRIVERE CODICE. Rispondi all'utente (senza usare tool, se non  se necessario, ma un semplice messaggio diretto in risposta al prompt è meglio) fornendo esattamente i 3 punti richiesti. Mostragli che hai capito l'importanza dei fallback per la retrocompatibilità (es.  senza crashare se manca).
+- **Language**: You MUST reply to the user in Italian.
+- **Emergent LLM Key**: Already set up and working for poster and text generation in  and . Do not ask the user for OpenAI keys.
+- **Deploy Status**: The user frequently compares your preview environment fixes against their Production app. Remind them gently that your fixes are in the preview environment and require a deploy to reflect on their live game.
+- Use  and  to query MongoDB extensively while fixing logic to prevent regressions.
 
 **documents and test reports created in this job** 
-  -  (Costantemente aggiornato).
+  -  (Updated with LAMPO features and Infrastructure scaling).
 
 **Last 10 User Messages and any pending HUMAN messages** 
- - *User*: Richiesta di integrazione AI per i Tutorial nell'Admin panel.
- - *User*: Richiesta bottoni Tutorial Velion e Pipeline Film nel menu.
- - *User*: (Foto inviate) Bug 19 notifiche fantasma, richiesta tasto Azzera Palinsesto TV.
- - *User*: (Foto inviate) Quando la TV è vuota, mostrare slot cliccabili pellicola.
- - *User*: Creare tool di migrazione Serie/Anime (da V1 a V2) nell'Admin panel usando AI per trame/episodi ma tenendo invariato IMDb.
- - *User*: Rimuovere Eventi e aggiungere La Mia TV nella nav bar in basso da mobile.
- - *User*: **(PENDING)** Lunghissima specifica per (1) Nuova UI Pagina Dettaglio Film/Serie e (2) Sistema Durata in pipeline. Ha richiesto esplicitamente di leggere i file e poi proporre un piano prima di agire. (L'agente ha letto i file e si è fermato).
+1. *User*: Pointed out film in theater days was stuck at 1 day.
+2. *Agent*: Fixed  bug failing to update the  collection.
+3. *User*: Noted LAMPO drafts weren't visible properly, wow effect too fast, and some double X UI glitches.
+4. *Agent*: Fixed UI glitches, extended wow effect, mapped drafts correctly.
+5. *User*: Reported duplicate TV series posters, trailer buttons active for LAMPO, and unclickable TV stations.
+6. *Agent*: Deduped global feeds, hid trailers for LAMPO, made stations clickable.
+7. *User*: Requested countdowns for scheduled releases, random theater days for LAMPO, and pre-release public/press review texts.
+8. *Agent*: Implemented  (175+ phrases) and dynamic theater days.
+9. *User*: Requested rich Cast generation for LAMPO (Gender, Age, Role, Guest Star badge).
+10. *Agent*: Updated  to generate and calculate these fields.
+11. *User*: (PENDING) Asked about differences between Classic and LAMPO cast. Also requested an expansion of the LAMPO genre list with descriptions, and requested that the AI auto-selects up to 3 sub-genres from the pre-plot instead of manual selection.
 
 **Project Health Check:**
-Molto stabile. Le pipeline V2 sono robuste, la migrazione V1->V2 funziona. Il codice frontend è complesso ma ben componentizzato.
+- Broken: None.
+- Mocked: None.
 
 **3rd Party Integrations** 
- - Stripe (Payments) — requires User API Key
- - Emergent LLM Key — Usata attivamente in questa sessione per le feature di AI testuale ().
+  - Emergent LLM Key (GPT-4o-mini + GPT-image-1) — uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES (usato all'inizio per Phase 3).
+  - Testing agent used after significant changes: NO (User strictly requested No test agent previously).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: N/A recentemente.
-  - Known regressions: Nessuna nota.
+  - Test files created: None
+  - Known regressions: None
 
 **Credentials to test flow:**
- - Email: fandrex1@gmail.com
- - Password: Fandrel2776
- - Nickname: NeoMorpheus (Admin)
+Check  (typically Email: fandrex1@gmail.com).
 
 **What agent forgot to execute**
-L'agente precedente ha fatto esattamente ciò che doveva: ha letto i file per l'ultima enorme task e si è fermato (fine contesto) prima di inviare il piano all'utente. Tocca a te inviare questo piano ora.
+The agent searched for  inside  but did not execute the actual replacements to add descriptions or expand the Anime list. The backend update to  to auto-extract 3 sub-genres via the AI prompt is also untouched.
+
+**Debugging checklist for current issue**
+    Issue: Expand Genres & AI Auto-Subgenre
+    
+    Frontend files to check:
+    -  (Expand  dictionary with descriptive text for Film/Series/Anime. Remove the manual  select input).
+    
+    Backend files to check:
+    -  (Update the  prompt or initial generation prompt to analyze the user's pre_screenplay and return an array of 1-3 sub-genres. Ensure these are saved to the project document).
 </handoff summary></analysis>

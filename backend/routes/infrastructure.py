@@ -50,9 +50,35 @@ async def get_owned_categories(user: dict = Depends(get_current_user)):
     }
 
 
+async def _ensure_default_production_studio(user_id: str):
+    """Idempotente: assicura che ogni utente abbia lo Studio di Produzione di default (Lv 0)."""
+    has_studio = await db.infrastructure.count_documents({'owner_id': user_id, 'type': 'production_studio'})
+    if has_studio == 0:
+        await db.infrastructure.insert_one({
+            'id': str(uuid.uuid4()),
+            'owner_id': user_id,
+            'type': 'production_studio',
+            'name': 'Studio di Produzione',
+            'custom_name': 'Studio di Produzione',
+            'city': {'name': 'HQ', 'country': 'Default'},
+            'country': 'Default',
+            'level': 0,
+            'xp': 0,
+            'purchase_cost': 0,
+            'purchase_date': datetime.now(timezone.utc).isoformat(),
+            'created_at': datetime.now(timezone.utc).isoformat(),
+            'total_revenue': 0,
+            'films_showing': [],
+            'is_default': True,
+        })
+
+
 @router.get("/infrastructure/types")
 async def get_infrastructure_types(user: dict = Depends(get_current_user)):
     """Get all infrastructure types with unlock requirements."""
+    # Auto-seed PRIMA di calcolare ownership (così production_studio risulta sempre posseduto)
+    await _ensure_default_production_studio(user['id'])
+
     level_info = get_level_from_xp(user.get('total_xp', 0))
     fame = user.get('fame', 50)
     
@@ -88,6 +114,8 @@ async def get_available_cities(country: Optional[str] = None):
 @router.get("/infrastructure/my")
 async def get_my_infrastructure(user: dict = Depends(get_current_user)):
     """Get player's owned infrastructure."""
+    # Self-heal: auto-seed production_studio Lv 0 per tutti gli utenti (fulcro del gioco)
+    await _ensure_default_production_studio(user['id'])
     infrastructure = await db.infrastructure.find(
         {'owner_id': user['id']},
         {'_id': 0, 'films_showing': 0, 'tour_reviews': 0, 'revenue_history': 0, 'attendance_history': 0}
@@ -110,24 +138,34 @@ async def get_my_infrastructure(user: dict = Depends(get_current_user)):
 @router.post("/infrastructure/purchase")
 async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: dict = Depends(get_current_user)):
     """Purchase new infrastructure."""
-    # CinePass check
+    # 📻 RADIO PROMO: 80% off on ALL requirements for emittente_tv
+    is_radio_promo = (
+        request.type == 'emittente_tv'
+        and user.get('radio_promo_status', 'active') == 'active'
+    )
+    radio_discount = 0.20 if is_radio_promo else 1.0
+
+    # CinePass check (apply discount if promo)
     from routes.cinepass import spend_cinepass, get_infra_cinepass_cost
-    cp_cost = get_infra_cinepass_cost(request.type)
+    cp_cost_raw = get_infra_cinepass_cost(request.type)
+    cp_cost = int(cp_cost_raw * radio_discount) if is_radio_promo else cp_cost_raw
     await spend_cinepass(user['id'], cp_cost, user.get('cinepass', 100))
     
     infra_type = INFRASTRUCTURE_TYPES.get(request.type)
     if not infra_type:
         raise HTTPException(status_code=400, detail="Tipo di infrastruttura non valido")
     
-    # Check level requirement
+    # Check level requirement (with radio-promo discount)
     level_info = get_level_from_xp(user.get('total_xp', 0))
-    if level_info['level'] < infra_type['level_required']:
-        raise HTTPException(status_code=400, detail=f"Level {infra_type['level_required']} required")
+    req_level = int(infra_type['level_required'] * radio_discount) if is_radio_promo else infra_type['level_required']
+    if level_info['level'] < req_level:
+        raise HTTPException(status_code=400, detail=f"Level {req_level} required")
     
-    # Check fame requirement
+    # Check fame requirement (with radio-promo discount)
     fame = user.get('fame', 50)
-    if fame < infra_type['fame_required']:
-        raise HTTPException(status_code=400, detail=f"Fame {infra_type['fame_required']} required")
+    req_fame = int(infra_type['fame_required'] * radio_discount) if is_radio_promo else infra_type['fame_required']
+    if fame < req_fame:
+        raise HTTPException(status_code=400, detail=f"Fame {req_fame} required")
     
     # PvP infrastructure: no city required, activate pvp division
     is_pvp = infra_type.get('is_pvp', False)
@@ -229,6 +267,12 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
     if request.type == 'emittente_tv' and existing > 0:
         cost = int(cost * (2.5 ** existing))
     
+    # 📻 RADIO PROMO: 80% discount on emittente_tv money cost
+    radio_promo_applied = False
+    if is_radio_promo:
+        cost = int(cost * 0.20)  # 80% off
+        radio_promo_applied = True
+    
     # Check funds
     if user.get('funds', 0) < cost:
         raise HTTPException(status_code=400, detail=f"Insufficient funds. Need ${cost:,}")
@@ -262,16 +306,23 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
     new_funds = user['funds'] - cost
     new_xp = user.get('total_xp', 0) + XP_REWARDS['infrastructure_purchase']
     
+    user_updates = {'funds': new_funds, 'total_xp': new_xp}
+    # Consume the radio promo if it was applied
+    if radio_promo_applied:
+        user_updates['radio_promo_status'] = 'used'
+        user_updates['radio_promo_used_at'] = datetime.now(timezone.utc).isoformat()
+    
     await db.users.update_one(
         {'id': user['id']},
-        {'$set': {'funds': new_funds, 'total_xp': new_xp}}
+        {'$set': user_updates}
     )
     
     return {
         'infrastructure': {k: v for k, v in new_infra.items() if k != '_id'},
         'cost': cost,
         'new_funds': new_funds,
-        'xp_gained': XP_REWARDS['infrastructure_purchase']
+        'xp_gained': XP_REWARDS['infrastructure_purchase'],
+        'radio_promo_applied': radio_promo_applied,
     }
 
 @router.get("/infrastructure/{infra_id}")
@@ -369,6 +420,26 @@ async def update_infrastructure_prices(infra_id: str, request: CinemaPricesUpdat
     
     return {'success': True, 'prices': request.prices}
 
+
+class InfraRenameRequest(BaseModel):
+    custom_name: str
+
+
+@router.put("/infrastructure/{infra_id}/rename")
+async def rename_infrastructure(infra_id: str, request: InfraRenameRequest, user: dict = Depends(get_current_user)):
+    """Rinomina un'infrastruttura (es. lo Studio di Produzione di default)."""
+    infra = await db.infrastructure.find_one({'id': infra_id, 'owner_id': user['id']})
+    if not infra:
+        raise HTTPException(status_code=404, detail="Infrastruttura non trovata")
+    name = (request.custom_name or '').strip()
+    if len(name) < 2 or len(name) > 60:
+        raise HTTPException(status_code=400, detail="Il nome deve essere tra 2 e 60 caratteri")
+    await db.infrastructure.update_one(
+        {'id': infra_id},
+        {'$set': {'custom_name': name, 'name': name, 'is_default': False}}
+    )
+    return {'success': True, 'custom_name': name}
+
 @router.put("/infrastructure/{infra_id}/logo")
 async def update_infrastructure_logo(infra_id: str, logo_url: str = Query(...), user: dict = Depends(get_current_user)):
     """Update infrastructure logo."""
@@ -398,8 +469,21 @@ INFRA_PRODUCTS = {
 }
 
 def calculate_upgrade_cost(base_cost: int, current_level: int) -> int:
-    """Exponential but accessible cost: base * 0.4 * 1.7^(level-1)"""
-    return int(base_cost * 0.4 * (1.7 ** (current_level - 1)))
+    """Costo upgrade morbido: base * 0.3 * 1.55^(level-1). Più accessibile della curva originale."""
+    return int(max(50_000, base_cost * 0.3 * (1.55 ** (current_level - 1))))
+
+
+def get_player_level_required_for_upgrade(infra_type_id: str, infra_type_data: dict, current_level: int) -> int:
+    """Player-level required to upgrade. Studi unici (production/serie/anime) usano una curva
+    super accessibile: player_lv ≥ max(1, current_level) → a Lv 1 infra basta player Lv 1.
+    Altre infra: curva ridotta (1.5x invece di 3x del precedente)."""
+    studi_unici = {'production_studio', 'studio_serie_tv', 'studio_anime'}
+    if infra_type_id in studi_unici:
+        # Lv 0→1 e Lv 1→2: player Lv 1, Lv 2→3: Lv 2, ..., Lv 9→10: Lv 9
+        return max(1, current_level)
+    base_level_req = infra_type_data.get('level_required', 5)
+    # Da +3 a +1.5 per livello (arrotondato per difetto), ma minimo +1
+    return max(1, base_level_req + max(1, int(round(current_level * 1.5))))
 
 def calculate_upgrade_benefits(infra_type_data: dict, current_level: int, next_level: int):
     """Calculate what benefits the next level gives."""
@@ -468,9 +552,8 @@ async def get_infrastructure_upgrade_info(infra_id: str, user: dict = Depends(ge
             'max_level': max_level,
         }
     
-    # Player level requirement: base level + 3 levels per infra upgrade
-    base_level_req = infra_type.get('level_required', 5)
-    player_level_required = base_level_req + (current_level * 3)
+    # Player level requirement: formula morbida (studi unici = current+1)
+    player_level_required = get_player_level_required_for_upgrade(infra.get('type'), infra_type, current_level)
     player_level = user.get('level_info', {}).get('level', user.get('level', 1))
     
     upgrade_cost = calculate_upgrade_cost(infra_type.get('base_cost', 2000000), current_level)
@@ -529,9 +612,8 @@ async def upgrade_infrastructure(infra_id: str, user: dict = Depends(get_current
     if current_level >= max_level:
         raise HTTPException(status_code=400, detail="Livello massimo raggiunto!")
     
-    # Check player level requirement
-    base_level_req = infra_type.get('level_required', 5)
-    player_level_required = base_level_req + (current_level * 3)
+    # Check player level requirement (formula morbida)
+    player_level_required = get_player_level_required_for_upgrade(infra.get('type'), infra_type, current_level)
     player_level = user.get('level_info', {}).get('level', user.get('level', 1))
     
     if player_level < player_level_required:

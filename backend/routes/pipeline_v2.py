@@ -534,25 +534,32 @@ async def generate_poster_v2(pid: str, req: PosterV2Request, user: dict = Depend
         style = CLASSIC_POSTER_STYLES.get(req.classic_style, CLASSIC_POSTER_STYLES.get('noir', {}))
         poster_url = style.get('preview_url', f'/posters/classic_{req.classic_style}.jpg')
     else:
-        # AI poster generation → saved to MongoDB via poster_storage for persistence
+        # AI poster generation → uses image_providers (Pollinations default, Emergent fallback)
         try:
-            import os, uuid as _uuid
+            import uuid as _uuid
             import poster_storage
-            from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-            api_key = os.environ.get('EMERGENT_LLM_KEY', '')
+            from image_providers import generate_image_meta
             genre_label = project.get('genre', 'drama')
             subs = ', '.join(project.get('subgenres', []))
-            prompt_text = req.prompt if req.mode == 'ai_custom' and req.prompt else (
+            preplot = (project.get('preplot') or project.get('pre_plot') or '').strip()
+            base_ctx = (
                 f"Professional cinematic movie poster, portrait orientation 2:3 ratio, for the film '{project['title']}'. "
                 f"Genre: {genre_label}. Subgenres: {subs or 'N/A'}. "
-                f"Film title '{project['title']}' displayed prominently with professional typography. "
-                f"Dramatic lighting, Hollywood quality, style matching the genre."
+                + (f"Story context (pretrama): {preplot[:500]}. " if preplot else "")
+                + f"Film title '{project['title']}' displayed prominently with professional typography. "
+                f"Dramatic lighting, Hollywood quality, style matching the genre. "
+                f"No real celebrities, no brands, no trademarks, no watermarks."
             )
-            img_gen = OpenAIImageGeneration(api_key=api_key)
-            images = await img_gen.generate_images(prompt=prompt_text, model="gpt-image-1", number_of_images=1)
-            if images and len(images) > 0:
-                fname = f"{pid}_{_uuid.uuid4().hex[:6]}.jpg"
-                await poster_storage.save_poster(fname, images[0], 'image/png')
+            if req.mode == 'ai_custom' and req.prompt:
+                # Player's custom prompt ADDS to preplot/base context, never replaces it
+                prompt_text = base_ctx + f" Additional player requests: {req.prompt.strip()[:400]}."
+            else:
+                prompt_text = base_ctx
+
+            meta = await generate_image_meta(prompt_text, "poster")
+            if meta and meta.get("bytes"):
+                fname = f"{pid}_{_uuid.uuid4().hex[:6]}.webp"
+                await poster_storage.save_poster(fname, meta["bytes"], 'image/webp')
                 poster_url = f"/api/posters/{fname}"
             else:
                 poster_url = f"/posters/placeholder_{project['genre']}.jpg"
@@ -576,20 +583,19 @@ async def generate_poster_v2(pid: str, req: PosterV2Request, user: dict = Depend
 import asyncio as _asyncio
 
 async def _run_poster_generation(job_id: str, prompt: str, filename: str, collection: str, doc_id: str, id_field: str, regen_count: int):
-    """Background task: generate poster, save, update status."""
+    """Background task: generate poster via image_providers, save, update status."""
     try:
-        import os
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-        api_key = os.environ.get('EMERGENT_LLM_KEY', '')
-        img_gen = OpenAIImageGeneration(api_key=api_key)
+        from image_providers import generate_image_meta
 
-        images = await img_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+        meta = await generate_image_meta(prompt, "poster")
 
-        if images and len(images) > 0:
+        if meta and meta.get("bytes"):
             # Save via poster_storage (MongoDB + disk cache)
             import poster_storage
-            await poster_storage.save_poster(filename, images[0], 'image/png')
-            poster_url = f"/api/posters/{filename}"
+            # Replace extension with .webp in filename
+            webp_name = filename.rsplit('.', 1)[0] + '.webp'
+            await poster_storage.save_poster(webp_name, meta["bytes"], 'image/webp')
+            poster_url = f"/api/posters/{webp_name}"
 
             # Update the content document
             coll = db[collection]
@@ -601,10 +607,10 @@ async def _run_poster_generation(job_id: str, prompt: str, filename: str, collec
             # Update job status
             await db.poster_jobs.update_one(
                 {'job_id': job_id},
-                {'$set': {'status': 'completed', 'poster_url': poster_url, 'completed_at': _now()}}
+                {'$set': {'status': 'completed', 'poster_url': poster_url, 'provider_used': meta.get('provider_used'), 'completed_at': _now()}}
             )
         else:
-            await db.poster_jobs.update_one({'job_id': job_id}, {'$set': {'status': 'failed', 'error': 'Empty result'}})
+            await db.poster_jobs.update_one({'job_id': job_id}, {'$set': {'status': 'failed', 'error': 'Provider returned no image'}})
 
     except Exception as e:
         logging.error(f"[POSTER-JOB] {job_id} failed: {e}")
@@ -649,21 +655,63 @@ async def regenerate_poster_v2(pid: str, user: dict = Depends(get_current_user))
 
 @router.get("/production-counts")
 async def get_production_counts(user: dict = Depends(get_current_user)):
-    """Get count of active projects by type for badge display."""
-    active_states = {'draft', 'idea', 'proposed', 'hype_setup', 'hype_live', 'casting_live',
-                     'prep', 'shooting', 'postproduction', 'sponsorship', 'marketing',
-                     'premiere_setup', 'premiere_live', 'release_pending'}
+    """Get count of active projects (V2 + V3) by type for badge display."""
+    # Self-heal: V3 series/anime con status legacy orfano ('concept'/'casting'/...) ma pipeline_version=3
+    # → rimappa a 'catalog' (default post-release). Evita fantom badge dopo release bug storici.
+    try:
+        await db.tv_series.update_many(
+            {
+                'user_id': user['id'],
+                'pipeline_version': 3,
+                'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']},
+            },
+            [{'$set': {
+                'status': {
+                    '$cond': [
+                        {'$eq': ['$prossimamente_tv', True]}, 'in_tv', 'catalog'
+                    ]
+                }
+            }}]
+        )
+    except Exception:
+        pass
+
+    # V2 and V3 film pipeline states that count as "in production"
+    active_states = {
+        # V2 legacy
+        'draft', 'proposed', 'hype_setup', 'hype_live', 'casting_live',
+        'prep', 'shooting', 'postproduction', 'sponsorship', 'marketing',
+        'premiere_setup', 'premiere_live', 'release_pending',
+        # V3 (shared by films + series/anime)
+        'idea', 'hype', 'cast', 'ciak', 'finalcut', 'distribution',
+    }
     films = await db.film_projects.count_documents({
         'user_id': user['id'], 'pipeline_state': {'$in': list(active_states)}
     })
-    series = await db.tv_series.count_documents({
+    # V2 legacy series/anime sit in tv_series with these statuses
+    # NOTE: escludiamo i doc V3 (pipeline_version=3) che, se rilasciati, non sono mai "in produzione"
+    # anche se il campo legacy `status` fosse rimasto a 'concept' per bug storici.
+    series_legacy = await db.tv_series.count_documents({
         'user_id': user['id'], 'type': 'tv_series',
+        'pipeline_version': {'$ne': 3},
         'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']}
     })
-    anime = await db.tv_series.count_documents({
+    anime_legacy = await db.tv_series.count_documents({
         'user_id': user['id'], 'type': 'anime',
+        'pipeline_version': {'$ne': 3},
         'status': {'$in': ['concept', 'casting', 'screenplay', 'production', 'ready_to_release', 'coming_soon']}
     })
+    # V3 series/anime live in series_projects_v3. Count every non-terminal project.
+    series_v3 = await db.series_projects_v3.count_documents({
+        'user_id': user['id'], 'type': 'tv_series',
+        'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}
+    })
+    anime_v3 = await db.series_projects_v3.count_documents({
+        'user_id': user['id'], 'type': 'anime',
+        'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}
+    })
+    series = series_legacy + series_v3
+    anime = anime_legacy + anime_v3
     return {'total': films + series + anime, 'film': films, 'series': series, 'anime': anime}
 
 
@@ -3292,12 +3340,30 @@ async def get_theater_stats(pid: str, user: dict = Depends(get_current_user)):
     stats = project.get('theater_stats', {})
     released_at = project.get('released_at') or project.get('release_schedule', {}).get('scheduled_at')
     end_date = project.get('theater_end_date')
+
+    # CWTrend sparkline — last 7 days
+    cwtrend_history = []
+    try:
+        from utils.calc_cwtrend import calculate_cwtrend
+        current_days = stats.get('days_in_theater', 0) or 0
+        for offset in range(6, -1, -1):
+            day = max(0, current_days - offset)
+            result = calculate_cwtrend(project, day)
+            cwtrend_history.append({
+                "day": current_days - offset,
+                "cwtrend": result["cwtrend"],
+                "display": result["cwtrend_display"],
+            })
+    except Exception:
+        cwtrend_history = []
+
     return {
         'theater_stats': stats,
         'theater_weeks': project.get('theater_weeks', 3),
         'released_at': released_at,
         'theater_end_date': end_date,
         'pipeline_state': project.get('pipeline_state'),
+        'cwtrend_history': cwtrend_history,
     }
 
 @router.post("/films/{pid}/withdraw-theater")

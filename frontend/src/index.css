@@ -4,6 +4,48 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════
+   LAMPO Lightning Bolt — glowing + flickering pulse
+   Applied to LampoLightning component for auto-generated projects
+   ═══════════════════════════════════════════════════════════ */
+@keyframes lampo-flicker {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.9)) drop-shadow(0 0 12px rgba(251, 146, 60, 0.6)); transform: scale(1); }
+  15%      { filter: drop-shadow(0 0 3px rgba(251, 191, 36, 0.6)) drop-shadow(0 0 6px rgba(251, 146, 60, 0.4)); transform: scale(0.93); }
+  30%      { filter: drop-shadow(0 0 10px rgba(251, 191, 36, 1)) drop-shadow(0 0 20px rgba(251, 146, 60, 0.9)); transform: scale(1.08); }
+  45%      { filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.7)) drop-shadow(0 0 8px rgba(251, 146, 60, 0.5)); transform: scale(0.96); }
+  60%      { filter: drop-shadow(0 0 9px rgba(251, 191, 36, 0.95)) drop-shadow(0 0 18px rgba(251, 146, 60, 0.8)); transform: scale(1.05); }
+  80%      { filter: drop-shadow(0 0 5px rgba(251, 191, 36, 0.75)) drop-shadow(0 0 10px rgba(251, 146, 60, 0.55)); transform: scale(0.98); }
+}
+.lampo-bolt {
+  animation: lampo-flicker 1.6s ease-in-out infinite;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   Status Pulse Badge — pulse + glow using currentColor
+   Apply to any pipeline/release status pill (Riprese, A BREVE,
+   AL CINEMA, LIVE, IN USCITA, etc.) to attract player attention.
+   Keeps existing background/text colors intact.
+   ═══════════════════════════════════════════════════════════ */
+@keyframes status-pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 currentColor, 0 0 4px 0 currentColor;
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 3px transparent, 0 0 14px 2px currentColor;
+    transform: scale(1.06);
+  }
+}
+.status-pulse-glow {
+  animation: status-pulse-glow 1.8s ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-pulse-glow { animation: none; }
+}
+
+
 @layer base {
     :root {
         --background: 0 0% 6%;

@@ -136,7 +136,7 @@ BASE_DAILY_SPECTATORS = 8000  # base spectators per day at launch
 
 def calc_daily_stats(film, day_number):
     """Calculate simulated daily cinema stats for a film."""
-    quality = film.get('quality_score', film.get('pre_imdb_score', 50))
+    quality = film.get('quality_score') or film.get('pre_imdb_score') or 50
     week = min(4, (day_number - 1) // 7 + 1)
     decay = DECAY_CURVE.get(week, 0.15)
     
@@ -164,7 +164,7 @@ def calc_daily_stats(film, day_number):
 
 def should_extend(film, day_number, total_spectators):
     """Decide if film deserves extension. Returns extra days (0 = no extension)."""
-    quality = film.get('quality_score', film.get('pre_imdb_score', 50))
+    quality = film.get('quality_score') or film.get('pre_imdb_score') or 50
     if quality < 40 or day_number < 7:
         return 0
     
@@ -178,7 +178,7 @@ def should_extend(film, day_number, total_spectators):
 
 def should_reduce(film, day_number, total_spectators):
     """Decide if film should lose days. Returns days to lose (0 = no reduction)."""
-    quality = film.get('quality_score', film.get('pre_imdb_score', 50))
+    quality = film.get('quality_score') or film.get('pre_imdb_score') or 50
     if day_number < 5:
         return 0
     
@@ -190,7 +190,7 @@ def should_reduce(film, day_number, total_spectators):
 
 def should_early_exit(film, day_number, total_spectators):
     """Decide if film should be pulled immediately."""
-    quality = film.get('quality_score', film.get('pre_imdb_score', 50))
+    quality = film.get('quality_score') or film.get('pre_imdb_score') or 50
     if day_number < 7:
         return False
     
@@ -201,7 +201,7 @@ def should_early_exit(film, day_number, total_spectators):
 def get_performance_level(film, day_number, total_spectators):
     """Get performance label: great/good/ok/declining/bad/flop."""
     expected = BASE_DAILY_SPECTATORS * day_number * 0.4
-    quality = film.get('quality_score', film.get('pre_imdb_score', 50))
+    quality = film.get('quality_score') or film.get('pre_imdb_score') or 50
     ratio = total_spectators / max(1, expected)
     
     if ratio > 1.5 and quality >= 65: return 'great'
@@ -338,7 +338,7 @@ async def process_theater_film(db, film):
     
     # Passaparola effect (sleeper hit)
     if day_number >= 5 and day_number <= 10 and perf == 'ok':
-        quality = film.get('quality_score', film.get('pre_imdb_score', 50))
+        quality = film.get('quality_score') or film.get('pre_imdb_score') or 50
         if quality >= 65 and random.random() < 0.2:
             notifications.append(('passaparola', {}))
             # Boost: add 2 extra days
@@ -383,7 +383,9 @@ async def process_theater_film(db, film):
         update['theater_stats']['exit_reason'] = 'flop' if exit_now else 'scheduled'
         notifications.append(('exit_confirmed', {'days': day_number}))
     
+    # Aggiorna ENTRAMBE le collezioni se l'ID compare in entrambe (legacy V1 + V3)
     await db.film_projects.update_one({'id': pid}, {'$set': update})
+    await db.films.update_one({'id': pid}, {'$set': update})
     
     # Save notifications
     for ntype, kwargs in notifications:
@@ -474,7 +476,7 @@ async def backfill_theater_stats(db):
     backfilled = 0
     for film in all_films:
         fid = film.get('id')
-        quality = film.get('quality_score', film.get('pre_imdb_score', film.get('quality', 50)))
+        quality = film.get('quality_score') or film.get('pre_imdb_score') or film.get('quality') or 50
         
         # Get release date
         released_at = film.get('released_at') or film.get('release_schedule', {}).get('scheduled_at') or film.get('created_at')

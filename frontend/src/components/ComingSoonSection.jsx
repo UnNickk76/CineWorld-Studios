@@ -8,6 +8,10 @@ import { Dialog, DialogContent } from './ui/dialog';
 import { Clock, Flame, Film, Tv, Sparkles, Loader2, ThumbsUp, ThumbsDown, ChevronRight, Shield, Newspaper, MessageCircle, Zap, FastForward, Search, AlertTriangle, Gavel, Swords, Target, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { OutcomePopup, getOutcomeType } from './OutcomePopup';
+import ProssimamenteDetailModal from './ProssimamenteDetailModal';
+import { PurchasedScreenplayBadge } from './PurchasedScreenplayBadge';
+import { ProducerBadge } from './ProducerBadge';
+import { LampoLightning } from './LampoLightning';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -146,6 +150,7 @@ function SaboteurCard({ sab, contentId, api, onAction }) {
 
 // Compact horizontal card (poster + title + type + countdown)
 function ComingSoonThumb({ item, onClick }) {
+  const { user } = useContext(AuthContext);
   const countdown = useCountdown(item.scheduled_release_at);
   const poster = posterSrc(item.poster_url);
   const isRemastering = item.is_remastering;
@@ -173,6 +178,11 @@ function ComingSoonThumb({ item, onClick }) {
           <div className="w-full h-full flex items-center justify-center">
             <TypeIcon className={`w-8 h-8 ${typeColor} opacity-20`} />
           </div>
+        )}
+        {item.from_purchased_screenplay && (
+          <PurchasedScreenplayBadge mode={item.purchased_screenplay_mode}
+                                    source={item.purchased_screenplay_source}
+                                    size="sm" />
         )}
         {/* Countdown overlay */}
         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-1.5 pt-4">
@@ -211,12 +221,25 @@ function ComingSoonThumb({ item, onClick }) {
             <span className={`text-[7px] font-bold ${hype >= 30 ? 'text-red-300' : 'text-orange-300'}`}>{hype}</span>
           </div>
         )}
+        <ProducerBadge
+          producerNickname={item.producer_nickname || item.owner_nickname || item.production_house}
+          producerId={item.user_id || item.owner_user_id}
+          currentUserId={user?.id}
+          variant="bottom-right"
+          size="xs"
+        />
+        <LampoLightning item={item} variant="top-right" size="sm" />
       </div>
       <p className="text-[8px] font-semibold truncate mt-1 group-hover:text-cyan-400 transition-colors">{item.title}</p>
       <div className="flex items-center gap-1">
         <p className="text-[7px] text-gray-600 truncate">{item.production_house}</p>
         {item.pipeline_status_label && (
-          <span className="text-[6px] px-1 py-0.5 rounded bg-violet-500/15 text-violet-400 font-bold flex-shrink-0">
+          <span className={`status-pulse-glow text-[6px] px-1 py-0.5 rounded font-bold flex-shrink-0 ${
+            ({'Idea':'bg-amber-500/15 text-amber-400','Hype':'bg-orange-500/15 text-orange-400','Cast':'bg-cyan-500/15 text-cyan-400',
+              'Preparazione':'bg-blue-500/15 text-blue-400','Riprese':'bg-red-500/15 text-red-400','Final Cut':'bg-purple-500/15 text-purple-400',
+              'Marketing':'bg-green-500/15 text-green-400','La Prima':'bg-yellow-500/15 text-yellow-400','Distribuzione':'bg-blue-500/15 text-blue-400',
+              'Uscita':'bg-emerald-500/15 text-emerald-400'})[item.pipeline_status_label] || 'bg-violet-500/15 text-violet-400'
+          }`}>
             {item.pipeline_status_label}
           </span>
         )}
@@ -585,12 +608,21 @@ function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
   );
 }
 
+import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from './SectionSortMenu';
+
 export function ComingSoonSection({ compact = false, filterType, sectionTitle }) {
   const { api } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pvpStatus, setPvpStatus] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [prossimamenteId, setProssimamenteId] = useState(null);
+
+  // Ordinamento persistito per tipo (film/tv_series/anime)
+  const sortKey = `sort_coming_soon_${filterType || 'all'}`;
+  const [sortValue, setSortValue] = useState(() => localStorage.getItem(sortKey) || 'soonest');
+  useEffect(() => { localStorage.setItem(sortKey, sortValue); }, [sortKey, sortValue]);
 
   const loadItems = useCallback(() => {
     if (!api) return;
@@ -599,6 +631,14 @@ export function ComingSoonSection({ compact = false, filterType, sectionTitle })
         const da = a.scheduled_release_at ? new Date(a.scheduled_release_at) : new Date('2099-01-01');
         const db = b.scheduled_release_at ? new Date(b.scheduled_release_at) : new Date('2099-01-01');
         return da - db;
+      });
+      // Bug fix: exclude only items currently LIVE in La Prima (between premiere datetime and +24h).
+      // Pre-La Prima (waiting for datetime) MUST stay in Prossimamente so hype can grow.
+      sorted = sorted.filter(item => {
+        if (item.la_prima_live) return false;
+        // Legacy: also exclude V2 premiere_live/setup states
+        const state = (item.pipeline_state || '').toLowerCase();
+        return state !== 'premiere_live' && state !== 'premiere_setup';
       });
       if (filterType) {
         sorted = sorted.filter(item => item.content_type === filterType);
@@ -629,10 +669,23 @@ export function ComingSoonSection({ compact = false, filterType, sectionTitle })
 
   return (
     <div data-testid={`coming-soon-section${filterType ? `-${filterType}` : ''}`}>
-      <div className="flex items-center gap-2 mb-2 px-2 pt-2">
-        <TIcon className={`w-3.5 h-3.5 ${tColor}`} />
-        <h3 className="font-['Bebas_Neue'] text-base text-white">{title}</h3>
-        {items.length > 0 && <Badge className="bg-cyan-500/20 text-cyan-400 text-[8px] h-4">{items.length}</Badge>}
+      <div className="flex items-center justify-between gap-2 mb-2 px-2 pt-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <TIcon className={`w-3.5 h-3.5 ${tColor}`} />
+          <h3 className="font-['Bebas_Neue'] text-base text-white truncate">{title}</h3>
+          {items.length > 0 && <Badge className="bg-cyan-500/20 text-cyan-400 text-[8px] h-4">{items.length}</Badge>}
+        </div>
+        {items.length > 0 && (
+          <SectionSortMenu
+            value={sortValue}
+            onChange={setSortValue}
+            options={[
+              { value: 'soonest', label: 'Più Vicini' },
+              ...DEFAULT_SORT_OPTIONS,
+            ]}
+            testId={`sort-coming-soon-${filterType || 'all'}`}
+          />
+        )}
       </div>
 
       {items.length === 0 ? (
@@ -642,10 +695,12 @@ export function ComingSoonSection({ compact = false, filterType, sectionTitle })
         </div>
       ) : (
         <div className="flex gap-2 overflow-x-auto pb-2 px-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
-          {items.map(item => (
+          {(sortValue === 'soonest' ? items : sortItems(items, sortValue)).map(item => (
             <ComingSoonThumb key={item.id} item={item} onClick={() => {
-              if (item.content_type === 'series' || item.content_type === 'anime') {
-                navigate(`/series/${item.id}`);
+              if (item.content_type === 'series' || item.content_type === 'anime' || item.content_type === 'tv_series') {
+                // Series/Anime (V3 projects or legacy): open unified Prossimamente modal
+                // which handles both unreleased projects and aired episodes.
+                setProssimamenteId(item.id);
               } else {
                 navigate(`/films/${item.id}`);
               }
@@ -669,6 +724,12 @@ export function ComingSoonSection({ compact = false, filterType, sectionTitle })
           )}
         </DialogContent>
       </Dialog>
+
+      <ProssimamenteDetailModal
+        open={!!prossimamenteId}
+        onClose={() => setProssimamenteId(null)}
+        seriesId={prossimamenteId}
+      />
     </div>
   );
 }

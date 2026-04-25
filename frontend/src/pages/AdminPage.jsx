@@ -3,9 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart, Image as ImageIcon, Video } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
+import { Dialog, DialogContent } from '../components/ui/dialog';
+import TrailerPlayerModal from '../components/TrailerPlayerModal';
 import { PlayerBadge } from '../components/PlayerBadge';
 import AdminFilmRecovery from '../components/AdminFilmRecovery';
 
@@ -22,6 +24,8 @@ const ADMIN_TABS = [
   { id: 'donations', label: 'Donazioni', icon: Heart },
   { id: 'tutorial', label: 'Tutorial Manager', icon: BookOpen },
   { id: 'migration', label: 'Migrazione', icon: ArrowRightLeft },
+  { id: 'ai-providers', label: 'AI Providers', icon: ImageIcon },
+  { id: 'promo-video', label: 'Promo Video', icon: Video },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
   { id: 'recovery', label: 'Anti-Limbo', icon: AlertTriangle },
   { id: 'reset', label: 'Reset Gioco', icon: Trash2 },
@@ -362,6 +366,7 @@ function UsersTab({ api }) {
   const [actionLoading, setActionLoading] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const searchUsers = useCallback(async (q) => {
     setLoading(true);
@@ -581,22 +586,30 @@ function UsersTab({ api }) {
               <p className="text-[10px] text-red-400 font-semibold flex items-center gap-1"><Shield className="w-3 h-3" /> Badge Permanenti</p>
               <div className="flex gap-1.5">
                 {[
-                  { key: 'cineadmin', label: 'CineADMIN', icon: Shield, cls: 'bg-red-800 hover:bg-red-700', activeCls: 'ring-1 ring-red-400', color: 'text-red-400' },
-                  { key: 'cinemod', label: 'CineMOD', icon: ShieldCheck, cls: 'bg-blue-800 hover:bg-blue-700', activeCls: 'ring-1 ring-blue-400', color: 'text-blue-400' },
+                  { key: 'cineadmin', label: 'CineADMIN', icon: Shield, cls: 'bg-red-800 hover:bg-red-700', activeCls: 'ring-1 ring-red-400', color: 'text-red-400', role: 'CO_ADMIN' },
+                  { key: 'cinemod', label: 'CineMOD', icon: ShieldCheck, cls: 'bg-blue-800 hover:bg-blue-700', activeCls: 'ring-1 ring-blue-400', color: 'text-blue-400', role: 'MODERATOR' },
                 ].map(b => {
                   const isActive = selectedUser.badges?.[b.key];
                   return (
                     <Button key={b.key} size="sm" className={`text-[10px] h-7 px-2 flex-1 ${b.cls} ${isActive ? b.activeCls : 'opacity-60'}`}
                       disabled={actionLoading}
-                      onClick={async () => {
-                        setActionLoading('perm-badge');
-                        try {
-                          await api.post('/admin/set-perm-badge', { nickname: selectedUser.nickname, badge_type: b.key, active: !isActive });
-                          toast.success(`${b.label} ${!isActive ? 'assegnato' : 'rimosso'} a ${selectedUser.nickname}`);
-                          setSelectedUser(prev => ({ ...prev, badges: { ...prev.badges, [b.key]: !isActive } }));
-                          searchUsers(searchQuery);
-                        } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
-                        setActionLoading(null);
+                      onClick={() => {
+                        setConfirmAction({
+                          title: isActive ? `Rimuovi ${b.label}` : `Assegna ${b.label}`,
+                          message: isActive
+                            ? `Rimuovere ${b.label} e il ruolo ${b.role} da ${selectedUser.nickname}?`
+                            : `Assegnare ${b.label} con ruolo ${b.role} a ${selectedUser.nickname}? Questo utente avrà permessi ${b.key === 'cineadmin' ? 'di co-amministratore' : 'di moderazione'}.`,
+                          onConfirm: async () => {
+                            setActionLoading('perm-badge');
+                            try {
+                              const res = await api.post('/admin/set-perm-badge', { nickname: selectedUser.nickname, badge_type: b.key, active: !isActive });
+                              toast.success(res.data.message || `${b.label} ${!isActive ? 'assegnato' : 'rimosso'}`);
+                              setSelectedUser(prev => ({ ...prev, badges: { ...prev.badges, [b.key]: !isActive }, role: res.data.role || prev.role }));
+                              searchUsers(searchQuery);
+                            } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+                            setActionLoading(null);
+                          },
+                        });
                       }}
                       data-testid={`admin-perm-${b.key}`}>
                       <b.icon className={`w-3 h-3 mr-0.5 ${b.color}`} />
@@ -605,66 +618,119 @@ function UsersTab({ api }) {
                   );
                 })}
               </div>
-              <p className="text-[8px] text-gray-600">Permanenti — rimovibili solo manualmente</p>
+              <p className="text-[8px] text-gray-600">Permanenti — rimovibili solo manualmente. Assegnano anche il ruolo effettivo.</p>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Confirm Dialog (our custom one) */}
+      {confirmAction && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setConfirmAction(null)}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)' }} />
+          <div style={{ position: 'relative', width: '100%', maxWidth: 340, background: '#111113', borderRadius: 16, border: '1px solid rgba(255,255,255,0.1)', padding: 20, textAlign: 'center' }} onClick={e => e.stopPropagation()} data-testid="admin-confirm-dialog">
+            <p style={{ fontSize: 14, fontWeight: 'bold', color: '#fff', marginBottom: 8 }}>{confirmAction.title}</p>
+            <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 16, lineHeight: '1.4' }}>{confirmAction.message}</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setConfirmAction(null)} style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: '#1f2937', color: '#9ca3af', fontSize: 12, fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>Annulla</button>
+              <button onClick={() => { const fn = confirmAction.onConfirm; setConfirmAction(null); fn(); }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff', fontSize: 12, fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                data-testid="admin-confirm-btn">Conferma</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-/* ─── Films Tab ─── */
 function FilmsTab({ api }) {
   const [films, setFilms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [contentType, setContentType] = useState('film'); // film | tv_series | anime
+  const [selected, setSelected] = useState(null);
+  const [fixLoading, setFixLoading] = useState(false);
 
-  const loadFilms = useCallback(async (q = '') => {
+  const loadFilms = useCallback(async (q = '', ct = contentType) => {
     setLoading(true);
     try {
-      const res = await api.get(`/admin/all-films?q=${encodeURIComponent(q)}`);
+      const res = await api.get(`/admin/all-films?q=${encodeURIComponent(q)}&content_type=${ct}`);
       setFilms(res.data.films || []);
-    } catch { toast.error('Errore caricamento film'); }
+    } catch { toast.error('Errore caricamento'); }
     finally { setLoading(false); }
-  }, [api]);
+  }, [api, contentType]);
 
-  useEffect(() => { loadFilms(); }, [loadFilms]);
+  useEffect(() => { loadFilms('', contentType); }, [loadFilms, contentType]);
 
-  const handleSearch = (e) => { e.preventDefault(); loadFilms(searchQuery); };
+  const handleSearch = (e) => { e.preventDefault(); loadFilms(searchQuery, contentType); };
 
   const handleDeleteFilm = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
     try {
       await api.delete(`/admin/delete-film/${deleteTarget.id}`);
-      toast.success(`Film "${deleteTarget.title}" eliminato definitivamente`);
+      toast.success(`"${deleteTarget.title}" eliminato definitivamente`);
       setDeleteTarget(null);
-      loadFilms(searchQuery);
+      setSelected(null);
+      loadFilms(searchQuery, contentType);
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore eliminazione'); }
     finally { setDeleteLoading(false); }
   };
+
+  const handleFix = async (film) => {
+    setFixLoading(true);
+    try {
+      await api.post(`/admin-recovery/fix-one/${film.id}`);
+      toast.success(`"${film.title}" riparato`);
+      setSelected(null);
+      loadFilms(searchQuery, contentType);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Fix non applicabile'); }
+    finally { setFixLoading(false); }
+  };
+
+  const typeLabel = contentType === 'film' ? 'film' : contentType === 'tv_series' ? 'serie tv' : 'anime';
 
   return (
     <div className="space-y-3" data-testid="admin-films-tab">
       <ConfirmModal
         open={!!deleteTarget}
-        title="Eliminazione Definitiva Film"
-        message={`Confermi eliminazione definitiva del film "${deleteTarget?.title}" di ${deleteTarget?.studio_name}? Il film verra' rimosso da classifiche e liste pubbliche. Questa azione e' IRREVERSIBILE.`}
+        title="Eliminazione Definitiva"
+        message={`Confermi eliminazione definitiva di "${deleteTarget?.title}" di ${deleteTarget?.studio_name}? Azione IRREVERSIBILE.`}
         onConfirm={handleDeleteFilm}
         onCancel={() => setDeleteTarget(null)}
         loading={deleteLoading}
       />
 
-      {/* Search */}
+      {/* Subsection tabs: film / tv_series / anime / trailer */}
+      <div className="flex gap-1.5 bg-[#0d0d0f] border border-white/5 rounded-lg p-1" data-testid="admin-content-type-tabs">
+        {[
+          { k: 'film', lbl: 'Film' },
+          { k: 'tv_series', lbl: 'Serie TV' },
+          { k: 'anime', lbl: 'Anime' },
+          { k: 'trailer', lbl: 'Trailer' },
+        ].map(t => (
+          <button key={t.k}
+            onClick={() => setContentType(t.k)}
+            data-testid={`admin-tab-${t.k}`}
+            className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition-all ${contentType === t.k ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'}`}>
+            {t.lbl}
+          </button>
+        ))}
+      </div>
+
+      {contentType === 'trailer' ? (
+        <TrailersAdminPanel api={api} />
+      ) : (
+        <>
+        {/* Search */}
       <form onSubmit={handleSearch}>
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Cerca film per titolo..."
+              placeholder={`Cerca ${typeLabel} per titolo...`}
               className="w-full bg-[#111113] border border-gray-800 rounded-lg pl-8 pr-3 py-2 text-xs text-white placeholder-gray-600 focus:border-red-500/50 focus:outline-none"
               data-testid="admin-film-search-input" />
           </div>
@@ -675,51 +741,285 @@ function FilmsTab({ api }) {
         </div>
       </form>
 
-      <p className="text-[10px] text-gray-500">{films.length} film trovati</p>
+      <p className="text-[10px] text-gray-500">{films.length} {typeLabel} trovati</p>
 
-      {/* Compact film grid: 8 mobile / 12 tablet / 16 desktop */}
+      {/* Compact grid — poster reduced by ~70% (minmax 80 → 48). Cards with open bug reports
+          are scaled 150% + amber pulse ring so admin spots them immediately. */}
+      <style>{`
+        @keyframes admin-report-pulse {
+          0%, 100% { box-shadow: 0 0 0 2px rgba(251,146,60,0.45), 0 0 12px rgba(251,146,60,0.35); }
+          50% { box-shadow: 0 0 0 3px rgba(251,146,60,0.8), 0 0 22px rgba(251,146,60,0.8); }
+        }
+      `}</style>
       <div className="grid gap-1 max-h-[70vh] overflow-y-auto pb-2"
-        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))' }}
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(48px, 1fr))' }}
         data-testid="admin-film-grid">
-        {films.map(f => (
-          <div key={f.id} className="group relative bg-[#0d0d0f] border border-white/5 rounded overflow-hidden hover:border-red-500/40 transition-all"
-            data-testid={`admin-film-card-${f.id}`}>
-            {/* Mini poster */}
-            <div className="aspect-[2/3] bg-gray-900 relative">
-              {f.poster_url ? (
-                <img src={`${API_BASE}${f.poster_url}`} alt={f.title} loading="lazy"
-                  className="w-full h-full object-cover"
-                  onError={e => { e.target.style.display='none'; }} />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Film className="w-3.5 h-3.5 text-gray-700" />
-                </div>
-              )}
-              {/* Delete icon - always visible, top-right */}
-              <button
-                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600/80 hover:bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => { e.stopPropagation(); setDeleteTarget(f); }}
-                data-testid={`admin-film-delete-${f.id}`}>
-                <Trash2 className="w-2 h-2 text-white" />
-              </button>
-              {/* Quality badge */}
-              {f.quality_score != null && (
-                <span className="absolute bottom-0.5 right-0.5 text-[7px] font-bold bg-black/70 text-yellow-400 px-0.5 rounded leading-none py-px">
-                  {Math.round(f.quality_score)}%
-                </span>
-              )}
-            </div>
-            {/* Compact info */}
-            <div className="px-0.5 py-0.5">
-              <p className="text-[7px] font-semibold text-white truncate leading-tight" title={f.title}>{f.title}</p>
-              <p className="text-[6px] text-gray-500 truncate leading-tight">{f.studio_name}</p>
-            </div>
-          </div>
-        ))}
+        {films.map(f => {
+          const highlighted = f.has_open_report;
+          return (
+            <button key={f.id}
+              onClick={() => setSelected(f)}
+              className={`group relative bg-[#0d0d0f] border border-white/5 rounded overflow-hidden hover:border-red-500/40 transition-all text-left ${highlighted ? 'transform scale-150 z-10 my-3' : ''}`}
+              style={highlighted ? { animation: 'admin-report-pulse 1.4s ease-in-out infinite', border: '1px solid rgba(251,146,60,0.6)' } : undefined}
+              data-testid={`admin-film-card-${f.id}`}
+            >
+              <div className="aspect-[2/3] bg-gray-900 relative">
+                {f.poster_url ? (
+                  <img src={`${API_BASE}${f.poster_url}`} alt={f.title} loading="lazy"
+                    className="w-full h-full object-cover"
+                    onError={e => { e.target.style.display='none'; }} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Film className="w-3 h-3 text-gray-700" />
+                  </div>
+                )}
+                {highlighted && (
+                  <span className="absolute top-0 left-0 bg-amber-500 text-black text-[6px] font-black px-0.5 rounded-br leading-none py-px">!{f.reports_count}</span>
+                )}
+                {f.quality_score != null && (
+                  <span className="absolute bottom-0 right-0 text-[6px] font-bold bg-black/70 text-yellow-400 px-0.5 rounded leading-none py-px">
+                    {Math.round(f.quality_score)}%
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {films.length === 0 && !loading && (
-        <p className="text-center text-xs text-gray-600 py-8">Nessun film trovato</p>
+        <p className="text-center text-xs text-gray-600 py-8">Nessun {typeLabel} trovato</p>
+      )}
+
+      {/* Detail popup: owner, stage, delete + fix buttons */}
+      <Dialog open={!!selected} onOpenChange={(o) => { if (!o) setSelected(null); }}>
+        <DialogContent className="bg-[#0d0d0f] border-white/10 max-w-sm p-0 [&>button]:hidden" data-testid="admin-film-detail-modal">
+          {selected && (
+            <div>
+              <div className="relative h-40 bg-black overflow-hidden">
+                {selected.poster_url ? (
+                  <img src={`${API_BASE}${selected.poster_url}`} alt="" className="w-full h-full object-cover opacity-80" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-900"><Film className="w-6 h-6 text-gray-700" /></div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0f] to-transparent" />
+                <button onClick={() => setSelected(null)} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center">
+                  <X className="w-3.5 h-3.5 text-white" />
+                </button>
+                <div className="absolute bottom-2 left-2 right-2">
+                  <p className="text-[11px] text-gray-400">{(selected.studio_name) + ' · @' + (selected.owner_nickname)}</p>
+                  <p className="text-sm font-bold text-white truncate">{selected.title}</p>
+                </div>
+              </div>
+              <div className="p-3 space-y-2">
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  <div className="bg-white/[0.03] rounded p-2">
+                    <p className="text-gray-500 uppercase text-[8px] font-bold">Stato</p>
+                    <p className="text-white font-bold">{selected.stage}</p>
+                  </div>
+                  <div className="bg-white/[0.03] rounded p-2">
+                    <p className="text-gray-500 uppercase text-[8px] font-bold">Collezione</p>
+                    <p className="text-white font-bold text-[9px]">{selected.collection}</p>
+                  </div>
+                  {selected.quality_score != null && (
+                    <div className="bg-white/[0.03] rounded p-2">
+                      <p className="text-gray-500 uppercase text-[8px] font-bold">Qualita</p>
+                      <p className="text-yellow-400 font-bold">{Math.round(selected.quality_score)}%</p>
+                    </div>
+                  )}
+                  {selected.genre_name && (
+                    <div className="bg-white/[0.03] rounded p-2">
+                      <p className="text-gray-500 uppercase text-[8px] font-bold">Genere</p>
+                      <p className="text-white font-bold text-[9px]">{selected.genre_name}</p>
+                    </div>
+                  )}
+                </div>
+                {selected.has_open_report && (
+                  <div className="p-2 rounded bg-amber-500/10 border border-amber-500/30">
+                    <p className="text-[10px] text-amber-300 font-bold">{selected.reports_count} segnalazione(i) aperta(e)</p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => handleFix(selected)}
+                    disabled={fixLoading || !selected.needs_fix}
+                    data-testid="admin-fix-btn"
+                    className={`py-2.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${selected.needs_fix ? 'border border-amber-500/35 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' : 'border border-white/5 text-gray-600 cursor-not-allowed'}`}
+                  >
+                    Fix {selected.needs_fix ? '' : '(ok)'}
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(selected)}
+                    data-testid="admin-detail-delete-btn"
+                    className="py-2.5 rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-[10px] font-bold hover:bg-rose-500/20 transition-all flex items-center justify-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" /> Elimina definitivamente
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      </>
+      )}
+    </div>
+  );
+}
+
+/* ─── Trailers Admin Panel (owner + view + delete) ─── */
+function TrailersAdminPanel({ api }) {
+  const [trailers, setTrailers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState('');
+  const [selected, setSelected] = useState(null);
+  const [playing, setPlaying] = useState(null);
+  const [playingLoading, setPlayingLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get(`/admin/all-trailers?q=${encodeURIComponent(q)}`);
+      setTrailers(r.data.trailers || []);
+    } catch { toast.error('Errore caricamento'); }
+    finally { setLoading(false); }
+  }, [api, q]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/admin/delete-trailer/${deleteTarget.content_id}`);
+      toast.success('Trailer eliminato');
+      setDeleteTarget(null); setSelected(null);
+      load();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setDeleting(false); }
+  };
+
+  return (
+    <div className="space-y-3">
+      <ConfirmModal
+        open={!!deleteTarget}
+        title="Eliminazione Trailer"
+        message={`Eliminare definitivamente il trailer di "${deleteTarget?.title}" (${deleteTarget?.tier})? Azione IRREVERSIBILE.`}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+        loading={deleting}
+      />
+      <form onSubmit={(e) => { e.preventDefault(); load(); }}>
+        <div className="flex gap-2">
+          <input type="text" value={q} onChange={e => setQ(e.target.value)}
+            placeholder="Cerca trailer per titolo..."
+            className="flex-1 bg-[#111113] border border-gray-800 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:border-red-500/50 focus:outline-none"
+            data-testid="admin-trailer-search" />
+          <Button type="submit" size="sm" className="bg-red-600 hover:bg-red-700 text-xs px-3" disabled={loading}>
+            {loading ? '...' : 'Cerca'}
+          </Button>
+        </div>
+      </form>
+      <p className="text-[10px] text-gray-500">{trailers.length} trailer trovati</p>
+      <div className="grid gap-1 max-h-[70vh] overflow-y-auto pb-2"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(48px, 1fr))' }}
+        data-testid="admin-trailers-grid">
+        {trailers.map(t => (
+          <button key={`${t.collection}-${t.content_id}`}
+            onClick={() => setSelected(t)}
+            className="group relative bg-[#0d0d0f] border border-white/5 rounded overflow-hidden hover:border-red-500/40 transition-all text-left"
+            data-testid={`admin-trailer-card-${t.content_id}`}>
+            <div className="aspect-[2/3] bg-gray-900 relative">
+              {t.poster_url ? (
+                <img src={`${API_BASE}${t.poster_url}`} alt={t.title} loading="lazy" className="w-full h-full object-cover opacity-80" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-900"><Film className="w-3 h-3 text-gray-700" /></div>
+              )}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                <span className="text-[8px] text-white font-black bg-red-600/80 rounded px-1 py-px">{t.tier?.slice(0, 1).toUpperCase() || 'B'}</span>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+      {trailers.length === 0 && !loading && (
+        <p className="text-center text-xs text-gray-600 py-8">Nessun trailer trovato</p>
+      )}
+
+      {/* Trailer detail popup */}
+      <Dialog open={!!selected} onOpenChange={(o) => { if (!o) setSelected(null); }}>
+        <DialogContent className="bg-[#0d0d0f] border-white/10 max-w-sm p-4 [&>button]:hidden" data-testid="admin-trailer-detail-modal">
+          {selected && (
+            <div className="space-y-3">
+              <div className="flex items-start gap-2">
+                {selected.poster_url ? (
+                  <img src={`${API_BASE}${selected.poster_url}`} alt="" className="w-16 h-24 object-cover rounded" />
+                ) : null}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-gray-500">{selected.collection}</p>
+                  <p className="text-sm font-bold text-white truncate">{selected.title}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {selected.owner_exists ? 'Proprietario' : 'Ex-proprietario'}: @{selected.owner_nickname}
+                  </p>
+                  <p className="text-[10px] text-gray-500">{selected.studio_name}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-[9px]">
+                <div className="bg-white/[0.03] rounded p-1.5 text-center">
+                  <p className="text-gray-500 uppercase text-[7px] font-bold">Tier</p>
+                  <p className="text-white font-bold">{selected.tier}</p>
+                </div>
+                <div className="bg-white/[0.03] rounded p-1.5 text-center">
+                  <p className="text-gray-500 uppercase text-[7px] font-bold">Views</p>
+                  <p className="text-white font-bold">{selected.views_count}</p>
+                </div>
+                <div className="bg-white/[0.03] rounded p-1.5 text-center">
+                  <p className="text-gray-500 uppercase text-[7px] font-bold">Parent</p>
+                  <p className={selected.parent_exists ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                    {selected.parent_exists ? 'Esiste' : 'No'}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={async () => {
+                    setPlayingLoading(true);
+                    try {
+                      const r = await api.get(`/admin/trailer-detail/${selected.content_id}`);
+                      setPlaying({ ...r.data, content_id: selected.content_id });
+                    } catch { toast.error('Trailer non trovato'); }
+                    finally { setPlayingLoading(false); }
+                  }}
+                  disabled={playingLoading}
+                  data-testid="admin-trailer-view-btn"
+                  className="py-2.5 rounded-lg border border-amber-500/35 bg-amber-500/10 text-amber-300 text-[10px] font-bold hover:bg-amber-500/20 flex items-center justify-center gap-1 disabled:opacity-50"
+                >{playingLoading ? '...' : 'Visualizza Trailer'}</button>
+                <button
+                  onClick={() => setDeleteTarget(selected)}
+                  data-testid="admin-trailer-delete-btn"
+                  className="py-2.5 rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-[10px] font-bold hover:bg-rose-500/20 flex items-center justify-center gap-1"
+                >
+                  <Trash2 className="w-3 h-3" /> Elimina per sempre
+                </button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Trailer player */}
+      {playing && (
+        <TrailerPlayerModal
+          trailer={playing.trailer}
+          contentTitle={playing.title}
+          contentId={playing.content_id || playing.id}
+          contentGenre={playing.genre || ''}
+          contentOwnerId={playing.user_id}
+          api={api}
+          onClose={() => setPlaying(null)}
+        />
       )}
     </div>
   );
@@ -957,19 +1257,28 @@ const ResetGamePanel = ({ api }) => {
           <button onClick={() => enabled && setConfirmAction('keep_infra')} disabled={!enabled || !!loading}
             className="w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-orange-500/5 border-orange-500/15 hover:bg-orange-500/10">
             <p className="text-[11px] font-bold text-orange-400">{loading === 'keep_infra' ? 'Reset in corso...' : 'Reset mantenendo infrastrutture'}</p>
-            <p className="text-[8px] text-gray-500 mt-0.5">Cancella: film, serie, anime, classifiche, statistiche, eventi, pipeline. Mantiene: utenti, infrastrutture, monete, cinepass.</p>
+            <p className="text-[8px] text-gray-500 mt-0.5">Cancella: film, serie, progetti pipeline, poster, notifiche, eventi, chat, likes, commenti, voti, premi festival, sponsor, sceneggiature. Mantiene: utenti, denaro, CinePass, livello, infrastrutture, NPC.</p>
           </button>
 
           <button onClick={() => enabled && setConfirmAction('full')} disabled={!enabled || !!loading}
             className="w-full text-left p-3 rounded-lg border transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-red-500/5 border-red-500/15 hover:bg-red-500/10">
             <p className="text-[11px] font-bold text-red-400">{loading === 'full' ? 'Reset in corso...' : 'Reset totale (eccetto utenti)'}</p>
-            <p className="text-[8px] text-gray-500 mt-0.5">Cancella: film, serie, anime, infrastrutture, progressi, eventi, statistiche, pipeline. Mantiene: utenti registrati.</p>
+            <p className="text-[8px] text-gray-500 mt-0.5">Cancella: TUTTO (film, serie, infrastrutture, poster, notifiche, eventi, chat, premi). Resetta denaro a $10M, CP a 50, livello a 1. Mantiene: account utenti registrati e NPC.</p>
           </button>
         </div>
 
         {result && (
-          <div className="p-2 bg-green-500/10 border border-green-500/20 rounded-lg text-[10px] text-green-400">
-            Reset completato: {JSON.stringify(result)}
+          <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+            <p className="text-[11px] font-bold text-green-400 mb-1.5">Reset completato ({result.type === 'full' ? 'totale' : 'parziale'})</p>
+            {result.note && <p className="text-[9px] text-green-300/70 mb-2">{result.note}</p>}
+            <div className="space-y-0.5">
+              {Object.entries(result.results || {}).map(([k, v]) => (
+                <div key={k} className="flex justify-between text-[9px]">
+                  <span className="text-gray-400 truncate mr-2">{k.replace(/_/g, ' ')}</span>
+                  <span className="text-green-400 font-mono flex-shrink-0">{typeof v === 'number' ? `${v} rimossi` : String(v).substring(0, 30)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </CardContent>
@@ -2479,6 +2788,451 @@ function SeriesAnimeMigrationSection({ api }) {
   );
 }
 
+/* ─── Promo Video Tab — Automated Instagram promo video generator ─── */
+function PromoVideoTab({ api }) {
+  const [screens, setScreens] = useState([]);
+  const [selected, setSelected] = useState(new Set());
+  const [duration, setDuration] = useState(30);
+  const [frameCount, setFrameCount] = useState(0); // 0 = auto
+  const [tone, setTone] = useState('energico');
+  const [music, setMusic] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [jobs, setJobs] = useState([]);
+  const [currentJob, setCurrentJob] = useState(null);
+  const [loadingStart, setLoadingStart] = useState(false);
+  const pollRef = useRef(null);
+
+  const loadScreens = useCallback(async () => {
+    try {
+      const r = await api.get('/admin/promo-video/screens');
+      setScreens(r.data || []);
+      setSelected(new Set((r.data || []).map(s => s.key)));
+    } catch { /* noop */ }
+  }, [api]);
+
+  const loadJobs = useCallback(async () => {
+    try {
+      const r = await api.get('/admin/promo-video/jobs?limit=10');
+      setJobs(r.data?.jobs || []);
+    } catch { /* noop */ }
+  }, [api]);
+
+  useEffect(() => { loadScreens(); loadJobs(); }, [loadScreens, loadJobs]);
+
+  const toggleScreen = (key) => {
+    setSelected(prev => {
+      const s = new Set(prev);
+      s.has(key) ? s.delete(key) : s.add(key);
+      return s;
+    });
+  };
+
+  const pollJob = useCallback(async (jobId) => {
+    try {
+      const r = await api.get(`/admin/promo-video/jobs/${jobId}`);
+      setCurrentJob(r.data);
+      if (r.data.status === 'completed' || r.data.status === 'failed') {
+        clearInterval(pollRef.current); pollRef.current = null;
+        loadJobs();
+        if (r.data.status === 'completed') toast.success('Video pronto!');
+        else toast.error(`Errore: ${r.data.error || 'sconosciuto'}`);
+      }
+    } catch { /* noop */ }
+  }, [api, loadJobs]);
+
+  const startJob = async () => {
+    if (selected.size === 0) { toast.error('Seleziona almeno una pagina'); return; }
+    setLoadingStart(true);
+    try {
+      const r = await api.post('/admin/promo-video/generate', {
+        duration_seconds: duration,
+        screens: Array.from(selected),
+        custom_prompt: customPrompt.trim(),
+        tone, music,
+        frame_count: frameCount,
+      });
+      const jobId = r.data.job_id;
+      setCurrentJob({ job_id: jobId, status: 'queued', progress: 0, stage: 'queued', log: [] });
+      pollRef.current = setInterval(() => pollJob(jobId), 2000);
+      toast('Generazione avviata');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setLoadingStart(false); }
+  };
+
+  const download = async (jobId) => {
+    try {
+      const r = await api.get(`/admin/promo-video/download/${jobId}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement('a');
+      a.href = url; a.download = `cineworld_promo_${jobId}.mp4`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch { toast.error('Download fallito'); }
+  };
+
+  const deleteJob = async (jobId) => {
+    if (!window.confirm('Eliminare questo video?')) return;
+    try { await api.delete(`/admin/promo-video/jobs/${jobId}`); loadJobs(); toast.success('Eliminato'); }
+    catch { toast.error('Errore'); }
+  };
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  const running = currentJob && currentJob.status !== 'completed' && currentJob.status !== 'failed';
+
+  return (
+    <Card className="bg-[#111113] border-white/5" data-testid="promo-video-tab">
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
+          <Video className="w-4 h-4 text-rose-400" /> Promo Video Generator
+        </CardTitle>
+        <p className="text-[10px] text-gray-500">Genera automaticamente un video 1080×1920 Instagram-ready con screenshot del gioco + caption AI.</p>
+      </CardHeader>
+      <CardContent className="p-4 pt-2 space-y-4">
+
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3 text-[10px] text-amber-200 leading-relaxed" data-testid="promo-preview-notice">
+          <div className="font-bold text-amber-300 mb-1">⚠️ Raccomandato: usa la Preview</div>
+          Questa funzione richiede Chromium + FFmpeg e funziona in modo affidabile solo su preview. In produzione alcune dipendenze potrebbero non essere disponibili.
+          <a href="https://cinema-economics-v2.preview.emergentagent.com/admin" target="_blank" rel="noopener noreferrer"
+             className="block mt-1.5 text-amber-300 underline font-semibold break-all"
+             data-testid="promo-preview-link">
+            → Apri Admin su Preview
+          </a>
+        </div>
+
+        {/* Duration */}
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Durata video</label>
+          <div className="grid grid-cols-4 gap-1.5 mt-1">
+            {[30, 60, 90, 120].map(d => (
+              <button key={d} onClick={() => setDuration(d)} disabled={running}
+                className={`text-[11px] py-2 rounded-md font-semibold border ${duration === d ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                data-testid={`duration-${d}`}>
+                {d}s
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tone */}
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Tono caption</label>
+          <div className="grid grid-cols-3 gap-1.5 mt-1">
+            {[{k:'energico',l:'🎬 Energico'},{k:'neutro',l:'📃 Neutro'},{k:'ironico',l:'😄 Ironico'}].map(o => (
+              <button key={o.k} onClick={() => setTone(o.k)} disabled={running}
+                className={`text-[10px] py-2 rounded-md font-semibold border ${tone === o.k ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+                data-testid={`tone-${o.k}`}>
+                {o.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Music */}
+        <div className="flex items-center gap-2">
+          <input id="promo-music" type="checkbox" checked={music} onChange={e => setMusic(e.target.checked)} disabled={running} className="w-4 h-4" data-testid="promo-music"/>
+          <label htmlFor="promo-music" className="text-xs text-gray-300">Aggiungi musica di sottofondo (se disponibile)</label>
+        </div>
+
+        {/* Frame count */}
+        {(() => {
+          const effective = frameCount > 0 ? frameCount : Math.max(1, selected.size);
+          const perFrame = duration / Math.max(1, effective);
+          const ratioLabel = perFrame.toFixed(2) + 's/frame';
+          let warnColor = 'text-emerald-400', warnMsg = 'Ritmo cinematografico ottimale';
+          if (perFrame < 0.8) { warnColor = 'text-red-400'; warnMsg = '⚠️ Troppo veloce! Frame illeggibili, caption non hanno tempo di essere lette'; }
+          else if (perFrame < 1.3) { warnColor = 'text-amber-400'; warnMsg = '⚠️ Ritmo frenetico — consigliato per flash/preview ma rischia caos visivo'; }
+          else if (perFrame > 5) { warnColor = 'text-amber-400'; warnMsg = 'ℹ️ Ritmo lento — frame fermi a lungo, rischia di essere noioso'; }
+          else if (perFrame > 3.5) { warnColor = 'text-sky-400'; warnMsg = 'ℹ️ Ritmo rilassato — ok per narrazione estesa'; }
+          return (
+            <div data-testid="frame-count-row">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Numero frame</label>
+                <span className="text-[10px] text-gray-500">
+                  {frameCount === 0 ? <>auto ({selected.size})</> : frameCount}
+                  <span className="text-gray-600"> · {ratioLabel}</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <button onClick={() => setFrameCount(0)} disabled={running}
+                  className={`text-[10px] px-2 py-1 rounded border font-semibold ${frameCount === 0 ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-white/5 border-white/10 text-gray-400'}`}
+                  data-testid="frame-auto">auto</button>
+                <input type="range" min="5" max="100" step="1"
+                  value={frameCount === 0 ? (selected.size || 14) : frameCount}
+                  onChange={e => setFrameCount(Number(e.target.value))}
+                  disabled={running}
+                  className="flex-1 accent-rose-500"
+                  data-testid="frame-count-slider"/>
+                <input type="number" min="5" max="100"
+                  value={frameCount === 0 ? '' : frameCount}
+                  placeholder="auto"
+                  onChange={e => setFrameCount(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                  disabled={running}
+                  className="w-14 text-[10px] bg-black/40 border border-white/10 rounded px-2 py-1 text-gray-200 text-right"
+                  data-testid="frame-count-input"/>
+              </div>
+              <div className={`text-[10px] mt-1 ${warnColor}`} data-testid="frame-warning">{warnMsg}</div>
+              <div className="text-[9px] text-gray-600 mt-0.5">
+                Esempi coerenti: 15 frame/30s · 30 frame/60s · 50 frame/120s. Se N supera le pagine selezionate, le pagine vengono ciclate con caption diverse.
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Custom prompt */}
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Prompt personalizzato (opzionale)</label>
+          <textarea value={customPrompt} onChange={e => setCustomPrompt(e.target.value)} disabled={running}
+            rows={2} maxLength={400}
+            placeholder="Es. Enfatizza il lato competitivo dei trailer e la community…"
+            className="w-full mt-1 text-xs bg-black/40 border border-white/10 rounded-md p-2 text-gray-200 placeholder:text-gray-600"
+            data-testid="promo-custom-prompt"/>
+          <div className="text-[9px] text-gray-600 text-right">{customPrompt.length}/400</div>
+        </div>
+
+        {/* Screens picker */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Pagine incluse ({selected.size}/{screens.length})</label>
+            <div className="flex gap-1">
+              <button onClick={() => setSelected(new Set(screens.map(s => s.key)))} disabled={running} className="text-[9px] text-gray-400 hover:text-white">tutti</button>
+              <span className="text-gray-600 text-[9px]">·</span>
+              <button onClick={() => setSelected(new Set())} disabled={running} className="text-[9px] text-gray-400 hover:text-white">nessuno</button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-1 max-h-48 overflow-y-auto pr-1">
+            {screens.map(s => (
+              <label key={s.key} className={`text-[10px] flex items-center gap-1.5 py-1.5 px-2 rounded-md border cursor-pointer ${selected.has(s.key) ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' : 'bg-white/5 border-white/10 text-gray-400'}`}>
+                <input type="checkbox" checked={selected.has(s.key)} onChange={() => toggleScreen(s.key)} disabled={running} className="w-3 h-3" />
+                <span className="truncate">{s.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Start button */}
+        <button onClick={startJob} disabled={running || loadingStart}
+          className="w-full text-xs py-3 rounded-md bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold hover:bg-rose-500/30 disabled:opacity-50 flex items-center justify-center gap-2"
+          data-testid="btn-generate-promo">
+          {running ? <><Loader2 className="w-3.5 h-3.5 animate-spin"/>Generazione in corso…</> : <><Video className="w-3.5 h-3.5"/>Genera video promo</>}
+        </button>
+
+        {/* Progress / Log panel */}
+        {currentJob && (
+          <div className="bg-black/40 rounded-md border border-white/10 p-3 space-y-2" data-testid="promo-progress">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                <div className={`h-full transition-all duration-500 ${currentJob.status === 'failed' ? 'bg-red-500' : currentJob.status === 'completed' ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${currentJob.progress || 0}%` }} />
+              </div>
+              <span className="text-[10px] font-bold text-white">{currentJob.progress || 0}%</span>
+            </div>
+            <div className="text-[10px] text-gray-500">
+              Stato: <span className="text-white font-semibold">{currentJob.stage}</span>
+            </div>
+            {(currentJob.log || []).slice(-8).map((line, i) => (
+              <div key={i} className="text-[10px] text-gray-400 font-mono leading-tight">{line}</div>
+            ))}
+            {currentJob.status === 'completed' && (
+              <button onClick={() => download(currentJob.job_id)}
+                className="w-full text-[11px] py-2 mt-2 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold hover:bg-emerald-500/30 flex items-center justify-center gap-2"
+                data-testid="btn-download-promo">
+                <Download className="w-3.5 h-3.5"/>Scarica MP4
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* History */}
+        {jobs.length > 0 && (
+          <div>
+            <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">Storico ultimi video</div>
+            <div className="space-y-1 max-h-56 overflow-y-auto">
+              {jobs.map(j => (
+                <div key={j.job_id} className="flex items-center gap-2 bg-white/5 rounded-md p-2 border border-white/5">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] text-white font-semibold flex items-center gap-1.5">
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${j.status === 'completed' ? 'bg-emerald-400' : j.status === 'failed' ? 'bg-red-400' : 'bg-amber-400'}`}></span>
+                      {j.params?.duration_seconds}s · {j.params?.screens?.length || '—'} pagine · {j.status}
+                    </div>
+                    <div className="text-[9px] text-gray-500 truncate">{j.created_at?.slice(0,16)?.replace('T',' ')} — {j.video_size ? `${Math.round(j.video_size/1024)} KB` : j.stage}</div>
+                  </div>
+                  {j.status === 'completed' && (
+                    <button onClick={() => download(j.job_id)} className="text-[9px] px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30" title="Scarica"><Download className="w-3 h-3"/></button>
+                  )}
+                  <button onClick={() => deleteJob(j.job_id)} className="text-[9px] px-2 py-1 rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20" title="Elimina"><Trash2 className="w-3 h-3"/></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─── AI Providers Tab — Multi-provider rotation (CF + HF + Pollinations + Emergent) ─── */
+function AIProvidersTab({ api }) {
+  const [cfg, setCfg] = useState(null);
+  const [usage, setUsage] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [test, setTest] = useState(null);
+  const pollRef = useRef(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/admin/ai-providers');
+      setCfg(r.data || {});
+    } catch { toast.error('Impossibile caricare config AI'); }
+    finally { setLoading(false); }
+  }, [api]);
+
+  const loadUsage = useCallback(async () => {
+    try {
+      const r = await api.get('/admin/ai-providers/usage');
+      setUsage(r.data || {});
+    } catch { /* noop */ }
+  }, [api]);
+
+  useEffect(() => { load(); loadUsage(); }, [load, loadUsage]);
+  useEffect(() => {
+    pollRef.current = setInterval(loadUsage, 10000);
+    return () => clearInterval(pollRef.current);
+  }, [loadUsage]);
+
+  const save = async (patch) => {
+    const next = { ...cfg, ...patch };
+    setCfg(next); setSaving(true);
+    try {
+      const r = await api.post('/admin/ai-providers', next);
+      setCfg(r.data?.config || next);
+      toast.success('Configurazione aggiornata');
+    } catch { toast.error('Salvataggio fallito'); }
+    finally { setSaving(false); }
+  };
+
+  const runTest = async () => {
+    setTesting(true); setTest(null);
+    try {
+      const r = await api.post('/admin/ai-providers/test');
+      setTest(r.data);
+    } catch { toast.error('Test fallito'); }
+    finally { setTesting(false); }
+  };
+
+  if (loading || !cfg) {
+    return <div className="flex items-center justify-center py-10 text-gray-500 text-xs"><Loader2 className="w-4 h-4 animate-spin mr-2"/>Caricamento…</div>;
+  }
+
+  const PROVIDER_META = {
+    cloudflare: { label: 'Cloudflare SDXL', color: 'bg-orange-500/20 border-orange-500/40 text-orange-300' },
+    huggingface_flux: { label: 'HF FLUX', color: 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300' },
+    huggingface_together: { label: 'HF·Together', color: 'bg-amber-500/20 border-amber-500/40 text-amber-300' },
+    pixazo: { label: 'Pixazo FLUX (FREE)', color: 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300' },
+    wavespeed: { label: 'WaveSpeed FLUX', color: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300' },
+    pollinations: { label: 'Pollinations', color: 'bg-pink-500/20 border-pink-500/40 text-pink-300' },
+    emergent: { label: 'Emergent', color: 'bg-purple-500/20 border-purple-500/40 text-purple-300' },
+    auto: { label: '⚡ Auto (smart)', color: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' },
+    auto_rr: { label: '🎲 Auto RR (bilanciato)', color: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' },
+  };
+
+  const PROVIDER_OPTIONS_POSTER = ['auto', 'cloudflare', 'huggingface_flux', 'huggingface_together', 'pixazo', 'wavespeed', 'pollinations', 'emergent'];
+  const PROVIDER_OPTIONS_TRAILER = ['auto_rr', 'auto', 'cloudflare', 'huggingface_flux', 'huggingface_together', 'pixazo', 'wavespeed', 'pollinations', 'emergent'];
+
+  const ProviderRow = ({ label, field, options }) => (
+    <div className="space-y-1.5" data-testid={`ai-provider-row-${field}`}>
+      <span className="text-xs text-gray-300 block">{label}</span>
+      <div className="grid grid-cols-2 gap-1.5">
+        {options.map(p => {
+          const meta = PROVIDER_META[p] || { label: p, color: 'bg-white/5 border-white/10 text-gray-400' };
+          const active = cfg[field] === p;
+          return (
+            <button key={p} onClick={() => save({ [field]: p })} disabled={saving}
+              className={`text-[10px] px-2 py-2 rounded-md font-semibold border transition ${active ? meta.color : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}
+              data-testid={`btn-${field}-${p}`}>
+              {meta.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <Card className="bg-[#111113] border-white/5" data-testid="ai-providers-tab">
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
+          <ImageIcon className="w-4 h-4 text-emerald-400" /> AI Image Providers
+        </CardTitle>
+        <p className="text-[10px] text-gray-500">Multi-provider rotation: Cloudflare SDXL + HuggingFace FLUX + Pixazo (FREE) + WaveSpeed FLUX + Pollinations + Emergent. Auto = smart fallback. Auto RR = round-robin bilanciato.</p>
+      </CardHeader>
+      <CardContent className="p-4 pt-2 space-y-3">
+        <ProviderRow label="Locandine" field="poster_provider" options={PROVIDER_OPTIONS_POSTER} />
+        <ProviderRow label="Trailer" field="trailer_provider" options={PROVIDER_OPTIONS_TRAILER} />
+
+        {/* Usage tracker */}
+        <div className="pt-2 border-t border-white/5" data-testid="usage-tracker">
+          <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">Quota giornaliera</div>
+          <div className="space-y-1">
+            {['cloudflare', 'huggingface_flux', 'huggingface_together', 'pixazo', 'wavespeed', 'pollinations'].map(p => {
+              const u = usage[p] || { used: 0, limit: 0, remaining: 0 };
+              const pct = u.limit > 0 ? Math.min(100, Math.round(u.used / u.limit * 100)) : 0;
+              const meta = PROVIDER_META[p];
+              return (
+                <div key={p} className="flex items-center gap-2 text-[10px]">
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold ${meta.color}`}>{meta.label}</span>
+                  <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <div className={`h-full ${pct > 80 ? 'bg-red-500' : pct > 50 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-gray-400 tabular-nums min-w-14 text-right">{u.used}/{u.limit}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex items-start gap-2 pt-2 border-t border-white/5">
+          <input id="fallback" type="checkbox" checked={!!cfg.fallback_on_error}
+            onChange={e => save({ fallback_on_error: e.target.checked })}
+            disabled={saving} className="w-4 h-4 mt-0.5" data-testid="toggle-fallback"/>
+          <label htmlFor="fallback" className="text-xs text-gray-300 leading-tight">Fallback automatico su provider successivo in caso di errore</label>
+        </div>
+
+        <div className="text-[10px] text-gray-500 bg-white/5 rounded-md p-2 border border-white/5 leading-relaxed">
+          <strong className="text-gray-300">Strategia raccomandata:</strong><br/>
+          Locandine → <span className="text-emerald-300">Auto</span> (usa il migliore disponibile).<br/>
+          Trailer → <span className="text-emerald-300">Auto RR</span> (bilancia il carico tra i 6 provider).<br/>
+          Tutte le immagini convertite in <strong>WebP ≤1280px</strong> per mobile.
+        </div>
+
+        <div className="pt-2 border-t border-white/5">
+          <button onClick={runTest} disabled={testing}
+            className="w-full text-xs py-2 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold hover:bg-emerald-500/25 disabled:opacity-50"
+            data-testid="btn-test-providers">
+            {testing ? <span className="inline-flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin"/>Test in corso…</span> : 'Test connettività tutti i provider'}
+          </button>
+          {test && (
+            <div className="mt-3 space-y-1" data-testid="test-report">
+              {Object.entries(test).map(([p, v]) => (
+                <div key={p} className={`rounded-md border p-2 text-[10px] ${v?.ok ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white">{PROVIDER_META[p]?.label || p}</span>
+                    <span className={v?.ok ? 'text-emerald-400' : 'text-red-400'}>{v?.ok ? `✅ ${v.latency_ms}ms` : '❌ FAIL'}</span>
+                  </div>
+                  <div className="text-gray-500 mt-0.5 break-all">{v?.details}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ─── Main Admin Page ─── */
 export default function AdminPage() {
   const { api, user } = useContext(AuthContext);
@@ -2562,6 +3316,8 @@ export default function AdminPage() {
           </CardContent></Card>
         )}
         {activeTab === 'testlab' && isAdmin && <TestLabTab />}
+        {activeTab === 'ai-providers' && isAdmin && <AIProvidersTab api={api} />}
+        {activeTab === 'promo-video' && isAdmin && <PromoVideoTab api={api} />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}
         {activeTab === 'reset' && isAdmin && <ResetGamePanel api={api} />}
         {activeTab === 'migration' && isAdmin && <MigrationTab api={api} />}

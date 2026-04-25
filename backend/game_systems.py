@@ -1163,11 +1163,21 @@ def calculate_hourly_film_revenue(film: dict, hour: int, day_of_week: int,
     # IMDb rating bonus
     imdb_mult = 0.5 + (imdb_rating / 10)  # 0.6x to 1.5x
     
-    # Cast fame bonus
-    cast = film.get('cast', [])
-    if cast:
+    # Cast fame bonus (supports both V2 list and V3 dict formats)
+    raw_cast = film.get('cast', [])
+    cast_list = []
+    if isinstance(raw_cast, dict):
+        # V3 format: {director: {...}, actors: [...], composer: {...}}
+        for v in raw_cast.values():
+            if isinstance(v, dict):
+                cast_list.append(v)
+            elif isinstance(v, list):
+                cast_list.extend(x for x in v if isinstance(x, dict))
+    elif isinstance(raw_cast, list):
+        cast_list = [a for a in raw_cast if isinstance(a, dict)]
+    if cast_list:
         cast_fame_scores = []
-        for actor in cast:
+        for actor in cast_list:
             fame_cat = actor.get('fame_category', 'unknown')
             if fame_cat == 'superstar':
                 cast_fame_scores.append(1.5)
@@ -1181,11 +1191,17 @@ def calculate_hourly_film_revenue(film: dict, hour: int, day_of_week: int,
     else:
         cast_mult = 1.0
     
-    # Director skill bonus
+    # Director skill bonus (supports V2: film.director and V3: film.cast.director)
     director = film.get('director', {})
-    director_skills = director.get('skills', {})
-    if director_skills:
-        avg_skill = sum(director_skills.values()) / len(director_skills)
+    if not director or not isinstance(director, dict):
+        raw_cast_dir = film.get('cast', {})
+        if isinstance(raw_cast_dir, dict):
+            director = raw_cast_dir.get('director') or {}
+        if not isinstance(director, dict):
+            director = {}
+    director_skills = director.get('skills', {}) if isinstance(director, dict) else {}
+    if director_skills and isinstance(director_skills, dict):
+        avg_skill = sum(v for v in director_skills.values() if isinstance(v, (int, float))) / max(1, len(director_skills))
         director_mult = 0.8 + (avg_skill / 25)  # 0.84x to 1.2x
     else:
         director_mult = 1.0

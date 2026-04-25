@@ -1688,13 +1688,56 @@ async def get_coming_soon():
          'user_id': 1, 'hype_score': 1, 'created_at': 1, 'remaster_end': 1}
     )
     remaster_items = await remaster_cursor.to_list(50)
+
+    # V3 Pipeline films (have poster, not yet released/discarded)
+    v3_cursor = db.film_projects.find(
+        {'pipeline_version': 3,
+         'poster_url': {'$nin': [None, '']},
+         'pipeline_state': {'$nin': ['released', 'completed', 'discarded']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
+         'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
+         'pre_imdb_score': 1, 'pipeline_state': 1, 'pipeline_ui_step': 1,
+         'pipeline_version': 1, 'release_type': 1, 'premiere': 1}
+    ).sort('created_at', -1)
+    v3_items = await v3_cursor.to_list(50)
+
+    # V3 Pipeline SERIES/ANIME projects (have poster, not yet released/discarded)
+    v3_series_cursor = db.series_projects_v3.find(
+        {'pipeline_version': 3,
+         'poster_url': {'$nin': [None, '']},
+         'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'genre_name': 1, 'subgenres': 1,
+         'poster_url': 1, 'user_id': 1, 'created_at': 1, 'type': 1,
+         'num_episodes': 1, 'pipeline_state': 1, 'pipeline_version': 1}
+    ).sort('created_at', -1)
+    v3_series_items = await v3_series_cursor.to_list(50)
     
+    # ⚡ LAMPO drafts/scheduled — devono apparire in "Prossimamente"
+    lampo_films_cursor = db.films.find(
+        {'status': {'$in': ['lampo_ready', 'lampo_scheduled']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'poster_url': 1,
+         'user_id': 1, 'scheduled_release_at': 1, 'released_at': 1, 'created_at': 1,
+         'cwsv': 1, 'quality_score': 1, 'status': 1, 'is_lampo': 1}
+    ).sort('created_at', -1)
+    lampo_films = await lampo_films_cursor.to_list(50)
+    lampo_series_cursor = db.tv_series.find(
+        {'status': {'$in': ['lampo_ready', 'lampo_scheduled']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'genre_name': 1, 'type': 1, 'poster_url': 1,
+         'user_id': 1, 'scheduled_release_at': 1, 'released_at': 1, 'created_at': 1,
+         'num_episodes': 1, 'cwsv': 1, 'status': 1, 'is_lampo': 1}
+    ).sort('created_at', -1)
+    lampo_series = await lampo_series_cursor.to_list(50)
+
     # Enrich with production house names
     user_ids = list(set(
         [s['user_id'] for s in series_items] +
         [f['user_id'] for f in film_items] +
         [r['user_id'] for r in remaster_items] +
-        [v['user_id'] for v in v2_items]
+        [v['user_id'] for v in v2_items] +
+        [v['user_id'] for v in v3_items] +
+        [v['user_id'] for v in v3_series_items] +
+        [l['user_id'] for l in lampo_films if l.get('user_id')] +
+        [l['user_id'] for l in lampo_series if l.get('user_id')]
     ))
     users = {}
     if user_ids:
@@ -1747,6 +1790,86 @@ async def get_coming_soon():
             'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
             'pipeline_status_label': state_label,
             'is_v2': True,
+        })
+
+    # V3 pipeline films — map pipeline_state to a readable status label
+    V3_STATE_LABEL = {
+        'idea': 'Idea', 'hype': 'Hype', 'cast': 'Cast',
+        'prep': 'Preparazione', 'ciak': 'Riprese',
+        'finalcut': 'Final Cut', 'marketing': 'Marketing',
+        'la_prima': 'La Prima', 'distribution': 'Distribuzione',
+        'release_pending': 'Uscita',
+    }
+    for v3 in v3_items:
+        owner = users.get(v3['user_id'], {})
+        state_label = V3_STATE_LABEL.get(v3.get('pipeline_state', ''), v3.get('pipeline_state', ''))
+        # Compute La Prima live status (between premiere.datetime and +24h)
+        premiere = v3.get('premiere') or {}
+        la_prima_live = False
+        la_prima_waiting = False
+        if v3.get('pipeline_state') == 'la_prima' and v3.get('release_type') == 'premiere' and premiere.get('datetime'):
+            try:
+                from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+                pdt = _dt.fromisoformat(str(premiere['datetime']).replace('Z', '+00:00'))
+                now = _dt.now(_tz.utc)
+                if now < pdt:
+                    la_prima_waiting = True
+                elif now < pdt + _td(hours=24):
+                    la_prima_live = True
+            except Exception:
+                pass
+        items.append({
+            **v3,
+            'content_type': 'film',
+            'genre_name': v3.get('genre', ''),
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+            'pipeline_status_label': state_label,
+            'la_prima_live': la_prima_live,
+            'la_prima_waiting': la_prima_waiting,
+            'is_v2': True,
+        })
+
+    # V3 SERIES/ANIME pipeline — surface them in Prossimamente Serie TV / Anime
+    V3_SERIES_STATE_LABEL = {
+        'idea': 'Idea', 'hype': 'Hype', 'cast': 'Cast', 'prep': 'Preparazione',
+        'ciak': 'Riprese', 'finalcut': 'Final Cut', 'marketing': 'Marketing',
+        'distribution': 'TV', 'release_pending': 'Uscita',
+    }
+    for vs in v3_series_items:
+        owner = users.get(vs['user_id'], {})
+        state_label = V3_SERIES_STATE_LABEL.get(vs.get('pipeline_state', ''), vs.get('pipeline_state', ''))
+        items.append({
+            **vs,
+            'content_type': vs.get('type') or 'tv_series',
+            'genre_name': vs.get('genre_name') or vs.get('genre', ''),
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+            'pipeline_status_label': state_label,
+            'is_v2': True,  # reuse pipeline pill styling
+        })
+
+    # ⚡ LAMPO drafts/scheduled — film
+    for lf in lampo_films:
+        owner = users.get(lf.get('user_id'), {})
+        st = lf.get('status', 'lampo_ready')
+        items.append({
+            **lf,
+            'content_type': 'film',
+            'genre_name': lf.get('genre', ''),
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+            'is_lampo': True,
+            'pipeline_status_label': 'Lampo · Programmato' if st == 'lampo_scheduled' else 'Lampo · A breve',
+        })
+    # ⚡ LAMPO drafts/scheduled — serie/anime
+    for ls in lampo_series:
+        owner = users.get(ls.get('user_id'), {})
+        st = ls.get('status', 'lampo_ready')
+        items.append({
+            **ls,
+            'content_type': ls.get('type') or 'tv_series',
+            'genre_name': ls.get('genre_name') or ls.get('genre', ''),
+            'production_house': owner.get('production_house_name', owner.get('nickname', '?')),
+            'is_lampo': True,
+            'pipeline_status_label': 'Lampo · Programmato' if st == 'lampo_scheduled' else 'Lampo · A breve',
         })
     
     # Deduplicate and filter out released films
@@ -2015,11 +2138,72 @@ async def get_my_series(user: dict = Depends(get_current_user)):
 
 @router.get("/series/{series_id}")
 async def get_series_detail(series_id: str, user: dict = Depends(get_current_user)):
-    """Get a single series/anime detail. Accessible by any authenticated user."""
+    """Get a single series/anime detail. Accessible by any authenticated user.
+    Looks in tv_series (V1/V2), then falls back to series_projects_v3 and film_projects (V3).
+    """
     series = await db.tv_series.find_one({'id': series_id}, {'_id': 0})
+
+    # V3 released series may be stored in tv_series without the screenplay/trailer payload
+    # → fall back to the source project doc.
+    if series and series.get('source_project_id'):
+        needs = (not series.get('screenplay_text') and not series.get('screenplay')) or not series.get('trailer')
+        if needs:
+            src = await db.series_projects_v3.find_one(
+                {'id': series['source_project_id']},
+                {'_id': 0, 'screenplay_text': 1, 'screenplay': 1, 'screenplay_source': 1, 'trailer': 1}
+            )
+            if src:
+                if not series.get('screenplay_text') and src.get('screenplay_text'):
+                    series['screenplay_text'] = src['screenplay_text']
+                if not series.get('screenplay') and (src.get('screenplay') or src.get('screenplay_text')):
+                    series['screenplay'] = src.get('screenplay') or src.get('screenplay_text')
+                if not series.get('trailer') and src.get('trailer'):
+                    series['trailer'] = src['trailer']
+
+    # Fallback 1: V3 series projects (series_projects_v3)
+    if not series:
+        v3 = await db.series_projects_v3.find_one({'id': series_id}, {'_id': 0})
+        if v3:
+            series = {
+                **v3,
+                'type': v3.get('type') or ('anime' if v3.get('type') == 'anime' else 'tv_series'),
+                'status': v3.get('pipeline_state') or 'proposed',
+                'title': v3.get('title') or 'Senza titolo',
+                'genre': v3.get('genre'),
+                'genre_name': v3.get('genre_name') or v3.get('genre', ''),
+                'num_episodes': v3.get('num_episodes', 0),
+                'screenplay': v3.get('screenplay_text') or v3.get('screenplay'),
+                'short_plot': v3.get('preplot') or v3.get('short_plot'),
+                'description': v3.get('preplot') or '',
+                'pipeline_state': v3.get('pipeline_state'),
+                'pipeline_version': 3,
+                'quality_score': v3.get('quality_score', 0),
+                'cast': v3.get('cast', []),
+                'episodes': v3.get('episodes', []),
+            }
+
+    # Fallback 2: film_projects with content_type anime/serie_tv (older V2 path)
+    if not series:
+        fp = await db.film_projects.find_one(
+            {'id': series_id, 'content_type': {'$in': ['anime', 'serie_tv']}},
+            {'_id': 0}
+        )
+        if fp:
+            ctype = fp.get('content_type', 'serie_tv')
+            series = {
+                **fp,
+                'type': 'anime' if ctype == 'anime' else 'tv_series',
+                'status': fp.get('pipeline_state') or 'proposed',
+                'title': fp.get('title') or 'Senza titolo',
+                'num_episodes': fp.get('episode_count', 0),
+                'genre_name': fp.get('genre_name') or fp.get('genre', ''),
+                'pipeline_state': fp.get('pipeline_state'),
+                'pipeline_version': 2,
+            }
+
     if not series:
         raise HTTPException(status_code=404, detail="Serie non trovata")
-    
+
     series.setdefault('poster_url', None)
     series.setdefault('cast', [])
     series.setdefault('quality_score', 0)
@@ -2046,9 +2230,10 @@ async def get_series_detail(series_id: str, user: dict = Depends(get_current_use
     series.setdefault('trend_last', None)
 
     # Get owner info
-    owner = await db.users.find_one({'id': series['user_id']}, {'_id': 0, 'nickname': 1, 'level': 1, 'avatar_url': 1})
-    series['owner'] = owner
-    
+    if series.get('user_id'):
+        owner = await db.users.find_one({'id': series['user_id']}, {'_id': 0, 'nickname': 1, 'level': 1, 'avatar_url': 1})
+        series['owner'] = owner
+
     return series
 
 

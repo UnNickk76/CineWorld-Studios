@@ -2469,10 +2469,13 @@ async def award_custom_festival_winners(festival_id: str, user: dict = Depends(g
         
         prize = int(total_prizes * prize_distribution[i])
         
-        # Assegna premio
+        # Assegna premio — fame values rebalanced ~5x lower to match new progression curve
+        # (old: 60/40/20 was too generous, new: 12/8/4 per MILESTONE_REWARDS festival_win_N)
+        fame_map = {0: 12, 1: 8, 2: 4}
+        xp_map = {0: 80, 1: 55, 2: 35}
         await db.users.update_one(
             {'id': entry['user_id']},
-            {'$inc': {'funds': prize, 'total_xp': 100 * (3 - i), 'fame': 20 * (3 - i)}}
+            {'$inc': {'funds': prize, 'total_xp': xp_map.get(i, 20), 'fame': fame_map.get(i, 2)}}
         )
         
         winners.append({

@@ -46,6 +46,7 @@ export const AuthProvider = ({ children }) => {
   const tokenRef = useRef(localStorage.getItem('cineworld_token'));
   const [token, setTokenState] = useState(tokenRef.current);
   const logoutRef = useRef(null);
+  const prevLevelRef = useRef(null);
 
   const setToken = (t) => {
     tokenRef.current = t;
@@ -160,6 +161,7 @@ export const AuthProvider = ({ children }) => {
     setToken(res.data.access_token);
     setUser(res.data.user);
     clearApiCache();
+    try { window.dispatchEvent(new CustomEvent('cineworld:login')); } catch {}
     return res.data;
   };
 
@@ -172,6 +174,7 @@ export const AuthProvider = ({ children }) => {
     setToken(res.data.access_token);
     setUser(res.data.user);
     clearApiCache();
+    try { window.dispatchEvent(new CustomEvent('cineworld:login')); } catch {}
     return res.data;
   };
 
@@ -182,6 +185,7 @@ export const AuthProvider = ({ children }) => {
     setToken(res.data.access_token);
     setUser(res.data.user);
     clearApiCache();
+    try { window.dispatchEvent(new CustomEvent('cineworld:login')); } catch {}
     return res.data;
   };
 
@@ -275,6 +279,50 @@ export const AuthProvider = ({ children }) => {
       preloadPages();
     }
   }, [user, preloadPages]);
+
+  // Level-up detection: fire cinematic toast when user.level increases.
+  useEffect(() => {
+    if (!user) { prevLevelRef.current = null; return; }
+    const curr = Number(user.level || 0);
+    const prev = prevLevelRef.current;
+    // Skip first load (prev=null) — we only want UP transitions
+    if (prev != null && curr > prev) {
+      try {
+        window.dispatchEvent(new CustomEvent('cw:level-up', {
+          detail: { newLevel: curr, oldLevel: prev }
+        }));
+      } catch (_) { /* ignore */ }
+    }
+    prevLevelRef.current = curr;
+  }, [user?.level]);
+
+  // Session heartbeat — awards +1 XP every 10 min of active play (server rate-limited).
+  // Only runs when tab is visible and user is logged in.
+  useEffect(() => {
+    if (!user || !tokenRef.current) return;
+    let intervalId = null;
+    const ping = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const res = await api.post('/progression/heartbeat');
+        const evts = res?.data?.prestige_events || [];
+        for (const evt of evts) {
+          try {
+            window.dispatchEvent(new CustomEvent('cw:prestige-tier-up', { detail: evt }));
+          } catch (_) { /* ignore */ }
+        }
+      } catch (_) { /* ignore */ }
+    };
+    // First ping after 10 min (don't award immediately on mount)
+    const timeoutId = setTimeout(() => {
+      ping();
+      intervalId = setInterval(ping, 10 * 60 * 1000);
+    }, 10 * 60 * 1000);
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user?.id, api]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, guestLogin, convertGuest, logout, token, api, updateFunds, updateUser, refreshUser, cachedGet }}>

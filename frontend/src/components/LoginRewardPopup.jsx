@@ -18,6 +18,8 @@ const LoginRewardPopup = () => {
 
   useEffect(() => {
     if (!user) return;
+    // Skip reward popup during guest tutorial to avoid overlay clash
+    if (user.is_guest && !user.tutorial_completed) return;
     const checkReward = async () => {
       try {
         const res = await api.get('/cinepass/login-reward');

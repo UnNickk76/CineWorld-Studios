@@ -23,6 +23,7 @@ import { Checkbox } from '../components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { toast } from 'sonner';
 import ProductionStudioPanel from '../components/ProductionStudioPanel';
+import { InfraInfoButton } from '../components/InfraInfoButton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import {
@@ -44,6 +45,7 @@ import {
   Car, Building2, GraduationCap, ArrowUpCircle, ShoppingBag, Landmark, Ticket
 } from 'lucide-react';
 import { SKILL_TRANSLATIONS } from '../constants';
+import { useRadio } from '../contexts/RadioContext';
 
 const INFRA_CINEPASS = {
   cinema: 10, drive_in: 8, multiplex: 15, cinema_school: 12,
@@ -62,6 +64,9 @@ const InfrastructurePage = () => {
   const { api, user, refreshUser } = useContext(AuthContext);
   const { t, language } = useTranslations();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isRadioPromo = searchParams.get('promo') === 'radio';
+  const { refreshBanner } = useRadio();
   const [infraTypes, setInfraTypes] = useState([]);
   const [myInfra, setMyInfra] = useState({ infrastructure: [], grouped: {} });
   const [cities, setCities] = useState({});
@@ -72,6 +77,7 @@ const InfrastructurePage = () => {
   const [purchasing, setPurchasing] = useState(false);
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
   const [levelInfo, setLevelInfo] = useState(null);
+  const [lockedInfoInfra, setLockedInfoInfra] = useState(null);
   
   // Infrastructure detail dialog state
   const [showDetailDialog, setShowDetailDialog] = useState(false);
@@ -104,8 +110,16 @@ const InfrastructurePage = () => {
       setMyInfra(my.data);
       setCities(citiesData.data);
       setLevelInfo(level.data);
+      // If redirected from Radio Promo banner, auto-scroll to Emittente TV card
+      if (isRadioPromo) {
+        toast.success('📻 PROMO RADIO attiva: 80% di sconto sull\'Emittente TV!', { duration: 6000 });
+        setTimeout(() => {
+          const el = document.querySelector('[data-infra-type="emittente_tv"]');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 400);
+      }
     });
-  }, [api]);
+  }, [api, isRadioPromo]);
 
   const getIcon = (iconName) => {
     const icons = { film: Film, car: Car, 'shopping-bag': ShoppingBag, building: Building, 'building-2': Building2, 'graduation-cap': GraduationCap, landmark: Landmark, crown: Crown, award: Award, 'ferris-wheel': Star, clapperboard: Clapperboard, radio: Video, sparkles: Sparkles, video: Video, tv: Film, target: Target, shield: Shield, swords: Swords, users: Users, search: Search };
@@ -125,7 +139,12 @@ const InfrastructurePage = () => {
         custom_name: customName || null
       };
       const res = await api.post('/infrastructure/purchase', payload);
-      toast.success(`Acquistato! Hai speso $${res.data.cost.toLocaleString()}`);
+      if (res.data.radio_promo_applied) {
+        toast.success(`📻 PROMO RADIO APPLICATA! Hai speso solo $${res.data.cost.toLocaleString()} (80% di sconto)`);
+        refreshBanner?.();
+      } else {
+        toast.success(`Acquistato! Hai speso $${res.data.cost.toLocaleString()}`);
+      }
       setShowPurchaseDialog(false);
       if (refreshUser) refreshUser();
       const my = await api.get('/infrastructure/my');
@@ -164,37 +183,6 @@ const InfrastructurePage = () => {
     }
   };
 
-  // School actions
-  const schoolStartTraining = async (recruitId) => {
-    try {
-      const res = await api.post('/acting-school/train', { recruit_id: recruitId });
-      toast.success(res.data.message);
-      refreshUser();
-      // Refresh school data
-      const [statusRes, recruitsRes] = await Promise.all([
-        api.get('/acting-school/status'),
-        api.get('/acting-school/recruits').catch(() => ({ data: { recruits: [] } }))
-      ]);
-      setSchoolStatus(statusRes.data);
-      setSchoolRecruits(recruitsRes.data.recruits || []);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    }
-  };
-
-  const schoolComplete = async (traineeId, action, months = 3) => {
-    try {
-      const res = await api.post(`/acting-school/complete/${traineeId}`, { action, engagement_months: months });
-      toast.success(res.data.message);
-      refreshUser();
-      const statusRes = await api.get('/acting-school/status');
-      setSchoolStatus(statusRes.data);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    }
-  };
-
-
   const handleUpgrade = async () => {
     if (!selectedInfra || upgrading) return;
     setUpgrading(true);
@@ -211,13 +199,10 @@ const InfrastructurePage = () => {
       // Refresh infrastructure list
       try {
         const myRes = await api.get('/infrastructure/my');
-        setMyInfrastructure(myRes.data);
+        setMyInfra(myRes.data);
       } catch {}
       // Refresh user funds in header
-      try {
-        const userRes = await api.get('/auth/me');
-        if (userRes.data) setUser(prev => ({ ...prev, funds: userRes.data.funds }));
-      } catch {}
+      try { await refreshUser?.(); } catch {}
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Errore nell\'upgrade');
     } finally {
@@ -241,89 +226,34 @@ const InfrastructurePage = () => {
     }
   };
 
-  const openAddFilmDialog = async () => {
-    try {
-      const res = await api.get('/films/my-available');
-      setMyFilms(res.data);
-      setShowAddFilmDialog(true);
-    } catch (e) {
-      toast.error('Errore nel caricamento dei film');
-    }
-  };
-
-  const openRentFilmDialog = async () => {
-    try {
-      const res = await api.get('/films/available-for-rental');
-      setRentalFilms(res.data);
-      setShowRentFilmDialog(true);
-    } catch (e) {
-      toast.error('Errore nel caricamento dei film');
-    }
-  };
-
-  const addFilmToCinema = async () => {
-    if (!selectedFilmToAdd || !selectedInfra) return;
-    setAddingFilm(true);
-    try {
-      const res = await api.post(`/infrastructure/${selectedInfra.id}/add-film`, {
-        film_id: selectedFilmToAdd.id
-      });
-      toast.success(`"${selectedFilmToAdd.title}" aggiunto alla programmazione!`);
-      setInfraDetail({...infraDetail, films_showing: res.data.films_showing});
-      setShowAddFilmDialog(false);
-      setSelectedFilmToAdd(null);
-      // Refresh my infra
-      const my = await api.get('/infrastructure/my');
-      setMyInfra(my.data);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    } finally {
-      setAddingFilm(false);
-    }
-  };
-
-  const rentFilmForCinema = async () => {
-    if (!selectedFilmToRent || !selectedInfra) return;
-    setRentingFilm(true);
-    try {
-      const res = await api.post(`/infrastructure/${selectedInfra.id}/rent-film`, {
-        film_id: selectedFilmToRent.id,
-        weeks: rentalWeeks
-      });
-      toast.success(`"${selectedFilmToRent.title}" affittato per ${rentalWeeks} settimane! ${res.data.owner_name} ha ricevuto $${res.data.owner_received.toLocaleString()}`);
-      setInfraDetail({...infraDetail, films_showing: res.data.films_showing});
-      setShowRentFilmDialog(false);
-      setSelectedFilmToRent(null);
-      setRentalWeeks(1);
-      // Refresh my infra and user
-      const my = await api.get('/infrastructure/my');
-      setMyInfra(my.data);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    } finally {
-      setRentingFilm(false);
-    }
-  };
-
-  const removeFilmFromCinema = async (filmId) => {
-    if (!selectedInfra) return;
-    setRemovingFilm(filmId);
-    try {
-      const res = await api.delete(`/infrastructure/${selectedInfra.id}/films/${filmId}`);
-      toast.success('Film rimosso dalla programmazione');
-      setInfraDetail({...infraDetail, films_showing: res.data.films_showing});
-      // Refresh
-      const my = await api.get('/infrastructure/my');
-      setMyInfra(my.data);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    } finally {
-      setRemovingFilm(null);
-    }
-  };
-
   const [pendingRevenue, setPendingRevenue] = useState(null);
   const [collectingRevenue, setCollectingRevenue] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
+
+  const handleRename = async () => {
+    if (!selectedInfra) return;
+    const name = (renameValue || '').trim();
+    if (name.length < 2 || name.length > 60) {
+      toast.error('Il nome deve essere tra 2 e 60 caratteri');
+      return;
+    }
+    setRenaming(true);
+    try {
+      await api.put(`/infrastructure/${selectedInfra.id}/rename`, { custom_name: name });
+      toast.success('Nome aggiornato!');
+      setSelectedInfra({ ...selectedInfra, custom_name: name });
+      setInfraDetail({ ...(infraDetail || {}), custom_name: name });
+      const my = await api.get('/infrastructure/my');
+      setMyInfra(my.data);
+      setRenameOpen(false);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore nel rinominare');
+    } finally {
+      setRenaming(false);
+    }
+  };
 
   const loadPendingRevenue = async (infraId) => {
     try {
@@ -483,12 +413,22 @@ const InfrastructurePage = () => {
               {filteredTypes.map(infra => {
                 const Icon = getIcon(infra.icon);
                 const canBuy = infra.can_purchase;
+                const isPromoEligible = isRadioPromo && infra.id === 'emittente_tv';
+                const promoPrice = isPromoEligible ? Math.round((infra.base_cost || 0) * 0.2) : null;
                 return (
                   <Card
                     key={infra.id}
-                    className={`border transition-all cursor-pointer ${canBuy ? `bg-white/5 ${activeCat.border} hover:bg-white/10` : 'bg-white/3 border-white/5 opacity-50'}`}
-                    onClick={() => { if (canBuy) { setSelectedType(infra); setShowPurchaseDialog(true); } }}
+                    data-infra-type={infra.id}
+                    className={`border transition-all cursor-pointer relative ${canBuy ? `bg-white/5 ${activeCat.border} hover:bg-white/10` : 'bg-white/3 border-white/5 opacity-60 hover:opacity-85 active:scale-[0.98]'} ${isPromoEligible ? 'ring-2 ring-red-400/70 shadow-lg shadow-red-900/40' : ''}`}
+                    onClick={() => {
+                      if (canBuy) { setSelectedType(infra); setShowPurchaseDialog(true); }
+                      else { setLockedInfoInfra(infra); }
+                    }}
                   >
+                    {isPromoEligible && (
+                      <div className="absolute -top-2 -right-2 z-10 bg-gradient-to-br from-red-500 to-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-pulse">-80%</div>
+                    )}
+                    <div onClick={(e) => e.stopPropagation()}><InfraInfoButton infraType={infra.id} variant="corner" /></div>
                     <CardContent className="p-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${activeCat.bg}`}>
                         {canBuy ? <Icon className={`w-5 h-5 ${activeCat.color}`} /> : <Lock className="w-5 h-5 text-gray-500" />}
@@ -504,7 +444,14 @@ const InfrastructurePage = () => {
                       </div>
                       <p className="text-[9px] text-gray-500 line-clamp-2 mb-2">{language === 'it' ? infra.description_it : infra.description}</p>
                       <div className="flex items-center justify-between">
-                        <span className={`font-bold text-xs ${activeCat.color}`}>${infra.base_cost?.toLocaleString()}</span>
+                        {isPromoEligible ? (
+                          <div className="flex flex-col">
+                            <span className="text-[9px] text-gray-500 line-through">${infra.base_cost?.toLocaleString()}</span>
+                            <span className="font-bold text-xs text-red-400">${promoPrice?.toLocaleString()}</span>
+                          </div>
+                        ) : (
+                          <span className={`font-bold text-xs ${activeCat.color}`}>${infra.base_cost?.toLocaleString()}</span>
+                        )}
                         {infra.already_owned && <Badge className="bg-blue-500/20 text-blue-400 text-[8px] h-3.5">Posseduto</Badge>}
                       </div>
                     </CardContent>
@@ -524,9 +471,10 @@ const InfrastructurePage = () => {
                 return (
                   <Card
                     key={infra.id}
-                    className={`${activeCat.border} bg-white/5 cursor-pointer hover:bg-white/10 transition-all`}
+                    className={`${activeCat.border} bg-white/5 cursor-pointer hover:bg-white/10 transition-all relative`}
                     onClick={() => openInfraDetail(infra)}
                   >
+                    <div onClick={(e) => e.stopPropagation()}><InfraInfoButton infraType={infra.type} variant="corner" /></div>
                     <CardContent className="p-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-2 ${activeCat.bg}`}>
                         <Icon className={`w-5 h-5 ${activeCat.color}`} />
@@ -545,6 +493,93 @@ const InfrastructurePage = () => {
           )
         )}
       </div>
+
+      {/* Locked Infrastructure Info Dialog */}
+      <Dialog open={!!lockedInfoInfra} onOpenChange={(o) => !o && setLockedInfoInfra(null)}>
+        <DialogContent className="bg-[#14110d] border-amber-500/20 max-w-sm max-h-[85vh] overflow-y-auto" data-testid="locked-infra-dialog">
+          {lockedInfoInfra && (() => {
+            const LockedIcon = getIcon(lockedInfoInfra.icon);
+            const userLvl = levelInfo?.level ?? user?.level ?? 0;
+            const userFame = user?.fame ?? 0;
+            const meetsLv = userLvl >= (lockedInfoInfra.level_required || 0);
+            const meetsFame = userFame >= (lockedInfoInfra.fame_required || 0);
+            const perks = [];
+            if (lockedInfoInfra.screens > 0) perks.push(`${lockedInfoInfra.screens} sale x ${lockedInfoInfra.seats_per_screen} posti`);
+            if (lockedInfoInfra.revenue_multiplier && lockedInfoInfra.revenue_multiplier !== 1) perks.push(`Ricavi x${lockedInfoInfra.revenue_multiplier}`);
+            if (lockedInfoInfra.can_show_3d) perks.push('Supporta film 3D');
+            if (lockedInfoInfra.has_food_court) perks.push('Food court integrato');
+            if (lockedInfoInfra.production_bonus) perks.push(`-${lockedInfoInfra.production_bonus}% costi produzione`);
+            if (lockedInfoInfra.quality_bonus) perks.push(`+${lockedInfoInfra.quality_bonus}% qualità film`);
+            if (lockedInfoInfra.daily_maintenance) perks.push(`Manutenzione $${lockedInfoInfra.daily_maintenance.toLocaleString()}/g`);
+            return (
+              <>
+                <DialogHeader>
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
+                      <LockedIcon className="w-6 h-6 text-amber-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <DialogTitle className="font-['Bebas_Neue'] text-xl leading-tight">
+                        {language === 'it' ? lockedInfoInfra.name_it : lockedInfoInfra.name}
+                      </DialogTitle>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Lock className="w-3 h-3 text-amber-400" />
+                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Bloccata</span>
+                      </div>
+                    </div>
+                  </div>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    {language === 'it' ? lockedInfoInfra.description_it : lockedInfoInfra.description}
+                  </p>
+                  {perks.length > 0 && (
+                    <div className="p-2.5 rounded-lg bg-black/40 border border-white/5" data-testid="locked-infra-benefits">
+                      <p className="text-[9px] uppercase tracking-wider text-amber-400/70 font-bold mb-1.5">A cosa serve</p>
+                      <ul className="space-y-1">
+                        {perks.map((p, i) => (
+                          <li key={i} className="flex items-start gap-1.5 text-[11px] text-gray-200">
+                            <span className="text-emerald-400 mt-0.5">●</span>
+                            <span>{p}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="p-2.5 rounded-lg bg-rose-500/5 border border-rose-500/20" data-testid="locked-infra-requirements">
+                    <p className="text-[9px] uppercase tracking-wider text-rose-300/70 font-bold mb-1.5">Requisiti per sbloccarla</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className={`p-2 rounded border ${meetsLv ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'}`}>
+                        <p className="text-[9px] text-gray-400 uppercase">Livello</p>
+                        <p className={`text-sm font-bold ${meetsLv ? 'text-emerald-300' : 'text-rose-300'}`}>
+                          Lv.{userLvl} / Lv.{lockedInfoInfra.level_required}
+                        </p>
+                      </div>
+                      <div className={`p-2 rounded border ${meetsFame ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'}`}>
+                        <p className="text-[9px] text-gray-400 uppercase">Fama</p>
+                        <p className={`text-sm font-bold ${meetsFame ? 'text-emerald-300' : 'text-rose-300'}`}>
+                          {userFame} / {lockedInfoInfra.fame_required}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded bg-amber-500/5 border border-amber-500/15">
+                    <span className="text-[10px] text-gray-400 uppercase tracking-wider">Costo acquisto</span>
+                    <span className="text-sm font-bold text-amber-300">${lockedInfoInfra.base_cost?.toLocaleString()}</span>
+                  </div>
+                  <Button
+                    onClick={() => setLockedInfoInfra(null)}
+                    className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold"
+                    data-testid="locked-infra-close-btn"
+                  >
+                    Ho capito
+                  </Button>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Purchase Dialog */}
       <Dialog open={showPurchaseDialog} onOpenChange={setShowPurchaseDialog}>
@@ -640,6 +675,16 @@ const InfrastructurePage = () => {
           <DialogHeader>
             <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
               <Building className="w-5 h-5 text-yellow-500" /> {selectedInfra?.custom_name || 'Dettaglio Infrastruttura'}
+              <button
+                type="button"
+                onClick={() => { setRenameValue(selectedInfra?.custom_name || ''); setRenameOpen(true); }}
+                className="ml-auto p-1.5 rounded-md hover:bg-white/10 active:scale-95 transition-all"
+                data-testid="rename-infra-btn"
+                aria-label="Rinomina"
+                title="Rinomina"
+              >
+                <Edit className="w-4 h-4 text-cyan-300" />
+              </button>
             </DialogTitle>
             <DialogDescription>
               {selectedInfra?.city?.name}, {selectedInfra?.country} • {selectedInfra?.type}
@@ -766,6 +811,42 @@ const InfrastructurePage = () => {
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDetailDialog(false)}>Chiudi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Rename Dialog */}
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="bg-[#14110d] border-cyan-500/20 max-w-sm" data-testid="rename-infra-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+              <Edit className="w-4 h-4 text-cyan-300" /> Rinomina infrastruttura
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-400">
+              Dai un nome unico al tuo {selectedInfra?.type === 'production_studio' ? 'Studio di Produzione' : 'studio'} (2-60 caratteri).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              value={renameValue}
+              onChange={e => setRenameValue(e.target.value)}
+              placeholder="Es. Anacapito Studios"
+              maxLength={60}
+              className="h-10 bg-black/30 border-cyan-500/20 focus:border-cyan-400/50"
+              data-testid="rename-infra-input"
+              autoFocus
+            />
+            <div className="text-[10px] text-gray-500 text-right">{(renameValue || '').length}/60</div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameOpen(false)} disabled={renaming}>Annulla</Button>
+            <Button
+              onClick={handleRename}
+              disabled={renaming || (renameValue || '').trim().length < 2}
+              className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold"
+              data-testid="rename-infra-confirm-btn"
+            >
+              {renaming ? 'Salvo…' : 'Salva'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

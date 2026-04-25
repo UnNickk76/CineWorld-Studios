@@ -1,15 +1,26 @@
 // CineWorld Studio's - Dashboard (Vetrina Mobile-First)
 // Sections: LaPrima, Eventi WOW, Prossimamente/Ultimi per tipo
 
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useContext, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext, LanguageContext, useTranslations, useProductionMenu } from '../contexts';
 import { useSWR } from '../contexts/GameStore';
 import { LaPrimaSection } from '../components/LaPrimaSection';
 import { ComingSoonSection } from '../components/ComingSoonSection';
+import BestHighlightsLeaderboard from '../components/BestHighlightsLeaderboard';
+import FeaturedTrailersStrip from '../components/FeaturedTrailersStrip';
+import UltimiTrailerStrip from '../components/UltimiTrailerStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
-import { MasterpieceBadge } from '../components/PlayerBadge';
+import { ProducerBadge } from '../components/ProducerBadge';
+import { LampoLightning } from '../components/LampoLightning';
+import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from '../components/SectionSortMenu';
+import ProssimamenteDetailModal from '../components/ProssimamenteDetailModal';
+import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
+import { PurchasedScreenplayBadge } from '../components/PurchasedScreenplayBadge';
+import { AttendanceTrendBadge } from '../components/AttendanceTrendBadge';
 import { Card, CardContent } from '../components/ui/card';
+
+const FilmDetailV3 = lazy(() => import('../components/v3/FilmDetailV3'));
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
@@ -19,9 +30,10 @@ import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
+import { AvatarWithLogo } from '../components/StudioName';
 import {
   Film, Sparkles, ChevronRight, Globe, Loader2, DollarSign, TrendingUp, Heart,
-  Clapperboard, MapPin, Building, Tv, Star, Menu as MenuIcon,
+  Clapperboard, MapPin, Building, Tv, Star, Menu as MenuIcon, Clock,
   Store, Pen, Gamepad2, Trophy, Target, Award, Radio, Users
 } from 'lucide-react';
 
@@ -72,6 +84,81 @@ const RiCinemaShowcase = ({ api, navigate }) => {
 };
 
 
+
+/* ─── Prossimamente V3 Serie/Anime ─── */
+const ProssimamenteV3Section = ({ onItemClick }) => {
+  const { api, user } = useContext(AuthContext);
+  const [data, setData] = useState({ coming_soon: [], airing: [] });
+  const [sortValue, setSortValue] = useState(() => localStorage.getItem('sort_prossimamente_v3') || 'newest');
+  useEffect(() => { localStorage.setItem('sort_prossimamente_v3', sortValue); }, [sortValue]);
+  useEffect(() => {
+    api.get('/pipeline-series-v3/prossimamente').then(r => setData(r.data || {})).catch(() => {});
+  }, [api]);
+  const rawItems = [...(data.coming_soon || []), ...(data.airing || [])];
+  const items = sortItems(rawItems, sortValue);
+  return (
+    <div className="mb-4 rounded-xl" data-testid="prossimamente-v3">
+      <Card className="bg-gradient-to-r from-indigo-500/10 to-purple-500/5 border border-indigo-500/20">
+        <CardContent className="p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-['Bebas_Neue'] text-base flex items-center gap-2">
+              <Tv className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="text-indigo-400">IN ARRIVO SU TV</span>
+            </h3>
+            {items.length > 0 && (
+              <SectionSortMenu
+                value={sortValue}
+                onChange={setSortValue}
+                options={DEFAULT_SORT_OPTIONS}
+                testId="sort-prossimamente-v3"
+              />
+            )}
+          </div>
+          {items.length > 0 ? (
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              {items.map(item => (
+                <button key={item.id}
+                  onClick={() => onItemClick?.(item.id)}
+                  data-testid={`prossimamente-v3-item-${item.id}`}
+                  className="flex-shrink-0 w-24 rounded-lg overflow-hidden border border-indigo-500/15 bg-black/30 text-left hover:border-indigo-400/40 active:scale-[0.97] transition-all">
+                  <div className="aspect-[2/3] bg-gray-800 relative">
+                    {item.poster_url ? <img src={posterSrc(item.poster_url)} alt="" className="w-full h-full object-cover" /> :
+                      <div className="w-full h-full flex items-center justify-center">{item.type === 'anime' ? <Sparkles className="w-4 h-4 text-gray-700" /> : <Tv className="w-4 h-4 text-gray-700" />}</div>}
+                    {item.aired_count != null && (
+                      <div className="absolute bottom-0.5 right-0.5 px-1 py-0.5 rounded bg-black/80 text-[6px] text-indigo-400 font-bold">{item.aired_count}/{item.total_episodes} EP</div>
+                    )}
+                    {item.pipeline_state && item.pipeline_state !== 'released' && (
+                      <div className="status-pulse-glow absolute top-0.5 left-0.5 px-1 py-0.5 rounded-full bg-amber-500/80 text-[5px] text-black font-black uppercase">{item.pipeline_state}</div>
+                    )}
+                    <ProducerBadge
+                      producerNickname={item.producer?.nickname || item.producer_nickname}
+                      producerId={item.user_id || item.producer?.id}
+                      currentUserId={user?.id}
+                      variant="bottom-left"
+                      size="xs"
+                    />
+                    <LampoLightning item={item} variant="top-right" size="xs" />
+                  </div>
+                  <div className="p-1">
+                    <p className="text-[7px] font-bold text-white truncate">{item.title}</p>
+                    <p className="text-[6px] text-gray-500">{item.producer?.nickname || item.producer_nickname || ''}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-2 py-4 rounded-lg border border-dashed border-indigo-500/20 bg-indigo-500/5" data-testid="prossimamente-v3-empty">
+              <Clock className="w-3.5 h-3.5 text-indigo-400/50" />
+              <span className="text-[10px] text-indigo-300/60 italic">Nessun contenuto in arrivo</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+
 const Dashboard = () => {
   const { user, api, refreshUser } = useContext(AuthContext);
   const { language } = useTranslations();
@@ -79,9 +166,19 @@ const Dashboard = () => {
 
   // Data from batch
   const [recentReleases, setRecentReleases] = useState([]);
+  const [aBreveCinema, setABreveCinema] = useState([]);
+  const [selectedFilmId, setSelectedFilmId] = useState(null);
   const [mySeries, setMySeries] = useState([]);
   const [myAnime, setMyAnime] = useState([]);
   const [eventiWow, setEventiWow] = useState([]);
+
+  // Ordinamento per-sezione (persistito in localStorage)
+  const [sortRecentFilms, setSortRecentFilms] = useState(() => localStorage.getItem('sort_recent_films') || 'newest');
+  const [sortRecentSeries, setSortRecentSeries] = useState(() => localStorage.getItem('sort_recent_series') || 'newest');
+  const [sortRecentAnime, setSortRecentAnime] = useState(() => localStorage.getItem('sort_recent_anime') || 'newest');
+  useEffect(() => { localStorage.setItem('sort_recent_films', sortRecentFilms); }, [sortRecentFilms]);
+  useEffect(() => { localStorage.setItem('sort_recent_series', sortRecentSeries); }, [sortRecentSeries]);
+  useEffect(() => { localStorage.setItem('sort_recent_anime', sortRecentAnime); }, [sortRecentAnime]);
 
   // Dialogs that must remain for gameplay
   const [pendingFilms, setPendingFilms] = useState([]);
@@ -106,6 +203,8 @@ const Dashboard = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   // Cinematic event for Eventi WOW
   const [cinematicWow, setCinematicWow] = useState(null);
+  // V3 series/anime detail modal (dashboard "IN ARRIVO SU TV")
+  const [prossimamenteDetailId, setProssimamenteDetailId] = useState(null);
 
   // Sync with global side menu
   useEffect(() => {
@@ -138,12 +237,28 @@ const Dashboard = () => {
     api.get('/player/level-info').then(r => setLevelInfo(r.data)).catch(() => {});
   }, [api]);
 
+  // Load recent releases directly from V3 endpoint (independent of economy/stats)
+  useEffect(() => {
+    api.get('/pipeline-v3/recent-releases').then(r => {
+      if (r.data?.items?.length) setRecentReleases(r.data.items);
+    }).catch(() => {});
+  }, [api]);
+
+  // Load "a breve cinema" films (post La Prima, distribuzione confermata, non ancora rilasciati)
+  useEffect(() => {
+    api.get('/la-prima/coming-to-cinemas').then(r => {
+      setABreveCinema(r.data?.items || []);
+    }).catch(() => setABreveCinema([]));
+  }, [api]);
+
   useEffect(() => {
     if (!batchData) return;
     const d = batchData;
-    setRecentReleases(d.recent_releases || []);
-    setMySeries(d.my_series || []);
-    setMyAnime(d.my_anime || []);
+    if (d.recent_releases?.length) setRecentReleases(prev => prev.length ? prev : d.recent_releases);
+    // Ultimi aggiornamenti Serie TV/Anime: usa feed GLOBALE (visibile a tutti).
+    // Fallback alla lista del proprietario se il feed globale non è ancora popolato.
+    setMySeries((d.recent_series_global && d.recent_series_global.length > 0) ? d.recent_series_global : (d.my_series || []));
+    setMyAnime((d.recent_anime_global && d.recent_anime_global.length > 0) ? d.recent_anime_global : (d.my_anime || []));
     setPendingFilms(d.pending_films || []);
     setHasStudio(d.has_studio || false);
     setShootingFilms(d.shooting_films || []);
@@ -305,19 +420,49 @@ const Dashboard = () => {
 
           {/* Welcome header */}
           <div className="mb-4" data-testid="dashboard-welcome">
-            <p className="text-gray-400 text-xs">Benvenuto in CineWorld Studio's,</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-gray-400 text-xs">Benvenuto in CineWorld Studio's,</p>
+              {user?.is_guest && (
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new Event('open-guest-convert'))}
+                  data-testid="guest-register-rec-btn"
+                  aria-label="Salva progressi — Registrati"
+                  title="Salva progressi — Registrati"
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-red-900/60 animate-pulse"
+                  style={{ animationDuration: '2s' }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" style={{ animationDuration: '1.2s' }} />
+                  <span>REC</span>
+                </button>
+              )}
+            </div>
             <button className="text-left w-full" onClick={() => setShowWelcomeStats(p => !p)} data-testid="welcome-nickname-btn">
-              <h1 className="font-['Bebas_Neue'] text-2xl text-yellow-400 tracking-wide">{user?.nickname || 'Player'}</h1>
+              <div className="flex items-center gap-2 mt-1">
+                {/* Avatar + Logo sovrapposti */}
+                <AvatarWithLogo avatarUrl={user?.avatar_url} logoUrl={user?.logo_url} nickname={user?.nickname} size="sm" />
+                {/* Nickname + Logo + Production House */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <PlayerBadge badge={user?.badge} badgeExpiry={user?.badge_expiry} badges={user?.badges} size="md" />
+                    <span className="text-base font-bold text-yellow-400 truncate">{user?.nickname || 'Player'}</span>
+                    {user?.role === 'CO_ADMIN' && <span className="text-[7px] font-mono text-red-400 bg-red-500/10 px-1 py-0.5 rounded">CO-ADMIN</span>}
+                    {user?.role === 'MOD' && <span className="text-[7px] font-mono text-blue-400 bg-blue-500/10 px-1 py-0.5 rounded">MOD</span>}
+                  </div>
+                  {user?.production_house_name && (
+                    <div className="flex items-center gap-1 -mt-0.5">
+                      <span className="text-[10px] text-gray-500 truncate">{user.production_house_name}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </button>
-            {user?.production_house_name && <p className="text-[11px] text-gray-500 -mt-0.5">{user.production_house_name}</p>}
             {showWelcomeStats && (
               <div className="mt-2 space-y-2">
-                {/* Avatar + Level/Fame row */}
+                {/* Avatar grande + Logo ben visibili */}
                 <div className="flex items-center gap-3">
-                  <Avatar className="w-12 h-12 border-2 border-yellow-500/40">
-                    <AvatarImage src={user?.avatar_url?.startsWith('/') ? `${BACKEND_URL}${user.avatar_url}` : user?.avatar_url} />
-                    <AvatarFallback className="bg-gray-800 text-yellow-400 font-bold text-sm">{(user?.nickname || '?')[0]}</AvatarFallback>
-                  </Avatar>
+                  <AvatarWithLogo avatarUrl={user?.avatar_url} logoUrl={user?.logo_url} nickname={user?.nickname} size="md" />
+                  {/* Level/Fame */}
                   {levelInfo && (
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
@@ -339,7 +484,7 @@ const Dashboard = () => {
                       <div><p className="text-sm font-bold text-white">{batchData.stats.total_films}</p><p className="text-[8px] text-gray-500">Films</p></div>
                       <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
                     </div>
-                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/statistics')}>
+                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform" onClick={() => navigate('/finanze')} data-testid="stat-incassi">
                       <DollarSign className="w-4 h-4 text-green-500/70" />
                       <div><p className="text-sm font-bold text-white">${batchData.stats.total_revenue >= 1000000 ? `${(batchData.stats.total_revenue / 1000000).toFixed(1)}M` : batchData.stats.total_revenue >= 1000 ? `${(batchData.stats.total_revenue / 1000).toFixed(0)}K` : batchData.stats.total_revenue?.toLocaleString()}</p><p className="text-[8px] text-gray-500">Incassi</p></div>
                       <ChevronRight className="w-3 h-3 text-gray-600 ml-auto" />
@@ -360,7 +505,7 @@ const Dashboard = () => {
                 {/* Extra stats — Spettatori + Best Film */}
                 {batchData?.stats && (
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5">
+                    <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5 cursor-pointer active:scale-95 transition-transform hover:border-cyan-500/30" onClick={() => navigate('/spettatori')} data-testid="stat-spettatori">
                       <Users className="w-4 h-4 text-cyan-400/70" />
                       <div><p className="text-sm font-bold text-white">{batchData.stats.total_spectators ? (batchData.stats.total_spectators >= 1000000 ? `${(batchData.stats.total_spectators/1000000).toFixed(1)}M` : batchData.stats.total_spectators >= 1000 ? `${Math.floor(batchData.stats.total_spectators/1000)}K` : batchData.stats.total_spectators) : '0'}</p><p className="text-[8px] text-gray-500">Spettatori Totali</p></div>
                     </div>
@@ -383,6 +528,15 @@ const Dashboard = () => {
 
           {/* 1.5 Evento Ri-Cinema */}
           <RiCinemaShowcase api={api} navigate={navigate} />
+
+          {/* 1.7 Trailer da non perdere (Cinematico+PRO trending) */}
+          <FeaturedTrailersStrip />
+
+          {/* 1.75 Ultimi Trailer (fresh from AI, all tiers) */}
+          <UltimiTrailerStrip limit={12} />
+
+          {/* 1.8 Best Highlights — Top trailer post-lancio */}
+          <BestHighlightsLeaderboard limit={10} />
 
           {/* 2. Eventi WOW */}
           {eventiWow.length > 0 && (
@@ -431,34 +585,112 @@ const Dashboard = () => {
           </div>
 
           {/* 4. Ultimi Aggiornamenti FILM */}
-          {recentReleases.length > 0 && (
-            <div className="mb-4 rounded-xl glow-purple" data-testid="recent-releases-film">
-              <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/5 border border-purple-500/20">
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-['Bebas_Neue'] text-base flex items-center gap-2">
-                      <Film className="w-3.5 h-3.5 text-yellow-400" />
-                      ULTIMI AGGIORNAMENTI FILM
-                    </h3>
+          {/* 4. Ultimi Film Al Cinema */}
+          <div className="mb-4 rounded-xl glow-purple" data-testid="recent-releases-film">
+            <Card className="bg-gradient-to-r from-purple-500/10 to-pink-500/5 border border-purple-500/20">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-['Bebas_Neue'] text-base flex items-center gap-2">
+                    <Film className="w-3.5 h-3.5 text-yellow-400" />
+                    ULTIMI FILM AL CINEMA
+                  </h3>
+                  <div className="flex items-center gap-1.5">
+                    <SectionSortMenu
+                      value={sortRecentFilms}
+                      onChange={setSortRecentFilms}
+                      options={DEFAULT_SORT_OPTIONS}
+                      testId="sort-recent-films"
+                    />
                     <Button variant="ghost" size="sm" onClick={() => navigate('/social')} className="h-5 text-[9px] text-purple-400 hover:text-purple-300 px-1.5">
                       CineBoard <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
                     </Button>
                   </div>
+                </div>
+                {(aBreveCinema.length > 0 || recentReleases.length > 0) ? (
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
-                    {recentReleases.slice(0, 10).map(film => (
-                      <div key={film.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate(`/films/${film.id}`)} data-testid={`recent-film-${film.id}`}>
-                        <div className="aspect-[2/3] relative rounded-lg overflow-hidden" style={{ boxShadow: film.status === 'premiere_live' ? '0 0 8px rgba(212,175,55,0.3)' : film.status === 'in_theaters' ? '0 0 6px rgba(80,160,80,0.2)' : 'none' }}>
+                    {/* Post-La Prima films awaiting release (dimmed + orange pulsing border).
+                        Hide A-BREVE card when the same film is ALREADY in theaters (in recentReleases
+                        with status=in_theaters) to avoid duplicate. Keep it visible while the film is
+                        still in La Prima / not yet released. */}
+                    {aBreveCinema
+                      .filter(ab => !recentReleases.some(r =>
+                        (r.source_project_id === ab.film_id || r.id === ab.film_id) &&
+                        r.status === 'in_theaters'
+                      ))
+                      .map(film => (
+                      <div key={`abreve-${film.film_id}`} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => {
+                        if (film.owner_user_id && user?.id && film.owner_user_id === user.id) {
+                          window.dispatchEvent(new CustomEvent('open-film-actions', { detail: { film: { ...film, id: film.film_id } } }));
+                        } else {
+                          navigate(`/films/${film.film_id}`);
+                        }
+                      }} data-testid={`a-breve-cinema-${film.film_id}`}>
+                        <div className="aspect-[2/3] relative rounded-lg overflow-hidden border-2 border-orange-500/70 animate-pulse-border-orange">
+                          {film.poster_url ? (
+                            <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover opacity-55 grayscale-[30%] group-hover:scale-105 active:scale-110 transition-transform" loading="lazy"
+                              onError={(e) => { e.target.style.display = 'none'; }} />
+                          ) : (
+                            <div className="w-full h-full bg-black" />
+                          )}
+                          {film.from_purchased_screenplay && (
+                            <PurchasedScreenplayBadge mode={film.purchased_screenplay_mode}
+                                                      source={film.purchased_screenplay_source}
+                                                      size="sm" />
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/85" />
+                          <div className="absolute inset-0 flex flex-col items-center justify-center px-1 text-center">
+                            <div className="status-pulse-glow text-orange-300">
+                              <p className="text-[6px] font-bold tracking-wider uppercase leading-none">A breve</p>
+                              <p className="text-[7px] font-black text-orange-200 truncate uppercase w-full leading-tight mt-0.5">{film.a_breve_scope}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-[7px] font-semibold truncate mt-0.5 text-gray-300">{film.title}</p>
+                        <p className="text-[6px] text-gray-500 truncate">{film.owner_nickname}</p>
+                      </div>
+                    ))}
+                    {sortItems(recentReleases, sortRecentFilms).slice(0, 10).map(film => (
+                      <div key={film.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => {
+                        if (film.user_id && user?.id && film.user_id === user.id) {
+                          window.dispatchEvent(new CustomEvent('open-film-actions', { detail: { film } }));
+                        } else {
+                          navigate(`/films/${film.id}`);
+                        }
+                      }} data-testid={`recent-film-${film.id}`}>
+                        <div className={`aspect-[2/3] relative rounded-lg overflow-hidden ${film.status === 'in_theaters' ? 'border-2 border-emerald-500/50' : ''}`} style={{ boxShadow: film.status === 'premiere_live' ? '0 0 8px rgba(212,175,55,0.3)' : film.status === 'in_theaters' ? '0 0 8px rgba(80,220,110,0.35)' : 'none' }}>
                           <MasterpieceBadge isMasterpiece={film.is_masterpiece} size="xs" />
+                          {film.from_purchased_screenplay && (
+                            <PurchasedScreenplayBadge mode={film.purchased_screenplay_mode}
+                                                      source={film.purchased_screenplay_source}
+                                                      size="sm" />
+                          )}
                           <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover group-hover:scale-105 active:scale-110 transition-transform" loading="lazy" onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=200'; }} />
-                          {/* Status badge */}
+                          {/* Status badge — LIVE pulse for in_theaters */}
+                          {film.status === 'in_theaters' && (
+                            <div className="absolute top-0.5 right-0.5 flex items-center gap-0.5 bg-black/70 rounded px-1 py-0.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                              <span className="text-[5px] font-bold text-green-400">LIVE</span>
+                            </div>
+                          )}
                           {film.status && film.status !== 'released' && film.status !== 'completed' && (
-                            <div className={`absolute bottom-0 inset-x-0 py-0.5 text-center text-[5px] font-bold tracking-wider ${
+                            <div className={`status-pulse-glow absolute bottom-0 inset-x-0 py-0.5 flex items-center justify-center gap-0.5 text-[5px] font-bold tracking-wider ${
                               film.status === 'premiere_live' ? 'bg-amber-600/90 text-amber-100' :
                               film.status === 'in_theaters' ? 'bg-green-600/90 text-green-100' :
+                              film.status === 'lampo_ready' ? 'bg-amber-500/90 text-amber-50' :
+                              film.status === 'lampo_scheduled' ? 'bg-orange-500/90 text-orange-50' :
                               'bg-blue-600/80 text-blue-100'
                             }`}>
-                              {film.status === 'premiere_live' ? 'LA PRIMA' : film.status === 'in_theaters' ? 'AL CINEMA' : 'IN USCITA'}
+                              <span>
+                                {film.status === 'premiere_live' ? 'LA PRIMA' :
+                                 film.status === 'in_theaters' ? 'AL CINEMA' :
+                                 film.status === 'lampo_ready' ? '⚡ LAMPO! · A BREVE AL CINEMA' :
+                                 film.status === 'lampo_scheduled' ? `⚡ LAMPO! · DAL ${new Date(film.scheduled_release_at || film.released_at).toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit'})}` :
+                                 'IN USCITA'}
+                              </span>
                             </div>
+                          )}
+                          {film.status === 'in_theaters' && (
+                            <AttendanceTrendBadge trend={film.attendance_trend} status={film.status} className="absolute bottom-0.5 right-0.5" />
                           )}
                           {film.virtual_likes > 0 && (
                             <div className="absolute top-0.5 left-0.5 bg-black/70 rounded px-0.5 py-0.5 flex items-center gap-0.5">
@@ -466,21 +698,37 @@ const Dashboard = () => {
                               <span className="text-[6px] text-pink-300">{film.virtual_likes}</span>
                             </div>
                           )}
+                          <ProducerBadge
+                            producerNickname={film.producer_nickname}
+                            producerId={film.user_id}
+                            currentUserId={user?.id}
+                            variant="bottom-left"
+                            size="xs"
+                          />
+                          <LampoLightning item={film} variant="top-right" size="xs" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{film.title}</p>
                         <p className="text-[6px] text-gray-500 truncate">{film.producer_nickname}</p>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+                ) : (
+                  <div className="text-center py-4">
+                    <Film className="w-5 h-5 text-gray-600 mx-auto mb-1" />
+                    <p className="text-[9px] text-gray-600">Nessun film al cinema</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
           {/* 5. Prossimamente SERIE TV */}
           <div className="mb-4 rounded-xl glow-blue" data-testid="dashboard-coming-soon-series">
             <ComingSoonSection compact filterType="tv_series" sectionTitle="PROSSIMAMENTE SERIE TV" />
           </div>
+
+          {/* 5b. Prossimamente V3 Serie/Anime */}
+          <ProssimamenteV3Section onItemClick={(id) => setProssimamenteDetailId(id)} />
 
           {/* 6. Ultimi Aggiornamenti SERIE TV */}
           <div className="mb-4 rounded-xl glow-purple" data-testid="recent-releases-series">
@@ -491,13 +739,21 @@ const Dashboard = () => {
                     <Tv className="w-3.5 h-3.5 text-blue-400" />
                     ULTIMI AGGIORNAMENTI SERIE TV
                   </h3>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=series')} className="h-5 text-[9px] text-blue-400 hover:text-blue-300 px-1.5">
-                    Vedi <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <SectionSortMenu
+                      value={sortRecentSeries}
+                      onChange={setSortRecentSeries}
+                      options={DEFAULT_SORT_OPTIONS}
+                      testId="sort-recent-series"
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=series')} className="h-5 text-[9px] text-blue-400 hover:text-blue-300 px-1.5">
+                      Vedi <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
+                    </Button>
+                  </div>
                 </div>
                 {mySeries.length > 0 ? (
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
-                    {mySeries.slice(0, 10).map(s => (
+                    {sortItems(mySeries, sortRecentSeries).slice(0, 10).map(s => (
                       <div key={s.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate(`/series/${s.id}`)} data-testid={`recent-series-${s.id}`}>
                         <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
                           {s.poster_url ? (
@@ -508,8 +764,17 @@ const Dashboard = () => {
                           <Badge className={`absolute top-0.5 right-0.5 text-[5px] px-0.5 py-0 leading-tight ${s.status === 'completed' ? 'bg-green-500' : 'bg-blue-500'}`}>
                             {s.status === 'completed' ? 'DONE' : s.status}
                           </Badge>
+                          <ProducerBadge
+                            producerNickname={s.producer_nickname}
+                            producerId={s.user_id}
+                            currentUserId={user?.id}
+                            variant="bottom-left"
+                            size="xs"
+                          />
+                          <LampoLightning item={s} variant="top-right" size="xs" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{s.title}</p>
+                        {s.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{s.producer_nickname}</p>}
                       </div>
                     ))}
                   </div>
@@ -534,14 +799,22 @@ const Dashboard = () => {
                     <Sparkles className="w-3.5 h-3.5 text-orange-400" />
                     ULTIMI AGGIORNAMENTI ANIME
                   </h3>
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=anime')} className="h-5 text-[9px] text-orange-400 hover:text-orange-300 px-1.5">
-                    Vedi <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <SectionSortMenu
+                      value={sortRecentAnime}
+                      onChange={setSortRecentAnime}
+                      options={DEFAULT_SORT_OPTIONS}
+                      testId="sort-recent-anime"
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/films?view=anime')} className="h-5 text-[9px] text-orange-400 hover:text-orange-300 px-1.5">
+                      Vedi <ChevronRight className="w-2.5 h-2.5 ml-0.5" />
+                    </Button>
+                  </div>
                 </div>
                 {myAnime.length > 0 ? (
                   <div className="flex overflow-x-auto gap-2 pb-1" style={{ scrollbarWidth: 'none' }}>
-                    {myAnime.slice(0, 10).map(a => (
-                      <div key={a.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate('/films?view=anime')} data-testid={`recent-anime-${a.id}`}>
+                    {sortItems(myAnime, sortRecentAnime).slice(0, 10).map(a => (
+                      <div key={a.id} className="flex-shrink-0 w-[72px] cursor-pointer group" onClick={() => navigate(`/series/${a.id}`)} data-testid={`recent-anime-${a.id}`}>
                         <div className="aspect-[2/3] relative rounded-lg overflow-hidden">
                           {a.poster_url ? (
                             <img src={posterSrc(a.poster_url)} alt={a.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
@@ -551,8 +824,17 @@ const Dashboard = () => {
                           <Badge className={`absolute top-0.5 right-0.5 text-[5px] px-0.5 py-0 leading-tight ${a.status === 'completed' ? 'bg-green-500' : 'bg-orange-500'}`}>
                             {a.status === 'completed' ? 'DONE' : a.status}
                           </Badge>
+                          <ProducerBadge
+                            producerNickname={a.producer_nickname}
+                            producerId={a.user_id}
+                            currentUserId={user?.id}
+                            variant="bottom-left"
+                            size="xs"
+                          />
+                          <LampoLightning item={a} variant="top-right" size="xs" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{a.title}</p>
+                        {a.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{a.producer_nickname}</p>}
                       </div>
                     ))}
                   </div>
@@ -843,6 +1125,20 @@ const Dashboard = () => {
 
         </div>
       </div>
+
+      {/* V3 Film Detail Modal */}
+      {selectedFilmId && (
+        <Suspense fallback={null}>
+          <FilmDetailV3 filmId={selectedFilmId} onClose={() => setSelectedFilmId(null)} />
+        </Suspense>
+      )}
+
+      {/* Prossimamente V3 Serie/Anime Detail Modal */}
+      <ProssimamenteDetailModal
+        open={!!prossimamenteDetailId}
+        onClose={() => setProssimamenteDetailId(null)}
+        seriesId={prossimamenteDetailId}
+      />
     </>
   );
 };

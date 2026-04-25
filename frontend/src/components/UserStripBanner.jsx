@@ -1,0 +1,128 @@
+import React, { useContext } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { AuthContext } from '../contexts';
+import { DollarSign, Ticket, Trophy, Star, ArrowLeft } from 'lucide-react';
+import { AvatarWithLogo } from './StudioName';
+
+/**
+ * UserStripBanner
+ * Thin gold semi-transparent fixed strip shown BELOW the top navbar on
+ * every page EXCEPT Dashboard. Clickable → navigates to Dashboard.
+ * Shows mini double overlapping avatars, username, production house on one row.
+ * Mobile-first. Matches the text size of navbar labels (text-[9px]).
+ */
+export default function UserStripBanner() {
+  const { user } = useContext(AuthContext);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Hide on Dashboard (home) and auth pages
+  const onDashboard = location.pathname === '/' || location.pathname === '/dashboard';
+  const onAuth = location.pathname.startsWith('/auth');
+
+  if (!user || onDashboard || onAuth) return null;
+
+  const nickname = user.nickname || user.name || 'Player';
+  const studio = user.studio_name || user.studio || user.production_house || `Studio ${nickname}`;
+  const funds = user.funds ?? 0;
+  const cinepass = user.cinepass ?? user.cine_pass ?? 0;
+  const pstar = user.pstar ?? 0;
+  const tstar = user.tstar ?? 0;
+
+  const fmtMoney = (n) => {
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+    return `$${n}`;
+  };
+
+  const handleBack = (e) => {
+    e.stopPropagation();
+    navigate(-1);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={() => navigate('/dashboard')}
+      data-testid="user-strip-banner"
+      aria-label="Vai alla Dashboard per vedere tutte le stats"
+      className="user-strip-banner sticky z-[45] w-full flex items-center gap-2 px-3 py-1.5 border-b border-yellow-500/25 active:scale-[0.995] transition"
+      style={{
+        top: 'calc(var(--topnav-h, 56px) + env(safe-area-inset-top, 0px))',
+        background: 'linear-gradient(90deg, rgba(250,204,21,0.18) 0%, rgba(180,140,30,0.10) 50%, rgba(250,204,21,0.16) 100%)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        marginTop: 'var(--topnav-h, 56px)',
+      }}
+    >
+      {/* Back arrow (replaces the old StickyPageHeader back button) */}
+      <span
+        onClick={handleBack}
+        role="button"
+        tabIndex={0}
+        data-testid="user-strip-back-btn"
+        aria-label="Torna indietro"
+        className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center active:scale-90 transition hover:bg-yellow-500/20 cursor-pointer"
+        style={{ animation: 'headerArrowPulse 2s ease-in-out infinite' }}
+      >
+        <ArrowLeft className="w-4 h-4 text-yellow-400" />
+      </span>
+
+      {/* Avatar (utente dietro) + logo casa di produzione (davanti) — come in Dashboard */}
+      <div className="shrink-0" data-testid="user-strip-avatars">
+        <AvatarWithLogo
+          avatarUrl={user.avatar_url || user.avatar}
+          logoUrl={user.logo_url || user.studio_logo_url || user.production_house_logo}
+          nickname={user.nickname}
+          size="xs"
+        />
+      </div>
+
+      {/* User info — one row */}
+      <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-hidden">
+        <span className="text-[9px] sm:text-[10px] font-bold text-yellow-300 truncate" data-testid="user-strip-nickname">
+          {nickname}
+        </span>
+        <span className="text-[9px] text-gray-500 shrink-0">·</span>
+        <span className="text-[9px] sm:text-[10px] text-yellow-200/70 truncate italic" data-testid="user-strip-studio" title={studio}>
+          {studio}
+        </span>
+      </div>
+
+      {/* Quick stats */}
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {user?.is_guest && (
+          <span
+            onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new Event('open-guest-convert')); }}
+            role="button"
+            tabIndex={0}
+            data-testid="user-strip-guest-register"
+            aria-label="Salva progressi — Registrati"
+            title="Salva progressi — Registrati"
+            className="flex items-center gap-0.5 px-1 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[8px] font-black uppercase tracking-wider shadow shadow-red-900/50 animate-pulse cursor-pointer"
+            style={{ animationDuration: '2s' }}
+          >
+            <span className="w-1 h-1 rounded-full bg-white animate-ping" style={{ animationDuration: '1.2s' }} />
+            <span>REC</span>
+          </span>
+        )}
+        <span className="flex items-center gap-0.5 text-[9px] font-bold text-green-300" title="Soldi">
+          <DollarSign className="w-2.5 h-2.5" />{fmtMoney(funds)}
+        </span>
+        <span className="flex items-center gap-0.5 text-[9px] font-bold text-cyan-300" title="CinePass">
+          <Ticket className="w-2.5 h-2.5" />{cinepass}
+        </span>
+        {pstar > 0 && (
+          <span className="hidden xs:flex items-center gap-0.5 text-[9px] font-bold text-yellow-400" title="PStar">
+            <Trophy className="w-2.5 h-2.5" />{Math.round(pstar)}
+          </span>
+        )}
+        {tstar > 0 && (
+          <span className="hidden xs:flex items-center gap-0.5 text-[9px] font-bold text-amber-400" title="TStar">
+            <Star className="w-2.5 h-2.5" />{Math.round(tstar)}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}

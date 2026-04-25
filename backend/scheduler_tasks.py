@@ -9,6 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import random
 import asyncio
+from uuid import uuid4
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -377,6 +378,34 @@ async def update_film_attendance():
                 )
                 
                 # Update film
+                # Daily attendance aggregation: group last 144 ticks into days (~24h each)
+                # attendance_history is capped to 144 entries ≈ 24h so we recompute a rolling daily sum.
+                # Trend: compare the last tick vs the tick ~3 hours ago (18 ticks at 10 min each).
+                # Fall back to the oldest entry if we don't have 18 yet — UI stays informative
+                # instead of showing a dash for days.
+                trend_dir = 'flat'
+                if len(attendance_history) >= 2:
+                    last_t = attendance_history[-1]['total_attendance']
+                    ref_idx = -18 if len(attendance_history) >= 18 else 0
+                    prev_t = attendance_history[ref_idx]['total_attendance']
+                    if prev_t > 0:
+                        if last_t > prev_t * 1.03:
+                            trend_dir = 'up'
+                        elif last_t < prev_t * 0.97:
+                            trend_dir = 'down'
+
+                # Persistent daily rollup (last 90 days) for long-term spectators history
+                today_str = now.date().isoformat()
+                daily_attendance = film.get('daily_attendance') or []
+                if not isinstance(daily_attendance, list):
+                    daily_attendance = []
+                existing = next((e for e in daily_attendance if e.get('date') == today_str), None)
+                if existing:
+                    existing['total'] = int(existing.get('total', 0) or 0) + int(total_attendance)
+                else:
+                    daily_attendance.append({'date': today_str, 'total': int(total_attendance)})
+                daily_attendance = daily_attendance[-90:]
+
                 await scheduler_db.films.update_one(
                     {'id': film['id']},
                     {'$set': {
@@ -387,6 +416,8 @@ async def update_film_attendance():
                         'cumulative_attendance': cumulative_attendance,
                         'total_screenings': total_screenings,
                         'attendance_history': attendance_history,
+                        'attendance_trend': trend_dir,
+                        'daily_attendance': daily_attendance,
                         'popularity_score': round(new_popularity, 1),
                         'cineboard_score': round(cineboard_score, 2),
                         'day_in_theaters': round(days_in_theaters),
@@ -880,6 +911,13 @@ async def auto_release_coming_soon():
                     'release_strategy_applied_bonus': strategy_bonus_pct,
                 }}
             )
+
+            # Snapshot likes Prossimamente → In Sala
+            try:
+                from routes.likes import finalize_pre_release_snapshot
+                await finalize_pre_release_snapshot(scheduler_db, series['id'], 'tv_series')
+            except Exception as _e:
+                logger.warning(f"snapshot likes series failed: {_e}")
             
             from social_system import create_notification
             type_label = "Anime" if series['type'] == 'anime' else "Serie TV"
@@ -1003,6 +1041,12 @@ async def auto_release_coming_soon():
                 link=f'/create-film?film={project["id"]}'
             )
             await scheduler_db.notifications.insert_one(notif)
+            # Snapshot likes Prossimamente → In Sala
+            try:
+                from routes.likes import finalize_pre_release_snapshot
+                await finalize_pre_release_snapshot(scheduler_db, project['id'], 'films')
+            except Exception as _e:
+                logger.warning(f"snapshot likes film failed: {_e}")
             logger.info(f"Release pending completed for film {project['id']} ({project['title']}) bonus={strategy_bonus_pct}%")
         except Exception as e:
             logger.error(f"Error releasing pending film {project['id']}: {e}")
@@ -1202,6 +1246,71 @@ VALID_FILM_STATUSES = {'draft', 'proposed', 'coming_soon', 'ready_for_casting', 
                        'completed', 'released', 'discarded', 'abandoned', 'remastering', 'pending_release'}
 VALID_SERIES_STATUSES = {'concept', 'coming_soon', 'ready_for_casting', 'casting', 'screenplay', 'production', 'ready_to_release', 'completed', 'released', 'discarded', 'abandoned'}
 
+async def process_tv_pipeline_auto_apply():
+    """Auto-apply pipeline TV scheduling for V3 series/anime after delay_hours has elapsed.
+    If the TV station owner didn't tap ✔️/✏️ manually, we honour the pipeline defaults
+    silently and notify the owner.
+    """
+    now = datetime.now(timezone.utc)
+    try:
+        async for s in scheduler_db.tv_series.find({
+            'pipeline_version': 3,
+            'scheduled_for_tv': True,
+            'scheduled_for_tv_station': {'$ne': None},
+            'tv_schedule_accepted_at': None,
+            'status': 'in_tv',
+        }, {'_id': 0}):
+            try:
+                rel_raw = s.get('released_at')
+                if not rel_raw:
+                    continue
+                rel = datetime.fromisoformat(rel_raw.replace('Z', '+00:00')) if isinstance(rel_raw, str) else rel_raw
+                delay_h = int(s.get('distribution_delay_hours', 0) or 0)
+                if now < rel + timedelta(hours=delay_h):
+                    continue  # delay not yet elapsed
+                await scheduler_db.tv_series.update_one(
+                    {'id': s['id']},
+                    {'$set': {
+                        'tv_schedule_accepted_at': now.isoformat(),
+                        'tv_schedule_auto_applied': True,
+                    }}
+                )
+                # Silent notification to TV station owner
+                try:
+                    await scheduler_db.notifications.insert_one({
+                        'id': str(uuid4()),
+                        'user_id': s['user_id'],
+                        'type': 'tv_auto_scheduled',
+                        'title': f"Trasmissione '{s.get('title','')}' avviata",
+                        'body': 'Le impostazioni della pipeline sono state applicate automaticamente.',
+                        'content_id': s['id'],
+                        'station_id': s.get('scheduled_for_tv_station'),
+                        'read': False,
+                        'created_at': now.isoformat(),
+                    })
+                except Exception:
+                    pass
+            except Exception as inner:
+                logger.warning(f"[TV AUTO APPLY] skip series {s.get('id')}: {inner}")
+    except Exception as e:
+        logger.error(f"[TV AUTO APPLY] job error: {e}")
+
+
+async def replenish_anime_crew_pool():
+    """Keep anime_director (300) and anime_illustrator (2000) at target by generating
+    fresh NPCs if the counts dropped (e.g. cleanup, manual deletions). Idempotent.
+    Runs weekly but the work is skipped if counts are already at target.
+    """
+    try:
+        from scripts.seed_anime_crew import main as _seed_main
+        await _seed_main(target_directors=300, target_illustrators=2000)
+    except Exception as e:
+        logger.warning(f"[ANIME CREW REPLENISH] error: {e}")
+
+
+
+
+
 async def auto_cleanup_corrupted_projects():
     """Periodic cleanup of corrupted/invalid projects. Runs every 30 min.
     SAFETY: Never discard films - always move to 'proposed' as a safe fallback."""
@@ -1356,7 +1465,258 @@ async def process_hype_and_events():
         logger.error(f"[HYPE] Errore process_hype_and_events: {e}")
 
 
+async def process_la_prima_buildup():
+    """Every 30min tick: apply hype buildup + random news to V3 films waiting for La Prima.
+    Active window: from premiere.setup_at to premiere.datetime.
+    - Hype: +0.5..+1.5 per tick (variable), capped at +25 vs baseline at setup
+    - News: ~30% chance per tick of auto-generating a teaser news event
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        waiting_films = await scheduler_db.film_projects.find(
+            {'pipeline_version': 3, 'pipeline_state': 'la_prima',
+             'release_type': 'premiere', 'premiere.datetime': {'$ne': None},
+             'premiere.setup_at': {'$ne': None}},
+            {'_id': 0, 'id': 1, 'title': 1, 'hype_score': 1, 'premiere': 1, 'user_id': 1, 'genre': 1,
+             'la_prima_buildup_baseline': 1, 'news_events': 1}
+        ).to_list(200)
+
+        if not waiting_films:
+            return
+
+        NEWS_TEMPLATES_WAITING = [
+            "I fan di '{title}' sono in trepidazione per la premiere a {city}!",
+            "A {city} i preparativi per la La Prima di '{title}' sono frenetici.",
+            "I media parlano dell'attesissima La Prima di '{title}' a {city}.",
+            "Red carpet gia' pronto per '{title}' a {city} — i biglietti vanno a ruba.",
+            "Critics in volo verso {city}: tutti aspettano '{title}'.",
+            "Social impazziti: #{hashtag} trend mondiale in vista della La Prima.",
+            "I fan del regista si stanno organizzando in massa per la La Prima a {city}.",
+            "Si prevede standing ovation per '{title}' a {city}.",
+        ]
+        updated = 0
+        for film in waiting_films:
+            prem = film.get('premiere') or {}
+            try:
+                pdt = datetime.fromisoformat(str(prem.get('datetime')).replace('Z', '+00:00'))
+            except Exception:
+                continue
+            if now >= pdt:
+                continue  # passed premiere time → handled elsewhere
+
+            # Init baseline if missing
+            baseline = film.get('la_prima_buildup_baseline')
+            if baseline is None:
+                baseline = int(film.get('hype_score', 0) or 0)
+                await scheduler_db.film_projects.update_one(
+                    {'id': film['id']},
+                    {'$set': {'la_prima_buildup_baseline': baseline}}
+                )
+
+            current_hype = int(film.get('hype_score', 0) or 0)
+            # Cap: +25 over baseline
+            if current_hype - baseline >= 25:
+                # No more hype, but maybe news
+                pass
+            else:
+                # Variable hype bump: 0.5-1.5 base, random surge chance 12%
+                bump = random.uniform(0.5, 1.5)
+                if random.random() < 0.12:
+                    bump += random.uniform(2.0, 4.0)  # random surge event
+                new_hype = min(baseline + 25, current_hype + int(round(bump)))
+                if new_hype != current_hype:
+                    await scheduler_db.film_projects.update_one(
+                        {'id': film['id']},
+                        {'$set': {'hype_score': new_hype}}
+                    )
+
+            # ~30% chance of auto news per tick
+            if random.random() < 0.30:
+                city = prem.get('city', 'citta sconosciuta')
+                hashtag = (film.get('title') or '').replace(' ', '').replace("'", '')[:20] or 'Premiere'
+                text = random.choice(NEWS_TEMPLATES_WAITING).format(
+                    title=film.get('title', 'il film'),
+                    city=city,
+                    hashtag=hashtag,
+                )
+                news_ev = {
+                    'type': 'positive',
+                    'source': 'CineWorld News',
+                    'title': 'Attesa per La Prima',
+                    'text': text,
+                    'created_at': now.isoformat(),
+                }
+                existing = film.get('news_events') or []
+                # Keep last 20 entries max
+                trimmed = (existing + [news_ev])[-20:]
+                await scheduler_db.film_projects.update_one(
+                    {'id': film['id']},
+                    {'$set': {'news_events': trimmed}}
+                )
+            updated += 1
+
+        if updated > 0:
+            logger.info(f"[LA_PRIMA_BUILDUP] Processati {updated} film in pre-La Prima")
+    except Exception as e:
+        logger.error(f"[LA_PRIMA_BUILDUP] errore: {e}")
+
+
+
 # ==================== AUTO REVENUE + STAR + SKILL TICK ====================
+
+
+# ═══════════════════════════════════════════════════════════════
+# BUDGET-TIER REVENUE MULTIPLIERS
+# Higher-budget films = wider distribution = more screens = more revenue
+# Applied on top of flop/sleeper mechanics and La Prima calculations.
+# ═══════════════════════════════════════════════════════════════
+_BUDGET_REV_MULTIPLIER = {
+    'micro': 0.5,
+    'low': 0.8,       # "indie"
+    'mid': 1.0,       # "standard"
+    'big': 1.4,
+    'blockbuster': 1.8,
+    'mega': 2.5,      # "tentpole"
+}
+
+
+def _budget_multiplier(budget_tier: str) -> float:
+    if not budget_tier:
+        return 1.0
+    return _BUDGET_REV_MULTIPLIER.get(str(budget_tier).lower(), 1.0)
+
+
+# ═══════════════════════════════════════════════════════════════
+# DISTRIBUTION-AWARE GEO PICKER
+# Picks a realistic (city, nation, continent) for each revenue tick
+# based on the film's distribution choices at pipeline V3 time.
+# ═══════════════════════════════════════════════════════════════
+import random as _random
+
+# Top world markets (weighted by theatrical share). Used when distribution_world=True or no specific data.
+_WORLD_TOP_MARKETS = [
+    # (city, nation, continent, weight)
+    ('New York', 'USA', 'Nord America', 14),
+    ('Los Angeles', 'USA', 'Nord America', 14),
+    ('Chicago', 'USA', 'Nord America', 5),
+    ('Toronto', 'Canada', 'Nord America', 4),
+    ('Londra', 'Regno Unito', 'Europa', 8),
+    ('Parigi', 'Francia', 'Europa', 7),
+    ('Berlino', 'Germania', 'Europa', 5),
+    ('Milano', 'Italia', 'Europa', 4),
+    ('Roma', 'Italia', 'Europa', 3),
+    ('Madrid', 'Spagna', 'Europa', 3),
+    ('Tokyo', 'Giappone', 'Asia', 7),
+    ('Seoul', 'Corea del Sud', 'Asia', 4),
+    ('Shanghai', 'Cina', 'Asia', 6),
+    ('Pechino', 'Cina', 'Asia', 5),
+    ('Mumbai', 'India', 'Asia', 4),
+    ('San Paolo', 'Brasile', 'Sud America', 3),
+    ('Buenos Aires', 'Argentina', 'Sud America', 2),
+    ('Città del Messico', 'Messico', 'Nord America', 3),
+    ('Sydney', 'Australia', 'Oceania', 2),
+    ('Il Cairo', 'Egitto', 'Africa', 1),
+    ('Lagos', 'Nigeria', 'Africa', 1),
+]
+
+# Fallback cities per continent (when continent-only distribution is chosen)
+_CONTINENT_CITIES = {
+    'Europa': [('Londra', 'Regno Unito'), ('Parigi', 'Francia'), ('Berlino', 'Germania'), ('Milano', 'Italia'), ('Roma', 'Italia'), ('Madrid', 'Spagna'), ('Barcellona', 'Spagna'), ('Amsterdam', 'Paesi Bassi')],
+    'Nord America': [('New York', 'USA'), ('Los Angeles', 'USA'), ('Chicago', 'USA'), ('Toronto', 'Canada'), ('Città del Messico', 'Messico')],
+    'Sud America': [('San Paolo', 'Brasile'), ('Buenos Aires', 'Argentina'), ('Rio de Janeiro', 'Brasile'), ('Lima', 'Perù'), ('Bogotá', 'Colombia')],
+    'Asia': [('Tokyo', 'Giappone'), ('Seoul', 'Corea del Sud'), ('Shanghai', 'Cina'), ('Pechino', 'Cina'), ('Mumbai', 'India'), ('Bangkok', 'Thailandia'), ('Singapore', 'Singapore')],
+    'Africa': [('Il Cairo', 'Egitto'), ('Lagos', 'Nigeria'), ('Città del Capo', 'Sudafrica'), ('Nairobi', 'Kenya')],
+    'Oceania': [('Sydney', 'Australia'), ('Melbourne', 'Australia'), ('Auckland', 'Nuova Zelanda')],
+}
+
+# Continent lookup by nation (broad mapping for auto-classification).
+_NATION_TO_CONTINENT = {
+    'USA': 'Nord America', 'Stati Uniti': 'Nord America', 'Canada': 'Nord America', 'Messico': 'Nord America',
+    'Italia': 'Europa', 'Francia': 'Europa', 'Germania': 'Europa', 'Regno Unito': 'Europa', 'Spagna': 'Europa',
+    'Portogallo': 'Europa', 'Paesi Bassi': 'Europa', 'Belgio': 'Europa', 'Svezia': 'Europa', 'Norvegia': 'Europa',
+    'Polonia': 'Europa', 'Grecia': 'Europa', 'Russia': 'Europa',
+    'Giappone': 'Asia', 'Cina': 'Asia', 'Corea del Sud': 'Asia', 'India': 'Asia', 'Thailandia': 'Asia',
+    'Singapore': 'Asia', 'Indonesia': 'Asia', 'Filippine': 'Asia', 'Vietnam': 'Asia',
+    'Brasile': 'Sud America', 'Argentina': 'Sud America', 'Cile': 'Sud America', 'Perù': 'Sud America', 'Colombia': 'Sud America',
+    'Egitto': 'Africa', 'Nigeria': 'Africa', 'Sudafrica': 'Africa', 'Marocco': 'Africa', 'Kenya': 'Africa',
+    'Australia': 'Oceania', 'Nuova Zelanda': 'Oceania',
+}
+
+
+def _continent_for_nation(nation: str) -> str:
+    return _NATION_TO_CONTINENT.get(nation, 'Globale') if nation else 'Globale'
+
+
+def _flatten_distribution_cities(distribution_cities) -> list:
+    """Flatten dict-of-nation→list[city] or list[city] into list[(city, nation)]."""
+    out = []
+    if isinstance(distribution_cities, dict):
+        for nation, cities in distribution_cities.items():
+            if isinstance(cities, list):
+                for c in cities:
+                    out.append((c, nation))
+    elif isinstance(distribution_cities, list):
+        for c in distribution_cities:
+            out.append((c, ''))
+    return out
+
+
+def _flatten_distribution_nations(distribution_nations) -> list:
+    if isinstance(distribution_nations, dict):
+        vals = []
+        for k, v in distribution_nations.items():
+            if isinstance(v, list):
+                vals.extend(v)
+            elif isinstance(v, str):
+                vals.append(v)
+        return vals
+    if isinstance(distribution_nations, list):
+        return list(distribution_nations)
+    return []
+
+
+def pick_revenue_geo(film: dict) -> dict:
+    """Pick a realistic {city, nation, continent} for this revenue tick based on the film's
+    distribution choices at pipeline V3 time.
+    Priority: distribution_cities > distribution_nations > distribution_continents > distribution_world.
+    """
+    # 1) Specific cities chosen
+    cities = _flatten_distribution_cities(film.get('distribution_cities'))
+    if cities:
+        city, nation = _random.choice(cities)
+        return {'city': city, 'nation': nation, 'continent': _continent_for_nation(nation)}
+
+    # 2) Specific nations chosen (pick a city from known cities in those nations, fallback to nation-only)
+    nations = _flatten_distribution_nations(film.get('distribution_nations'))
+    if nations:
+        nation = _random.choice(nations)
+        continent = _continent_for_nation(nation)
+        # Try to pick a known city in that continent matching the nation
+        candidate_cities = [c for c, n in _CONTINENT_CITIES.get(continent, []) if n == nation]
+        city = _random.choice(candidate_cities) if candidate_cities else ''
+        return {'city': city, 'nation': nation, 'continent': continent}
+
+    # 3) Continents chosen only
+    continents = film.get('distribution_continents') or film.get('distribution_zones') or []
+    if isinstance(continents, list) and continents:
+        continent = _random.choice(continents)
+        pool = _CONTINENT_CITIES.get(continent, [])
+        if pool:
+            city, nation = _random.choice(pool)
+            return {'city': city, 'nation': nation, 'continent': continent}
+        return {'city': '', 'nation': '', 'continent': continent}
+
+    # 4) World-wide: pick a top market weighted
+    total_w = sum(w for *_, w in _WORLD_TOP_MARKETS)
+    pick = _random.uniform(0, total_w)
+    acc = 0
+    for city, nation, continent, w in _WORLD_TOP_MARKETS:
+        acc += w
+        if pick <= acc:
+            return {'city': city, 'nation': nation, 'continent': continent}
+    # Safety fallback
+    c, n, cont, _ = _WORLD_TOP_MARKETS[0]
+    return {'city': c, 'nation': n, 'continent': cont}
 
 
 async def auto_revenue_tick():
@@ -1365,7 +1725,7 @@ async def auto_revenue_tick():
     - Revenue distribution (with star boost decay)
     - Star discovery (rare event, balanced)
     - Cast skill progression
-    Processes BOTH films AND tv_series/anime.
+    Processes BOTH films AND tv_series/anime AND V3 film_projects in la_prima.
     """
     try:
         now = datetime.now(timezone.utc)
@@ -1379,12 +1739,32 @@ async def auto_revenue_tick():
         }, {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'quality_score': 1, 'quality': 1,
             'imdb_rating': 1, 'opening_day_revenue': 1, 'release_date': 1, 'released_at': 1,
             'cast': 1, 'status': 1, 'content_type': 1, 'hype_score': 1,
-            'star_born_film': 1, 'star_born_at': 1}).to_list(5000)
+            'star_born_film': 1, 'star_born_at': 1, 'budget_tier': 1,
+            'distribution_world': 1, 'distribution_zones': 1, 'distribution_continents': 1,
+            'distribution_nations': 1, 'distribution_cities': 1, 'release_event': 1}).to_list(5000)
         
         # Mark source for films
         for f in active_films:
             f['_source'] = 'films'
         
+        # --- FETCH DATA: V3 LA PRIMA LIVE (film_projects within 24h premiere) ---
+        # During La Prima, generate box-office revenue seeded by spectators_total.
+        la_prima_24h_start = (now - timedelta(hours=24)).isoformat()
+        v3_la_prima = await scheduler_db.film_projects.find({
+            'content_type': 'film',
+            'pipeline_state': 'la_prima',
+            'user_id': {'$exists': True, '$ne': None},
+            'premiere.datetime': {'$lte': now_str, '$gte': la_prima_24h_start},
+        }, {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'quality_score': 1,
+            'imdb_rating': 1, 'cast': 1, 'hype': 1, 'hype_score': 1,
+            'premiere': 1, 'total_revenue': 1, 'daily_revenues': 1, 'budget_tier': 1}).to_list(500)
+        for f in v3_la_prima:
+            f['_source'] = 'film_projects'
+            f['status'] = 'la_prima'
+            f['opening_day_revenue'] = 0  # will be computed per-tick from premiere
+            f['released_at'] = f.get('premiere', {}).get('datetime') or now_str
+            f['quality'] = f.get('quality_score', 50) or 50
+
         # --- FETCH DATA: TV SERIES / ANIME ---
         active_series = await scheduler_db.tv_series.find({
             'status': {'$in': ['completed', 'released']},
@@ -1408,7 +1788,7 @@ async def auto_revenue_tick():
             s['released_at'] = s.get('completed_at', now_str)
             s['quality'] = s.get('quality_score', 50)
         
-        all_projects = active_films + active_series
+        all_projects = active_films + v3_la_prima + active_series
         
         if not all_projects:
             return
@@ -1487,6 +1867,56 @@ async def auto_revenue_tick():
                 
                 # --- REVENUE ---
                 is_coming_soon = film.get('status') == 'coming_soon'
+                is_la_prima = film.get('status') == 'la_prima' or film.get('_source') == 'film_projects'
+                
+                # ═══ LA PRIMA REVENUE (premiere event - based on spectators & hype) ═══
+                if is_la_prima:
+                    prem = film.get('premiere', {}) or {}
+                    # Check if still within 24h window
+                    try:
+                        pdt_str = prem.get('datetime')
+                        pdt = datetime.fromisoformat(str(pdt_str).replace('Z', '+00:00')) if pdt_str else now
+                        if pdt.tzinfo is None:
+                            pdt = pdt.replace(tzinfo=timezone.utc)
+                        hours_live = max(0, (now - pdt).total_seconds() / 3600)
+                    except Exception:
+                        hours_live = 1
+                    if hours_live >= 24:
+                        continue  # ended
+                    # Base: ticket_price × spectators_per_tick × quality_multiplier
+                    city_name = prem.get('city', '')
+                    city_mult = 1.0
+                    if city_name in ('Milano', 'Roma', 'New York', 'Los Angeles', 'London', 'Paris', 'Tokyo'):
+                        city_mult = 1.5
+                    elif city_name in ('Berlin', 'Madrid', 'Napoli', 'Shanghai', 'Seoul'):
+                        city_mult = 1.2
+                    base_spectators_per_tick = int(150 * city_mult * (0.8 + (hype or 0) / 100))
+                    ticket = 12 + int(quality * 0.3)  # 12-42 USD
+                    budget_mult = _budget_multiplier(film.get('budget_tier', ''))
+                    tick_rev = int(base_spectators_per_tick * ticket * (0.7 + quality / 150) * budget_mult)
+                    total_revenue += tick_rev
+                    # Update the film_projects doc with accumulated revenue
+                    try:
+                        await scheduler_db.film_projects.update_one(
+                            {'id': film_id},
+                            {'$inc': {'total_revenue': tick_rev, 'premiere.spectators_total': base_spectators_per_tick},
+                             '$set': {'last_revenue_tick': now_str}}
+                        )
+                    except Exception:
+                        pass
+                    # Log geo-tagged transaction
+                    try:
+                        from utils.wallet import log_wallet_tx
+                        await log_wallet_tx(
+                            scheduler_db, user_id, tick_rev, 'in',
+                            source='la_prima', ref_id=film_id, ref_type='film_project',
+                            title=film.get('title', 'La Prima'),
+                            geo={'city': city_name, 'nation': prem.get('nation', 'Italia'), 'continent': prem.get('continent', 'Europa')},
+                        )
+                    except Exception:
+                        pass
+                    continue
+                
                 if not is_coming_soon:
                     decay = 0.92 if quality >= 90 else (0.87 if quality >= 80 else (0.82 if quality >= 65 else 0.75))
                     quality_mult = quality / 100
@@ -1504,9 +1934,69 @@ async def auto_revenue_tick():
                         except:
                             pass
                     
-                    daily_rev = opening * (decay ** days) * quality_mult * imdb_boost * star_revenue_boost
+                    # ═══ FLOP RISK / SLEEPER HIT — Budget-aware revenue curve ═══
+                    budget_tier = film.get('budget_tier', '')
+                    flop_multiplier = 1.0
+                    if budget_tier:
+                        _FLOP_TIERS = {
+                            "micro": {"flop_base": 0.05, "hype_mod": -0.20},
+                            "low": {"flop_base": 0.08, "hype_mod": -0.10},
+                            "mid": {"flop_base": 0.12, "hype_mod": 0.00},
+                            "big": {"flop_base": 0.18, "hype_mod": 0.15},
+                            "blockbuster": {"flop_base": 0.25, "hype_mod": 0.30},
+                            "mega": {"flop_base": 0.35, "hype_mod": 0.50},
+                        }
+                        tier_info = _FLOP_TIERS.get(budget_tier, {})
+                        flop_base = tier_info.get('flop_base', 0.10)
+                        hype_mod = tier_info.get('hype_mod', 0)
+                        # Quality factor: low quality + high budget = fast decay
+                        q_norm = quality / 100  # 0-1
+                        if q_norm < 0.5 and budget_tier in ('blockbuster', 'mega', 'big'):
+                            # FLOP: massive day 1-2 then crash
+                            if days <= 2:
+                                flop_multiplier = 1.5 + hype_mod  # Huge opening from hype
+                            else:
+                                crash_speed = 0.55 + flop_base  # Fast decay 0.6-0.9
+                                flop_multiplier = max(0.05, (crash_speed ** (days - 2)) * 0.5)
+                        elif q_norm >= 0.7 and budget_tier in ('micro', 'low'):
+                            # SLEEPER HIT: slow start, grows with word of mouth
+                            growth = min(2.5, 1.0 + days * 0.08)
+                            flop_multiplier = growth * 0.6  # Starts lower, grows
+                        else:
+                            # Normal: slight hype boost early
+                            flop_multiplier = 1.0 + hype_mod * max(0, (1 - days / 14))
+                    
+                    daily_rev = opening * (decay ** days) * quality_mult * imdb_boost * star_revenue_boost * flop_multiplier
+                    # Budget-tier multiplier: blockbusters get wider distribution = more screens
+                    daily_rev *= _budget_multiplier(budget_tier)
                     tick_rev = max(0, int(daily_rev / 144))
                     total_revenue += tick_rev
+                    # Increment film's own total_revenue so Dashboard aggregates reflect live earnings.
+                    # `update_all_films_revenue` uses max(current, realistic_box_office) so this is safe.
+                    if tick_rev > 0 and film.get('_source') == 'films':
+                        try:
+                            await scheduler_db.films.update_one(
+                                {'id': film_id},
+                                {'$inc': {'total_revenue': tick_rev}}
+                            )
+                        except Exception:
+                            pass
+                    # Per-film wallet tx log with film's primary geo
+                    if tick_rev > 0:
+                        try:
+                            from utils.wallet import log_wallet_tx
+                            # Pick a realistic geo for this tick based on distribution choices (V3)
+                            rev_geo = pick_revenue_geo(film)
+                            await log_wallet_tx(
+                                scheduler_db, user_id, tick_rev, 'in',
+                                source='box_office' if film.get('_source') == 'films' else 'tv_broadcast',
+                                ref_id=film_id,
+                                ref_type='film' if film.get('_source') == 'films' else 'tv_series',
+                                title=film.get('title'),
+                                geo=rev_geo,
+                            )
+                        except Exception:
+                            pass
                 
                 # --- SKILL PROGRESSION ---
                 for cast_id in film_cast_map.get(film_id, []):
@@ -1724,6 +2214,7 @@ async def auto_revenue_tick():
                     {'id': user_id},
                     {'$inc': {'funds': total_revenue, 'total_earnings': total_revenue}}
                 )
+                # Wallet tx already logged per-film inside the loop
                 revenue_count += 1
                 film_only_count = sum(1 for f in films if f.get('_source') == 'films')
                 series_only_count = sum(1 for f in films if f.get('_source') == 'tv_series')
@@ -2198,3 +2689,55 @@ async def process_ri_cinema():
         logger.info(f"[CITY_TASTES] Cities in DB: {count}")
     except Exception as e:
         logger.error(f"[CITY_TASTES] Seed error: {e}")
+
+
+async def auto_generate_weekly_events():
+    """Weekly: generate 26 new cinema events via AI (10 common + 8 rare + 5 epic + 3 legendary)."""
+    try:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        _client = AsyncIOMotorClient(os.environ.get('MONGO_URL', 'mongodb://localhost:27017'))
+        _db = _client[os.environ.get('DB_NAME', 'cineworld')]
+        llm_key = os.environ.get('EMERGENT_LLM_KEY', '')
+        if not llm_key:
+            logger.warning("[EVENTS] No LLM key, skipping auto-generation")
+            return
+
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import json, random
+
+        THEMES = ["box office incassi record", "social media TikTok meme", "critica festival premi",
+                   "fan merchandise cosplay", "streaming diritti TV", "scandali gossip", "colonna sonora",
+                   "CGI effetti speciali", "marketing trailer", "red carpet interviste", "sequel franchise", "cultura pop"]
+        themes = ", ".join(random.sample(THEMES, 4))
+
+        async def gen_batch(tier, count):
+            rules = {'common':'Quotidiani. revenue_mod ±0.03-0.10, hype_mod ±1-5.',
+                     'rare':'Significativi. revenue_mod ±0.10-0.20, hype_mod ±5-15.',
+                     'epic':'STRAORDINARI MAIUSCOLO. revenue_mod ±0.20-0.40. global:true',
+                     'legendary':'LEGGENDARI MAIUSCOLO. revenue_mod ±0.35-0.60. global:true'}
+            chat = LlmChat(api_key=llm_key, session_id=f"weekly_{tier}_{random.randint(0,9999)}", system_message="Genera eventi cinema italiani unici per CineWorld.")
+            chat.with_model("openai", "gpt-4o-mini")
+            prompt = f"Genera {count} eventi UNICI {tier.upper()} ({rules[tier]}) per cinema. Temi: {themes}. JSON: [{{\"t\":\"testo {{movie}}/{{actor}}\",\"type\":\"positive\",\"revenue_mod\":0.05,\"hype_mod\":3,\"fame_mod\":2,\"audience_mod\":30}}]. Solo JSON."
+            resp = await chat.send_message(UserMessage(text=prompt))
+            text = resp.strip()
+            if text.startswith('```'): text = text.split('\n',1)[1].rsplit('```',1)[0]
+            return json.loads(text)
+
+        total_added = 0
+        for tier, count in [('common', 10), ('rare', 8), ('epic', 5), ('legendary', 3)]:
+            try:
+                events = await gen_batch(tier, count)
+                # Store in DB collection for persistent growth
+                for ev in events:
+                    if tier in ('epic', 'legendary'):
+                        ev['global'] = True
+                    ev['tier'] = tier
+                    ev['generated_at'] = datetime.now(timezone.utc).isoformat()
+                    await _db.generated_events.update_one({'t': ev['t']}, {'$setOnInsert': ev}, upsert=True)
+                total_added += len(events)
+            except Exception as e:
+                logger.error(f"[EVENTS] {tier} generation failed: {e}")
+
+        logger.info(f"[EVENTS] Weekly auto-generation: +{total_added} events")
+    except Exception as e:
+        logger.error(f"[EVENTS] Weekly generation error: {e}")

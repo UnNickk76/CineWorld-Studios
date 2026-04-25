@@ -14,7 +14,8 @@ import {
   Wallet, Bell, HelpCircle, Info, Music, BookOpen, Medal, Eye, EyeOff, Play,
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, Disc
+  Palette, Briefcase, Rocket,
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, RadioTower, Disc, Video, Loader2
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -47,6 +48,14 @@ import { LoadingSpinner, ErrorBoundary } from './components/ErrorBoundary';
 import { GameStoreProvider, useGameStore } from './contexts/GameStore';
 import { ConfirmProvider, useConfirm } from './components/ConfirmDialog';
 import { NotificationProvider, useNotifications } from './components/NotificationProvider';
+import { RadioProvider, useRadio } from './contexts/RadioContext';
+import { RadioPromoBanner } from './components/RadioPromoBanner';
+import { RadioFloatingPlayer } from './components/RadioFloatingPlayer';
+import { NowPlayingBanner } from './components/NowPlayingBanner';
+import { RadioStationsPopup } from './components/RadioStationsPopup';
+import { CompareProducersModal } from './components/CompareProducersModal';
+import { AvatarWithLogo } from './components/StudioName';
+import { PullToRefresh } from './components/PullToRefresh';
 import { VelionOverlay } from './components/VelionOverlay';
 import { VelionPanel, shouldAutoShowTutorial } from './components/VelionPanel';
 import { GuestTutorial } from './components/GuestTutorial';
@@ -62,17 +71,26 @@ const AuthPage = React.lazy(() => import('./pages/AuthPage'));
 const ChallengesPage = React.lazy(() => import('./pages/ChallengesPage'));
 const ChatPage = React.lazy(() => import('./pages/ChatPage'));
 const CineBoard = React.lazy(() => import('./pages/CineBoard'));
+const LaPrimaEvents = React.lazy(() => import('./pages/LaPrimaEvents'));
+const TrailerEventsPage = React.lazy(() => import('./pages/TrailerEventsPage'));
 const CinemaJournal = React.lazy(() => import('./pages/CinemaJournal'));
 const CinemaTourPage = React.lazy(() => import('./pages/CinemaTourPage'));
 const CreatorBoard = React.lazy(() => import('./pages/CreatorBoard'));
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const DiscoveredStars = React.lazy(() => import('./pages/DiscoveredStars'));
 import { PWAInstallBanner } from './components/PWAInstallBanner';
+import UserStripBanner from './components/UserStripBanner';
+import QuickCommandsPanel from './components/QuickCommandsPanel';
+import GuestRegisterDialog from './components/GuestRegisterDialog';
+import FilmActionsSheet from './components/FilmActionsSheet';
+import WalletBadge from './components/WalletBadge';
 const DownloadAppPage = React.lazy(() => import('./pages/DownloadAppPage'));
 const FeedbackBoard = React.lazy(() => import('./pages/FeedbackBoard'));
 const FestivalsPage = React.lazy(() => import('./pages/FestivalsPage'));
 const FilmDetail = React.lazy(() => import('./pages/FilmDetail'));
 const FilmMarketplace = React.lazy(() => import('./pages/FilmMarketplace'));
+const MarketV2Page = React.lazy(() => import('./pages/MarketV2Page'));
+const MedalsChallengePage = React.lazy(() => import('./pages/MedalsChallengePage'));
 const FilmWizard = React.lazy(() => import('./pages/FilmWizard'));
 const FilmPipeline = React.lazy(() => import('./pages/FilmPipeline'));
 const PipelineV2 = React.lazy(() => import('./pages/PipelineV2'));
@@ -89,6 +107,9 @@ const ContestPage = React.lazy(() => import('./pages/ContestPage'));
 const MiniGamesPage = React.lazy(() => import('./pages/MiniGamesPage'));
 import LoginRewardPopup from './components/LoginRewardPopup';
 import { AutoTickNotifications } from './components/AutoTickNotifications';
+import { LevelUpToast } from './components/LevelUpToast';
+import { PrestigeTierToast } from './components/PrestigeTierToast';
+import { CinematicCurtainReveal } from './components/CinematicCurtainReveal';
 import TutorialModal from './components/TutorialModal';
 import DashboardTour from './components/DashboardTour';
 const MyFilms = React.lazy(() => import('./pages/MyFilms'));
@@ -96,14 +117,15 @@ const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage'));
 const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
 const SagasSeriesPage = React.lazy(() => import('./pages/SagasSeriesPage'));
+const PlayerContentPage = React.lazy(() => import('./pages/PlayerContentPage'));
 const PasswordRecoveryPage = React.lazy(() => import('./pages/PasswordRecoveryPage'));
 const NicknameRecoveryPage = React.lazy(() => import('./pages/NicknameRecoveryPage'));
 const StatisticsPage = React.lazy(() => import('./pages/StatisticsPage'));
 const EmergingScreenplays = React.lazy(() => import('./pages/EmergingScreenplays'));
 const PlayerPublicProfile = React.lazy(() => import('./pages/PlayerPublicProfile'));
-const SeriesTVPipeline = React.lazy(() => import('./pages/SeriesTVPipeline'));
+const SeriesTVPipeline = React.lazy(() => import('./pages/SeriesTVPipelineV3'));
 const SeriesDetail = React.lazy(() => import('./pages/SeriesDetail'));
-const AnimePipeline = React.lazy(() => import('./pages/AnimePipeline'));
+const AnimePipeline = React.lazy(() => import('./pages/AnimePipelineV3'));
 const SequelPipeline = React.lazy(() => import('./pages/SequelPipeline'));
 const EmittenteTVPage = React.lazy(() => import('./pages/EmittenteTVPage'));
 const TVStationPage = React.lazy(() => import('./pages/TVStationPage'));
@@ -116,6 +138,9 @@ const EventHistoryPage = React.lazy(() => import('./pages/EventHistoryPage'));
 const StrutturePage = React.lazy(() => import('./pages/StrutturePage'));
 const AgenziaPage = React.lazy(() => import('./pages/AgenziaPage'));
 const StrategicoPage = React.lazy(() => import('./pages/StrategicoPage'));
+const FinancePage = React.lazy(() => import('./pages/FinancePage'));
+const SpectatorsPage = React.lazy(() => import('./pages/SpectatorsPage'));
+const BankPage = React.lazy(() => import('./pages/BankPage'));
 
 // ==================== COMPONENTS ====================
 
@@ -406,16 +431,31 @@ const MobileBottomNav = () => {
   const { setIsOpen: setShowProductionMenu } = useProductionMenu();
   const [showQuickCommands, setShowQuickCommands] = useState(false);
   const [showIMiei, setShowIMiei] = useState(false);
+  const [showRadioPopup, setShowRadioPopup] = useState(false);
+  const { banner: radioBanner, reactivateBanner } = useRadio();
+  const radioLocked = !radioBanner?.user_has_tv;
+
+  const handleRadioClick = async () => {
+    if (radioLocked) {
+      // Utente senza Emittente TV: rianima il banner promo 80%
+      const ok = await reactivateBanner();
+      if (ok) toast.success('📻 Banner promo riattivato! Sconto 80% disponibile.');
+      else toast.info("Non puoi accedere alla radio senza un'Emittente TV");
+    } else {
+      setShowRadioPopup(true);
+    }
+  };
 
   const items = [
-    { path: '/dashboard', icon: Home, label: 'Home', testid: 'bn-home' },
-    { path: null, icon: Film, label: 'I Miei', testid: 'bn-films', action: () => { setShowIMiei(!showIMiei); setShowQuickCommands(false); }, imiei: true },
     { path: '/social', icon: Globe, label: 'CineBoard', testid: 'bn-cineboard' },
     { path: '/leaderboard', icon: BarChart3, label: 'Classifiche', testid: 'bn-classifiche' },
     { path: '/festivals', icon: Medal, label: 'Festival', testid: 'bn-festival' },
     { path: null, icon: Heart, label: 'Dona', testid: 'bn-dona', action: () => window.open('https://www.paypal.me/UnNickk', '_blank'), donate: true },
     { path: '/journal', icon: Newspaper, label: 'CineJournal', testid: 'bn-journal' },
     { path: '/marketplace', icon: Store, label: 'Mercato', testid: 'bn-mercato' },
+    { path: null, icon: Film, label: 'I Miei', testid: 'bn-films', action: () => { setShowIMiei(!showIMiei); setShowQuickCommands(false); }, imiei: true },
+    { path: '/banca', icon: Landmark, label: 'Banca', testid: 'bn-banca' },
+    { path: null, icon: RadioTower, label: 'Radio', testid: 'bn-radio', action: handleRadioClick, radio: true, locked: radioLocked },
     { path: '/minigiochi', icon: Gamepad2, label: 'Minigiochi', testid: 'bn-minigiochi' },
     { path: '/event-history', icon: Sparkles, label: 'Eventi', testid: 'bn-eventi' },
     { path: null, icon: Zap, label: 'Rapidi', testid: 'bn-rapidi', action: () => setShowQuickCommands(!showQuickCommands), quick: true },
@@ -442,14 +482,15 @@ const MobileBottomNav = () => {
               className="fixed inset-0 bg-black/40 z-[55] sm:hidden" onClick={() => setShowIMiei(false)} />
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 400 }}
-              className="fixed bottom-[52px] left-1 z-[56] sm:hidden w-36" data-testid="imiei-panel"
+              className="fixed bottom-[52px] left-1/2 -translate-x-1/2 z-[56] sm:hidden w-36" data-testid="imiei-panel"
             >
               <div className="bg-[#111113] border border-white/10 rounded-xl overflow-hidden shadow-2xl">
                 <p className="text-[9px] text-yellow-500/60 uppercase tracking-widest font-semibold px-3 pt-2 pb-1">I Miei Contenuti</p>
                 {[
-                  { icon: Film, label: 'Film', path: '/films' },
-                  { icon: Tv, label: 'Serie TV', path: '/sagas?type=tv_series' },
-                  { icon: Sparkles, label: 'Anime', path: '/sagas?type=anime' },
+                  { icon: Film, label: 'Film', path: '/films?tab=film' },
+                  { icon: BookOpen, label: 'Saghe e Sequel', path: '/films?tab=saghe' },
+                  { icon: Tv, label: 'Serie TV', path: '/films?tab=serie' },
+                  { icon: Sparkles, label: 'Anime', path: '/films?tab=anime' },
                 ].map(c => (
                   <button key={c.path}
                     className={`w-full flex items-center gap-2.5 py-2.5 px-3 text-[11px] transition-all ${location.pathname === c.path ? 'bg-yellow-500/15 text-yellow-400' : 'text-gray-300 hover:bg-white/5'}`}
@@ -476,21 +517,7 @@ const MobileBottomNav = () => {
               transition={{ type: 'spring', damping: 25, stiffness: 400 }}
               className="fixed bottom-[52px] left-1 right-1 z-[56] sm:hidden" data-testid="quick-commands-panel"
             >
-              <div className="bg-[#111113] border border-white/10 rounded-xl p-2 shadow-2xl">
-                <p className="text-[9px] text-yellow-500/60 uppercase tracking-widest font-semibold px-2 mb-1.5">Comandi Rapidi</p>
-                <div className="grid grid-cols-4 gap-1">
-                  {quickCommands.map(c => (
-                    <button key={c.path}
-                      className={`flex flex-col items-center gap-0.5 py-2 rounded-lg transition-all ${location.pathname === c.path ? 'bg-yellow-500/15 text-yellow-400' : 'text-gray-400 hover:bg-white/5'}`}
-                      onClick={() => { navigate(c.path); setShowQuickCommands(false); }}
-                      data-testid={`qc-${c.label.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <c.icon className="w-4 h-4" />
-                      <span className="text-[7px] leading-tight">{c.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <QuickCommandsPanel onClose={() => setShowQuickCommands(false)} />
             </motion.div>
           </>
         )}
@@ -510,20 +537,29 @@ const MobileBottomNav = () => {
                   item.donate ? 'text-pink-400 animate-pulse' :
                   item.highlight ? 'text-yellow-400' :
                   item.quick ? (showQuickCommands ? 'text-yellow-400' : 'text-orange-400/70') :
-                  item.imiei ? (showIMiei ? 'text-yellow-400' : (isActive ? 'text-yellow-400' : 'text-gray-500')) :
+                  item.imiei ? (showIMiei ? 'text-blue-300' : (isActive ? 'text-blue-300' : 'text-blue-400')) :
+                  item.radio ? (item.locked ? 'text-gray-600 opacity-60' : 'text-red-400 hover:text-red-300') :
                   isActive ? 'text-yellow-400' : 'text-gray-500'
                 }`}
                 style={item.donate ? { animationDuration: '2s' } : {}}
                 onClick={() => item.action ? item.action() : navigate(item.path)}
                 data-testid={item.testid}
               >
-                <item.icon className="w-3.5 h-3.5" />
+                <div className="relative">
+                  <item.icon className="w-3.5 h-3.5" />
+                  {item.radio && item.locked && (
+                    <Lock className="w-2 h-2 absolute -bottom-0.5 -right-0.5 text-gray-400" strokeWidth={3} />
+                  )}
+                </div>
                 <span className="text-[6.5px] leading-tight mt-0.5 truncate w-full text-center">{item.label}</span>
               </button>
             );
           })}
         </div>
       </div>
+
+      {/* Popup selezione stazioni radio (triggered dall'icona Radio della bottom nav) */}
+      <RadioStationsPopup open={showRadioPopup} onClose={() => setShowRadioPopup(false)} />
     </>
   );
 };
@@ -597,9 +633,10 @@ const GlobalSideMenu = () => {
   const goProduci = () => { setOpen(false); openProductionMenu(true); };
 
   const menuItems = [
-    { icon: Camera, label: "Produci", action: goProduci, badge: menuBadges.produci > 0 },
+    { icon: Video, label: "Produci", action: goProduci, badge: menuBadges.produci > 0 },
     { icon: Pen, label: "Sceneggiature", action: () => go('/emerging-screenplays') },
     { icon: Store, label: "Mercato", action: () => go('/marketplace') },
+    { icon: Trophy, label: "Sfide & Medaglie", action: () => go('/challenges') },
     { icon: Tv, label: "Le mie TV", action: () => go('/my-tv') },
     { icon: Building, label: "Infrastrutture", action: () => go('/infrastructure') },
     ...(categories.has_strutture ? [{ icon: Building2, label: "Strutture", action: () => go('/strutture') }] : []),
@@ -754,7 +791,7 @@ const TitoliDiCoda = ({ open, setOpen, navItems, user, navigate, logout, languag
         {/* Header - FIXED */}
         <div className="flex-shrink-0 bg-[#0F0F10]/95 backdrop-blur-md z-10 flex items-center justify-between px-4 py-3 border-b border-white/5">
           <div className="flex items-center gap-2">
-            <Clapperboard className="w-5 h-5 text-yellow-500" />
+            <Video className="w-5 h-5 text-yellow-500" />
             <span className="font-['Bebas_Neue'] text-base tracking-widest text-gray-300">Titoli di Coda</span>
           </div>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400" onClick={() => setOpen(false)}>
@@ -782,12 +819,18 @@ const TitoliDiCoda = ({ open, setOpen, navItems, user, navigate, logout, languag
             <p className="text-[9px] text-gray-500 uppercase tracking-widest font-semibold mb-2 px-1">Navigazione</p>
             <div className="grid grid-cols-4 gap-1.5">
               {navItems.filter(i => !i.locked).map(item => (
-                <button key={item.path}
-                  className="flex flex-col items-center gap-1 py-2.5 rounded-lg border border-white/5 text-gray-400 text-[8px] hover:bg-white/5 hover:text-white transition-all"
+                <button key={`${item.path}-${item.label}`}
+                  className="relative flex flex-col items-center gap-1 py-2 px-1 rounded-lg border border-white/5 text-gray-400 text-[8px] hover:bg-white/5 hover:text-white transition-all"
                   onClick={() => { navigate(item.path); setOpen(false); }}
+                  data-testid={`tdc-${item.label}`}
                 >
-                  <item.icon className="w-4 h-4" />
-                  <span className="truncate w-full text-center px-0.5">{typeof item.label === 'string' && item.label.length > 12 ? item.label.slice(0, 12) + '..' : item.label}</span>
+                  <item.icon className="w-3.5 h-3.5" />
+                  <span className="truncate w-full text-center px-0.5 leading-tight">{typeof item.label === 'string' && item.label.length > 11 ? item.label.slice(0, 11) + '..' : item.label}</span>
+                  {item.notificationCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 px-1 bg-red-500 rounded-full text-[8px] font-bold text-white flex items-center justify-center">
+                      {item.notificationCount > 9 ? '9+' : item.notificationCount}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -1135,7 +1178,7 @@ const TopNavbar = () => {
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'dashboard' },
     { path: '/films', icon: Film, label: 'my_films' },
-    { path: '/create-film', icon: Clapperboard, label: language === 'it' ? 'Produci Film' : 'Produce Film' },
+    { path: '/create-film', icon: Video, label: language === 'it' ? 'Produci Film' : 'Produce Film' },
     { path: '/create-sequel', icon: Copy, label: language === 'it' ? 'Sequel' : 'Sequel' },
     { path: '/create-series', icon: Tv, label: 'Serie TV', locked: !productionUnlocks?.has_studio_serie_tv },
     { path: '/create-anime', icon: Sparkles, label: 'Anime', locked: !productionUnlocks?.has_studio_anime },
@@ -1156,6 +1199,23 @@ const TopNavbar = () => {
     { path: '/minigiochi', icon: Gamepad2, label: language === 'it' ? 'Minigiochi + Sfide' : 'Minigames + VS' },
     { path: '/leaderboard', icon: BarChart3, label: 'leaderboard' },
     { path: '/pvp-arena', icon: Target, label: 'Arena' },
+    { path: '/major', icon: Crown, label: language === 'it' ? 'Major' : 'Major' },
+    { path: '/events/la-prima', icon: Trophy, label: language === 'it' ? 'La Prima' : 'La Prima' },
+    { path: '/events/trailers', icon: Sparkles, label: language === 'it' ? 'Ev. Trailer' : 'Trailer Ev.' },
+    { path: '/event-history', icon: Zap, label: language === 'it' ? 'Eventi' : 'Events' },
+    { path: '/creator-board', icon: Palette, label: language === 'it' ? 'Creator' : 'Creator' },
+    { path: '/statistics', icon: BarChart3, label: language === 'it' ? 'Statistiche' : 'Statistics' },
+    { path: '/friends', icon: Users, label: language === 'it' ? 'Amici' : 'Friends' },
+    { path: '/notifications', icon: Bell, label: language === 'it' ? 'Notifiche' : 'Notifications' },
+    { path: '/parco-studio', icon: Camera, label: language === 'it' ? 'Parco Studio' : 'Studio Lot' },
+    { path: '/strutture', icon: Briefcase, label: language === 'it' ? 'Strutture' : 'Buildings' },
+    { path: '/agenzia', icon: Users, label: language === 'it' ? 'Agenzia' : 'Agency' },
+    { path: '/strategico', icon: Rocket, label: language === 'it' ? 'Strategia' : 'Strategy' },
+    { path: '/finanze', icon: Landmark, label: language === 'it' ? 'Finanza' : 'Finance' },
+    { path: '/banca', icon: Landmark, label: language === 'it' ? 'Banca' : 'Bank' },
+    { path: '/drafts', icon: Pen, label: language === 'it' ? 'Bozze' : 'Drafts' },
+    { path: '/tv-stations', icon: Radio, label: language === 'it' ? 'TV Stations' : 'TV Stations' },
+    { path: '/medals', icon: Medal, label: language === 'it' ? 'Medaglie' : 'Medals' },
     { path: '/chat', icon: MessageSquare, label: 'chat' },
     { path: '/releases', icon: Megaphone, label: 'release_notes', frozen: true },
     { path: '/feedback', icon: Lightbulb, label: 'feedback' },
@@ -1176,94 +1236,110 @@ const TopNavbar = () => {
       <div className="max-w-7xl mx-auto h-11 px-0.5 flex items-center justify-between">
         {/* 8 icone principali: CIACK HOME PRODUCI ARENA LE MIE TV MAJOR CHAT NOTIFICHE */}
         <div className="flex items-center gap-0 w-full justify-between">
-          {/* CIACK */}
-          <Button variant="ghost" size="sm" className="relative flex flex-col h-7 w-7 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
+          {/* CIACK — apre SideMenu (foto 3: drawer con filmstrip, Produci/Sceneggiature/Mercato/...) */}
+          <Button variant="ghost" size="sm" className="relative flex flex-col h-10 w-8 p-0 text-yellow-500 hover:text-yellow-400 flex-shrink-0"
             onClick={() => { window.dispatchEvent(new Event('global-sidemenu-toggle')); if (typeof navigator !== 'undefined' && navigator.vibrate) try { navigator.vibrate(15); } catch {} }}
             data-testid="ciack-btn" aria-label="Menu">
-            <Clapperboard className="w-4 h-4" />
-            <ChevronDown className="w-2 h-2 opacity-50 -mt-0.5 animate-bounce" style={{ animationDuration: '2s' }} />
-            {(prodCounts.total > 0) && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
+            <Clapperboard className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Menù</span>
+            {(prodCounts.total > 0) && <span className="absolute top-0 -right-0.5 w-2 h-2 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.5)]" />}
           </Button>
           {/* HOME */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/dashboard' ? 'text-yellow-400' : 'text-gray-400 hover:text-white'}`}
             onClick={() => navigate('/dashboard')} data-testid="home-btn" aria-label="Home">
             <Home className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Home</span>
           </Button>
           {/* PRODUCI — gold, pulse when active */}
-          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 text-yellow-500 hover:text-yellow-400 ${prodCounts.total > 0 ? 'animate-pulse' : ''}`}
+          <Button variant="ghost" size="sm" className={`relative flex flex-col h-10 w-8 p-0 flex-shrink-0 text-yellow-500 hover:text-yellow-400 ${prodCounts.total > 0 ? 'animate-pulse' : ''}`}
             style={prodCounts.total > 0 ? { animationDuration: '2.5s' } : {}}
             onClick={() => setShowProductionMenu(!showProductionMenu)} data-testid="top-nav-produci" aria-label="Produci">
-            <Camera className="w-3.5 h-3.5" />
+            <Video className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Produci</span>
             {prodCounts.total > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[10px] h-2.5 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute top-0 -right-0.5 min-w-[10px] h-2.5 px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full flex items-center justify-center">
                 {prodCounts.total > 9 ? '9+' : prodCounts.total}
               </span>
             )}
           </Button>
           {/* ARENA */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/pvp-arena' ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}`}
             onClick={() => navigate('/pvp-arena')} data-testid="top-nav-arena" aria-label="Arena">
             <Target className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Arena</span>
           </Button>
           {/* LE MIE TV */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/my-tv' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/my-tv' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/my-tv')} data-testid="top-nav-tv" aria-label="Le Mie TV">
             <Tv className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Le Mie TV</span>
           </Button>
           {/* MAJOR */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/major' ? 'text-purple-400' : 'text-gray-400 hover:text-purple-400'}`}
             onClick={() => navigate('/major')} data-testid="top-nav-major" aria-label="Major">
             <Crown className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Major</span>
           </Button>
           {/* INFRA */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/infrastructure' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/infrastructure' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/infrastructure')} data-testid="top-nav-infra" aria-label="Infrastrutture">
             <Building className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Infra</span>
           </Button>
           {/* 3D PARCO STUDIO */}
-          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/parco-studio' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`relative flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/parco-studio' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/parco-studio')} data-testid="top-nav-parco3d" aria-label="Parco Studio 3D">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
               <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
             </svg>
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Parco 3D</span>
           </Button>
           {/* CHAT */}
-          <Button variant="ghost" size="sm" className={`flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
+          <Button variant="ghost" size="sm" className={`flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/chat' ? 'text-cyan-400' : 'text-gray-400 hover:text-cyan-400'}`}
             onClick={() => navigate('/chat')} data-testid="top-nav-chat" aria-label="Chat">
             <MessageSquare className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Chat</span>
           </Button>
           {/* NOTIFICHE */}
-          <Button variant="ghost" size="sm" className={`relative flex h-7 w-7 p-0 flex-shrink-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+          <Button variant="ghost" size="sm" className={`relative flex flex-col h-10 w-8 p-0 flex-shrink-0 ${location.pathname === '/notifications' ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
             onClick={() => navigate('/notifications')} data-testid="top-nav-notifiche" aria-label="Notifiche">
             <Bell className="w-3.5 h-3.5" />
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">Notifiche</span>
             {notificationCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute top-0 -right-0.5 min-w-[12px] h-3 px-0.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
                 {notificationCount > 9 ? '9+' : notificationCount}
               </span>
             )}
           </Button>
-          {/* Funds */}
-          <div className="flex items-center bg-yellow-500/10 px-0.5 py-0 rounded border border-yellow-500/20 flex-shrink-0">
-            <DollarSign className="w-2 h-2 text-yellow-500" />
-            <span className="text-yellow-500 font-bold text-[7px]" data-testid="user-funds">
-              {user?.funds >= 1000000 ? `${(user?.funds / 1000000).toFixed(1)}M` : user?.funds >= 1000 ? `${(user?.funds / 1000).toFixed(0)}K` : user?.funds?.toLocaleString() || '0'}
-            </span>
-          </div>
+          {/* Funds (Wallet Badge with delta arrows) */}
+          <WalletBadge onClick={() => navigate('/finanze')} />
           {/* CinePass */}
-          <div className="flex items-center bg-cyan-500/10 px-0.5 py-0 rounded border border-cyan-500/20 flex-shrink-0">
-            <Ticket className="w-2 h-2 text-cyan-400" />
-            <span className="text-cyan-400 font-bold text-[7px]" data-testid="cinepass-balance">{user?.cinepass ?? 100}</span>
+          <div className="flex flex-col items-center bg-cyan-500/10 px-1 py-0.5 rounded border border-cyan-500/20 flex-shrink-0">
+            <div className="flex items-center">
+              <Ticket className="w-2 h-2 text-cyan-400" />
+              <span className="text-cyan-400 font-bold text-[7px]" data-testid="cinepass-balance">{user?.cinepass ?? 100}</span>
+            </div>
+            <span className="text-[6px] text-cyan-400/70 leading-none">CinePass</span>
           </div>
           {/* Online Users — opens panel */}
-          <Button variant="ghost" size="sm" className="flex h-7 w-7 p-0 text-green-400/70 hover:text-green-400 flex-shrink-0"
+          <Button variant="ghost" size="sm" className="relative flex flex-col h-10 w-8 p-0 text-green-400/70 hover:text-green-400 flex-shrink-0"
             onClick={() => setShowOnlineUsersPanel(!showOnlineUsersPanel)} data-testid="top-nav-online" aria-label="Utenti Online">
-            <Users className="w-3.5 h-3.5" />
+            <div className="relative flex items-center justify-center">
+              <Users className="w-3.5 h-3.5" />
+              {onlineUsersCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.8)] animate-pulse" />
+              )}
+            </div>
+            <span className="text-[7px] leading-none mt-0.5 truncate w-full text-center">
+              <span className="text-green-400 font-bold" data-testid="online-count-badge">{onlineUsersCount}</span>
+              <span className="text-gray-400"> online</span>
+            </span>
           </Button>
         </div>
       </div>
 
-      {showGameTutorial && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
+      {showGameTutorial && !(user?.is_guest && !user?.tutorial_completed) && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
 
       {/* Online Users Panel */}
       {showOnlineUsersPanel && (
@@ -1299,7 +1375,12 @@ const TopNavbar = () => {
                         <p className="text-[8px] text-green-500 font-bold uppercase tracking-widest px-1 mb-1">Online ({onlineReal.length})</p>
                         {onlineReal.map(u => (
                           <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
-                            onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
+                            onClick={() => {
+                              const uid = u.id || u.user_id;
+                              if (!uid) { toast.error('Profilo non disponibile'); return; }
+                              setShowOnlineUsersPanel(false);
+                              openPlayerPopup(uid);
+                            }}>
                             <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 shadow-[0_0_4px_rgba(74,222,128,0.5)]" />
                             <span className="text-xs text-gray-200 truncate flex-1">{u.nickname}</span>
                             {u.level > 0 && <span className="text-[8px] text-gray-500">Lv.{u.level}</span>}
@@ -1312,7 +1393,12 @@ const TopNavbar = () => {
                       <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest px-1 mb-1">Offline ({offlinePlayers.length})</p>
                       {offlinePlayers.slice(0, 30).map(u => (
                         <div key={u.id || u.nickname} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
-                          onClick={() => { openPlayerPopup(u.id || u.user_id); setShowOnlineUsersPanel(false); }}>
+                          onClick={() => {
+                            const uid = u.id || u.user_id;
+                            if (!uid) { toast.error('Profilo non disponibile'); return; }
+                            setShowOnlineUsersPanel(false);
+                            openPlayerPopup(uid);
+                          }}>
                           <div className="w-2 h-2 rounded-full bg-gray-600 flex-shrink-0" />
                           <span className="text-xs text-gray-400 truncate flex-1">{u.nickname}</span>
                           {u.level > 0 && <span className="text-[8px] text-gray-600">Lv.{u.level}</span>}
@@ -1343,7 +1429,7 @@ const TopNavbar = () => {
             </div>
             <div className="grid grid-cols-3 gap-2 p-3">
               {[
-                { icon: Camera, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400', count: prodCounts.film },
+                { icon: Video, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400', count: prodCounts.film },
                 { icon: Copy, label: 'Sequel', path: '/create-sequel', color: 'bg-orange-500/15 border-orange-500/30 text-orange-400', count: 0 },
                 { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', count: prodCounts.series },
                 { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400', count: prodCounts.anime },
@@ -1425,13 +1511,19 @@ const ChallengeNotificationHandler = ({ api, user, navigate }) => {
 
 
 // ═══ PLAYER PROFILE POPUP — Stats + Messaggia + Sfida Minigiochi ═══
-const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
+const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) => {
   const confirm = useConfirm();
   const p = data.profile;
   const [showGames, setShowGames] = useState(false);
   const [gamesList, setGamesList] = useState([]);
   const [challengeLoading, setChallengeLoading] = useState('');
+  const [showFilmography, setShowFilmography] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [followersCount, setFollowersCount] = useState(p?.followers_count || 0);
+  const followingCount = p?.following_count || 0;
   const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+  const isSelf = user?.id === data.userId;
 
   // Fetch all minigames from backend
   useEffect(() => {
@@ -1439,6 +1531,33 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
       api.get('/api/arcade/games').then(r => setGamesList(Array.isArray(r.data) ? r.data : r.data || [])).catch(() => {});
     }
   }, [showGames, gamesList.length, api]);
+
+  // Fetch follow status
+  useEffect(() => {
+    if (!isSelf && data.userId) {
+      api.get(`/players/${data.userId}/is-following`)
+        .then(r => setIsFollowing(!!r.data?.is_following))
+        .catch(() => {});
+    }
+  }, [data.userId, isSelf, api]);
+
+  const toggleFollow = async () => {
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        await api.delete(`/follow/${data.userId}`);
+        setIsFollowing(false);
+        setFollowersCount(c => Math.max(0, c - 1));
+        toast.success(`Non segui più ${p.nickname}`);
+      } else {
+        await api.post(`/follow/${data.userId}`);
+        setIsFollowing(true);
+        setFollowersCount(c => c + 1);
+        toast.success(`Ora segui ${p.nickname}!`);
+      }
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setFollowLoading(false); }
+  };
 
   const handleMessage = async () => {
     const ok = await confirm({ title: `Messaggia ${p.nickname}?`, subtitle: 'Verrai portato nella chat privata.', confirmLabel: 'Vai alla chat', cancelLabel: 'Annulla' });
@@ -1459,21 +1578,61 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
   };
 
   const avatarSrc = p.avatar_url?.startsWith('data:') ? p.avatar_url : p.avatar_url?.startsWith('/') ? `${BACKEND_URL}${p.avatar_url}` : p.avatar_url;
+  const logoSrc = p.logo_url?.startsWith('data:') ? p.logo_url : p.logo_url?.startsWith('/') ? `${BACKEND_URL}${p.logo_url}` : p.logo_url;
+  // best_film ora arriva dall'endpoint /players/:id/profile come oggetto { title, quality_score, cwsv_display }
+  const bestFilmTitle = typeof p.best_film === 'string' ? p.best_film : p.best_film?.title;
+  const bestFilmCwsv = typeof p.best_film === 'object' ? p.best_film?.cwsv_display : p.best_cwsv_display;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative w-full max-w-sm bg-[#111113] rounded-2xl border border-yellow-500/20 overflow-hidden" onClick={e => e.stopPropagation()} data-testid="player-profile-popup">
-        {/* Header with avatar */}
+        {/* Header with avatar + logo */}
         <div className="relative p-4 bg-gradient-to-b from-yellow-500/10 to-transparent">
           <button onClick={onClose} className="absolute top-2 right-2 text-gray-500"><X className="w-5 h-5" /></button>
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-full border-2 border-yellow-500/40 overflow-hidden bg-gray-800 flex items-center justify-center flex-shrink-0">
-              {avatarSrc ? <img src={avatarSrc} alt="" className="w-full h-full object-cover" /> : <span className="text-yellow-400 font-bold text-xl">{(p.nickname || '?')[0]}</span>}
-            </div>
+            <button
+              onClick={() => { onClose(); navigate(`/player/${data.userId}/content`); }}
+              className="focus:outline-none hover:scale-105 transition-transform"
+              title="Vai ai contenuti del produttore"
+              data-testid="popup-avatar-studio-link">
+              <AvatarWithLogo avatarUrl={avatarSrc} logoUrl={logoSrc} nickname={p.nickname} size="sm" />
+            </button>
             <div>
-              <h3 className="font-['Bebas_Neue'] text-xl text-yellow-400 tracking-wide">{p.nickname}</h3>
-              {p.production_house_name && <p className="text-[10px] text-gray-400">{p.production_house_name}</p>}
+              <div className="flex items-center gap-2">
+                <h3 className="font-['Bebas_Neue'] text-xl text-yellow-400 tracking-wide">{p.nickname}</h3>
+                {!isSelf && (
+                  <button
+                    onClick={toggleFollow}
+                    disabled={followLoading}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[8px] font-bold transition-colors disabled:opacity-50 ${
+                      isFollowing
+                        ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'
+                        : 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20'
+                    }`}
+                    data-testid="popup-follow-btn">
+                    {isFollowing ? <UserCheck className="w-2.5 h-2.5" /> : <UserPlus className="w-2.5 h-2.5" />}
+                    {isFollowing ? 'Seguito' : 'Segui'}
+                  </button>
+                )}
+              </div>
+              {p.production_house_name && (
+                <button
+                  onClick={() => { onClose(); navigate(`/player/${data.userId}/content`); }}
+                  className="text-[10px] text-gray-400 hover:text-yellow-400 underline decoration-dotted decoration-gray-600 hover:decoration-yellow-400 transition-colors"
+                  data-testid="popup-studio-link">
+                  {p.production_house_name}
+                </button>
+              )}
+              <div className="flex items-center gap-2 mt-0.5" data-testid="popup-social-counts">
+                <span className="text-[9px] text-gray-500">
+                  <span className="text-white font-bold">{followersCount.toLocaleString()}</span> follower
+                </span>
+                <span className="text-gray-700">·</span>
+                <span className="text-[9px] text-gray-500">
+                  <span className="text-white font-bold">{followingCount.toLocaleString()}</span> seguiti
+                </span>
+              </div>
               <div className="flex items-center gap-2 mt-0.5">
                 {p.level && <span className="text-[8px] font-bold text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded px-1 py-0.5">LV {p.level}</span>}
                 {p.fame != null && <span className="text-[8px] text-amber-400/70 bg-amber-500/10 border border-amber-500/15 rounded px-1 py-0.5">Fama {p.fame?.toLocaleString()}</span>}
@@ -1488,9 +1647,9 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
           <div className="grid grid-cols-4 gap-1.5">
             {[
               { label: 'Film', value: p.total_films || 0, color: 'text-yellow-400' },
-              { label: 'Incassi', value: p.total_revenue ? `$${p.total_revenue >= 1e6 ? `${(p.total_revenue/1e6).toFixed(1)}M` : `${Math.floor(p.total_revenue/1000)}K`}` : '$0', color: 'text-green-400' },
-              { label: 'Spettatori', value: p.total_spectators ? (p.total_spectators >= 1e6 ? `${(p.total_spectators/1e6).toFixed(1)}M` : `${Math.floor(p.total_spectators/1000)}K`) : '0', color: 'text-cyan-400' },
-              { label: 'Qualità', value: `${Math.round(p.average_quality || 0)}%`, color: 'text-blue-400' },
+              { label: 'Serie TV', value: p.total_series || 0, color: 'text-blue-400' },
+              { label: 'Anime', value: p.total_anime || 0, color: 'text-pink-400' },
+              { label: 'CWSv', value: p.avg_cwsv > 0 ? (p.avg_cwsv % 1 === 0 ? p.avg_cwsv : p.avg_cwsv.toFixed(1)) : '—', color: 'text-amber-400' },
             ].map(s => (
               <div key={s.label} className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
                 <p className={`text-[11px] font-bold ${s.color}`}>{s.value}</p>
@@ -1498,10 +1657,56 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
               </div>
             ))}
           </div>
-          {p.best_film && (
-            <div className="mt-1.5 flex items-center gap-2 px-2 py-1 bg-white/[0.02] rounded border border-white/5">
-              <Film className="w-3 h-3 text-yellow-500/50" />
-              <p className="text-[8px] text-gray-400">Miglior Film: <span className="text-white font-bold">{p.best_film}</span></p>
+          <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[11px] font-bold text-green-400">{p.total_revenue ? `$${p.total_revenue >= 1e6 ? `${(p.total_revenue/1e6).toFixed(1)}M` : `${Math.floor(p.total_revenue/1000)}K`}` : '$0'}</p>
+              <p className="text-[7px] text-gray-600">Revenue</p>
+            </div>
+            <div className="text-center p-1.5 rounded bg-white/[0.03] border border-white/5">
+              <p className="text-[11px] font-bold text-cyan-400">{(p.total_films || 0) + (p.total_series || 0) + (p.total_anime || 0)}</p>
+              <p className="text-[7px] text-gray-600">Produzioni</p>
+            </div>
+          </div>
+          {bestFilmTitle && (
+            <div className="mt-2 p-2 rounded-lg bg-gradient-to-br from-yellow-500/10 to-yellow-500/5 border border-yellow-500/20" data-testid="popup-best-production">
+              <p className="text-[7px] text-gray-500 uppercase tracking-wider font-bold mb-1">Miglior Produzione</p>
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-bold text-white truncate">{bestFilmTitle}</p>
+                  {bestFilmCwsv && <p className="text-[9px] text-yellow-400">CWSv {bestFilmCwsv}</p>}
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Filmografia collassabile */}
+          {Array.isArray(p.filmography) && p.filmography.length > 0 && (
+            <div className="mt-2" data-testid="popup-filmography">
+              <button
+                onClick={() => setShowFilmography(v => !v)}
+                className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-colors"
+                data-testid="popup-filmography-toggle">
+                <span className="text-[8px] text-gray-500 uppercase tracking-wider font-bold">Filmografia recente ({p.filmography.length})</span>
+                <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform ${showFilmography ? 'rotate-180' : ''}`} />
+              </button>
+              {showFilmography && (
+                <div className="mt-1 space-y-0.5 rounded-lg bg-white/[0.02] border border-white/5 p-2">
+                  {p.filmography.slice(0, 5).map((f, i) => {
+                    const TypeIcon = f.type === 'anime' ? Sparkles : f.type === 'tv_series' ? Tv : Film;
+                    const typeColor = f.type === 'anime' ? 'text-pink-400' : f.type === 'tv_series' ? 'text-blue-400' : 'text-yellow-400';
+                    const cwsvNum = f.quality_score || 0;
+                    const cwsvColor = cwsvNum >= 8 ? 'text-yellow-400' : cwsvNum >= 6 ? 'text-green-400' : cwsvNum >= 4 ? 'text-orange-400' : 'text-red-400';
+                    return (
+                      <div key={i} className="flex items-center gap-2 py-1">
+                        <span className="text-[8px] text-gray-600 w-3">{i + 1}.</span>
+                        <TypeIcon className={`w-2.5 h-2.5 ${typeColor} flex-shrink-0`} />
+                        <span className="text-[10px] text-gray-300 flex-1 truncate">{f.title}</span>
+                        <span className={`text-[10px] font-bold ${cwsvColor}`}>{f.cwsv_display || '—'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
           {p.challenge_stats && (
@@ -1515,6 +1720,7 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
         {/* Action buttons */}
         <div className="px-4 pb-3 space-y-1.5">
           {!showGames ? (
+            <>
             <div className="flex gap-2">
               <button onClick={handleMessage} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500/20 transition-colors text-[10px] font-bold" data-testid="popup-message-btn">
                 <MessageCircle className="w-3.5 h-3.5" /> Messaggia
@@ -1523,6 +1729,17 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user }) => {
                 <Swords className="w-3.5 h-3.5" /> Sfida
               </button>
             </div>
+            {onCompare && data.userId !== user?.id && (
+              <button onClick={() => onCompare(data.userId)} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-500/10 border border-purple-500/25 text-purple-400 hover:bg-purple-500/20 transition-colors text-[10px] font-bold" data-testid="popup-compare-btn">
+                <BarChart3 className="w-3.5 h-3.5" /> Confronta con me
+              </button>
+            )}
+            {data.userId !== user?.id && (
+              <button onClick={() => { onClose(); navigate(`/player/${data.userId}/content`); }} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20 transition-colors text-[10px] font-bold" data-testid="popup-view-content-btn">
+                <Film className="w-3.5 h-3.5" /> I Suoi Contenuti
+              </button>
+            )}
+            </>
           ) : (
             <div className="space-y-1">
               <p className="text-[9px] text-gray-400 font-bold">Scegli minigioco:</p>
@@ -1561,6 +1778,7 @@ const ProtectedRoute = ({ children }) => {
   const [showAutonomy, setShowAutonomy] = useState(false);
   const [showGameTutorial, setShowGameTutorial] = useState(false);
   const [showDashboardTour, setShowDashboardTour] = useState(false);
+  const [compareProducerId, setCompareProducerId] = useState(null);
 
   // Listen for player popup events from ContentTemplate and other components
   useEffect(() => {
@@ -1663,20 +1881,33 @@ const ProtectedRoute = ({ children }) => {
   }, [user, api]);
   
   const openPlayerPopup = async (userId) => {
-    if (!userId || userId === user?.id) return;
+    // Bug guard: se non c'è userId, avvertiamo invece di chiudere silenziosamente
+    if (!userId) {
+      toast.error('Profilo non disponibile');
+      return;
+    }
+    // Se è il proprio profilo, porta l'utente direttamente alla propria pagina profilo
+    if (userId === user?.id) {
+      navigate('/profile');
+      return;
+    }
     setPopupData({ userId, loading: true });
     try {
+      // Usa lo stesso endpoint del popup produttore (da locandina film): funziona su tutti i giocatori
       const [profileRes, friendRes] = await Promise.all([
-        api.get(`/users/${userId}/full-profile`),
-        api.get(`/friends/status/${userId}`)
+        api.get(`/players/${userId}/profile`),
+        api.get(`/friends/status/${userId}`).catch(() => ({ data: { status: 'none' } }))
       ]);
-      setPopupData({ userId, profile: profileRes.data, friendStatus: friendRes.data, loading: false });
+      const profile = profileRes.data || {};
+      setPopupData({ userId, profile, friendStatus: friendRes.data, loading: false });
     } catch(e) {
+      console.warn('openPlayerPopup failed', e);
+      toast.error('Impossibile caricare il profilo');
       setPopupData(null);
     }
   };
   
-  if (loading) return <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center"><Clapperboard className="w-10 h-10 text-yellow-500 animate-pulse" /></div>;
+  if (loading) return <div className="min-h-screen bg-[#0F0F10] flex items-center justify-center"><Video className="w-10 h-10 text-yellow-500 animate-pulse" /></div>;
   if (!user) return <Navigate to="/auth" replace />;
 
   return (
@@ -1684,11 +1915,16 @@ const ProtectedRoute = ({ children }) => {
     <PlayerPopupContext.Provider value={{ openPlayerPopup, popupData, setPopupData }}>
       <TopNavbar />
       <GlobalSideMenu />
+      <GuestRegisterDialog />
+      <FilmActionsSheet />
       <SwipeNavigator />
       <LoginRewardPopup />
       <AutoTickNotifications api={api} />
+      <LevelUpToast />
+      <PrestigeTierToast />
+      <CinematicCurtainReveal />
       <div className="main-content-push" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-      <StickyPageHeader />
+      <UserStripBanner />
       <AnimatePresence>
         <PageTransition key={location.pathname}>
           <ErrorBoundary>
@@ -1756,13 +1992,13 @@ const ProtectedRoute = ({ children }) => {
       </>
       )}
       <VelionPanel
-        open={showTutorial}
+        open={showTutorial && !(user?.is_guest && !user?.tutorial_completed)}
         onClose={() => setShowTutorial(false)}
         onNavigate={(path) => { navigate(path); setShowTutorial(false); }}
         defaultTab={velionTab}
       />
-      {showGameTutorial && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
-      {showDashboardTour && <DashboardTour onClose={() => setShowDashboardTour(false)} />}
+      {showGameTutorial && !(user?.is_guest && !user?.tutorial_completed) && <TutorialModal onClose={() => setShowGameTutorial(false)} />}
+      {showDashboardTour && !(user?.is_guest && !user?.tutorial_completed) && <DashboardTour onClose={() => setShowDashboardTour(false)} />}
 
       {/* Autonomy Prompt */}
       <AnimatePresence>
@@ -1807,9 +2043,22 @@ const ProtectedRoute = ({ children }) => {
       </AnimatePresence>
 
       {/* ═══ PLAYER PROFILE POPUP ═══ */}
-      {popupData && !popupData.loading && popupData.profile && (
-        <PlayerProfilePopup data={popupData} onClose={() => setPopupData(null)} navigate={navigate} api={api} user={user} />
+      {popupData && popupData.loading && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center px-4" onClick={() => setPopupData(null)} data-testid="player-profile-loading">
+          <div className="absolute inset-0 bg-black/60" />
+          <div className="relative bg-[#111113] rounded-2xl border border-yellow-500/20 p-6 flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-yellow-400 animate-spin" />
+            <span className="text-sm text-gray-300">Caricamento profilo…</span>
+          </div>
+        </div>
       )}
+      {popupData && !popupData.loading && popupData.profile && (
+        <PlayerProfilePopup data={popupData} onClose={() => setPopupData(null)} navigate={navigate} api={api} user={user}
+          onCompare={(pid) => { setPopupData(null); setCompareProducerId(pid); }} />
+      )}
+
+      {/* ═══ COMPARE PRODUCERS MODAL ═══ */}
+      <CompareProducersModal open={!!compareProducerId} onClose={() => setCompareProducerId(null)} compareWithId={compareProducerId} />
 
       {/* ═══ CHALLENGE NOTIFICATION POPUP ═══ */}
       <ChallengeNotificationHandler api={api} user={user} navigate={navigate} />
@@ -1872,7 +2121,9 @@ const UrlManager = ({ children }) => {
           </button>
         </div>
       )}
+      <PullToRefresh>
       {children}
+      </PullToRefresh>
     </>
   );
 };
@@ -1902,74 +2153,7 @@ const LogoutConfirmHandler = () => {
   return null;
 };
 
-// ═══ STICKY PAGE HEADER — back arrow + title, fixed below TopNavbar ═══
-const PAGE_TITLES = {
-  '/films': 'I Miei Film',
-  '/create-film': 'Produci Film',
-  '/create': 'Produci Film',
-  '/pipeline-v2': 'Pipeline Film',
-  '/create-series': 'Produci Serie TV',
-  '/create-anime': 'Produci Anime',
-  '/create-sequel': 'Sequel',
-  '/create-legacy': 'Pipeline Classica',
-  '/my-tv': 'La Mia TV',
-  '/tv-stations': 'Emittenti TV',
-  '/marketplace': 'Mercato',
-  '/drafts': 'Bozze',
-  '/emerging-screenplays': 'Sceneggiature',
-  '/journal': 'CineJournal',
-  '/stars': 'Star Scoperte',
-  '/releases': 'Note di Rilascio',
-  '/feedback': 'Feedback',
-  '/social': 'CineBoard',
-  '/games': 'Contest',
-  '/contest': 'Contest',
-  '/minigiochi': 'Minigiochi + Sfide',
-  '/chat': 'Chat',
-  '/statistics': 'Statistiche',
-  '/profile': 'Profilo',
-  '/creator-board': 'Creator Board',
-  '/infrastructure': 'Infrastrutture',
-  '/parco-studio': 'Parco Studio 3D',
-  '/strutture': 'Strutture',
-  '/agenzia': 'Agenzia & Talenti',
-  '/strategico': 'Div. Strategiche',
-  '/acting-school': 'Scuola di Recitazione',
-  '/casting-agency': 'Agenzia Casting',
-  '/tour': 'Cinema Tour',
-  '/leaderboard': 'Classifiche',
-  '/tutorial': 'Tutorial',
-  '/system-notes': 'Note di Sistema',
-  '/admin': 'Admin Panel',
-  '/sagas': 'Saghe & Serie',
-  '/festivals': 'Festival',
-  '/credits': 'Titoli di Coda',
-  '/hq': 'Quartier Generale',
-  '/pvp-arena': 'Arena PvP',
-  '/major': 'Major',
-  '/event-history': 'Storico Eventi',
-  '/friends': 'Amici',
-  '/notifications': 'Notifiche',
-};
-
-const StickyPageHeader = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const path = location.pathname;
-  if (path === '/dashboard' || path === '/' || path.startsWith('/auth') || path.startsWith('/films/') || path.startsWith('/series/') || path.startsWith('/player/') || path.startsWith('/tv-station/') || path.startsWith('/recovery') || path.startsWith('/reset-')) return null;
-  const title = PAGE_TITLES[path];
-  if (!title) return null;
-  return (
-    <div className="sticky z-[45] bg-[#0F0F10]/95 backdrop-blur-sm border-b border-white/5 px-3 py-2 flex items-center gap-2 sidemenu-translate"
-      style={{ top: 44 }} data-testid="sticky-page-header">
-      <button onClick={() => navigate(-1)} className="flex items-center justify-center w-7 h-7 rounded-full active:scale-90 transition-transform"
-        style={{ animation: 'headerArrowPulse 2s ease-in-out infinite' }} data-testid="page-back-btn">
-        <ArrowLeft className="w-5 h-5 text-yellow-400" />
-      </button>
-      <span className="font-['Bebas_Neue'] text-sm tracking-wider text-white truncate">{title}</span>
-    </div>
-  );
-};
+// ═══ PAGE_TITLES and StickyPageHeader removed — back arrow is now in UserStripBanner ═══
 
 function App() {
   return (
@@ -1984,16 +2168,23 @@ function App() {
             <ConfirmProvider>
             <LogoutConfirmHandler />
             <NotificationProvider>
+            <RadioProvider>
             <UrlManager>
               <Toaster position="top-center" theme="dark" toastOptions={{ style: { marginTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))' } }} />
+              <RadioPromoBanner />
+              <RadioFloatingPlayer />
+              <NowPlayingBanner />
               <Routes>
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/recovery/password" element={<PasswordRecoveryPage />} />
                 <Route path="/recovery/nickname" element={<NicknameRecoveryPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/events/la-prima" element={<ProtectedRoute><LaPrimaEvents /></ProtectedRoute>} />
+                <Route path="/events/trailers" element={<ProtectedRoute><TrailerEventsPage /></ProtectedRoute>} />
                 <Route path="/films" element={<ProtectedRoute><MyFilms /></ProtectedRoute>} />
                 <Route path="/films/:id" element={<ProtectedRoute><FilmDetail /></ProtectedRoute>} />
+                <Route path="/player/:playerId/content" element={<ProtectedRoute><PlayerContentPage /></ProtectedRoute>} />
                 <Route path="/series/:id" element={<ProtectedRoute><SeriesDetail /></ProtectedRoute>} />
                 <Route path="/create" element={<ProtectedRoute><PipelineV3 /></ProtectedRoute>} />
                 <Route path="/create-film" element={<ProtectedRoute><PipelineV3 /></ProtectedRoute>} />
@@ -2007,7 +2198,13 @@ function App() {
                 <Route path="/tv-station/:stationId" element={<ProtectedRoute><TVStationPage /></ProtectedRoute>} />
                 <Route path="/tv-station-setup" element={<ProtectedRoute><TVStationPage /></ProtectedRoute>} />
                 <Route path="/tv-stations" element={<ProtectedRoute><AllTVStationsPage /></ProtectedRoute>} />
-                <Route path="/marketplace" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
+                <Route path="/marketplace" element={<ProtectedRoute><MarketV2Page /></ProtectedRoute>} />
+                <Route path="/market" element={<ProtectedRoute><MarketV2Page /></ProtectedRoute>} />
+                <Route path="/finanze" element={<ProtectedRoute><FinancePage /></ProtectedRoute>} />
+                <Route path="/spettatori" element={<ProtectedRoute><SpectatorsPage /></ProtectedRoute>} />
+                <Route path="/banca" element={<ProtectedRoute><BankPage /></ProtectedRoute>} />
+                <Route path="/challenges" element={<ProtectedRoute><MedalsChallengePage /></ProtectedRoute>} />
+                <Route path="/medals" element={<ProtectedRoute><MedalsChallengePage /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />
                 <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />
@@ -2026,7 +2223,7 @@ function App() {
                 <Route path="/infrastructure" element={<ProtectedRoute><InfrastructurePage /></ProtectedRoute>} />
                 <Route path="/parco-studio" element={<ProtectedRoute><ParcoStudioPage /></ProtectedRoute>} />
                 <Route path="/strutture" element={<ProtectedRoute><StrutturePage /></ProtectedRoute>} />
-                <Route path="/agenzia" element={<ProtectedRoute><AgenziaPage /></ProtectedRoute>} />
+                <Route path="/agenzia" element={<ProtectedRoute><CastingAgencyPage /></ProtectedRoute>} />
                 <Route path="/strategico" element={<ProtectedRoute><StrategicoPage /></ProtectedRoute>} />
                 <Route path="/acting-school" element={<ProtectedRoute><ActingSchool /></ProtectedRoute>} />
                 <Route path="/casting-agency" element={<ProtectedRoute><CastingAgencyPage /></ProtectedRoute>} />
@@ -2051,6 +2248,7 @@ function App() {
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </UrlManager>
+            </RadioProvider>
             </NotificationProvider>
             </ConfirmProvider>
           </LanguageProvider>

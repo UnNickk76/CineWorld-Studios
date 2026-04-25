@@ -8,6 +8,13 @@ import {
   Building, Sparkles, BookOpen, Clapperboard, Zap, Loader2,
   Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye
 } from 'lucide-react';
+import LikeButton, { SystemLikeBadge, PreReleaseSnapshotBadge } from './LikeButton';
+import TrailerPlayerModal from './TrailerPlayerModal';
+import PStarBanner from './PStarBanner';
+import CineConfirm from './v3/CineConfirm';
+import { Trash2 } from 'lucide-react';
+import { LampoLightning } from './LampoLightning';
+import { getPreReleasePressReviews, getPreReleaseAudience } from '../utils/preReleasePhrases';
 import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
@@ -206,23 +213,91 @@ const fmtMoney = (n) => {
 };
 
 // === STATUS MAPPING ===
+// Returns { label, cls } for the top status bar. Covers all V3 pipeline phases,
+// legacy statuses and series/anime TV broadcast state. `cls` maps to animated
+// glow variants defined in content-template.css.
 function getStatusInfo(film, contentType) {
   const s = (film?.status || '').toLowerCase();
+  const ps = (film?.pipeline_state || '').toLowerCase();
   const cinemas = film?.current_cinemas || 0;
   const onTv = film?.on_tv || film?.tv_broadcast || false;
+  const isSeriesLike = contentType === 'series' || contentType === 'anime' || film?.type === 'tv_series' || film?.type === 'anime';
 
-  if (s.includes('prima') || s === 'premiere_live' || s === 'premiere_setup') {
-    return { label: 'LaPrima!', cls: 'ct2-status-laprima' };
+  // ⚡ LAMPO — bozza pronta o uscita schedulata
+  if (s === 'lampo_ready') {
+    return {
+      label: isSeriesLike ? '⚡ LAMPO! · A breve in TV' : '⚡ LAMPO! · A breve al cinema',
+      cls: 'ct2-status-coming'
+    };
   }
+  if (s === 'lampo_scheduled') {
+    const dt = film?.scheduled_release_at || film?.released_at;
+    let when = '';
+    try {
+      if (dt) {
+        const d = new Date(dt);
+        when = d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+               ' ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+      }
+    } catch {}
+    return {
+      label: isSeriesLike ? `⚡ LAMPO! · In tutte le TV dal ${when}` : `⚡ LAMPO! · In tutti i cinema dal ${when}`,
+      cls: 'ct2-status-coming'
+    };
+  }
+
+  // 1) AL CINEMA / IN TV — release state (highest priority for released content)
+  if (cinemas > 0 || s === 'in_theaters') {
+    return { label: isSeriesLike ? 'In TV' : 'Al Cinema', cls: isSeriesLike ? 'ct2-status-ontv' : 'ct2-status-cinema' };
+  }
+  if (onTv) {
+    return { label: 'In TV', cls: 'ct2-status-ontv' };
+  }
+
+  // 2) LA PRIMA (either V3 pipeline phase, legacy status, or premiere flags)
+  if (ps === 'la_prima' || ps === 'premiere_live' || ps === 'premiere_setup' ||
+      s.includes('prima') || s === 'premiere_live' || s === 'premiere_setup') {
+    return { label: 'La Prima', cls: 'ct2-status-laprima' };
+  }
+
+  // 3) V3 pipeline phases (takes priority when present)
+  const V3_PHASE = {
+    idea: { label: 'Sceneggiatura', cls: 'ct2-status-screenplay' },
+    hype: { label: 'Hype', cls: 'ct2-status-hype' },
+    cast: { label: 'Casting', cls: 'ct2-status-cast' },
+    prep: { label: 'Pre-Produzione', cls: 'ct2-status-prep' },
+    ciak: { label: 'Riprese', cls: 'ct2-status-shooting' },
+    finalcut: { label: 'Final Cut', cls: 'ct2-status-finalcut' },
+    marketing: { label: 'Marketing', cls: 'ct2-status-marketing' },
+    distribution: { label: 'Distribuzione', cls: 'ct2-status-distribution' },
+    release_pending: { label: 'In Uscita', cls: 'ct2-status-coming' },
+  };
+  if (V3_PHASE[ps]) return V3_PHASE[ps];
+
+  // 4) Legacy statuses
   if (s === 'coming_soon' || s === 'pending_release' || s === 'release_pending' || s.includes('hype')) {
     return { label: 'Prossimamente', cls: 'ct2-status-coming' };
   }
-  if (cinemas > 0 || s === 'in_theaters') {
-    return { label: 'Al Cinema', cls: 'ct2-status-cinema' };
+  if (s === 'shooting' || s === 'in_production' || s === 'production') {
+    return { label: 'Riprese', cls: 'ct2-status-shooting' };
   }
-  if (onTv) {
-    return { label: 'In TV!', cls: 'ct2-status-tv' };
+  if (s === 'casting' || s === 'ready_for_casting') {
+    return { label: 'Casting', cls: 'ct2-status-cast' };
   }
+  if (s === 'screenplay' || s === 'draft' || s === 'proposed' || s === 'concept' || s === 'idea') {
+    return { label: 'Sceneggiatura', cls: 'ct2-status-screenplay' };
+  }
+  if (s === 'pre_production' || s === 'prep') {
+    return { label: 'Pre-Produzione', cls: 'ct2-status-prep' };
+  }
+  if (s === 'post_production' || s === 'completed' || s === 'ready_to_release') {
+    return { label: 'Post-Produzione', cls: 'ct2-status-finalcut' };
+  }
+  if (s === 'remastering') {
+    return { label: 'In Remastering', cls: 'ct2-status-finalcut' };
+  }
+
+  // 5) Fallback: released / in catalogo
   return { label: 'In Catalogo', cls: 'ct2-status-catalogo' };
 }
 
@@ -280,19 +355,24 @@ function formatDuration(film, contentType) {
     if (eps) return `${eps} episodi`;
     return null;
   }
-  const min = film?.duration_minutes;
+  const min = film?.duration_minutes || film?.film_duration_minutes;
   if (min) {
     const h = Math.floor(min / 60);
     const m = min % 60;
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m`;
   }
-  // Fallback: estimate from duration_category
-  const cat = film?.duration_category;
-  const catLabels = { cortometraggio: '~30m', feature_breve: '~60m', standard: '~110m', extended: '~170m', kolossal: '~240m' };
+  // Fallback: estimate from duration_category or duration_label
+  const cat = film?.duration_category || film?.film_duration_label;
+  const catLabels = {
+    cortometraggio: '~30m', feature_breve: '~60m', standard: '~110m', extended: '~170m', kolossal: '~240m',
+    short: '~45m', long: '~135m', epic: '~170m',
+  };
   if (cat && catLabels[cat]) return catLabels[cat];
-  // Default fallback for films without duration data
-  if (film?.pipeline_state && film.pipeline_state !== 'draft') return '~110m';
+  // Budget tier fallback
+  const tier = (film?.budget_tier || '').toLowerCase();
+  const tierLabels = { low: '~85m', mid: '~105m', high: '~125m', blockbuster: '~145m' };
+  if (tier && tierLabels[tier]) return tierLabels[tier];
   return null;
 }
 
@@ -423,15 +503,161 @@ const CastPopup = ({ open, onClose, cast }) => {
   );
 }
 
+// ═══════════════════════════════════════
+// EPISODES MODAL — list episodes with gated minitrame
+// Rule: only the aired episode + previous are readable,
+// unless ALL episodes are available on TV (status: completed/catalog or all_at_once policy).
+// ═══════════════════════════════════════
+function EpisodesModal({ open, onClose, film }) {
+  const [selectedIdx, setSelectedIdx] = useState(null);
+  const episodes = Array.isArray(film?.episodes) ? film.episodes : [];
+
+  // Determine which episodes are "aired" (readable)
+  const now = Date.now();
+  const releasePolicy = film?.release_policy || film?.distribution_schedule || 'daily_1';
+  const isAllAtOnce = releasePolicy === 'all_at_once' || releasePolicy === 'binge';
+  // Series in catalog → solo se davvero rilasciate (non se schedulate in futuro!)
+  const scheduledFuture = (() => {
+    const sch = film?.scheduled_release_at;
+    if (!sch) return false;
+    try { return new Date(sch).getTime() > now; } catch { return false; }
+  })();
+  const isCatalog = !scheduledFuture && (film?.status === 'completed' || film?.status === 'catalog');
+  // LAMPO scheduled / lampo_ready → trattati come "non ancora rilasciati"
+  const isLampoUnreleased = film?.status === 'lampo_scheduled' || film?.status === 'lampo_ready';
+
+  // Count aired: episodes with air_date/aired_at in the past, OR (isAllAtOnce && released) → all
+  // Fallback: if release_date exists, assume episodes/day cadence based on policy
+  const epsPerBatch = film?.tv_eps_per_batch || 1;
+  const intervalDays = film?.tv_interval_days || 1;
+  const releasedAt = film?.released_at || film?.release_date || null;
+
+  const getAiredCount = () => {
+    if (isLampoUnreleased) return 0;  // Nessun episodio "in onda" se programmato
+    if (isAllAtOnce || isCatalog) return episodes.length;
+    // Count explicit aired episodes
+    let aired = 0;
+    for (const ep of episodes) {
+      const airDate = ep.air_date || ep.aired_at || ep.scheduled_at;
+      if (airDate && new Date(airDate).getTime() <= now) aired++;
+    }
+    if (aired > 0) return aired;
+    // Fallback from releasedAt (e scheduled_release_at se in passato)
+    const refDate = scheduledFuture ? null : (releasedAt || film?.scheduled_release_at);
+    if (refDate) {
+      const elapsed = Math.floor((now - new Date(refDate).getTime()) / 86400000);
+      if (elapsed < 0) return 0;
+      const batches = Math.floor(elapsed / Math.max(1, intervalDays)) + 1;
+      return Math.min(episodes.length, batches * epsPerBatch);
+    }
+    return 0;
+  };
+  const airedCount = getAiredCount();
+
+  const isReadable = (idx) => {
+    if (isAllAtOnce || isCatalog) return true;
+    // Readable: aired episode OR previous (airedCount - 1)
+    // E.g. aired=3 → episodes 1, 2, 3 all readable (current + previous)
+    return idx < airedCount;
+  };
+
+  if (!open) return null;
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose && onClose()}>
+      <DialogContent className="ct2-episodes-dialog max-w-md p-0 overflow-hidden bg-slate-950 border border-cyan-500/20" data-testid="episodes-modal">
+        <div className="sticky top-0 z-10 px-4 py-3 border-b border-cyan-500/10 bg-slate-950/95 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-cyan-400/70">Episodi</div>
+              <div className="text-sm font-bold text-cyan-200">{film?.title}</div>
+            </div>
+            <button onClick={onClose} className="text-cyan-300/60 hover:text-cyan-200 p-1" data-testid="episodes-close">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="text-[9px] text-cyan-300/50 mt-1">
+            {isAllAtOnce || isCatalog ? (
+              `Tutti i ${episodes.length} episodi disponibili`
+            ) : (
+              `${airedCount}/${episodes.length} episodi in onda · ${epsPerBatch} ep. ogni ${intervalDays}g`
+            )}
+          </div>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto p-3 space-y-1">
+          {episodes.map((ep, idx) => {
+            const num = ep.episode_number || ep.number || (idx + 1);
+            const title = ep.title || `Episodio ${num}`;
+            const readable = isReadable(idx);
+            const isSelected = selectedIdx === idx;
+            return (
+              <div key={idx} className="rounded-lg border border-cyan-500/10 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => readable && setSelectedIdx(isSelected ? null : idx)}
+                  disabled={!readable}
+                  data-testid={`episode-btn-${num}`}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
+                    readable
+                      ? 'bg-cyan-500/5 hover:bg-cyan-500/10 cursor-pointer'
+                      : 'bg-slate-900/60 cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  <div className={`w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold ${readable ? 'bg-cyan-500/20 text-cyan-200' : 'bg-slate-700/40 text-slate-500'}`}>
+                    {num}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-[11px] font-semibold truncate ${readable ? 'text-cyan-100' : 'text-slate-500'}`}>
+                      {title}
+                    </div>
+                    <div className="text-[9px] text-slate-400">
+                      {readable
+                        ? (idx === airedCount - 1 && !isAllAtOnce && !isCatalog ? 'In onda ora' : 'In onda')
+                        : 'Non ancora trasmesso'}
+                    </div>
+                  </div>
+                  <ChevronRight size={14} className={`${readable ? 'text-cyan-300/60' : 'text-slate-600'} transition-transform ${isSelected ? 'rotate-90' : ''}`} />
+                </button>
+                {isSelected && readable && (
+                  <div className="px-3 py-2 border-t border-cyan-500/10 bg-slate-900/40" data-testid={`episode-synopsis-${num}`}>
+                    <div className="text-[10px] leading-relaxed text-slate-300">
+                      {ep.synopsis || ep.short_plot || ep.description || 'Sinossi non disponibile.'}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {episodes.length === 0 && (
+            <div className="text-center py-8 text-[11px] text-slate-500">
+              Nessun episodio disponibile.
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+
 // === MAIN TEMPLATE COMPONENT ===
 export function ContentTemplate({ filmId, contentType = 'film' }) {
   const { api, user } = useContext(AuthContext);
   const navigate = useNavigate();
   const [film, setFilm] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [virtualAudience, setVirtualAudience] = useState(null);
   const [showCast, setShowCast] = useState(false);
   const [showCinemaModal, setShowCinemaModal] = useState(false);
+  const [trailer, setTrailer] = useState(null);
+  const [showTrailer, setShowTrailer] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showEpisodes, setShowEpisodes] = useState(false);
+  const [likes, setLikes] = useState({ poster: { count: 0, liked_by_me: false, system_count: 0 }, screenplay: { count: 0, liked_by_me: false, system_count: 0 }, trailer: { count: 0, liked_by_me: false, system_count: 0 } });
+  const [likesSnapshot, setLikesSnapshot] = useState(null);
+  const [tvStationInfo, setTvStationInfo] = useState(null);  // {id, name, owner_id}
 
   const isSeries = contentType === 'series' || contentType === 'anime';
   const isAnime = contentType === 'anime' || film?.type === 'anime' || film?.content_type === 'anime';
@@ -439,6 +665,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const loadFilm = useCallback(async () => {
     if (!filmId) return;
     setLoading(true);
+    setNotFound(false);
     try {
       const endpoint = isSeries ? `/series/${filmId}` : `/films/${filmId}`;
       const controller = new AbortController();
@@ -452,21 +679,58 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       if (data && !data.detail) {
         setFilm(data);
         setVirtualAudience(vaRes.data);
+      } else {
+        setNotFound(true);
       }
-    } catch {
-      // Fallback: try getting just the basic film data
+    } catch (err) {
+      // Fallback: try getting just the basic film data (retry without timeout)
       try {
         const endpoint = isSeries ? `/series/${filmId}` : `/films/${filmId}`;
         const res = await api.get(endpoint);
         if (res.data && !res.data.detail) setFilm(res.data);
-      } catch { /* truly failed */ }
+        else setNotFound(true);
+      } catch (err2) {
+        // Truly failed → mark as not found (stops infinite spinner soft-lock)
+        if (err2?.response?.status === 404) setNotFound(true);
+        else setNotFound(true);
+      }
     }
     finally { setLoading(false); }
   }, [api, filmId, isSeries]);
 
   useEffect(() => { loadFilm(); }, [loadFilm]);
 
-  if (loading || !film) {
+  // Trailer fetch (independent, non-blocking)
+  useEffect(() => {
+    if (!filmId) return;
+    api.get(`/trailers/${filmId}`).then(r => setTrailer(r.data?.trailer || null)).catch(() => {});
+  }, [filmId, api]);
+
+  // Likes fetch
+  useEffect(() => {
+    if (!filmId) return;
+    api.get(`/content/${filmId}/likes`).then(r => {
+      setLikes(r.data?.likes || {});
+      setLikesSnapshot(r.data?.snapshot || null);
+    }).catch(() => {});
+  }, [filmId, api]);
+
+  // Fetch station info se la serie/film è in palinsesto TV
+  useEffect(() => {
+    if (!film) return;
+    const stationId = film.target_tv_station_id || film.scheduled_for_tv_station;
+    if (!stationId) { setTvStationInfo(null); return; }
+    let cancelled = false;
+    api.get(`/tv-stations/public/${stationId}`).then(r => {
+      const st = r.data?.station || r.data;
+      if (!cancelled && st) setTvStationInfo({ id: stationId, name: st.station_name || st.name || 'Emittente TV', owner_id: st.user_id });
+    }).catch(() => {
+      if (!cancelled) setTvStationInfo({ id: stationId, name: 'Emittente TV', owner_id: null });
+    });
+    return () => { cancelled = true; };
+  }, [film, api]);
+
+  if (loading || (!film && !notFound)) {
     return (
       <div className="ct2-root" data-testid="content-template">
         <div className="ct2-loading">
@@ -477,17 +741,74 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
     );
   }
 
+  if (notFound || !film) {
+    return (
+      <div className="ct2-root" data-testid="content-template-not-found">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+          <div className="w-20 h-28 rounded-lg bg-gray-900/80 border border-amber-500/20 flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(212,175,55,0.08)]">
+            <span className="text-[9px] tracking-[0.3em] text-amber-400/60 font-bold">NO IMAGE</span>
+          </div>
+          <h3 className="text-base font-bold text-white mb-1">Contenuto non disponibile</h3>
+          <p className="text-[11px] text-gray-400 mb-4 max-w-xs">
+            Questo {isSeries ? (isAnime ? 'anime' : 'serie') : 'film'} non è stato trovato.
+            Potrebbe essere rimasto bloccato durante la generazione della locandina o essere stato rimosso.
+          </p>
+          <div className="flex gap-2">
+            <button onClick={() => navigate(-1)} className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-[11px] text-gray-300 hover:bg-white/10 active:scale-95 transition-transform" data-testid="ct-notfound-back">
+              Torna indietro
+            </button>
+            <button onClick={loadFilm} className="px-4 py-2 rounded-lg bg-amber-500 text-black text-[11px] font-bold hover:bg-amber-400 active:scale-95 transition-transform" data-testid="ct-notfound-retry">
+              Riprova
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const statusInfo = getStatusInfo(film, contentType);
-  const reviews = generateReviews(film.quality_score, film.popularity_score, contentType);
+  // ⏳ "Not yet released" detector: scheduled in future OR LAMPO unreleased
+  const _isNotReleasedYet = (() => {
+    if (film?.status === 'lampo_ready' || film?.status === 'lampo_scheduled') return true;
+    const sch = film?.scheduled_release_at;
+    if (sch) { try { return new Date(sch).getTime() > Date.now(); } catch {} }
+    const ra = film?.released_at;
+    if (ra) { try { return new Date(ra).getTime() > Date.now(); } catch {} }
+    return false;
+  })();
+  const isNotReleasedYet = _isNotReleasedYet;
+  // Reviews/perception → frasi pre-release deterministiche se non ancora uscito
+  const reviews = isNotReleasedYet
+    ? getPreReleasePressReviews(film)
+    : generateReviews(film.quality_score, film.popularity_score, contentType);
   const castInfo = extractCastInfo(film.cast, film);
-  const imdb = film.imdb_rating || (film.quality_score ? (film.quality_score / 10).toFixed(1) : null);
+  // IMDb / CW Score: scale 0-10. Prefer imdb_rating, then pre_imdb_score (already 0-10),
+  // finally quality_score (0-100, needs /10). Never divide a 0-10 value by 10 again.
+  const _rawQs = Number(film.quality_score);
+  const _imdb = Number.isFinite(Number(film.imdb_rating)) && Number(film.imdb_rating) > 0 ? Number(film.imdb_rating).toFixed(1)
+    : Number.isFinite(Number(film.pre_imdb_score)) && Number(film.pre_imdb_score) > 0 ? Number(film.pre_imdb_score).toFixed(1)
+    : Number.isFinite(_rawQs) && _rawQs > 0 ? (_rawQs > 10 ? (_rawQs / 10) : _rawQs).toFixed(1)
+    : null;
+  const imdb = _imdb;
   const durationStr = formatDuration(film, contentType);
-  const shortPlot = film.short_plot ? cleanText(film.short_plot) : null;
+  const shortPlot = (film.short_plot || film.preplot || film.pre_trama) ? cleanText(film.short_plot || film.preplot || film.pre_trama) : null;
   const trendPos = film.trend_position;
   const trendDelta = film.trend_delta;
-  const screenplay = cleanText(toStr(film.screenplay) || toStr(film.pre_screenplay) || toStr(film.description) || '');
-  const perception = getPublicPerception(film);
-  const events = getEventHeadlines(film);
+  const screenplay = cleanText(toStr(film.screenplay) || toStr(film.screenplay_text) || toStr(film.pre_screenplay) || toStr(film.description) || '');
+  // Series fallback: if top-level screenplay is missing, concatenate episode synopses/screenplays
+  const episodes = Array.isArray(film?.episodes) ? film.episodes : [];
+  const isSeriesLike_local = contentType === 'series' || contentType === 'anime' || film?.type === 'tv_series' || film?.type === 'anime';
+  const seriesFallbackScreenplay = (!screenplay && isSeriesLike_local && episodes.length > 0) ? (
+    episodes.map((ep, i) => {
+      const num = ep.episode_number || ep.number || (i + 1);
+      const title = ep.title || `Episodio ${num}`;
+      const body = cleanText(toStr(ep.screenplay_text) || toStr(ep.screenplay) || toStr(ep.synopsis) || '');
+      return body ? `EPISODIO ${num} — ${title}\n\n${body}` : '';
+    }).filter(Boolean).join('\n\n═══════════════════════════════════\n\n')
+  ) : '';
+  const screenplayFinal = screenplay || seriesFallbackScreenplay;
+  const perception = isNotReleasedYet ? getPreReleaseAudience(film) : getPublicPerception(film);
+  const events = isNotReleasedYet ? [] : getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
 
   // Cinema days — safe local variables, no hooks, no effects
@@ -512,6 +833,10 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const cinemaExt = _ts && Number.isFinite(Number(_ts.days_extended)) ? Number(_ts.days_extended) : 0;
   const cinemaRed = _ts && Number.isFinite(Number(_ts.days_reduced)) ? Number(_ts.days_reduced) : 0;
 
+  // Ownership normalizzato (film.user_id / producer_id / owner_id / creator_id)
+  const ownerId = film?.user_id || film?.producer_id || film?.owner_id || film?.creator_id;
+  const isOwner = !!ownerId && ownerId === user?.id;
+
   return (
     <div className={`ct2-root ${isSeries ? 'ct2-series' : ''}`} data-testid="content-template">
       {/* BACK */}
@@ -522,7 +847,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       {/* 1. STATUS BAR */}
       <div className={`ct2-status-bar ${statusInfo.cls}`} data-testid="ct-status-bar">
         <span className="ct2-status-label">{statusInfo.label}</span>
-        {statusInfo.label === 'LaPrima!' && (
+        {statusInfo.cls === 'ct2-status-laprima' && (
           <div className="ct2-laprima-progress">
             <div className="ct2-laprima-bar">
               <div className="ct2-laprima-fill" style={{ width: `${Math.min(100, Math.max(5, (film.spectators_total || film.cumulative_attendance || 0) / Math.max(1, film.target_spectators || 5000) * 100))}%` }} />
@@ -533,12 +858,21 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
 
       {/* 2. POSTER + INFO BOX */}
       <div className="ct2-top-block" data-testid="ct-top-block">
-        <div className="ct2-poster" data-testid="ct-poster">
+        <div className="ct2-poster relative" data-testid="ct-poster">
           {posterSrc(film.poster_url) ? (
             <img src={posterSrc(film.poster_url)} alt={film.title} onError={(e) => { e.target.style.display = 'none'; }} />
           ) : (
             <div className="ct2-poster-empty"><Film size={28} /></div>
           )}
+          {/* Likes overlay on poster */}
+          <div className="absolute left-2 bottom-2 flex items-center gap-1" data-testid="poster-like-real">
+            <LikeButton contentId={filmId} context="poster" api={api} count={likes.poster?.count || 0} liked={likes.poster?.liked_by_me || false} disabled={isOwner} onChange={s => setLikes(prev => ({ ...prev, poster: { ...prev.poster, count: s.count, liked_by_me: s.liked, system_count: s.system_count ?? prev.poster?.system_count } }))} variant="chip" />
+            <PreReleaseSnapshotBadge snapshot={likesSnapshot} context="poster" />
+          </div>
+          <div className="absolute right-2 bottom-2" data-testid="poster-like-system">
+            <SystemLikeBadge count={likes.poster?.system_count || 0} variant="chip" />
+          </div>
+          <LampoLightning item={film} variant="top-right" size="md" />
         </div>
         <div className="ct2-short-plot" data-testid="ct-short-plot">
           <div className="ct2-info-title">{film.title}</div>
@@ -549,7 +883,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
             <div className="ct2-info-director" style={{ cursor: 'pointer', opacity: 0.7 }}
               onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
               data-testid="ct-production-house">
-              {film.production_house_name || film.producer_nickname}
+              {film.logo_url && <img src={film.logo_url} alt="" className="inline w-3 h-3 rounded-sm object-contain mr-0.5" style={{verticalAlign:'middle'}} />}{film.production_house_name || film.producer_nickname}
             </div>
           )}
           {castInfo.actors.length > 0 && (
@@ -557,11 +891,18 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
               {isAnime ? 'Disegnatori' : 'Cast'}: {castInfo.actors.map(a => a.name).join(', ')}
             </div>
           )}
+          {(film.is_lampo || film.mode === 'lampo') && film.distribution_scope && (
+            <div className="ct2-info-cast" style={{ color: '#fbbf24', fontWeight: 600 }} data-testid="ct-lampo-distribution">
+              <Zap size={10} style={{ display: 'inline', marginRight: 2, verticalAlign: 'middle' }} />
+              Distribuzione: {film.distribution_scope}
+              {film.worldwide && ' 🌍'}
+            </div>
+          )}
           {shortPlot ? (
             <div className="ct2-info-plot">{shortPlot}</div>
-          ) : screenplay ? (
+          ) : screenplayFinal ? (
             <div className="ct2-info-plot">{(() => {
-              let text = screenplay;
+              let text = screenplayFinal;
               text = text.replace(/^(Titolo|Logline|Genere|Sottogenere|Ambientazione|Tono|Cast|Regia|Sceneggiatura)[:\s].+$/gmi, '');
               text = text.replace(/^(ATTO|ACT|SCENA|SCENE|INT\.|EXT\.)[:\s].*/gmi, '');
               text = text.trim();
@@ -587,7 +928,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           <button className="text-[10px] text-amber-400/70 italic hover:text-amber-300 transition-colors"
             onClick={(e) => { e.stopPropagation(); if (film.producer_nickname) window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
             data-testid="ct-production-house-title">
-            una produzione <span className="font-bold not-italic">{film.production_house_name || film.producer_nickname || 'Indipendente'}</span>
+            una produzione {film.logo_url && <img src={film.logo_url} alt="" className="inline w-3 h-3 rounded-sm object-contain mx-0.5" />}<span className="font-bold not-italic">{film.production_house_name || film.producer_nickname || 'Indipendente'}</span>
           </button>
         </div>
       )}
@@ -604,7 +945,19 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           </>
         )}
         <Clock size={13} />
-        <span className="ct2-data-duration">{durationStr || '~110m'}</span>
+        {isSeries && (film?.num_episodes || film?.episode_count) ? (
+          <button
+            type="button"
+            onClick={() => setShowEpisodes(true)}
+            className="ct2-data-duration ct2-duration-clickable"
+            data-testid="ct-episodes-btn"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'rgba(144,176,208,0.45)', textUnderlineOffset: '2px' }}
+          >
+            {durationStr || '—'}
+          </button>
+        ) : (
+          <span className="ct2-data-duration">{durationStr || '—'}</span>
+        )}
         {trendPos && (
           <>
             <span className="ct2-data-sep">|</span>
@@ -629,10 +982,102 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         </div>
       )}
 
-      <div style={{border:"2px solid #00ffff",background:"rgba(0,255,255,0.08)",padding:"10px",marginTop:"8px",textAlign:"center",fontWeight:"bold",color:"#00ffff",borderRadius:"8px",cursor:"pointer"}} onClick={() => setShowCinemaModal(true)}>{hasCinemaDays && hasCinemaRemain ? 'IN SALA - ' + cinemaDays + ' giorni - ' + cinemaRemain + ' rimanenti' : hasCinemaDays ? 'IN SALA - ' + cinemaDays + ' giorni' : 'IN SALA - dati cinema in aggiornamento'}</div>
+      {/* Emittente TV (cliccabile) — visibile per serie/anime/film in palinsesto */}
+      {tvStationInfo?.id && (
+        <button
+          type="button"
+          onClick={() => navigate(`/tv-station/${tvStationInfo.id}`)}
+          className="mx-4 mb-2 w-[calc(100%-2rem)] px-3 py-2 rounded-md bg-gradient-to-r from-blue-500/15 to-cyan-500/10 border border-blue-400/30 hover:bg-blue-500/25 active:scale-[0.98] transition-all flex items-center justify-between gap-2"
+          data-testid="ct-tv-station-link"
+        >
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[8px] uppercase tracking-wider text-blue-300/70 flex-shrink-0">In onda su</span>
+            <span className="text-[12px] font-bold text-blue-100 truncate">{tvStationInfo.name}</span>
+          </span>
+          <span className="text-[10px] text-blue-300/80 flex-shrink-0">Vai alla TV →</span>
+        </button>
+      )}
 
-      {/* 6. JOURNALIST REVIEWS (green boxes) */}
-      <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>
+      <div className={`ct2-cinema-bar ct2-perf-${cinemaPerf || 'ok'}`} onClick={() => setShowCinemaModal(true)} data-testid="ct-cinema-bar" hidden={isSeries} style={isSeries ? { display: 'none' } : undefined}>
+        {hasCinemaDays && hasCinemaRemain ? (
+          <>
+            <div className="ct2-cinema-bar-main">
+              <span>IN SALA</span>
+              <span className="ct2-cinema-bar-sep">·</span>
+              <span>{cinemaDays}g</span>
+              <span className="ct2-cinema-bar-sep">·</span>
+              <span>{cinemaRemain}g rimasti</span>
+              {cinemaPerf && (() => {
+                const trendUp = ['great', 'good'].includes(cinemaPerf);
+                const trendDown = ['bad', 'flop', 'declining'].includes(cinemaPerf);
+                const trendDelta = film.theater_stats?.trend_delta_pct
+                  ?? (cinemaPerf === 'great' ? 18 : cinemaPerf === 'good' ? 9 : cinemaPerf === 'declining' ? -7 : cinemaPerf === 'bad' ? -15 : cinemaPerf === 'flop' ? -30 : 0);
+                return (
+                  <>
+                    <span className="ct2-cinema-bar-sep">·</span>
+                    <span className={`ct2-cinema-bar-trend ct2-trend-${trendUp ? 'up' : trendDown ? 'down' : 'flat'}`}>
+                      <span className="ct2-trend-icon">{trendUp ? '▲' : trendDown ? '▼' : '■'}</span>
+                      <span className="ct2-trend-delta">{trendDelta >= 0 ? '+' : ''}{trendDelta}%</span>
+                      <span className="ct2-trend-label">
+                        {({great:'Successone', good:'Ottimo', ok:'Stabile', declining:'In calo', bad:'Scarso', flop:'FLOP'})[cinemaPerf]}
+                      </span>
+                    </span>
+                  </>
+                );
+              })()}
+            </div>
+            {(() => {
+              // Hint di prolungamento negli ultimi 3-4 giorni se performance buona
+              const willExtend = cinemaRemain > 0 && cinemaRemain <= 4 && (cinemaPerf === 'great' || cinemaPerf === 'good');
+              // Hint di ritiro anticipato se flop/bad
+              const willPullEarly = cinemaPerf === 'flop' || cinemaPerf === 'bad';
+              if (willExtend) return <div className="ct2-cinema-hint ct2-hint-extend">Possibile prolungamento: il pubblico continua ad affluire</div>;
+              if (willPullEarly) return <div className="ct2-cinema-hint ct2-hint-pull">Rischio ritiro anticipato per scarsa affluenza</div>;
+              if (cinemaExt > 0) return <div className="ct2-cinema-hint ct2-hint-extend">Prolungato di +{cinemaExt}g per successo</div>;
+              if (cinemaRed > 0) return <div className="ct2-cinema-hint ct2-hint-pull">Ridotto di -{cinemaRed}g</div>;
+              return null;
+            })()}
+          </>
+        ) : hasCinemaDays ? (
+          <div className="ct2-cinema-bar-main">
+            <span>IN SALA · {cinemaDays}g</span>
+          </div>
+        ) : isNotReleasedYet ? (
+          <div className="ct2-cinema-bar-main" data-testid="ct-countdown">
+            {(() => {
+              const target = film?.scheduled_release_at || film?.released_at;
+              if (!target) return <span>USCITA PROSSIMA · attesa in crescita</span>;
+              try {
+                const ms = new Date(target).getTime() - Date.now();
+                if (ms <= 0) return <span>USCITA IMMINENTE · in arrivo</span>;
+                const totalMin = Math.floor(ms / 60000);
+                const days = Math.floor(totalMin / 1440);
+                const hours = Math.floor((totalMin % 1440) / 60);
+                const minutes = totalMin % 60;
+                let str = '';
+                if (days > 0) str = `${days}g ${hours}h`;
+                else if (hours > 0) str = `${hours}h ${minutes}m`;
+                else str = `${minutes}m`;
+                return (
+                  <span style={{ color: '#fbbf24', fontWeight: 700 }}>
+                    ⚡ ESCE TRA {str}
+                  </span>
+                );
+              } catch { return <span>USCITA PROSSIMA</span>; }
+            })()}
+          </div>
+        ) : (
+          <div className="ct2-cinema-bar-main">
+            <span>IN SALA · dati in aggiornamento</span>
+          </div>
+        )}
+      </div>
+      <PStarBanner film={film} />
+
+      {/* 6. JOURNALIST REVIEWS (green boxes) — pre-release: aspettative dei giornali */}
+      <div className="ct2-section-label" data-testid="ct-reviews-label">
+        {isNotReleasedYet ? 'Le aspettative della stampa' : 'Cosa ne pensano i giornali'}
+      </div>
       <div className="ct2-reviews-row" data-testid="ct-reviews">
         {reviews.map((r, i) => (
           <div key={i} className="ct2-review-box" data-testid={`ct-review-${i}`}>
@@ -646,7 +1091,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       <div className="ct2-public-box" data-testid="ct-public-box">
         <div className="ct2-public-header">
           <Eye size={14} />
-          <span>Pubblico & Eventi</span>
+          <span>{isNotReleasedYet ? 'Hype del Pubblico' : 'Pubblico & Eventi'}</span>
         </div>
         <div className="ct2-public-lines">
           {perception.map((line, i) => <div key={i} className="ct2-public-line">{line}</div>)}
@@ -658,29 +1103,109 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       </div>
 
       {/* 8. SCREENPLAY (scrollable) */}
-      <div className="ct2-screenplay-section" data-testid="ct-screenplay">
+      <div className="ct2-screenplay-section relative" data-testid="ct-screenplay">
         <div className="ct2-screenplay-header">
           <BookOpen size={14} />
           <span>Sceneggiatura completa</span>
         </div>
         <div className="ct2-screenplay-box">
           <div className="ct2-screenplay-content">
-            {screenplay || 'Sceneggiatura non disponibile.'}
+            {screenplayFinal || 'Sceneggiatura non disponibile.'}
           </div>
           <div className="ct2-screenplay-fade-top" />
           <div className="ct2-screenplay-fade-bottom" />
         </div>
+        {/* Likes row sceneggiatura */}
+        <div className="flex items-center justify-between px-2 pt-2" data-testid="screenplay-likes-row">
+          <div className="flex items-center gap-1">
+            <LikeButton contentId={filmId} context="screenplay" api={api} count={likes.screenplay?.count || 0} liked={likes.screenplay?.liked_by_me || false} disabled={isOwner} onChange={s => setLikes(prev => ({ ...prev, screenplay: { ...prev.screenplay, count: s.count, liked_by_me: s.liked, system_count: s.system_count ?? prev.screenplay?.system_count } }))} variant="chip" />
+            <PreReleaseSnapshotBadge snapshot={likesSnapshot} context="screenplay" />
+          </div>
+          <SystemLikeBadge count={likes.screenplay?.system_count || 0} variant="chip" />
+        </div>
       </div>
 
-      {/* 9. TRAILER PLACEHOLDER */}
-      <div className="ct2-trailer-placeholder" data-testid="ct-trailer-placeholder">
-        <Play size={20} />
-        <span className="ct2-trailer-text">Trailer in sviluppo</span>
-        <span className="ct2-trailer-badge">Funzionalita in arrivo</span>
-      </div>
+      {/* 9. TRAILER — visibile sia se esiste (Guarda Trailer) sia come placeholder */}
+      {trailer ? (
+        <div>
+          <button
+            onClick={() => setShowTrailer(true)}
+            className="ct2-trailer-placeholder hover:brightness-110 transition-all cursor-pointer"
+            data-testid="ct-trailer-watch-btn"
+            style={{ background: 'linear-gradient(135deg, rgba(245,166,35,0.15), rgba(233,78,119,0.12))', border: '1px solid rgba(245,166,35,0.3)' }}>
+            <Play size={24} fill="#f5a623" color="#f5a623" />
+            <span className="ct2-trailer-text" style={{ color: '#f5a623', fontWeight: 700 }}>Guarda Trailer</span>
+            <span className="ct2-trailer-badge" style={{ color: '#f5a623', opacity: 0.75 }}>
+              {trailer.duration_seconds}s · {(trailer.views_count || 0)} viste{trailer.trending ? ' · 🔥 TRENDING' : ''}
+            </span>
+          </button>
+          <div className="flex items-center justify-between px-2 pt-2" data-testid="trailer-likes-row">
+            <div className="flex items-center gap-1">
+              <LikeButton contentId={filmId} context="trailer" api={api} count={likes.trailer?.count || 0} liked={likes.trailer?.liked_by_me || false} disabled={isOwner} onChange={s => setLikes(prev => ({ ...prev, trailer: { ...prev.trailer, count: s.count, liked_by_me: s.liked, system_count: s.system_count ?? prev.trailer?.system_count } }))} variant="chip" />
+              <PreReleaseSnapshotBadge snapshot={likesSnapshot} context="trailer" />
+            </div>
+            <SystemLikeBadge count={likes.trailer?.system_count || 0} variant="chip" />
+          </div>
+        </div>
+      ) : film?.is_lampo || film?.mode === 'lampo' ? (
+        // ⚡ LAMPO non ha mai trailer — non mostrare il placeholder
+        null
+      ) : (
+        <div className="ct2-trailer-placeholder" data-testid="ct-trailer-placeholder">
+          <Play size={20} />
+          <span className="ct2-trailer-text">Trailer in sviluppo</span>
+          <span className="ct2-trailer-badge">Genera dalla pipeline del film</span>
+        </div>
+      )}
+      {showTrailer && trailer && (
+        <TrailerPlayerModal trailer={trailer} contentTitle={film?.title} contentGenre={film?.genre || ''} contentId={filmId} contentOwnerId={film?.user_id} currentUserId={user?.id} api={api} onClose={() => setShowTrailer(false)} />
+      )}
 
       {/* Cast Popup */}
       <CastPopup open={showCast} onClose={setShowCast} cast={film?.cast} />
+
+      {/* Episodes modal — series/anime only */}
+      {showEpisodes && isSeries && (
+        <EpisodesModal
+          open={showEpisodes}
+          onClose={() => setShowEpisodes(false)}
+          film={film}
+        />
+      )}
+
+      {/* Owner-only: Elimina per sempre (any status, any section) */}
+      {isOwner && film?.id && (
+        <div className="px-4 pb-6 pt-3 border-t border-white/5 mt-4">
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            data-testid="content-hard-delete-btn"
+            className="w-full py-3 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-300 text-[11px] font-bold flex items-center justify-center gap-2 hover:bg-rose-500/20 active:scale-[0.98] transition-all"
+          >
+            <Trash2 className="w-4 h-4" /> Elimina per sempre
+          </button>
+        </div>
+      )}
+
+      <CineConfirm
+        open={showDeleteConfirm}
+        title="Eliminare per sempre?"
+        subtitle={`"${film?.title || ''}" sara' rimosso da tutte le sezioni (cinema, TV, mercato, cataloghi). Azione irreversibile.`}
+        confirmLabel={deleting ? '...' : 'Elimina per sempre'}
+        confirmTone="rose"
+        onConfirm={async () => {
+          if (deleting) return;
+          setDeleting(true);
+          try {
+            await api.delete(`/admin-recovery/delete/${film.id}`);
+            toast.success('Contenuto eliminato definitivamente');
+            setShowDeleteConfirm(false);
+            setTimeout(() => { navigate('/'); }, 400);
+          } catch (e) {
+            toast.error(e?.response?.data?.detail || 'Errore eliminazione');
+          } finally { setDeleting(false); }
+        }}
+        onCancel={() => !deleting && setShowDeleteConfirm(false)}
+      />
 
       {/* Cinema Stats Modal */}
       {showCinemaModal && (

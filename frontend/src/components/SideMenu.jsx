@@ -19,18 +19,45 @@ const SideMenu = ({ open, setOpen }) => {
   const goProduci = () => { setOpen(false); openProductionMenu(true); };
 
   const menuItems = [
+    // — Produzione —
     { icon: "\uD83C\uDFAC", label: "Produci", action: goProduci, always: true },
     { icon: "\u270D\uFE0F", label: "Sceneggiature", action: () => go('/emerging-screenplays'), always: true },
-    { icon: "\uD83C\uDFEA", label: "Mercato", action: () => go('/marketplace'), always: true },
+    { icon: "\uD83C\uDFA5", label: "I Miei Film", action: () => go('/films?tab=film'), always: true },
+    { icon: "\uD83D\uDCD6", label: "Saghe", action: () => go('/sagas'), always: true },
+
+    // — Mia rete —
     { icon: "\uD83D\uDCFA", label: "Le mie TV", action: () => go('/my-tv'), always: true },
+    { icon: "\uD83C\uDFEA", label: "Mercato", action: () => go('/marketplace'), always: true },
     { icon: "\uD83C\uDFD7\uFE0F", label: "Infrastrutture", action: () => go('/infrastructure'), always: true },
     { icon: "\uD83C\uDFE2", label: "Strutture", action: () => go('/strutture'), always: false, visible: categories.has_strutture },
     { icon: "\uD83D\uDC64", label: "Agenzia", action: () => go('/agenzia'), always: false, visible: categories.has_agenzia },
     { icon: "\uD83D\uDEE1\uFE0F", label: "Strategico", action: () => go('/strategico'), always: false, visible: categories.has_strategico },
-    { icon: "\uD83C\uDFAE", label: "Minigiochi", action: () => go('/minigiochi'), always: true },
-    { icon: "\uD83C\uDFC6", label: "Contest", action: () => go('/games'), always: true },
+
+    // — Stars & Casting —
+    { icon: "\u2B50", label: "Stelle", action: () => go('/stars'), always: true },
+    { icon: "\uD83C\uDFAD", label: "Casting", action: () => go('/casting-agency'), always: true },
+
+    // — Competizioni —
     { icon: "\uD83C\uDFAF", label: "Arena", action: () => go('/pvp-arena'), always: true },
+    { icon: "\uD83C\uDFC6", label: "Contest", action: () => go('/games'), always: true },
     { icon: "\uD83C\uDF9F\uFE0F", label: "Festival", action: () => go('/festivals'), always: true },
+    { icon: "\uD83C\uDFAC", label: "Eventi Trailer", action: () => go('/events/trailers'), always: true },
+    { icon: "\uD83D\uDC51", label: "Major", action: () => go('/major'), always: true },
+    { icon: "\uD83D\uDCCA", label: "Classifiche", action: () => go('/leaderboard'), always: true },
+
+    // — Social / Info —
+    { icon: "\uD83C\uDF10", label: "CineBoard", action: () => go('/social'), always: true },
+    { icon: "\uD83D\uDCF0", label: "CineJournal", action: () => go('/journal'), always: true },
+    { icon: "\u2728", label: "Eventi", action: () => go('/event-history'), always: true },
+    { icon: "\uD83D\uDCAC", label: "Chat", action: () => go('/chat'), always: true },
+    { icon: "\uD83D\uDD14", label: "Notifiche", action: () => go('/notifications'), always: true },
+
+    // — Svago —
+    { icon: "\uD83C\uDFAE", label: "Minigiochi", action: () => go('/minigiochi'), always: true },
+    { icon: "\uD83C\uDFDE\uFE0F", label: "Parco 3D", action: () => go('/parco-studio'), always: true },
+
+    // — Account —
+    { icon: "\uD83D\uDC64", label: "Profilo", action: () => go('/profile'), always: true },
   ];
 
   const visibleItems = menuItems.filter(item => item.always || item.visible);

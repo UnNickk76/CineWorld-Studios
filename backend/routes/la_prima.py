@@ -3,7 +3,7 @@
 # NON modifica quality_score, pipeline o sponsor
 
 from fastapi import APIRouter, HTTPException, Depends
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from database import db
 from auth_utils import get_current_user
 import logging
@@ -11,6 +11,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/la-prima", tags=["la-prima"])
+
+
+def _pick_official_cinema_lazy(city: str, film_id: str) -> str:
+    """Lazy import to avoid circular dependency."""
+    try:
+        from la_prima_report import pick_official_cinema
+        return pick_official_cinema(city, film_id)
+    except Exception:
+        return f"Cinema Royal {city}" if city else "Cinema Royal"
 
 # Status in cui è possibile attivare La Prima
 PREMIERE_ELIGIBLE_STATUSES = {'prima', 'coming_soon', 'completed', 'pending_release', 'uscita'}
@@ -406,23 +415,27 @@ async def setup_premiere(film_id: str, req: PremiereSetupRequest, user=Depends(g
     Calculates hidden impact score. Cannot be modified after confirmation."""
     project = await db.film_projects.find_one(
         {'id': film_id, 'user_id': user['id']},
-        {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'premiere': 1, 'genre': 1, 'cast': 1, 'sponsors': 1}
+        {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'premiere': 1, 'genre': 1, 'cast': 1, 'sponsors': 1, 'pipeline_version': 1}
     )
     if not project:
         raise HTTPException(status_code=404, detail="Progetto film non trovato")
 
-    premiere = project.get('premiere', {})
+    premiere = project.get('premiere') or default_premiere()
 
-    # Must be enabled first
+    # For V3 projects, auto-enable premiere on first setup (no separate enable step needed).
+    is_v3 = project.get('pipeline_version') == 3
     if not premiere.get('enabled'):
-        raise HTTPException(status_code=400, detail="Devi prima attivare La Prima")
+        if is_v3:
+            premiere['enabled'] = True
+        else:
+            raise HTTPException(status_code=400, detail="Devi prima attivare La Prima")
 
     # Cannot modify after setup
     if premiere.get('city') is not None:
         raise HTTPException(status_code=400, detail="La Prima e' gia' stata configurata e non puo' essere modificata")
 
-    # Block if already released
-    if project.get('status') in ('released', 'in_theaters', 'withdrawn'):
+    # Block if already released (legacy status only — V3 uses pipeline_state)
+    if not is_v3 and project.get('status') in ('released', 'in_theaters', 'withdrawn'):
         raise HTTPException(status_code=400, detail="Film gia' uscito, impossibile configurare La Prima")
 
     # Validate city
@@ -447,6 +460,7 @@ async def setup_premiere(film_id: str, req: PremiereSetupRequest, user=Depends(g
         'initial_hype_boost': impact['initial_hype_boost'],
         'decay_factor': impact['decay_factor'],
         'outcome': None,  # Will be set after premiere event
+        'setup_at': datetime.now(timezone.utc).isoformat(),
     })
 
     await db.film_projects.update_one(
@@ -739,7 +753,30 @@ async def get_active_la_prima(user: dict = Depends(get_current_user)):
         {'_id': 0}
     ).to_list(50)
 
-    projects = v1_projects + v2_projects
+    # V3 films with La Prima configured — shown regardless of their current
+    # pipeline_state as long as they are within the La Prima window.
+    # Exclude only terminal states (released, discarded).
+    now_iso = datetime.now(timezone.utc).isoformat()
+    from datetime import timedelta as _td
+    min_started = (datetime.now(timezone.utc) - _td(hours=24)).isoformat()
+
+    v3_live_projects = await db.film_projects.find(
+        {'pipeline_version': 3, 'release_type': 'premiere',
+         'pipeline_state': {'$nin': ['released', 'discarded']},
+         'premiere.datetime': {'$ne': None, '$lte': now_iso, '$gte': min_started}},
+        {'_id': 0}
+    ).to_list(50)
+
+    v3_waiting_projects = await db.film_projects.find(
+        {'pipeline_version': 3, 'release_type': 'premiere',
+         'pipeline_state': {'$nin': ['released', 'discarded']},
+         'premiere.datetime': {'$ne': None, '$gt': now_iso},
+         'premiere.city': {'$ne': None}},
+        {'_id': 0}
+    ).to_list(50)
+
+    projects = v1_projects + v2_projects + v3_live_projects + v3_waiting_projects
+    waiting_ids = {p['id'] for p in v3_waiting_projects}
 
     results = []
     for p in projects:
@@ -779,6 +816,20 @@ async def get_active_la_prima(user: dict = Depends(get_current_user)):
         # Get owner name
         owner = await db.users.find_one({'id': p.get('user_id')}, {'_id': 0, 'nickname': 1})
 
+        # For waiting films, compute countdown to premiere start
+        is_waiting = p['id'] in waiting_ids
+        countdown_to_start = None
+        if is_waiting and premiere.get('datetime'):
+            try:
+                pdt = datetime.fromisoformat(str(premiere['datetime']).replace('Z', '+00:00'))
+                remaining = (pdt - datetime.now(timezone.utc)).total_seconds()
+                if remaining > 0:
+                    h = int(remaining // 3600)
+                    m = int((remaining % 3600) // 60)
+                    countdown_to_start = f"{h}h {m}m"
+            except Exception:
+                pass
+
         results.append({
             'film_id': p['id'],
             'title': p.get('title', ''),
@@ -787,12 +838,16 @@ async def get_active_la_prima(user: dict = Depends(get_current_user)):
             'pre_imdb_score': p.get('pre_imdb_score', 0),
             'pre_screenplay': p.get('pre_screenplay', ''),
             'city': premiere.get('city', ''),
+            'official_cinema': premiere.get('official_cinema') or _pick_official_cinema_lazy(premiere.get('city', ''), p['id']),
             'hype_live': live_hype,
             'spectators_current': spectators['spectators_current'],
             'spectators_total': spectators['spectators_total'],
             'time_remaining': time_remaining,
             'owner_name': owner.get('nickname', '?') if owner else '?',
             'owner_id': p.get('user_id'),
+            'is_waiting': is_waiting,
+            'countdown_to_start': countdown_to_start,
+            'premiere_datetime': premiere.get('datetime'),
         })
 
     return {'events': results, 'total': len(results)}
@@ -894,3 +949,134 @@ async def get_velion_la_prima_suggestion(film_id: str, user: dict = Depends(get_
         'cities': cities,
     }
 
+
+
+
+# ═══════════════════════════════════════════════════════
+# COMING TO CINEMAS — Dashboard: film in finestra post-La Prima, ancora da rilasciare
+# ═══════════════════════════════════════════════════════
+
+def _flatten_dict_values(d):
+    """Accepts dict-of-lists or list, returns flat list of strings."""
+    if not d:
+        return []
+    if isinstance(d, list):
+        return [x for x in d if isinstance(x, str)]
+    if isinstance(d, dict):
+        out = []
+        for v in d.values():
+            if isinstance(v, list):
+                out.extend(x for x in v if isinstance(x, str))
+            elif isinstance(v, str):
+                out.append(v)
+        return out
+    return []
+
+
+def _compute_a_breve_scope(project: dict) -> str:
+    """Determine the 'A BREVE {scope}' label based on distribution choices + genre personality match."""
+    if project.get('distribution_mondiale'):
+        return 'MONDO'
+    genre = (project.get('genre') or 'drama').lower()
+
+    cities = _flatten_dict_values(project.get('distribution_cities'))
+    # Try city-level genre match first
+    best = None  # (weight, name)
+    for city_name in cities:
+        meta = next((c for c in PREMIERE_CITIES if c['name'].lower() == city_name.lower()), None)
+        if meta and genre in meta.get('preferred_genres', []):
+            if best is None or meta['weight'] > best[0]:
+                best = (meta['weight'], city_name)
+    if best:
+        return best[1].upper()
+
+    # Tiebreaker: first city in list
+    if cities:
+        return cities[0].upper()
+
+    # Fallback to nations
+    nations = _flatten_dict_values(project.get('distribution_nations'))
+    if nations:
+        return nations[0].upper()
+
+    # Fallback to continents
+    continents = project.get('distribution_continents') or []
+    if isinstance(continents, list) and continents:
+        return str(continents[0]).upper()
+
+    return 'MONDO'
+
+
+@router.get("/coming-to-cinemas")
+async def get_coming_to_cinemas(user: dict = Depends(get_current_user)):
+    """V3 films that completed La Prima (or direct releases with confirmed distribution)
+    but haven't been released yet. Shown dimmed in 'Ultimi film al cinema' with 'A BREVE {scope}'.
+    """
+    now = datetime.now(timezone.utc)
+    la_prima_end_threshold = (now - timedelta(hours=24)).isoformat()
+
+    # Premiere films: La Prima window completed (now > datetime+24h), distribution confirmed, not released/in-theaters/la_prima
+    premiere_films = await db.film_projects.find(
+        {'pipeline_version': 3, 'release_type': 'premiere',
+         'distribution_confirmed': True,
+         'pipeline_state': {'$nin': ['released', 'discarded', 'la_prima', 'in_theaters']},
+         'premiere.datetime': {'$ne': None, '$lte': la_prima_end_threshold}},
+        {'_id': 0}
+    ).to_list(100)
+
+    # Direct releases: distribution confirmed, not released/in-theaters
+    direct_films = await db.film_projects.find(
+        {'pipeline_version': 3, 'release_type': 'direct',
+         'distribution_confirmed': True,
+         'pipeline_state': {'$nin': ['released', 'discarded', 'in_theaters', 'la_prima']}},
+        {'_id': 0}
+    ).to_list(100)
+
+    projects = premiere_films + direct_films
+
+    # SAFEGUARD: if same project has already spawned a `films` doc (released/in_theaters/la_prima),
+    # exclude it — the film has already moved to cinema. Match on `source_project_id` because
+    # confirm-release creates a NEW UUID in `films.id` and keeps project id only in `source_project_id`.
+    all_ids = [p['id'] for p in projects]
+    active_in_films = set()
+    if all_ids:
+        async for f in db.films.find(
+            {'source_project_id': {'$in': all_ids},
+             'status': {'$in': ['in_theaters', 'released', 'la_prima', 'in_cinema']}},
+            {'_id': 0, 'source_project_id': 1}
+        ):
+            active_in_films.add(f['source_project_id'])
+    projects = [p for p in projects if p['id'] not in active_in_films]
+
+    # Enrich with owner info
+    user_ids = list({p.get('user_id') for p in projects if p.get('user_id')})
+    users = {}
+    if user_ids:
+        async for u in db.users.find(
+            {'id': {'$in': user_ids}},
+            {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'avatar_url': 1}
+        ):
+            users[u['id']] = u
+
+    items = []
+    for p in projects:
+        owner = users.get(p.get('user_id'), {})
+        scope = _compute_a_breve_scope(p)
+        items.append({
+            'film_id': p['id'],
+            'title': p.get('title', ''),
+            'poster_url': p.get('poster_url'),
+            'genre': p.get('genre'),
+            'release_type': p.get('release_type'),
+            'is_a_breve': True,
+            'a_breve_scope': scope,
+            'owner_id': p.get('user_id'),
+            'owner_nickname': owner.get('nickname', '?'),
+            'owner_studio': owner.get('production_house_name'),
+            'from_purchased_screenplay': bool(p.get('from_purchased_screenplay')),
+            'purchased_screenplay_mode': p.get('purchased_screenplay_mode'),
+            'purchased_screenplay_source': p.get('purchased_screenplay_source'),
+        })
+    # Sort newest first by premiere datetime for premiere, by created for direct
+    items.sort(key=lambda x: x.get('title', ''))
+    return {'items': items, 'total': len(items)}

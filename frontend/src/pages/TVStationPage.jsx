@@ -11,7 +11,7 @@ import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import {
   Radio, Tv, Sparkles, Film, Plus, ChevronRight, ChevronLeft,
-  Loader2, DollarSign, Eye, Globe, Menu as MenuIcon
+  Loader2, DollarSign, Eye, Globe, Menu as MenuIcon, Check, Edit2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -20,6 +20,8 @@ import { toast } from 'sonner';
 import { SeriesDetailModal } from '../components/SeriesDetailModal';
 import { PalinsestoModal } from '../components/PalinsestoModal';
 import { TVMenuModal } from '../components/TVMenuModal';
+import { RadioPlayer } from '../components/RadioPlayer';
+import PendingTVEditModal from '../components/PendingTVEditModal';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -65,6 +67,7 @@ export default function TVStationPage() {
   const [selectedContent, setSelectedContent] = useState(null); // for SeriesDetailModal
   const [palinsestoSeries, setPalinsestoSeries] = useState(null); // for PalinsestoModal
   const [filmDetail, setFilmDetail] = useState(null); // for film popup
+  const [pendingEdit, setPendingEdit] = useState(null); // for PendingTVEditModal
 
   const loadStation = useCallback(async (id) => {
     try {
@@ -287,11 +290,28 @@ export default function TVStationPage() {
 
       {/* Netflix Content Area */}
       <div className="px-3">
+        {/* Radio Player */}
+        <RadioPlayer />
+
         {!allContentsEmpty ? (
           <>
             {/* Prossimamente */}
             {scheduledItems.length > 0 && (
-              <NetflixRow title="Prossimamente" items={scheduledItems} color="cyan-400" onItemClick={handleContentClick} isScheduled />
+              <NetflixRow
+                title="Prossimamente"
+                items={scheduledItems}
+                color="cyan-400"
+                onItemClick={handleContentClick}
+                isScheduled
+                onAcceptPending={async (item) => {
+                  try {
+                    await api.post(`/tv-stations/${stationId}/accept-pending/${item.id}`);
+                    toast.success(`'${item.title}' confermata in Prossimamente`);
+                    loadStation(stationId);
+                  } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+                }}
+                onEditPending={(item) => setPendingEdit(item)}
+              />
             )}
 
             {/* Airing now - show series/anime that are currently airing */}
@@ -382,12 +402,21 @@ export default function TVStationPage() {
           onClose={() => setFilmDetail(null)}
         />
       )}
+
+      {/* Pending TV Edit Modal (V3 series overridden by station owner) */}
+      <PendingTVEditModal
+        open={!!pendingEdit}
+        onClose={() => setPendingEdit(null)}
+        item={pendingEdit}
+        stationId={stationId}
+        onSaved={() => { loadStation(stationId); }}
+      />
     </div>
   );
 }
 
 // Netflix-style horizontal scroll row
-function NetflixRow({ title, items, color = 'white', onItemClick, isScheduled, showBroadcastBadge }) {
+function NetflixRow({ title, items, color = 'white', onItemClick, isScheduled, showBroadcastBadge, onAcceptPending, onEditPending }) {
   if (!items || items.length === 0) return null;
   return (
     <div className="mb-5">
@@ -395,23 +424,25 @@ function NetflixRow({ title, items, color = 'white', onItemClick, isScheduled, s
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
         {items.map((item, i) => {
           const bstate = item.broadcast_state;
+          const pending = item.pending_tv_approval === true;
+          const countdown = humanAiringCountdown(item.tv_airing_start);
           return (
             <div
               key={item.id || i}
-              className="flex-shrink-0 w-[80px] group relative cursor-pointer"
+              className={`flex-shrink-0 ${pending ? 'w-[110px]' : 'w-[80px]'} group relative cursor-pointer`}
               data-testid={`netflix-item-${item.id}`}
               onClick={() => onItemClick?.(item)}
             >
-              <div className={`aspect-[2/3] rounded-lg overflow-hidden relative ${isScheduled ? 'ring-1 ring-cyan-500/30' : ''}`}>
+              <div className={`aspect-[2/3] rounded-lg overflow-hidden relative ${isScheduled && !pending ? 'ring-1 ring-cyan-500/30' : ''} ${pending ? 'ring-1 ring-amber-400/50' : ''}`}>
                 <img
                   src={posterSrc(item.poster_url)}
                   alt={item.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  className={`w-full h-full object-cover transition-transform ${pending ? 'opacity-55 grayscale-[30%]' : 'group-hover:scale-105'}`}
                   loading="lazy"
                   onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=300'; }}
                 />
                 {/* Broadcast state badge */}
-                {showBroadcastBadge && bstate && bstate !== 'idle' && (
+                {showBroadcastBadge && bstate && bstate !== 'idle' && !pending && (
                   <div className="absolute top-1 left-1">
                     <Badge className={`text-[6px] h-3 border-0 px-1 ${
                       bstate === 'airing' ? 'bg-green-500/90 text-white' :
@@ -424,7 +455,39 @@ function NetflixRow({ title, items, color = 'white', onItemClick, isScheduled, s
                     </Badge>
                   </div>
                 )}
-                {isScheduled && (
+                {/* Pending pipeline banner */}
+                {pending && (
+                  <>
+                    <div className="absolute top-1 left-1">
+                      <Badge className="text-[6px] h-3 bg-amber-400/95 text-black border-0 px-1 font-black tracking-wider">DA PIPELINE</Badge>
+                    </div>
+                    {countdown && (
+                      <div className="absolute top-1 right-1">
+                        <Badge className="text-[6px] h-3 bg-black/70 text-amber-300 border-0 px-1 font-bold">{countdown}</Badge>
+                      </div>
+                    )}
+                    {/* Overlay ✔️ / ✏️ */}
+                    <div className="absolute inset-x-0 bottom-0 p-1.5 flex items-center justify-center gap-1.5 bg-gradient-to-t from-black/85 to-transparent pt-6">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onAcceptPending?.(item); }}
+                        data-testid={`pending-accept-${item.id}`}
+                        className="w-7 h-7 rounded-full bg-emerald-500/90 hover:bg-emerald-400 active:scale-95 text-black font-black flex items-center justify-center shadow-md transition-transform"
+                        aria-label="Accetta impostazioni pipeline"
+                      >
+                        <Check className="w-4 h-4" strokeWidth={3.5} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onEditPending?.(item); }}
+                        data-testid={`pending-edit-${item.id}`}
+                        className="w-7 h-7 rounded-full bg-amber-400/95 hover:bg-amber-300 active:scale-95 text-black font-black flex items-center justify-center shadow-md transition-transform"
+                        aria-label="Modifica impostazioni trasmissione"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" strokeWidth={3} />
+                      </button>
+                    </div>
+                  </>
+                )}
+                {isScheduled && !pending && (
                   <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 p-1">
                     <Badge className="text-[6px] h-3 bg-cyan-500/20 text-cyan-400 border-0">
                       {item.status === 'in_theaters' ? 'Al cinema' : item.status === 'production' ? 'In produzione' : item.status}
@@ -439,6 +502,20 @@ function NetflixRow({ title, items, color = 'white', onItemClick, isScheduled, s
       </div>
     </div>
   );
+}
+
+// human countdown for airing start (Xg Yh / Xh Ym / in onda)
+function humanAiringCountdown(iso) {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso).getTime() - Date.now();
+    if (d <= 0) return 'pronto';
+    const h = Math.floor(d / 3600000);
+    const m = Math.floor((d % 3600000) / 60000);
+    if (h >= 24) return `${Math.floor(h / 24)}g ${h % 24}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  } catch { return null; }
 }
 
 // Simple film detail popup (no management needed)

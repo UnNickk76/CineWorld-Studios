@@ -409,8 +409,10 @@ async def add_content(req: AddContentRequest, user: dict = Depends(get_current_u
             series = fp
             total_eps = fp.get('episode_count', 12)
         else:
+            # Include V3 rilasciate (status in_tv/catalog) oltre a V2 legacy 'completed'.
             ts = await db.tv_series.find_one(
-                {'id': req.content_id, 'user_id': user['id'], 'status': 'completed'},
+                {'id': req.content_id, 'user_id': user['id'],
+                 'status': {'$in': ['completed', 'in_tv', 'catalog', 'released']}},
                 {'_id': 0, 'id': 1, 'title': 1, 'type': 1, 'num_episodes': 1}
             )
             if ts:
@@ -565,6 +567,61 @@ async def get_scheduled_content(station_id: str, user: dict = Depends(get_curren
     if not station:
         raise HTTPException(404, "Stazione non trovata")
 
+    # Self-heal: repair previously-released series/anime that have target_tv_station_id==this
+    # but scheduled_for_tv=False/None due to the old pipeline bug. Owner's series only.
+    try:
+        await db.tv_series.update_many(
+            {
+                'user_id': user['id'],
+                'target_tv_station_id': station_id,
+                '$or': [
+                    {'scheduled_for_tv': {'$ne': True}},
+                    {'scheduled_for_tv_station': {'$ne': station_id}},
+                ],
+            },
+            {'$set': {
+                'scheduled_for_tv': True,
+                'scheduled_for_tv_station': station_id,
+                'prossimamente_tv': True,
+            }}
+        )
+    except Exception:
+        pass
+
+    # ═══ ORPHAN ADOPTION ═══
+    # Se il proprietario della station ha serie V3 con prossimamente_tv=True ma SENZA
+    # target_tv_station_id (non ha scelto una TV specifica in pipeline), e questa station
+    # è la sua UNICA TV → auto-assegnala a questa station. Altrimenti le mostriamo come
+    # orphan (ma per ora l'auto-assegnazione alla primary è safe).
+    try:
+        user_stations_count = await db.tv_stations.count_documents({'user_id': user['id']})
+        # Auto-assegna solo se la station corrente è l'unica o la prima
+        if user_stations_count >= 1:
+            await db.tv_series.update_many(
+                {
+                    'user_id': user['id'],
+                    'pipeline_version': 3,
+                    'prossimamente_tv': True,
+                    '$and': [
+                        {'$or': [
+                            {'target_tv_station_id': {'$in': [None, '']}},
+                            {'target_tv_station_id': {'$exists': False}},
+                        ]},
+                        {'$or': [
+                            {'scheduled_for_tv_station': {'$in': [None, '']}},
+                            {'scheduled_for_tv_station': {'$exists': False}},
+                        ]},
+                    ],
+                },
+                {'$set': {
+                    'target_tv_station_id': station_id,
+                    'scheduled_for_tv_station': station_id,
+                    'scheduled_for_tv': True,
+                }}
+            )
+    except Exception:
+        pass
+
     # Films in theaters or coming soon, scheduled for this station
     scheduled_films = await db.films.find(
         {'user_id': user['id'], 'scheduled_for_tv': True, 'scheduled_for_tv_station': station_id},
@@ -576,21 +633,175 @@ async def get_scheduled_content(station_id: str, user: dict = Depends(get_curren
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre': 1}
     ).to_list(50)
 
-    # Series/Anime scheduled for this station
+    # Series/Anime scheduled for this station (includes V3 series auto-scheduled via target_tv_station_id)
+    _series_proj = {
+        '_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre_name': 1, 'num_episodes': 1,
+        'pipeline_version': 1, 'release_policy': 1, 'tv_eps_per_batch': 1, 'tv_interval_days': 1,
+        'tv_split_season': 1, 'tv_split_pause_days': 1, 'distribution_delay_hours': 1,
+        'tv_schedule_accepted_at': 1, 'released_at': 1, 'target_tv_station_id': 1, 'type': 1,
+    }
     scheduled_series = await db.tv_series.find(
         {'user_id': user['id'], 'scheduled_for_tv': True, 'scheduled_for_tv_station': station_id, 'type': 'tv_series'},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre_name': 1, 'num_episodes': 1}
+        _series_proj
     ).to_list(50)
     scheduled_anime = await db.tv_series.find(
         {'user_id': user['id'], 'scheduled_for_tv': True, 'scheduled_for_tv_station': station_id, 'type': 'anime'},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'status': 1, 'genre_name': 1, 'num_episodes': 1}
+        _series_proj
     ).to_list(50)
+
+    # Enrich series/anime with pending flag + computed airing start
+    def _enrich_series(s):
+        s['pending_tv_approval'] = bool(s.get('pipeline_version') == 3 and not s.get('tv_schedule_accepted_at'))
+        try:
+            if s.get('released_at') and s.get('distribution_delay_hours') is not None:
+                rel = datetime.fromisoformat(s['released_at'].replace('Z', '+00:00')) if isinstance(s['released_at'], str) else s['released_at']
+                s['tv_airing_start'] = (rel + timedelta(hours=int(s.get('distribution_delay_hours', 0) or 0))).isoformat()
+        except Exception:
+            s['tv_airing_start'] = None
+        return s
+    scheduled_series = [_enrich_series(s) for s in scheduled_series]
+    scheduled_anime = [_enrich_series(s) for s in scheduled_anime]
+
+    # ═══ SERIE IN LICENZA (TV RIGHTS) ═══
+    # Aggiungi al palinsesto le serie per cui la station owner ha acquistato i diritti TV
+    # (market_v2). Filtra solo licenze attive e non scadute.
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        licensed_rights = await db.tv_rights.find(
+            {
+                'license_holder_id': user['id'],
+                'active': True,
+                '$or': [
+                    {'expires_at': None},
+                    {'expires_at': {'$gt': now_iso}},
+                ],
+            },
+            {'_id': 0, 'series_id': 1, 'original_owner_id': 1, 'royalty_pct': 1, 'expires_at': 1, 'purchased_at': 1, 'duration_months': 1}
+        ).to_list(100)
+        licensed_ids = [r['series_id'] for r in licensed_rights]
+        rights_by_series = {r['series_id']: r for r in licensed_rights}
+        if licensed_ids:
+            licensed_docs = await db.tv_series.find(
+                {'id': {'$in': licensed_ids}, 'type': {'$in': ['tv_series', 'anime']}},
+                _series_proj
+            ).to_list(100)
+            for s in licensed_docs:
+                r = rights_by_series.get(s['id'], {})
+                s['is_licensed'] = True
+                s['license_expires_at'] = r.get('expires_at')
+                s['license_royalty_pct'] = r.get('royalty_pct')
+                s['original_owner_id'] = r.get('original_owner_id')
+                s['pending_tv_approval'] = False  # licenza già attiva → non serve approvazione
+                if s.get('type') == 'anime':
+                    scheduled_anime.append(s)
+                else:
+                    scheduled_series.append(s)
+    except Exception:
+        pass
 
     all_scheduled = scheduled_films + scheduled_fp + scheduled_series + scheduled_anime
     for item in all_scheduled:
-        item['content_type'] = 'film' if item in scheduled_films or item in scheduled_fp else ('anime' if item in scheduled_anime else 'tv_series')
+        if item in scheduled_films or item in scheduled_fp:
+            item['content_type'] = 'film'
+        elif item in scheduled_anime:
+            item['content_type'] = 'anime'
+        else:
+            item['content_type'] = 'tv_series'
 
     return {"items": all_scheduled, "total": len(all_scheduled)}
+
+
+class PendingEditRequest(BaseModel):
+    tv_eps_per_batch: Optional[int] = None
+    tv_interval_days: Optional[int] = None
+    tv_split_season: Optional[bool] = None
+    tv_split_pause_days: Optional[int] = None
+    distribution_delay_hours: Optional[int] = None
+
+
+@router.post("/tv-stations/{station_id}/accept-pending/{content_id}")
+async def accept_pending_scheduled(station_id: str, content_id: str, user: dict = Depends(get_current_user)):
+    """Accept pipeline-assigned TV scheduling for a V3 series/anime (confirms pipeline settings)."""
+    station = await db.tv_stations.find_one({'id': station_id, 'user_id': user['id']}, {'_id': 0, 'id': 1})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+    series = await db.tv_series.find_one(
+        {'id': content_id, 'user_id': user['id'], 'scheduled_for_tv_station': station_id},
+        {'_id': 0, 'id': 1}
+    )
+    if not series:
+        raise HTTPException(404, "Contenuto non trovato o non destinato a questa stazione")
+    await db.tv_series.update_one(
+        {'id': content_id},
+        {'$set': {'tv_schedule_accepted_at': datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": True, "accepted": True}
+
+
+@router.post("/tv-stations/{station_id}/edit-pending/{content_id}")
+async def edit_pending_scheduled(
+    station_id: str, content_id: str, req: PendingEditRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Override pipeline TV scheduling with custom values and mark accepted."""
+    station = await db.tv_stations.find_one({'id': station_id, 'user_id': user['id']}, {'_id': 0, 'id': 1})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+    series = await db.tv_series.find_one(
+        {'id': content_id, 'user_id': user['id'], 'scheduled_for_tv_station': station_id},
+        {'_id': 0, 'id': 1}
+    )
+    if not series:
+        raise HTTPException(404, "Contenuto non trovato o non destinato a questa stazione")
+
+    update = {}
+    if req.tv_eps_per_batch is not None:
+        update['tv_eps_per_batch'] = max(1, min(3, int(req.tv_eps_per_batch)))
+    if req.tv_interval_days is not None:
+        update['tv_interval_days'] = max(1, min(3, int(req.tv_interval_days)))
+    if req.tv_split_season is not None:
+        update['tv_split_season'] = bool(req.tv_split_season)
+    if req.tv_split_pause_days is not None:
+        update['tv_split_pause_days'] = max(7, min(30, int(req.tv_split_pause_days)))
+    if req.distribution_delay_hours is not None:
+        update['distribution_delay_hours'] = max(0, int(req.distribution_delay_hours))
+    update['tv_schedule_accepted_at'] = datetime.now(timezone.utc).isoformat()
+
+    await db.tv_series.update_one({'id': content_id}, {'$set': update})
+    return {"success": True, "updated": update}
+
+
+@router.post("/tv-stations/{station_id}/assign-series/{series_id}")
+async def assign_series_to_station(station_id: str, series_id: str, user: dict = Depends(get_current_user)):
+    """Assign a V3 series/anime currently with no TV station (pipeline chose 'Nessuna emittente')
+    to this station. Uses pipeline settings as defaults, marks as accepted immediately.
+    """
+    station = await db.tv_stations.find_one({'id': station_id, 'user_id': user['id']}, {'_id': 0, 'id': 1})
+    if not station:
+        raise HTTPException(404, "Stazione non trovata")
+    series = await db.tv_series.find_one(
+        {'id': series_id, 'user_id': user['id']},
+        {'_id': 0}
+    )
+    if not series:
+        raise HTTPException(404, "Serie non trovata")
+    if series.get('scheduled_for_tv_station'):
+        raise HTTPException(400, "Serie gia' assegnata a un'altra emittente")
+
+    await db.tv_series.update_one(
+        {'id': series_id},
+        {'$set': {
+            'scheduled_for_tv_station': station_id,
+            'scheduled_for_tv': True,
+            'target_tv_station_id': station_id,
+            'prossimamente_tv': True,
+            'status': 'in_tv',
+            'tv_schedule_accepted_at': datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    return {"success": True, "station_id": station_id}
+
+
 
 
 @router.get("/tv-stations/available-content/{station_id}")
@@ -617,11 +828,11 @@ async def get_available_content(station_id: str, user: dict = Depends(get_curren
         {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre': 1, 'quality_score': 1, 'total_revenue': 1}
     ).to_list(100)
     
-    # Completed series not already added
+    # Completed series not already added (include V3: status='in_tv' or 'catalog')
     available_series = await db.tv_series.find(
         {
             'user_id': user['id'],
-            'status': 'completed',
+            'status': {'$in': ['completed', 'in_tv', 'catalog']},
             'type': 'tv_series',
             'id': {'$nin': existing_series_ids}
         },
@@ -631,7 +842,7 @@ async def get_available_content(station_id: str, user: dict = Depends(get_curren
     available_anime = await db.tv_series.find(
         {
             'user_id': user['id'],
-            'status': 'completed',
+            'status': {'$in': ['completed', 'in_tv', 'catalog']},
             'type': 'anime',
             'id': {'$nin': existing_series_ids}
         },
@@ -823,6 +1034,211 @@ async def remove_upcoming(req: RemoveContentRequest, user: dict = Depends(get_cu
         {'$pull': {'upcoming_content': {'content_id': req.content_id}}, '$set': {'updated_at': datetime.now(timezone.utc).isoformat()}}
     )
     return {"message": "Rimosso dai Prossimamente"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# CINEMA → TV TRANSFER (unified endpoint for Film Actions Sheet)
+# ═══════════════════════════════════════════════════════════════
+
+class CinemaToTVRequest(BaseModel):
+    film_id: str
+    station_id: str
+    mode: str  # 'subito' (immediate) | 'prossimamente' (scheduled)
+    delay_hours: Optional[int] = 24  # only for 'prossimamente'
+
+
+def _compute_cinema_trend(film: dict) -> dict:
+    """Analyze recent attendance/revenue to detect if film is dropping. Returns {direction, delta_pct}."""
+    daily = film.get('daily_revenues', []) or []
+    history = film.get('attendance_history', []) or []
+    # Prefer attendance_history (cinema count per tick)
+    if len(history) >= 4:
+        recent = history[-4:]
+        older = history[-8:-4] if len(history) >= 8 else history[:-4]
+        if older:
+            r_avg = sum((h.get('total_cinemas') or 0) for h in recent) / max(1, len(recent))
+            o_avg = sum((h.get('total_cinemas') or 0) for h in older) / max(1, len(older))
+            if o_avg > 0:
+                delta = (r_avg - o_avg) / o_avg
+                if delta <= -0.08:
+                    return {"direction": "declining", "delta_pct": round(delta * 100, 1)}
+                if delta >= 0.08:
+                    return {"direction": "growing", "delta_pct": round(delta * 100, 1)}
+                return {"direction": "stable", "delta_pct": round(delta * 100, 1)}
+    # Fallback: last 3 daily revenues
+    if len(daily) >= 3:
+        last = daily[-1].get('revenue', 0) if isinstance(daily[-1], dict) else 0
+        prev = daily[-3].get('revenue', 0) if isinstance(daily[-3], dict) else 0
+        if prev > 0:
+            delta = (last - prev) / prev
+            if delta <= -0.15:
+                return {"direction": "declining", "delta_pct": round(delta * 100, 1)}
+            if delta >= 0.15:
+                return {"direction": "growing", "delta_pct": round(delta * 100, 1)}
+    return {"direction": "stable", "delta_pct": 0.0}
+
+
+@router.post("/tv-stations/transfer-from-cinema")
+async def transfer_film_from_cinema(req: CinemaToTVRequest, user: dict = Depends(get_current_user)):
+    """Transfer a film from the cinema to one of the user's TV stations.
+    - 'subito' = withdraw from cinema NOW and add to station palinsesto immediately. FREE (station owned).
+      If the cinema trend was 'declining', gives a TV hype bonus (+6..+14) to seed premiere audience.
+    - 'prossimamente' = schedule the film on the TV station's 'Prossimamente' with a delay (default 24h).
+      Film stays in cinema until the TV air date (or can be withdrawn later manually).
+    """
+    station = await db.tv_stations.find_one({'id': req.station_id, 'user_id': user['id']}, {'_id': 0})
+    if not station:
+        raise HTTPException(404, "Stazione TV non trovata o non di tua proprieta'")
+    if not station.get('setup_complete'):
+        raise HTTPException(400, "Completa prima il setup della stazione")
+
+    film = await db.films.find_one({'id': req.film_id, 'user_id': user['id']}, {'_id': 0})
+    if not film:
+        raise HTTPException(404, "Film non trovato o non di tua proprieta'")
+
+    now = datetime.now(timezone.utc)
+    trend = _compute_cinema_trend(film)
+
+    if req.mode == 'subito':
+        # Capacity check
+        contents = station.get('contents', {})
+        infra = await db.infrastructure.find_one({'id': station.get('infra_id')}, {'_id': 0, 'level': 1})
+        cap = get_schedule_capacity((infra or {}).get('level', 1))
+        if len(contents.get('films', [])) >= cap['films']:
+            raise HTTPException(400, f"Palinsesto film pieno ({cap['films']}). Migliora l'infrastruttura per aggiungerne di piu'.")
+        existing = [c['content_id'] for c in contents.get('films', [])]
+        if req.film_id in existing:
+            raise HTTPException(400, "Questo film e' gia' nel palinsesto della stazione")
+
+        # Compute hype bonus
+        hype_bonus = 0
+        if trend['direction'] == 'declining':
+            # The more it dropped, the bigger the boost (cap +14)
+            magnitude = min(abs(trend['delta_pct']), 40.0)
+            hype_bonus = int(6 + round(magnitude * 0.2))  # 6..14
+            hype_bonus = max(6, min(14, hype_bonus))
+
+        # Withdraw film from cinema
+        await db.films.update_one(
+            {'id': req.film_id},
+            {'$set': {
+                'status': 'withdrawn',
+                'tv_transfer_from_cinema': {
+                    'at': now.isoformat(),
+                    'station_id': req.station_id,
+                    'trend_at_transfer': trend,
+                    'hype_bonus_applied': hype_bonus,
+                },
+                'updated_at': now.isoformat(),
+            }}
+        )
+
+        # Add to station with optional hype seed
+        content_entry = {
+            'content_id': req.film_id,
+            'added_at': now.isoformat(),
+            'transferred_from_cinema': True,
+            'cinema_hype_bonus': hype_bonus,
+        }
+        await db.tv_stations.update_one(
+            {'id': req.station_id},
+            {'$push': {'contents.films': content_entry},
+             '$inc': {'current_share': hype_bonus * 0.1},  # small immediate share boost
+             '$set': {'updated_at': now.isoformat()}}
+        )
+
+        # Notification
+        bonus_msg = f" (+{hype_bonus} hype TV perche' era in calo al cinema)" if hype_bonus > 0 else ""
+        await send_notification(
+            user_id=user['id'],
+            title="Film in TV",
+            body=f"'{film.get('title', 'Film')}' trasferito su {station.get('station_name')}{bonus_msg}",
+            category="tv",
+        )
+
+        return {
+            "message": f"'{film.get('title')}' ora trasmesso su {station.get('station_name')}!",
+            "mode": "subito",
+            "cost": 0,
+            "hype_bonus": hype_bonus,
+            "trend_at_transfer": trend,
+        }
+
+    elif req.mode == 'prossimamente':
+        delay = int(req.delay_hours or 24)
+        if delay < 6 or delay > 168:
+            raise HTTPException(400, "Delay fuori intervallo (6h - 168h)")
+        upcoming = station.get('upcoming_content', []) or []
+        if any(u.get('content_id') == req.film_id for u in upcoming):
+            raise HTTPException(400, "Questo film e' gia' nei Prossimamente della stazione")
+
+        scheduled_at = now + timedelta(hours=delay)
+        entry = {
+            'id': str(uuid.uuid4()),
+            'content_id': req.film_id,
+            'content_type': 'film',
+            'title': film.get('title', '???'),
+            'poster_url': film.get('poster_url'),
+            'status': film.get('status', 'unknown'),
+            'num_episodes': 0,
+            'added_at': now.isoformat(),
+            'scheduled_air_at': scheduled_at.isoformat(),
+            'delay_hours': delay,
+            'schedule_config': None,
+            'frozen': False,
+            'from_cinema': True,
+            'trend_at_schedule': trend,
+        }
+        await db.tv_stations.update_one(
+            {'id': req.station_id},
+            {'$push': {'upcoming_content': entry}, '$set': {'updated_at': now.isoformat()}}
+        )
+
+        # Also mark film with scheduled TV transfer (does not withdraw yet)
+        await db.films.update_one(
+            {'id': req.film_id},
+            {'$set': {
+                'tv_scheduled_transfer': {
+                    'station_id': req.station_id,
+                    'scheduled_air_at': scheduled_at.isoformat(),
+                    'delay_hours': delay,
+                    'set_at': now.isoformat(),
+                }
+            }}
+        )
+
+        delay_label = f"{delay}h" if delay < 48 else f"{delay // 24}g"
+        return {
+            "message": f"'{film.get('title')}' programmato su {station.get('station_name')} tra {delay_label}",
+            "mode": "prossimamente",
+            "cost": 0,
+            "scheduled_air_at": scheduled_at.isoformat(),
+        }
+    else:
+        raise HTTPException(400, "Modalita' non valida (usa 'subito' o 'prossimamente')")
+
+
+@router.get("/my-owned-tv-stations")
+async def get_my_stations_minimal(user: dict = Depends(get_current_user)):
+    """Lightweight list of user's owned TV stations for the Film Actions Sheet picker."""
+    stations = await db.tv_stations.find(
+        {'user_id': user['id'], 'setup_complete': True},
+        {'_id': 0, 'id': 1, 'station_name': 1, 'nation': 1, 'infra_id': 1, 'contents': 1, 'upcoming_content': 1, 'current_share': 1}
+    ).sort('created_at', 1).to_list(20)
+    # Compute load
+    for s in stations:
+        infra = await db.infrastructure.find_one({'id': s.get('infra_id')}, {'_id': 0, 'level': 1})
+        lvl = (infra or {}).get('level', 1)
+        cap = get_schedule_capacity(lvl)
+        contents = s.get('contents', {})
+        s['infra_level'] = lvl
+        s['film_count'] = len(contents.get('films', []))
+        s['film_cap'] = cap['films']
+        s['upcoming_count'] = len(s.get('upcoming_content', []) or [])
+        # don't return full contents payload
+        s.pop('contents', None)
+        s.pop('upcoming_content', None)
+    return {"stations": stations}
 
 
 @router.get("/tv-stations/available-upcoming/{station_id}")

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Check, Sparkles, TrendingUp, Users, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket } from 'lucide-react';
+import { Check, Sparkles, TrendingUp, Users, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Award } from 'lucide-react';
 
 export const V3_STEPS = [
   { id: 'idea', label: 'IDEA', icon: Sparkles, color: 'amber' },
@@ -9,6 +9,7 @@ export const V3_STEPS = [
   { id: 'ciak', label: 'CIAK', icon: Clapperboard, color: 'red' },
   { id: 'finalcut', label: 'FINAL CUT', icon: Scissors, color: 'purple' },
   { id: 'marketing', label: 'MARKETING', icon: Megaphone, color: 'green' },
+  { id: 'la_prima', label: 'LA PRIMA', icon: Award, color: 'yellow' },
   { id: 'distribution', label: 'DISTRIB.', icon: Globe, color: 'blue' },
   { id: 'release_pending', label: 'USCITA', icon: Ticket, color: 'emerald' },
 ];
@@ -28,12 +29,25 @@ export const STEP_STYLES = {
 export const GENRES = ['action','comedy','drama','horror','sci_fi','romance','thriller','animation','documentary','fantasy','adventure','musical','western','biographical','mystery','war','crime','noir','historical'];
 export const GENRE_LABELS = { action:'Azione', comedy:'Commedia', drama:'Dramma', horror:'Horror', sci_fi:'Fantascienza', romance:'Romantico', thriller:'Thriller', animation:'Animazione', documentary:'Documentario', fantasy:'Fantasy', adventure:'Avventura', musical:'Musical', western:'Western', biographical:'Biografico', mystery:'Giallo', war:'Guerra', crime:'Crime', noir:'Noir', historical:'Storico' };
 export const SUBGENRE_MAP = {
-  action:['militare','spy','vendetta','arti marziali','heist','survival'], comedy:['slapstick','romantica','nera','satirica','demenziale','teen','familiare'],
-  drama:['romantico','psicologico','familiare','sociale','biografico','legale'], horror:['slasher','psicologico','soprannaturale','body horror','gotico','zombie'],
-  sci_fi:['cyberpunk','space opera','distopia','alieni','mecha','viaggi nel tempo'], romance:['tragico','commedia romantica','teen romance','proibito','period'],
-  thriller:['psicologico','crime','paranoia','politico','suspense','serial killer'], animation:['CGI','stop motion','2D classico','anime','mixed media'],
-  documentary:['true crime','storico','sociale','natura','sportivo'], fantasy:['epico','dark fantasy','urban fantasy','mitologico','fiabesco'],
-  adventure:['giungla','oceano','tesoro','survival','esplorazione'],
+  action:['militare','spy','vendetta','arti marziali','heist','survival','inseguimento','guerriglia','vigilante','cacciatore di taglie','mercenario','rivolta','apocalittico','arena','pirateria','corpo a corpo','anti-terrorismo','fuga','sabotaggio','assedio'],
+  comedy:['slapstick','romantica','nera','satirica','demenziale','teen','familiare','parodia','buddy','workplace','mockumentary','stoner','improvvisata','grottesca','commedia degli equivoci','fish out of water','screwball','farsesca','british humor','comicità involontaria'],
+  drama:['romantico','psicologico','familiare','sociale','biografico','legale','politico','coming of age','malattia','redenzione','vendetta','esistenziale','carcerario','sportivo','religioso','immigrazione','dipendenza','lutto','tradimento','segreto di famiglia'],
+  horror:['slasher','psicologico','soprannaturale','body horror','gotico','zombie','found footage','folk horror','cosmico','home invasion','possessione','culto','epidemia','creature','bambole','cannibale','survival horror','eco-horror','tech horror','sotterraneo'],
+  sci_fi:['cyberpunk','space opera','distopia','alieni','mecha','viaggi nel tempo','post-apocalittico','cloni','intelligenza artificiale','colonizzazione','primo contatto','realtà virtuale','nanotecnologia','terraformazione','paradosso temporale','uplift','biopunk','solarpunk','hard sci-fi','soft sci-fi'],
+  romance:['tragico','commedia romantica','teen romance','proibito','period','seconda possibilità','nemici-amanti','amicizia-amore','a distanza','triangolo amoroso','matrimonio combinato','vacanza','lettere d amore','segreto','royal romance','age gap','slow burn','fake dating','soulmate','reunion'],
+  thriller:['psicologico','crime','paranoia','politico','suspense','serial killer','cospirazione','techno-thriller','giudiziario','spionaggio','rapimento','stalker','doppia identità','vendetta','claustrofobico','manipolazione','testimone','infiltrato','fuga','caccia all uomo'],
+  animation:['CGI','stop motion','2D classico','anime','mixed media','claymation','rotoscoping','pixel art','acquerello','silhouette','cut-out','musical animato','fantascienza animata','dark animation','sperimentale','loop','puppetry digitale','voxel','motion capture','hand-drawn'],
+  documentary:['true crime','storico','sociale','natura','sportivo','musicale','politico','scientifico','biografico','investigativo','ambientale','culturale','tecnologico','culinario','viaggio','underground','architettura','moda','spaziale','filosofico'],
+  fantasy:['epico','dark fantasy','urban fantasy','mitologico','fiabesco','sword & sorcery','portal fantasy','low fantasy','high fantasy','steampunk','dragonpunk','maghi','elfico','dimensioni parallele','profezia','accademia magica','creature mitiche','quest','reami nascosti','magia nera'],
+  adventure:['giungla','oceano','tesoro','survival','esplorazione','montagna','artico','desertico','isola','sotterraneo','spedizione','naufragio','safari','vulcano','cascate','caverne','foresta pluviale','savana','ruins','terre perdute'],
+  musical:['broadway','dance','rock opera','biografico musicale','jukebox','opera','jazz','hip hop','country','disco','punk','classica','electro','gospel','folk','boy band','talent show','backstage','tour','battle of bands'],
+  western:['classico','spaghetti','neo-western','revisionista','bounty hunter','ferrovia','gold rush','fuorilegge','sceriffo','frontiera','messicano','duello','carovana','nativi americani','ranch','deserto','saloon','vendetta','epico','crepuscolare'],
+  biographical:['musicale','politico','sportivo','criminale','artistico','scientifico','religioso','militare','letterario','reale','inventore','attivista','esploratore','medico','imprenditore','spia','filosofo','aviatore','rivoluzionario','sopravvissuto'],
+  mystery:['whodunit','noir','giallo','poliziesco','camera chiusa','amateur detective','cold case','sparizione','cospirazione','puzzle','omicidio','occultismo','archeologico','maledizione','doppio gioco','identità','crimine impossibile','fantasma','codice','labirinto'],
+  war:['WWII','moderna','medievale','vietnam','civile','trincea','resistenza','bombardamento','prigionia','marina','aerea','guerriglia','nucleare','fredda','rivoluzione','assedio','diplomazia','mercenari','medico di guerra','sopravvivenza'],
+  crime:['gangster','heist','detective','mafioso','narcos','rapina','contrabbando','corruzione','sicario','truffa','riciclaggio','testimone','fuga','cartello','strada','white collar','cyber crime','banda','prigione','informatore'],
+  noir:['classico','neo-noir','tech-noir','sunshine noir','nordic noir','tropical noir','rural noir','mediterranean noir','amnesiac noir','femme fatale','detective corrotto','pioggia','notturno','jazz noir','hitchcockiano','kafkiano','lynchiano','ermetico','onirico','esistenziale'],
+  historical:['guerra','imperi','medioevo','rinascimento','antica roma','antico egitto','rivoluzione francese','epoca vittoriana','belle époque','coloniale','samurai','vichinghi','pirateria storica','conquistadores','ottomano','mongolo','dinastia cinese','maya e aztechi','età del bronzo','guerra fredda'],
 };
 
 export const LOCATION_TAGS = ['Urban','Suburban','Rurale','Costiero','Montano','Deserto','Tropicale','Artico','Storico','Futuristico','Sotterraneo','Spaziale'];
@@ -46,18 +60,32 @@ export async function v3api(path, method = 'GET', body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || data.error || 'Errore API');
-  return data;
+  if (!res.ok) {
+    // `detail` can be a dict (e.g. provider_failed) or a string
+    const detail = data.detail;
+    const msg = typeof detail === 'object' ? (detail.message || detail.code || 'Errore API') : (detail || data.error || 'Errore API');
+    const err = new Error(msg);
+    err.status = res.status;
+    err.code = typeof detail === 'object' ? detail.code : undefined;
+    throw err;
+  }
+  // Deep copy to ensure no non-cloneable references survive into React state
+  try { return JSON.parse(JSON.stringify(data)); } catch { return data; }
 }
 
 /* ═══════ STEPPER ═══════ */
-export const StepperBar = ({ current }) => {
+export const StepperBar = ({ current, onSelect }) => {
   const ci = V3_STEPS.findIndex(s => s.id === current);
   const ref = useRef(null);
   useEffect(() => {
     if (ref.current) {
       const el = ref.current.querySelector(`[data-sid="${current}"]`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      if (el) {
+        // Use scrollLeft instead of scrollIntoView to avoid page scroll bounce
+        const container = ref.current;
+        const scrollLeft = el.offsetLeft - container.offsetWidth / 2 + el.offsetWidth / 2;
+        container.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
+      }
     }
   }, [current]);
   return (
@@ -69,14 +97,16 @@ export const StepperBar = ({ current }) => {
         return (
           <React.Fragment key={s.id}>
             {i > 0 && <div className={`w-2 sm:w-4 h-0.5 shrink-0 ${done || active ? style.line : 'bg-gray-800'}`} />}
-            <div className="flex flex-col items-center shrink-0 gap-0.5" data-sid={s.id}>
+            <button type="button" onClick={() => onSelect?.(s.id, i)}
+              className="flex flex-col items-center shrink-0 gap-0.5 active:scale-95 transition-transform focus:outline-none"
+              data-sid={s.id} data-testid={`stepper-step-${s.id}`} aria-label={`Vai allo step ${s.label}`}>
               <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center border-2 transition-all ${
                 active ? `${style.active} shadow-lg scale-110` : done ? 'border-emerald-600 bg-emerald-500/10 text-emerald-400' : 'border-gray-800 bg-gray-900/50 text-gray-700 opacity-40'
               }`}>{done ? <Check className="w-2.5 h-2.5" /> : <Icon className="w-2.5 h-2.5" />}</div>
               <span className={`text-[5px] sm:text-[6px] font-bold uppercase tracking-wider whitespace-nowrap ${
                 active ? style.text : done ? 'text-emerald-500/60' : 'text-gray-700'
               }`}>{s.label}</span>
-            </div>
+            </button>
           </React.Fragment>
         );
       })}

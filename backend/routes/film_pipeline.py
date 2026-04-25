@@ -1017,6 +1017,11 @@ async def admin_recover_all_films(user: dict = Depends(get_current_user)):
         title = f.get('title', 'Unknown')
         owner_user = users_map.get(f.get('user_id'), {})
         owner = owner_user.get('nickname', '?')
+
+        # SKIP V3 projects entirely — they use pipeline_state, not status
+        if f.get('pipeline_version') == 3 or f.get('pipeline_state'):
+            continue
+
         has_shooting = f.get('shooting_started_at') or f.get('shooting_completed')
         has_cast = f.get('cast') and isinstance(f['cast'], dict) and (f['cast'].get('director') or f['cast'].get('actors'))
         # Check if this project has a corresponding released film

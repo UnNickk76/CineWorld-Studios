@@ -62,6 +62,24 @@ async def get_online_users(user: dict = Depends(get_current_user)):
     return active_users
 
 
+@router.get("/users/online-count")
+async def get_online_count(user: dict = Depends(get_current_user)):
+    """Endpoint leggero: restituisce solo il numero di utenti online (escluso sé
+    stesso). Pensato per essere pollato dalla top navbar."""
+    now = datetime.now(timezone.utc)
+    count = 0
+    for user_id, data in online_users.items():
+        try:
+            last_seen = datetime.fromisoformat(data['last_seen'].replace('Z', '+00:00'))
+            if (now - last_seen).total_seconds() < 300 and user_id != user['id']:
+                count += 1
+        except Exception:
+            continue
+    # Includi i bot sempre online
+    count += len(CHAT_BOTS)
+    return {"count": count}
+
+
 @router.get("/users/presence")
 async def get_users_with_presence(user: dict = Depends(get_current_user)):
     """Get all users with 3-state presence: online (green), recent (yellow), offline (red)."""
@@ -343,7 +361,7 @@ async def get_user_badges(user_id: str, user: dict = Depends(get_current_user)):
 
 @router.get("/players/{player_id}/profile")
 async def get_player_public_profile(player_id: str, user: dict = Depends(get_current_user)):
-    """Get public profile of another player."""
+    """Get public profile of another player with CWSv stats."""
     player = await db.users.find_one(
         {'id': player_id},
         {'_id': 0, 'password': 0, 'email': 0}
@@ -352,26 +370,81 @@ async def get_player_public_profile(player_id: str, user: dict = Depends(get_cur
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
     
-    # Get player stats
-    films = await db.films.find({'user_id': player_id}, {'_id': 0}).to_list(100)
+    # Get films (search both user_id and producer_id for V2 compat)
+    films = await db.films.find(
+        {'$or': [{'user_id': player_id}, {'producer_id': player_id}]},
+        {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'genre': 1, 'released_at': 1, 'type': 1, 'status': 1}
+    ).sort('released_at', -1).to_list(100)
+    # Get series
+    series = await db.tv_series.find({'user_id': player_id}, {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'type': 1, 'released_at': 1}).sort('released_at', -1).to_list(100)
+    
     infrastructure = await db.infrastructure.find({'owner_id': player_id}, {'_id': 0}).to_list(50)
     
     level_info = get_level_from_xp(player.get('total_xp', 0))
     fame_tier = get_fame_tier(player.get('fame', 50))
     
+    # Calculate stats
+    tv_series_list = [s for s in series if s.get('type') == 'tv_series']
+    anime_list = [s for s in series if s.get('type') == 'anime']
+    
+    all_content = films + series
+    # Normalize scores: V2 uses 0-100 scale, V3 uses 1-10 CWSv
+    scores = []
+    for c in all_content:
+        q = c.get('quality_score')
+        if q is not None and q > 0:
+            # V2 films have quality_score > 10 (0-100 scale) — convert to CWSv
+            scores.append(q / 10 if q > 10 else q)
+    avg_cwsv = round(sum(scores) / len(scores), 1) if scores else 0
+    total_rev = sum((c.get('total_revenue', 0) or 0) for c in all_content)
+    
+    # Best film (highest CWSv, normalized)
+    best = None
+    best_score = 0
+    for c in all_content:
+        q = c.get('quality_score') or 0
+        norm_q = q / 10 if q > 10 else q
+        if norm_q > best_score:
+            best_score = norm_q
+            display = c.get('cwsv_display') or (str(int(norm_q)) if norm_q == int(norm_q) else f"{norm_q:.1f}")
+            best = {'title': c.get('title', '?'), 'quality_score': norm_q, 'cwsv_display': display}
+    
+    # Filmography (recent 5, with normalized CWSv)
+    filmography = []
+    for c in all_content[:5]:
+        q = c.get('quality_score') or 0
+        norm_q = q / 10 if q > 10 else q
+        display = c.get('cwsv_display') or (str(int(norm_q)) if norm_q == int(norm_q) else f"{norm_q:.1f}")
+        filmography.append({'title': c.get('title', '?'), 'quality_score': norm_q, 'cwsv_display': display, 'type': c.get('type', 'film')})
+
+    # Social counts
+    followers_count = await db.follows.count_documents({'following_id': player_id})
+    following_count = await db.follows.count_documents({'follower_id': player_id})
+
     return {
         'id': player['id'],
         'nickname': player.get('nickname'),
         'production_house_name': player.get('production_house_name'),
         'avatar_url': player.get('avatar_url'),
+        'logo_url': player.get('logo_url'),
         'level': level_info['level'],
         'level_info': level_info,
         'fame': player.get('fame', 50),
         'fame_tier': fame_tier,
+        'total_films': len(films),
+        'total_series': len(tv_series_list),
+        'total_anime': len(anime_list),
         'films_count': len(films),
         'infrastructure_count': len(infrastructure),
         'total_likes_received': player.get('total_likes_received', 0),
+        'total_revenue': total_rev,
+        'avg_cwsv': avg_cwsv,
+        'best_film': best,
+        'filmography': filmography,
+        'followers_count': followers_count,
+        'following_count': following_count,
         'leaderboard_score': calculate_leaderboard_score(player),
+        'last_active': player.get('last_active'),
         'created_at': player.get('created_at')
     }
 
@@ -383,3 +456,101 @@ async def check_is_creator(user: dict = Depends(get_current_user)):
         'is_creator': user.get('nickname') == CREATOR_NICKNAME,
         'creator_nickname': CREATOR_NICKNAME
     }
+
+
+@router.get("/players/compare")
+async def compare_producers(p1: str, p2: str, user: dict = Depends(get_current_user)):
+    """Compare two producers side-by-side."""
+    async def get_producer_stats(pid):
+        player = await db.users.find_one({'id': pid}, {'_id': 0, 'password': 0, 'email': 0})
+        if not player:
+            return None
+        films = await db.films.find(
+            {'$or': [{'user_id': pid}, {'producer_id': pid}]},
+            {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'type': 1}
+        ).to_list(100)
+        series = await db.tv_series.find(
+            {'user_id': pid},
+            {'_id': 0, 'title': 1, 'quality_score': 1, 'cwsv_display': 1, 'total_revenue': 1, 'type': 1}
+        ).to_list(100)
+
+        all_content = films + series
+        scores = []
+        for c in all_content:
+            q = c.get('quality_score')
+            if q is not None and q > 0:
+                scores.append(q / 10 if q > 10 else q)
+        avg_cwsv = round(sum(scores) / len(scores), 1) if scores else 0
+        total_rev = sum((c.get('total_revenue', 0) or 0) for c in all_content)
+
+        best = None
+        best_score = 0
+        for c in all_content:
+            q = c.get('quality_score') or 0
+            norm_q = q / 10 if q > 10 else q
+            if norm_q > best_score:
+                best_score = norm_q
+                best = {'title': c.get('title', '?'), 'cwsv': norm_q}
+
+        tv_series_list = [s for s in series if s.get('type') == 'tv_series']
+        anime_list = [s for s in series if s.get('type') == 'anime']
+
+        level_info = get_level_from_xp(player.get('total_xp', 0))
+
+        return {
+            'id': pid,
+            'nickname': player.get('nickname'),
+            'production_house_name': player.get('production_house_name'),
+            'avatar_url': player.get('avatar_url'),
+            'level': level_info['level'],
+            'fame': player.get('fame', 0),
+            'total_films': len(films),
+            'total_series': len(tv_series_list),
+            'total_anime': len(anime_list),
+            'total_content': len(all_content),
+            'total_revenue': total_rev,
+            'avg_cwsv': avg_cwsv,
+            'best_production': best,
+            'leaderboard_score': calculate_leaderboard_score(player),
+        }
+
+    stats1 = await get_producer_stats(p1)
+    stats2 = await get_producer_stats(p2)
+    if not stats1 or not stats2:
+        raise HTTPException(404, "Uno o entrambi i produttori non trovati")
+
+    return {'producer_1': stats1, 'producer_2': stats2}
+
+
+@router.get("/players/{player_id}/is-following")
+async def check_is_following(player_id: str, user: dict = Depends(get_current_user)):
+    """Check if current user follows a player."""
+    existing = await db.follows.find_one(
+        {'follower_id': user['id'], 'following_id': player_id}
+    )
+    return {'is_following': existing is not None}
+
+
+@router.get("/players/{player_id}/films")
+async def get_player_films(player_id: str, user: dict = Depends(get_current_user)):
+    """Get all released films for a player (public view)."""
+    films = await db.films.find(
+        {'$or': [{'user_id': player_id}, {'producer_id': player_id}]},
+        {'_id': 0}
+    ).sort('released_at', -1).to_list(200)
+    # Sanitize ObjectIds
+    for f in films:
+        for key in list(f.keys()):
+            if hasattr(f[key], '__str__') and type(f[key]).__name__ == 'ObjectId':
+                f[key] = str(f[key])
+    return {'films': films}
+
+
+@router.get("/players/{player_id}/series")
+async def get_player_series(player_id: str, user: dict = Depends(get_current_user)):
+    """Get all released series/anime for a player (public view)."""
+    series = await db.tv_series.find(
+        {'user_id': player_id},
+        {'_id': 0, 'episodes': 0}
+    ).sort('released_at', -1).to_list(200)
+    return {'series': series}

@@ -237,7 +237,7 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         'audience_satisfaction': 1, 'budget': 1, 'total_budget': 1,
         'created_at': 1, 'released_at': 1, 'release_date': 1, 'studio_id': 1,
         'current_week': 1, 'opening_day_revenue': 1, 'last_revenue_collected': 1,
-        'subtitle': 1
+        'subtitle': 1, 'cumulative_attendance': 1, 'la_prima_spectators': 1, 'theater_stats': 1
     }
     films_task = db.films.find({'user_id': uid}, films_light_fields).to_list(100)
     infra_task = db.infrastructure.find({'owner_id': uid}, {'_id': 0, 'purchase_cost': 1, 'total_revenue': 1, 'level': 1, 'type': 1}).to_list(100)
@@ -257,19 +257,36 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     anime_pipeline_task = db.tv_series.find({'user_id': uid, 'type': 'anime', 'status': {'$nin': ['discarded', 'abandoned', 'completed', 'released']}}, {'_id': 0, 'status': 1}).to_list(50)
     emerging_task = db.emerging_screenplays.count_documents({'status': 'available'})
     shooting_films_task = db.films.find({'user_id': uid, 'status': {'$in': ['shooting', 'in_production']}}, films_light_fields).to_list(50)
-    series_light = {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1, 'type': 1, 'status': 1, 'seasons_count': 1, 'total_revenue': 1, 'created_at': 1, 'genre': 1}
+    series_light = {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'poster_url': 1, 'type': 1, 'status': 1, 'seasons_count': 1, 'total_revenue': 1, 'created_at': 1, 'genre': 1, 'source_project_id': 1, 'is_lampo': 1}
     my_series_task = db.tv_series.find({'user_id': uid, 'type': 'tv_series'}, series_light).sort('created_at', -1).to_list(10)
     my_anime_task = db.tv_series.find({'user_id': uid, 'type': 'anime'}, series_light).sort('created_at', -1).to_list(10)
+    # Global feeds for dashboard "Ultimi aggiornamenti Serie TV / Anime" — visibili a TUTTI i player
+    # Mostriamo serie/anime già rilasciati MA anche LAMPO programmati/bozze (sono comunque visibili).
+    _released_statuses = ['in_tv', 'catalog', 'completed', 'released']
+    _global_series_statuses = _released_statuses + ['lampo_scheduled', 'lampo_ready']
+    recent_series_global_task = db.tv_series.find(
+        {'type': 'tv_series', 'status': {'$in': _global_series_statuses}},
+        series_light
+    ).sort('created_at', -1).to_list(20)
+    recent_anime_global_task = db.tv_series.find(
+        {'type': 'anime', 'status': {'$in': _global_series_statuses}},
+        series_light
+    ).sort('created_at', -1).to_list(20)
     recent_releases_task = db.films.find(
-        {'status': 'in_theaters'},
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1}
-    ).sort('released_at', -1).to_list(10)
+        {'status': {'$in': ['in_theaters', 'lampo_scheduled', 'lampo_ready']}},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'genre': 1, 'released_at': 1, 'created_at': 1, 'status': 1, 'is_masterpiece': 1, 'pipeline_version': 1, 'attendance_trend': 1, 'source_project_id': 1, 'from_purchased_screenplay': 1, 'purchased_screenplay_mode': 1, 'purchased_screenplay_source': 1, 'is_lampo': 1, 'scheduled_release_at': 1}
+    ).sort('created_at', -1).to_list(20)
 
-    films, infrastructure, challenges, pending_films, pipeline_projects, series_pipeline, anime_pipeline, emerging_count, shooting_films, my_series, my_anime, recent_releases, v2_films = await asyncio.gather(
-        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, series_pipeline_task, anime_pipeline_task, emerging_task, shooting_films_task, my_series_task, my_anime_task, recent_releases_task, v2_films_task
+    films, infrastructure, challenges, pending_films, pipeline_projects, series_pipeline, anime_pipeline, emerging_count, shooting_films, my_series, my_anime, recent_releases, v2_films, recent_series_global, recent_anime_global = await asyncio.gather(
+        films_task, infra_task, challenges_task, pending_films_task, pipeline_task, series_pipeline_task, anime_pipeline_task, emerging_task, shooting_films_task, my_series_task, my_anime_task, recent_releases_task, v2_films_task, recent_series_global_task, recent_anime_global_task
     )
 
     producer_ids = list(set(r.get('user_id') for r in recent_releases if r.get('user_id')))
+    # Merge with producer_ids from global series/anime feeds per arricchire con nickname
+    for lst in (recent_series_global, recent_anime_global):
+        for s in lst:
+            if s.get('user_id') and s['user_id'] not in producer_ids:
+                producer_ids.append(s['user_id'])
     producers = {}
     if producer_ids:
         producer_docs = await db.users.find({'id': {'$in': producer_ids}}, {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1}).to_list(50)
@@ -281,11 +298,51 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         r['producer_badge'] = p.get('badge', 'none')
         r['producer_badge_expiry'] = p.get('badge_expiry')
         r['producer_badges'] = p.get('badges', {})
+    # Dedup recent_series_global / recent_anime_global per (user_id, title, type) — evita duplicati LAMPO + V3
+    def _dedup_by_user_title_type(lst):
+        seen = set()
+        out = []
+        for it in lst:
+            key = (it.get('user_id'), (it.get('title') or '').strip().lower(), it.get('type', 'tv_series'))
+            sp = it.get('source_project_id')
+            if sp:
+                key2 = ('src', sp)
+                if key2 in seen:
+                    continue
+                seen.add(key2)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(it)
+        return out
+    recent_series_global = _dedup_by_user_title_type(recent_series_global)
+    recent_anime_global = _dedup_by_user_title_type(recent_anime_global)
 
-    total_box_office = sum(max(f.get('realistic_box_office', 0), f.get('total_revenue', 0)) for f in films)
-    total_likes = sum(f.get('likes_count', 0) for f in films)
-    avg_quality = sum(f.get('quality_score', 0) for f in films) / len(films) if films else 0
-    total_film_costs = sum(f.get('total_budget', 0) or f.get('budget', 0) for f in films)
+    # Enrich global series/anime feeds with producer nickname/house
+    for lst in (recent_series_global, recent_anime_global):
+        for s in lst:
+            p = producers.get(s.get('user_id'), {})
+            s['producer_nickname'] = p.get('nickname', '?')
+            s['producer_house'] = p.get('production_house_name', '')
+
+    total_box_office = sum(max(f.get('realistic_box_office', 0) or 0, f.get('total_revenue', 0) or 0) for f in films)
+    # Authoritative box office from wallet_transactions (source of truth for the new finance system)
+    try:
+        agg_cursor = db.wallet_transactions.aggregate([
+            {'$match': {'user_id': uid, 'direction': 'in',
+                        'source': {'$in': ['box_office', 'la_prima', 'tv_broadcast']}}},
+            {'$group': {'_id': None, 'total': {'$sum': '$abs_amount'}}},
+        ])
+        async for d in agg_cursor:
+            wt_total = int(d.get('total', 0) or 0)
+            # Use wallet_transactions if it has any data (new system), otherwise keep legacy calc.
+            if wt_total > 0:
+                total_box_office = max(total_box_office, wt_total)
+    except Exception:
+        pass
+    total_likes = sum((f.get('likes_count', 0) or 0) for f in films)
+    avg_quality = sum((f.get('quality_score', 0) or 0) for f in films) / len(films) if films else 0
+    total_film_costs = sum((f.get('total_budget', 0) or f.get('budget', 0) or 0) for f in films)
     total_infra_costs = sum(i.get('purchase_cost', 0) for i in infrastructure)
     total_infra_revenue = sum(i.get('total_revenue', 0) for i in infrastructure)
     INITIAL_FUNDS = 5000000
@@ -296,7 +353,7 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
     if total_earned < 0:
         total_earned = lifetime_collected if lifetime_collected > 0 else total_box_office
 
-    featured = sorted(films, key=lambda f: f.get('quality_score', 0), reverse=True)[:9]
+    featured = sorted(films, key=lambda f: (f.get('quality_score') or 0), reverse=True)[:9]
 
     films_in_theaters = [f for f in films if f.get('status') == 'in_theaters']
     film_pending = 0
@@ -312,9 +369,9 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
                 last_collected = last_collected.replace(tzinfo=timezone.utc)
             hours_since = (now - last_collected).total_seconds() / 3600
             if hours_since >= (1/60):
-                quality = f.get('quality_score', 50)
-                week = f.get('current_week', 1)
-                base_hourly = f.get('opening_day_revenue', 100000) / 24
+                quality = f.get('quality_score') or 50
+                week = f.get('current_week') or 1
+                base_hourly = (f.get('opening_day_revenue') or 100000) / 24
                 decay = 0.85 ** (week - 1)
                 hourly_rev = base_hourly * decay * (quality / 100)
                 film_pending += int(hourly_rev * min(6, hours_since))
@@ -373,21 +430,27 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
                 pass
 
     # Calculate spectators total + best film
+    # Authoritative: cumulative_attendance + la_prima_spectators (same source as /spectators/films-history)
     total_spectators = 0
     for f in films:
+        cum = int(f.get('cumulative_attendance', 0) or 0)
+        lp = int(f.get('la_prima_spectators', 0) or 0)
+        if cum > 0 or lp > 0:
+            total_spectators += cum + lp
+            continue
+        # Legacy fallback: theater_stats or estimate from box_office
         ts = f.get('theater_stats', {}).get('total_spectators', 0)
         if ts > 0:
             total_spectators += ts
         else:
-            # Estimate from box_office if theater_stats not available yet
             bo = f.get('box_office', {})
             rev = bo.get('total', 0) if isinstance(bo, dict) else 0
             if rev > 0:
-                total_spectators += int(rev / 11)  # ~$11 avg ticket price
+                total_spectators += int(rev / 11)
     best_film = ''
     best_quality = 0
     for f in films:
-        q = f.get('quality_score', f.get('pre_imdb_score', 0))
+        q = f.get('quality_score') or f.get('pre_imdb_score') or 0
         if q > best_quality:
             best_quality = q
             best_film = f.get('title', '')
@@ -419,6 +482,8 @@ async def get_dashboard_batch(user: dict = Depends(get_current_user)):
         'featured_films': featured,
         'my_series': my_series[:5],
         'my_anime': my_anime[:5],
+        'recent_series_global': recent_series_global,
+        'recent_anime_global': recent_anime_global,
         'recent_releases': recent_releases,
         'challenges': challenges,
         'pending_revenue': {
@@ -1164,10 +1229,12 @@ async def dismiss_auto_tick_events(user: dict = Depends(get_current_user)):
 
 @router.get("/events/history")
 async def get_event_history(limit: int = 50, user: dict = Depends(get_current_user)):
-    """Get permanent event history for this user."""
+    """Global event history for all players. The feed is halved (1 every 2) to avoid overload."""
     limit = min(limit, 100)
-    events = await db.event_history.find(
-        {'user_id': user['id']},
+    # Fetch 2x then keep every other one to reduce density by ~50%
+    raw = await db.event_history.find(
+        {},  # all users
         {'_id': 0}
-    ).sort('created_at', -1).to_list(limit)
+    ).sort('created_at', -1).to_list(limit * 2)
+    events = raw[::2][:limit]
     return {'events': events}

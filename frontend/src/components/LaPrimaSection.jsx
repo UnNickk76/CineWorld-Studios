@@ -5,6 +5,9 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Users, Flame, MapPin, Clock, ChevronRight, Eye, Sparkles, Loader2, Film } from 'lucide-react';
 import { LaPrimaPopup } from './LaPrimaPopup';
+import { ProducerBadge } from './ProducerBadge';
+import { LampoLightning } from './LampoLightning';
+import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from './SectionSortMenu';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -20,11 +23,31 @@ function formatNumber(n) {
 }
 
 export function LaPrimaSection({ compact = false }) {
-  const { api } = useContext(AuthContext);
+  const { api, user } = useContext(AuthContext);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilmId, setSelectedFilmId] = useState(null);
   const navigate = useNavigate();
+
+  // Ordinamento persistito per LaPrima
+  const [sortValue, setSortValue] = useState(() => localStorage.getItem('sort_la_prima') || 'live_first');
+  useEffect(() => { localStorage.setItem('sort_la_prima', sortValue); }, [sortValue]);
+
+  // Ordinamento: default 'live_first' (LIVE in cima, poi imminenti)
+  const sortedEvents = React.useMemo(() => {
+    if (sortValue === 'live_first') {
+      const live = events.filter(e => !e.is_waiting);
+      const waiting = events.filter(e => e.is_waiting);
+      return [...live, ...waiting];
+    }
+    if (sortValue === 'most_viewed') {
+      return [...events].sort((a, b) => (b.spectators_current || 0) - (a.spectators_current || 0));
+    }
+    if (sortValue === 'most_liked') {
+      return [...events].sort((a, b) => (b.hype_live || 0) - (a.hype_live || 0));
+    }
+    return sortItems(events, sortValue);
+  }, [events, sortValue]);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -78,6 +101,7 @@ export function LaPrimaSection({ compact = false }) {
     );
   }
 
+  const hasLive = events.some(e => !e.is_waiting);
   return (
     <div data-testid="la-prima-section">
       {/* Header */}
@@ -85,17 +109,42 @@ export function LaPrimaSection({ compact = false }) {
         <h3 className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-red-400" />
           <span className="text-red-400">LA PRIMA</span>
-          <Badge className="bg-red-500/20 text-red-300 text-[9px] h-4 animate-pulse">LIVE</Badge>
+          {hasLive ? (
+            <Badge className="bg-red-500/20 text-red-300 text-[9px] h-4 animate-pulse">LIVE</Badge>
+          ) : (
+            <Badge className="bg-cyan-500/20 text-cyan-300 text-[9px] h-4">IN ARRIVO</Badge>
+          )}
         </h3>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate('/social?view=la-prima')}
-          className="h-6 text-[10px] text-red-400 hover:text-red-300 px-2"
-          data-testid="la-prima-see-all-btn"
-        >
-          Classifiche <ChevronRight className="w-3 h-3 ml-0.5" />
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <SectionSortMenu
+            value={sortValue}
+            onChange={setSortValue}
+            options={[
+              { value: 'live_first', label: 'LIVE prima' },
+              { value: 'most_viewed', label: 'Più Visti' },
+              { value: 'most_liked', label: 'Più Hype' },
+              { value: 'newest', label: 'Più Recenti' },
+              { value: 'alpha_asc', label: 'A-Z' },
+            ]}
+            testId="sort-la-prima"
+          />
+          <button
+            onClick={() => navigate('/events/la-prima')}
+            className="flex items-center gap-1 text-[9px] px-2 py-1 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-300 font-bold hover:bg-yellow-500/25 transition-colors"
+            data-testid="la-prima-events-link">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M6 9l6 6 6-6"/></svg>
+            Classifica &amp; premi
+          </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/social?view=la-prima')}
+            className="h-6 text-[10px] text-red-400 hover:text-red-300 px-2"
+            data-testid="la-prima-see-all-btn"
+          >
+            Classifiche <ChevronRight className="w-3 h-3 ml-0.5" />
+          </Button>
+        </div>
       </div>
 
       {/* Horizontal scrollable row */}
@@ -104,11 +153,15 @@ export function LaPrimaSection({ compact = false }) {
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
         data-testid="la-prima-scroll-row"
       >
-        {events.map((ev) => (
+        {sortedEvents.map((ev) => {
+          const isWaiting = !!ev.is_waiting;
+          return (
           <div
             key={ev.film_id}
-            className="flex-shrink-0 w-[100px] rounded-lg bg-[#0E0E10] border border-amber-500/20 hover:border-amber-500/40 transition-all cursor-pointer overflow-hidden"
-            style={{ boxShadow: '0 0 12px rgba(212,175,55,0.12)' }}
+            className={`flex-shrink-0 w-[100px] rounded-lg bg-[#0E0E10] border-2 transition-all cursor-pointer overflow-hidden ${
+              isWaiting ? 'animate-pulse-border-cyan' : 'border-amber-500/20 hover:border-amber-500/40'
+            }`}
+            style={{ boxShadow: isWaiting ? undefined : '0 0 12px rgba(212,175,55,0.12)' }}
             onClick={() => navigate(`/films/${ev.film_id}`)}
             data-testid={`la-prima-event-${ev.film_id}`}
           >
@@ -118,7 +171,7 @@ export function LaPrimaSection({ compact = false }) {
                 <img
                   src={posterSrc(ev.poster_url)}
                   alt={ev.title}
-                  className="w-full h-full object-cover transition-transform active:scale-105"
+                  className={`w-full h-full object-cover transition-transform active:scale-105 ${isWaiting ? 'opacity-55 grayscale-[30%]' : ''}`}
                   loading="lazy"
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
@@ -127,38 +180,81 @@ export function LaPrimaSection({ compact = false }) {
                   <Film className="w-8 h-8 text-amber-400/30" />
                 </div>
               )}
-              {/* LIVE badge */}
-              <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-red-600/90 rounded px-1 py-0.5">
-                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                <span className="text-[7px] font-bold text-white">LIVE</span>
+              {/* Dark overlay for waiting */}
+              {isWaiting && (
+                <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/55 to-black/85" />
+              )}
+              {/* Status badge top-left */}
+              {isWaiting ? (
+                <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-cyan-600/90 rounded px-1 py-0.5">
+                  <span className="text-[7px] font-bold text-white tracking-wider">IN ARRIVO</span>
+                </div>
+              ) : (
+                <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-red-600/90 rounded px-1 py-0.5">
+                  <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                  <span className="text-[7px] font-bold text-white">LIVE</span>
+                </div>
+              )}
+              {/* Bottom label */}
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent pt-4 pb-1 px-1.5">
+                {isWaiting ? (
+                  <>
+                    <p className="text-[8px] font-bold text-cyan-300 truncate leading-tight">In arrivo a</p>
+                    <p className="text-[9px] font-black text-cyan-200 truncate tracking-wide uppercase">{ev.city}</p>
+                  </>
+                ) : (
+                  <span className="text-[7px] font-bold text-amber-400 tracking-wider">LA PRIMA</span>
+                )}
               </div>
-              {/* LA PRIMA badge */}
-              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent pt-4 pb-1 px-1.5">
-                <span className="text-[7px] font-bold text-amber-400 tracking-wider">LA PRIMA</span>
-              </div>
+              <ProducerBadge
+                producerNickname={ev.producer_nickname || ev.owner_nickname || ev.production_house}
+                producerId={ev.user_id || ev.owner_user_id}
+                currentUserId={user?.id}
+                variant="top-right"
+                size="xs"
+              />
+              <LampoLightning item={ev} variant="top-left" size="sm" />
             </div>
 
             {/* Info */}
             <div className="px-1.5 pb-1.5 pt-1">
-              <h4 className="text-[9px] font-semibold truncate leading-tight">{ev.title}</h4>
+              <h4 className={`text-[9px] font-semibold truncate leading-tight ${isWaiting ? 'text-gray-300' : ''}`}>{ev.title}</h4>
               <div className="flex items-center gap-0.5 mt-0.5">
-                <MapPin className="w-2 h-2 text-amber-400 flex-shrink-0" />
-                <span className="text-[7px] text-amber-400 truncate">{ev.city}</span>
+                <MapPin className={`w-2 h-2 flex-shrink-0 ${isWaiting ? 'text-cyan-400' : 'text-amber-400'}`} />
+                <span className={`text-[7px] truncate ${isWaiting ? 'text-cyan-400' : 'text-amber-400'}`}>{ev.city}</span>
               </div>
-              {/* Progress bar */}
-              <div className="mt-1 h-1 rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-red-500 transition-all" style={{ width: `${Math.min(100, Math.max(5, (ev.spectators_total || 0) / Math.max(1, ev.target_spectators || 1000) * 100))}%` }} />
-              </div>
-              {/* Stats */}
-              <div className="flex items-center gap-1 mt-0.5">
-                <Eye className="w-2 h-2 text-cyan-400" />
-                <span className="text-[7px] font-bold text-cyan-400">{formatNumber(ev.spectators_current)}</span>
-                <Flame className="w-2 h-2 text-orange-400 ml-auto" />
-                <span className="text-[7px] font-bold text-orange-400">{ev.hype_live}</span>
-              </div>
+              {ev.official_cinema && (
+                <div className="flex items-center gap-0.5 mt-0.5" data-testid="live-official-cinema">
+                  <span className="text-[6px]">🎬</span>
+                  <span className={`text-[7px] truncate italic ${isWaiting ? 'text-cyan-300/80' : 'text-amber-300/80'}`} title={ev.official_cinema}>
+                    {ev.official_cinema}
+                  </span>
+                </div>
+              )}
+              {isWaiting ? (
+                <div className="mt-1 text-center">
+                  <p className="text-[7px] text-cyan-400 font-bold tracking-wider">-{ev.countdown_to_start || '—'}</p>
+                  <p className="text-[6px] text-gray-500 uppercase mt-0.5">al via</p>
+                </div>
+              ) : (
+                <>
+                  {/* Progress bar */}
+                  <div className="mt-1 h-1 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-red-500 transition-all" style={{ width: `${Math.min(100, Math.max(5, (ev.spectators_total || 0) / Math.max(1, ev.target_spectators || 1000) * 100))}%` }} />
+                  </div>
+                  {/* Stats */}
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <Eye className="w-2 h-2 text-cyan-400" />
+                    <span className="text-[7px] font-bold text-cyan-400">{formatNumber(ev.spectators_current)}</span>
+                    <Flame className="w-2 h-2 text-orange-400 ml-auto" />
+                    <span className="text-[7px] font-bold text-orange-400">{ev.hype_live}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* La Prima Popup */}

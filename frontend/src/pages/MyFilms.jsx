@@ -1,382 +1,465 @@
-// CineWorld Studio's - MyFilms
-// Extracted from App.js for modularity
+// CineWorld Studio's — I Miei Contenuti (unified content page)
+// 4 tabs: Film, Saghe e Sequel, Serie TV, Anime
+// Grid with small posters (4 cols mobile), popup with 6 actions for owner
+// Also supports "I Suoi" mode for viewing another player's content
 
-import React, { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react';
-import { useNavigate, useLocation, useSearchParams, useParams } from 'react-router-dom';
-import { AuthContext, LanguageContext, PlayerPopupContext, useTranslations } from '../contexts';
-import { useSWR } from '../contexts/GameStore';
-import { SeriesDetailModal } from '../components/SeriesDetailModal';
-import { PalinsestoModal } from '../components/PalinsestoModal';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const posterSrc = (url) => {
-  if (!url) return 'https://images.unsplash.com/photo-1575823857138-d80155581d8c?w=400';
-  if (url.startsWith('/')) return `${BACKEND_URL}${url}`;
-  return url;
-};
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { AuthContext } from '../contexts';
 import { Badge } from '../components/ui/badge';
-import { Progress } from '../components/ui/progress';
-import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
-import { ScrollArea } from '../components/ui/scroll-area';
-import { Slider } from '../components/ui/slider';
-import { Textarea } from '../components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '../components/ui/dialog';
-import { Label } from '../components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
-import { Checkbox } from '../components/ui/checkbox';
-import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
-import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
-import { format } from 'date-fns';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/dialog';
+import { Button } from '../components/ui/button';
 import {
-  Film, Star, Award, TrendingUp, Clock, Play, Pause, Volume2, Users, Clapperboard,
-  Send, Image, ChevronRight, ChevronDown, ChevronLeft, Menu, X, Settings,
-  Zap, Globe, Trophy, Shield, Swords, Heart, MessageSquare, Bell, Home,
-  Plus, Minus, Search, Filter, Trash2, Edit, Save, Copy, ExternalLink,
-  Check, AlertCircle, Info, HelpCircle, Loader2, RefreshCw, Download,
-  Eye, EyeOff, Lock, Unlock, Mail, Phone, Calendar, MapPin, Building,
-  Sparkles, Flame, Target, Gamepad2, Music, Palette, Camera, Video,
-  BookOpen, Newspaper, Gift, Crown, Medal, Gem, Coins, Wallet,
-  ArrowUp, ArrowDown, ArrowLeft, ArrowRight, MoreHorizontal, MoreVertical,
-  ChevronUp, ChevronsUpDown, Lightbulb, Megaphone, Share2, ThumbsUp,
-  ThumbsDown, Bookmark, Flag, AlertTriangle, XCircle, CheckCircle,
-  BarChart3, PieChart, Activity, Percent, DollarSign, Hash, AtSign,
-  Scissors, Wand2, Brush, Layers, Grid, List, LayoutGrid, Table,
-  CircleDollarSign, Store, Package, ShoppingCart, Tag, Receipt,
-  Handshake, UserPlus, UserMinus, UserCheck, Users2, PersonStanding, Tv
+  Film, Tv, Sparkles, BookOpen, Eye, Megaphone, Store, Trash2, Wand2,
+  X, Loader2, AlertTriangle, ChevronDown, Clapperboard
 } from 'lucide-react';
-import { SKILL_TRANSLATIONS } from '../constants';
+import { toast } from 'sonner';
+import AlCinemaTab from '../components/AlCinemaTab';
 
-// useTranslations imported from contexts
+const API = process.env.REACT_APP_BACKEND_URL;
+const posterSrc = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  return `${API}${url}`;
+};
 
-const MyFilms = () => {
-  const { api, user, cachedGet } = useContext(AuthContext);
-  const { t } = useTranslations();
-  const [searchParams] = useSearchParams();
-  const currentView = searchParams.get('view') || 'film';
+const TABS = [
+  { id: 'film', label: 'Film', icon: Film, color: 'text-yellow-400', bg: 'bg-yellow-500/15' },
+  { id: 'al_cinema', label: 'Al Cinema', icon: Clapperboard, color: 'text-amber-300', bg: 'bg-amber-500/15' },
+  { id: 'saghe', label: 'Saghe', icon: BookOpen, color: 'text-purple-400', bg: 'bg-purple-500/15' },
+  { id: 'serie', label: 'Serie TV', icon: Tv, color: 'text-blue-400', bg: 'bg-blue-500/15' },
+  { id: 'anime', label: 'Anime', icon: Sparkles, color: 'text-orange-400', bg: 'bg-orange-500/15' },
+];
+
+export default function MyFilms({ playerId, playerName, isPublicView }) {
+  const { api, user } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'film';
+
   const [films, setFilms] = useState([]);
   const [series, setSeries] = useState([]);
-  const [showAdDialog, setShowAdDialog] = useState(null);
-  const [adPlatforms, setAdPlatforms] = useState([]);
-  const [selectedPlatforms, setSelectedPlatforms] = useState([]);
-  const [adDays, setAdDays] = useState(7);
-  const [adLoading, setAdLoading] = useState(false);
+  const [anime, setAnime] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionPopup, setActionPopup] = useState(null); // { item, type }
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmSell, setConfirmSell] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
   const [regenLoading, setRegenLoading] = useState(null);
-  const [selectedSeries, setSelectedSeries] = useState(null);
-  const [palinsestoSeries, setPalinsestoSeries] = useState(null);
-  const [userStationId, setUserStationId] = useState(null);
-  const navigate = useNavigate();
 
-  // Fetch user's TV station for palinsesto integration
-  useEffect(() => {
-    api.get('/tv-stations/my').then(r => {
-      const stations = r.data.stations || [];
-      if (stations.length > 0) setUserStationId(stations[0].id);
-    }).catch(() => {});
-  }, [api]);
+  const isOwner = !isPublicView && !playerId;
+  const targetId = playerId || user?.id;
 
-  // SWR for films - instant load from cache
-  const { data: filmsData, mutate: refreshFilms } = useSWR(currentView === 'film' ? '/films/my' : null);
-  useEffect(() => { if (filmsData) setFilms(filmsData); }, [filmsData]);
-
-  useEffect(() => { 
-    if (currentView === 'film') {
-      api.get('/advertising/platforms').then(r=>setAdPlatforms(r.data)).catch(()=>{});
-    } else {
-      const sType = currentView === 'anime' ? 'anime' : 'tv_series';
-      api.get(`/series-pipeline/my?series_type=${sType}`).then(r=>setSeries(r.data.series || [])).catch(()=>{});
-    }
-  }, [api, currentView]);
-
-  const withdrawFilm = async (filmId) => {
+  const loadData = useCallback(async () => {
+    if (!targetId) return;
+    setLoading(true);
     try {
-      await api.delete(`/films/${filmId}`);
-      toast.success('Film ritirato dalle sale');
-      setFilms(films.map(f => f.id === filmId ? { ...f, status: 'withdrawn' } : f));
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    }
+      if (isOwner) {
+        const [filmsRes, seriesRes, animeRes] = await Promise.all([
+          api.get('/films/my').catch(() => ({ data: [] })),
+          api.get('/series-pipeline/my?series_type=tv_series').catch(() => ({ data: { series: [] } })),
+          api.get('/series-pipeline/my?series_type=anime').catch(() => ({ data: { series: [] } })),
+        ]);
+        setFilms(Array.isArray(filmsRes.data) ? filmsRes.data : []);
+        setSeries(seriesRes.data?.series || []);
+        setAnime(animeRes.data?.series || []);
+      } else {
+        // Public view: get player's content
+        const [filmsRes, seriesRes] = await Promise.all([
+          api.get(`/players/${targetId}/films`).catch(() => ({ data: { films: [] } })),
+          api.get(`/players/${targetId}/series`).catch(() => ({ data: { series: [] } })),
+        ]);
+        const allFilms = filmsRes.data?.films || filmsRes.data || [];
+        setFilms(Array.isArray(allFilms) ? allFilms : []);
+        const allSeries = seriesRes.data?.series || seriesRes.data || [];
+        setSeries(allSeries.filter(s => s.type === 'tv_series'));
+        setAnime(allSeries.filter(s => s.type === 'anime'));
+      }
+    } catch { /* */ }
+    setLoading(false);
+  }, [api, targetId, isOwner]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Filtered items
+  const currentItems = activeTab === 'film'
+    ? films.filter(f => !f.is_sequel)
+    : activeTab === 'saghe'
+    ? films.filter(f => f.is_sequel)
+    : activeTab === 'serie'
+    ? series
+    : activeTab === 'al_cinema'
+    ? [] // handled by AlCinemaTab component below
+    : anime;
+
+  const setTab = (tab) => setSearchParams({ tab });
+
+  // ─── Actions ───
+  const handleWithdraw = async (item) => {
+    setActionLoading('withdraw');
+    try {
+      if (item._contentType === 'film') {
+        await api.delete(`/films/${item.id}`);
+        toast.success('Film ritirato dalle sale');
+      }
+      setActionPopup(null);
+      loadData();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionLoading(null);
   };
 
-  const permanentDeleteFilm = async (filmId) => {
+  const handleDelete = async (item) => {
+    setActionLoading('delete');
     try {
-      await api.delete(`/films/${filmId}/permanent`);
-      toast.success('Film eliminato definitivamente');
-      setFilms(films.filter(f => f.id !== filmId));
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    }
-  };
-
-  const permanentDeleteProject = async (projectId) => {
-    try {
-      await api.delete(`/film-projects/${projectId}/permanent`);
-      toast.success('Progetto eliminato definitivamente');
-      setFilms(films.filter(f => f.id !== projectId));
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    }
-  };
-
-  const permanentDeleteSeries = async (seriesId) => {
-    try {
-      await api.delete(`/series/${seriesId}/permanent`);
+      if (item._contentType === 'film') {
+        await api.delete(`/films/${item.id}/permanent`);
+      } else {
+        await api.delete(`/series/${item.id}/permanent`);
+      }
       toast.success('Eliminato definitivamente');
-      setSeries(series.filter(s => s.id !== seriesId));
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Errore');
-    }
+      setConfirmDelete(null);
+      setActionPopup(null);
+      loadData();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setActionLoading(null);
   };
 
-  const launchAdCampaign = async (filmId) => {
-    if (selectedPlatforms.length === 0) { toast.error('Seleziona almeno una piattaforma'); return; }
-    setAdLoading(true);
+  const handleSell = async (item) => {
+    setActionLoading('sell');
     try {
-      const res = await api.post(`/films/${filmId}/advertise`, { platforms: selectedPlatforms, days: adDays, budget: 0 });
-      toast.success(`Campagna lanciata! +$${res.data.revenue_boost?.toLocaleString()} incassi!`);
-      setShowAdDialog(null); setSelectedPlatforms([]);
-      api.get('/films/my').then(r => setFilms(r.data));
-    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); } 
-    finally { setAdLoading(false); }
+      // Use discard/marketplace endpoint
+      if (item._contentType === 'film') {
+        await api.post(`/pipeline-v3/films/${item.source_project_id || item.id}/discard-to-market`);
+      }
+      toast.success('Film messo in vendita!');
+      setConfirmSell(null);
+      setActionPopup(null);
+      loadData();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore vendita'); }
+    setActionLoading(null);
   };
 
-  const calculateAdCost = () => selectedPlatforms.reduce((s, pId) => { const p = adPlatforms.find(x => x.id === pId); return s + (p ? p.cost_per_day * adDays : 0); }, 0);
-
-  const regeneratePoster = async (filmId, e) => {
-    e.stopPropagation();
-    setRegenLoading(filmId);
+  const handleRegen = async (item) => {
+    setRegenLoading(item.id);
+    setActionPopup(null);
     try {
-      // Start async generation
-      const startRes = await api.post(`/films/${filmId}/regenerate-poster`, {});
+      const startRes = await api.post(`/films/${item.id}/regenerate-poster`, {});
       const taskId = startRes.data.task_id;
       if (!taskId) { toast.error('Errore avvio rigenerazione'); setRegenLoading(null); return; }
       toast.info('Generazione locandina AI in corso...');
-      
-      // Poll for result
-      const maxPolls = 40;
-      for (let i = 0; i < maxPolls; i++) {
+      for (let i = 0; i < 40; i++) {
         await new Promise(r => setTimeout(r, 3000));
         try {
           const statusRes = await api.get(`/ai/poster/status/${taskId}`);
-          const { status, poster_url, error } = statusRes.data;
-          if (status === 'done' && poster_url) {
-            setFilms(prev => prev.map(f => f.id === filmId ? { ...f, poster_url } : f));
+          if (statusRes.data.status === 'done' && statusRes.data.poster_url) {
             toast.success('Locandina rigenerata!');
+            loadData();
             setRegenLoading(null);
             return;
           }
-          if (status === 'error') {
-            toast.error(error || 'Errore generazione locandina');
+          if (statusRes.data.status === 'error') {
+            toast.error(statusRes.data.error || 'Errore generazione');
             setRegenLoading(null);
             return;
           }
-        } catch { /* polling error, continue */ }
+        } catch { /* continue polling */ }
       }
-      toast.error('Timeout generazione locandina');
-    } catch (err) {
-      const detail = err.response?.data?.detail || err.response?.data?.error || err.message || 'Errore rigenerazione locandina';
-      toast.error(`Errore: ${detail}`);
-      console.error('Regenerate poster error:', err.response?.data || err.message);
-    } finally {
-      setRegenLoading(null);
+      toast.error('Timeout generazione');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore rigenerazione'); }
+    setRegenLoading(null);
+  };
+
+  const handleAdv = (item) => {
+    setActionPopup(null);
+    // Navigate to the film detail with ADV panel
+    navigate(`/films/${item.id}`);
+  };
+
+  const handleView = (item) => {
+    setActionPopup(null);
+    if (item._contentType === 'film') {
+      navigate(`/films/${item.id}`);
+    } else {
+      navigate(`/series/${item.id}`);
     }
   };
 
-  // Series/Anime View
-  if (currentView === 'series' || currentView === 'anime') {
-    const isAnime = currentView === 'anime';
-    const color = isAnime ? 'orange' : 'blue';
-    const Icon = isAnime ? Sparkles : Tv;
-    const label = isAnime ? 'I Miei Anime' : 'Le Mie Serie TV';
-    const createRoute = isAnime ? '/create-anime' : '/create-series';
-    const boardRoute = isAnime ? '/social?view=anime' : '/social?view=series';
+  const title = isPublicView ? `I Suoi di ${playerName || 'Player'}` : 'I Miei Contenuti';
 
-    return (
-      <div className="pt-16 pb-20 px-2 sm:px-3 max-w-7xl mx-auto" data-testid={`my-${currentView}-page`}>
-        <div className="flex items-center justify-between mb-4 sticky top-16 z-10 bg-[#0F0F10]/95 backdrop-blur-sm py-2 -mx-2 sm:-mx-3 px-2 sm:px-3">
-          <h1 className={`font-['Bebas_Neue'] text-2xl sm:text-3xl text-${color}-400`}>{label}</h1>
-          <div className="flex gap-1.5">
-            <Button size="sm" variant="outline" onClick={() => navigate(boardRoute)} className={`h-8 px-2 text-xs border-${color}-500/30 text-${color}-400`}><Trophy className="w-3 h-3 mr-1" />Classifica</Button>
-            <Button size="sm" onClick={() => navigate(createRoute)} className={`bg-${color}-500 text-white h-8 px-2 text-xs`}><Plus className="w-3 h-3 mr-1" />Crea</Button>
-          </div>
+  return (
+    <div className="min-h-screen bg-[#0A0A0B] text-white pt-14 pb-20" data-testid="my-content-page">
+      {/* Header */}
+      <div className="sticky top-14 z-20 bg-[#0A0A0B]/95 backdrop-blur-sm px-2 py-2">
+        <h1 className="font-['Bebas_Neue'] text-xl text-center mb-2 tracking-wide">{title}</h1>
+        {/* Tabs */}
+        <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+          {TABS.map(tab => {
+            const count = tab.id === 'film' ? films.filter(f => !f.is_sequel).length
+              : tab.id === 'saghe' ? films.filter(f => f.is_sequel).length
+              : tab.id === 'serie' ? series.length
+              : tab.id === 'al_cinema' ? films.filter(f => f.status === 'in_theaters' && !f.is_sequel).length
+              : anime.length;
+            return (
+              <button key={tab.id}
+                onClick={() => setTab(tab.id)}
+                className={`flex-shrink-0 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all
+                  ${activeTab === tab.id ? `${tab.bg} ${tab.color} border border-current/20` : 'text-gray-500 bg-[#111113] border border-transparent'}`}
+                data-testid={`tab-${tab.id}`}
+              >
+                <tab.icon className="w-3 h-3" />
+                <span className="hidden xs:inline">{tab.label}</span>
+                {count > 0 && <span className="text-[8px] opacity-60">{count}</span>}
+              </button>
+            );
+          })}
         </div>
-        {series.length === 0 ? (
-          <Card className="bg-[#1A1A1A] border-white/10 p-6 text-center">
-            <Icon className="w-10 h-10 mx-auto mb-3 text-gray-600" />
-            <h3 className="text-base mb-2">{isAnime ? 'Nessun anime ancora' : 'Nessuna serie TV ancora'}</h3>
-            <Button onClick={() => navigate(createRoute)} className={`bg-${color}-500 text-white text-sm`}>{isAnime ? 'Crea il tuo primo Anime' : 'Crea la tua prima Serie TV'}</Button>
-          </Card>
+      </div>
+
+      {/* Content Grid */}
+      <div className="px-1.5 pt-2">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-6 h-6 text-gray-500 animate-spin" />
+          </div>
+        ) : activeTab === 'al_cinema' ? (
+          isOwner ? <AlCinemaTab /> : <EmptyState tab="al_cinema" isOwner={false} navigate={navigate} />
+        ) : currentItems.length === 0 ? (
+          <EmptyState tab={activeTab} isOwner={isOwner} navigate={navigate} />
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
-            {series.map(s => (
-              <Card key={s.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden hover:border-white/15 transition-colors">
-                <div className="aspect-[2/3] relative cursor-pointer" onClick={() => setSelectedSeries(s)}>
-                  {s.poster_url ? (
-                    <img src={posterSrc(s.poster_url)} alt={s.title} className="w-full h-full object-cover" loading="lazy" />
-                  ) : (
-                    <div className={`w-full h-full bg-${color}-500/10 flex items-center justify-center`}>
-                      <Icon className={`w-8 h-8 text-${color}-400/30`} />
-                    </div>
-                  )}
-                  <Badge className={`absolute top-0.5 right-0.5 text-[6px] px-0.5 py-0 leading-tight ${
-                    s.status === 'completed' ? 'bg-green-500' : s.status === 'cancelled' ? 'bg-red-500' : `bg-${color}-500`
-                  }`}>{s.status === 'completed' ? 'DONE' : s.status}</Badge>
-                </div>
-                <CardContent className="p-1">
-                  <h3 className="font-semibold text-[8px] sm:text-[9px] truncate">{s.title}</h3>
-                  <div className="flex justify-between items-center mt-0.5 text-[7px] sm:text-[8px]">
-                    <span className="text-gray-400">{s.genre_name}</span>
-                    <div className="flex items-center gap-1">
-                      <span className={`text-${color}-400`}>{s.quality_score > 0 ? `${Math.round(s.quality_score)}/100` : `${s.num_episodes}ep`}</span>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-4 w-4 p-0 text-red-400/50 hover:text-red-400" onClick={(e) => e.stopPropagation()} data-testid={`delete-series-${s.id}`}><Trash2 className="w-2.5 h-2.5" /></Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent className="bg-[#1A1A1A] border-white/10 max-w-[90vw] sm:max-w-md">
-                          <AlertDialogHeader>
-                            <AlertDialogTitle className="text-base">Sei sicuro di voler eliminare?</AlertDialogTitle>
-                            <AlertDialogDescription className="text-xs text-gray-400">L'azione e' irreversibile. "{s.title}" sara' eliminato definitivamente.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel className="h-8 text-sm">Annulla</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => permanentDeleteSeries(s.id)} className="bg-red-600 hover:bg-red-700 h-8 text-sm">Elimina</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1" data-testid="content-grid">
+            {currentItems.map((item) => {
+              const contentType = (activeTab === 'film' || activeTab === 'saghe') ? 'film' : (activeTab === 'serie' ? 'tv_series' : 'anime');
+              const enriched = { ...item, _contentType: contentType };
+              return (
+                <PosterCard
+                  key={item.id}
+                  item={enriched}
+                  isOwner={isOwner}
+                  regenLoading={regenLoading}
+                  onClick={() => {
+                  if (isOwner) {
+                    const isFilmType = contentType === 'film';
+                    if (isFilmType) {
+                      // Open unified FilmActionsSheet
+                      window.dispatchEvent(new CustomEvent('open-film-actions', { detail: { film: enriched } }));
+                    } else {
+                      setActionPopup(enriched);
+                    }
+                  } else {
+                    handleView(enriched);
+                  }
+                  }}
+                />
+              );
+            })}
           </div>
         )}
-
-        {/* Series Detail Modal */}
-        <SeriesDetailModal
-          open={!!selectedSeries}
-          onClose={() => setSelectedSeries(null)}
-          series={selectedSeries}
-          stationId={userStationId}
-          isOwner={true}
-          onManagePalinsesto={(s) => setPalinsestoSeries(s)}
-        />
-
-        {/* Palinsesto Modal */}
-        <PalinsestoModal
-          open={!!palinsestoSeries}
-          onClose={() => setPalinsestoSeries(null)}
-          series={palinsestoSeries}
-          stationId={userStationId}
-          onRefresh={() => {
-            const sType = currentView === 'anime' ? 'anime' : 'tv_series';
-            api.get(`/series-pipeline/my?series_type=${sType}`).then(r => setSeries(r.data.series || [])).catch(() => {});
-          }}
-        />
       </div>
-    );
-  }
 
-  // Default Film View
-  return (
-    <div className="pt-16 pb-20 px-2 sm:px-3 max-w-7xl mx-auto" data-testid="my-films-page">
-      <div className="flex items-center justify-between mb-4 sticky top-16 z-10 bg-[#0F0F10]/95 backdrop-blur-sm py-2 -mx-2 sm:-mx-3 px-2 sm:px-3" data-testid="my-films-sticky-header-main">
-        <h1 className="font-['Bebas_Neue'] text-2xl sm:text-3xl">{t('my_films')}</h1>
-        <Button size="sm" onClick={() => navigate('/create-film')} className="bg-yellow-500 text-black h-8 px-2 sm:px-3 text-xs sm:text-sm"><Plus className="w-3 h-3 mr-1" /> Crea</Button>
-      </div>
-      {films.length === 0 ? (
-        <Card className="bg-[#1A1A1A] border-white/10 p-6 text-center"><Film className="w-10 h-10 mx-auto mb-3 text-gray-600" /><h3 className="text-base mb-2">Nessun film ancora</h3><Button onClick={() => navigate('/create-film')} className="bg-yellow-500 text-black text-sm">Crea il tuo primo Film</Button></Card>
-      ) : (
-        <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1 sm:gap-1.5">
-          {films.map(film => (
-            <Card key={film.id} className="bg-[#1A1A1A] border-white/5 overflow-hidden hover:border-white/15 transition-colors">
-              <div className="aspect-[2/3] relative cursor-pointer" onClick={() => navigate(`/films/${film.id}`)}>
-                <img src={posterSrc(film.poster_url)} alt={film.title} className="w-full h-full object-cover" loading="lazy" />
-                <Badge className={`absolute top-0.5 right-0.5 text-[6px] px-0.5 py-0 leading-tight ${film.status === 'in_theaters' ? 'bg-green-500' : 'bg-orange-500'}`}>{film.status === 'in_theaters' ? 'LIVE' : film.status}</Badge>
-                {(film.virtual_likes > 0) && (
-                  <div className="absolute top-0.5 left-0.5 bg-black/70 rounded px-0.5 py-0.5 flex items-center gap-0.5">
-                    <Heart className="w-1.5 h-1.5 text-pink-400 fill-pink-400" />
-                    <span className="text-[6px] text-pink-300">{film.virtual_likes}</span>
-                  </div>
-                )}
+      {/* ─── Action Popup (6 options) ─── */}
+      <Dialog open={!!actionPopup} onOpenChange={(o) => { if (!o) setActionPopup(null); }}>
+        <DialogContent className="bg-[#0F0F10] border-white/10 max-w-[320px] p-0 [&>button]:hidden" data-testid="content-action-popup">
+          {actionPopup && (
+            <>
+              {/* Mini header with poster + title */}
+              <div className="flex items-center gap-3 p-3 border-b border-white/5">
+                <div className="w-10 h-14 rounded overflow-hidden flex-shrink-0 bg-gray-800">
+                  {posterSrc(actionPopup.poster_url) ? (
+                    <img src={posterSrc(actionPopup.poster_url)} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center"><Film className="w-4 h-4 text-gray-600" /></div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold truncate">{actionPopup.title}</h3>
+                  <p className="text-[9px] text-gray-500">{actionPopup.genre_name || actionPopup.genre || ''}</p>
+                </div>
+                <button onClick={() => setActionPopup(null)} className="text-gray-500 p-1"><X className="w-4 h-4" /></button>
               </div>
-              <CardContent className="p-1">
-                <h3 className="font-semibold text-[8px] sm:text-[9px] truncate">{film.title}</h3>
-                <div className="flex justify-between mt-0.5 text-[7px] sm:text-[8px]">
-                  <span className="text-gray-400">{(film.likes_count || 0) + (film.virtual_likes || 0)} lk</span>
-                  <span className="text-green-400">${((film.total_revenue||0)/1000).toFixed(0)}K</span>
-                </div>
-                <div className="flex gap-0.5 mt-0.5">
-                  {film.status === 'in_theaters' && (
-                    <Button variant="outline" size="sm" className="flex-1 h-5 sm:h-6 text-[7px] sm:text-[8px] border-yellow-500/30 text-yellow-400 px-1 py-0" onClick={() => setShowAdDialog(film)}>
-                      Ads
-                    </Button>
-                  )}
-                  <Button 
-                    variant="outline" size="sm" 
-                    className="h-5 sm:h-6 text-[7px] sm:text-[8px] border-cyan-500/30 text-cyan-400 px-1 py-0"
-                    onClick={(e) => { e.stopPropagation(); regeneratePoster(film.id, e); }}
-                    disabled={regenLoading === film.id}
-                    data-testid={`regen-poster-${film.id}`}
-                  >
-                    {regenLoading === film.id ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Wand2 className="w-2.5 h-2.5" />}
-                  </Button>
-                  {film.status === 'in_theaters' && (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-5 sm:h-6 text-[7px] sm:text-[8px] border-orange-500/30 text-orange-400 px-1 py-0"><Trash2 className="w-2.5 h-2.5" /></Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="bg-[#1A1A1A] border-white/10 max-w-[90vw] sm:max-w-md">
-                        <AlertDialogHeader><AlertDialogTitle className="text-base">Ritirare?</AlertDialogTitle></AlertDialogHeader>
-                        <AlertDialogFooter><AlertDialogCancel className="h-8 text-sm">No</AlertDialogCancel><AlertDialogAction onClick={() => withdrawFilm(film.id)} className="bg-orange-500 h-8 text-sm">Si</AlertDialogAction></AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  )}
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-5 sm:h-6 text-[7px] sm:text-[8px] border-red-500/30 text-red-400 px-1 py-0" data-testid={`delete-film-${film.id}`}><Trash2 className="w-2.5 h-2.5" /></Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="bg-[#1A1A1A] border-white/10 max-w-[90vw] sm:max-w-md">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="text-base">Sei sicuro di voler eliminare questo film?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-xs text-gray-400">L'azione e' irreversibile. Il film "{film.title}" sara' eliminato definitivamente.</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel className="h-8 text-sm">Annulla</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => permanentDeleteFilm(film.id)} className="bg-red-600 hover:bg-red-700 h-8 text-sm">Elimina</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-      <Dialog open={!!showAdDialog} onOpenChange={() => { setShowAdDialog(null); setSelectedPlatforms([]); }}>
-        <DialogContent className="bg-[#1A1A1A] border-white/10 max-w-[95vw] sm:max-w-lg">
-          <DialogHeader><DialogTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2"><Sparkles className="w-4 h-4 text-yellow-500" /> Pubblicizza "{showAdDialog?.title}"</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">{adPlatforms.map(p => (
-              <Card key={p.id} className={`cursor-pointer border-2 ${selectedPlatforms.includes(p.id) ? 'border-yellow-500 bg-yellow-500/10' : 'border-white/10'}`} onClick={() => setSelectedPlatforms(prev => prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id])}>
-                <CardContent className="p-2"><span className="font-semibold text-xs">{p.name}</span><p className="text-[10px] text-gray-400">${p.cost_per_day.toLocaleString()}/day • +{((p.reach_multiplier-1)*100).toFixed(0)}%</p></CardContent>
-              </Card>
-            ))}</div>
-            <div><Label className="text-xs">Durata: {adDays} giorni</Label><Slider value={[adDays]} onValueChange={([v]) => setAdDays(v)} min={1} max={30} className="mt-1" /></div>
-            <div className="p-2 bg-black/30 rounded flex justify-between items-center"><span className="text-xs text-gray-400">Totale:</span><span className="text-lg font-bold text-yellow-500">${calculateAdCost().toLocaleString()}</span></div>
-            <Button onClick={() => launchAdCampaign(showAdDialog?.id)} disabled={adLoading || selectedPlatforms.length === 0 || calculateAdCost() > (user?.funds||0)} className="w-full bg-yellow-500 text-black h-9">{adLoading ? '...' : 'Lancia'}</Button>
-          </div>
+              {/* 6 Action buttons */}
+              <div className="p-2 space-y-1">
+                {/* 1. Visualizza */}
+                <ActionBtn icon={<Eye className="w-4 h-4" />} label="Visualizza dettaglio" color="text-cyan-400" onClick={() => handleView(actionPopup)} testId="action-view" />
+                {/* 2. ADV */}
+                {actionPopup._contentType === 'film' && actionPopup.status === 'in_theaters' && (
+                  <ActionBtn icon={<Megaphone className="w-4 h-4" />} label="Campagna ADV" color="text-yellow-400" onClick={() => handleAdv(actionPopup)} testId="action-adv" />
+                )}
+                {/* 3. Rigenera locandina */}
+                {actionPopup._contentType === 'film' && (
+                  <ActionBtn icon={<Wand2 className="w-4 h-4" />} label={actionPopup.poster_url ? "Rigenera locandina (1x/mese)" : "Genera locandina"} color="text-purple-400"
+                    onClick={() => handleRegen(actionPopup)} loading={regenLoading === actionPopup.id} testId="action-regen" />
+                )}
+                {/* 4. Togli da cinema / TV */}
+                {actionPopup._contentType === 'film' && actionPopup.status === 'in_theaters' && (
+                  <ActionBtn icon={<ChevronDown className="w-4 h-4" />} label="Ritira dal cinema" color="text-orange-400"
+                    onClick={() => handleWithdraw(actionPopup)} loading={actionLoading === 'withdraw'} testId="action-withdraw" />
+                )}
+                {/* 5. Vendi film */}
+                {actionPopup._contentType === 'film' && (
+                  <ActionBtn icon={<Store className="w-4 h-4" />} label="Vendi al mercato" color="text-emerald-400"
+                    onClick={() => setConfirmSell(actionPopup)} testId="action-sell" />
+                )}
+                {/* 6. Elimina */}
+                <ActionBtn icon={<Trash2 className="w-4 h-4" />} label="Elimina per sempre" color="text-red-400"
+                  onClick={() => setConfirmDelete(actionPopup)} testId="action-delete" />
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Confirm Delete (non-standard) ─── */}
+      <Dialog open={!!confirmDelete} onOpenChange={(o) => { if (!o) setConfirmDelete(null); }}>
+        <DialogContent className="bg-[#0F0F10] border-red-500/20 max-w-[320px]" data-testid="confirm-delete-dialog">
+          <DialogHeader>
+            <DialogTitle className="text-sm flex items-center gap-2 text-red-400">
+              <AlertTriangle className="w-4 h-4" /> Eliminazione Permanente
+            </DialogTitle>
+            <DialogDescription className="text-[11px] text-gray-400">
+              "{confirmDelete?.title}" verrà eliminato per sempre. Questa azione NON può essere annullata.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" size="sm" className="text-xs border-white/10" onClick={() => setConfirmDelete(null)}>Annulla</Button>
+            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-xs" onClick={() => handleDelete(confirmDelete)} disabled={actionLoading === 'delete'} data-testid="confirm-delete-btn">
+              {actionLoading === 'delete' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Trash2 className="w-3 h-3 mr-1" />}
+              Elimina per sempre
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Confirm Sell (black button) ─── */}
+      <Dialog open={!!confirmSell} onOpenChange={(o) => { if (!o) setConfirmSell(null); }}>
+        <DialogContent className="bg-[#0F0F10] border-emerald-500/20 max-w-[320px]" data-testid="confirm-sell-dialog">
+          <DialogHeader>
+            <DialogTitle className="text-sm flex items-center gap-2 text-emerald-400">
+              <Store className="w-4 h-4" /> Vendi al Mercato
+            </DialogTitle>
+            <DialogDescription className="text-[11px] text-gray-400">
+              "{confirmSell?.title}" verrà messo in vendita. Confermi?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" size="sm" className="text-xs border-white/10" onClick={() => setConfirmSell(null)}>Annulla</Button>
+            <Button size="sm" className="bg-black hover:bg-gray-900 text-white text-xs border border-white/20" onClick={() => handleSell(confirmSell)} disabled={actionLoading === 'sell'} data-testid="confirm-sell-btn">
+              {actionLoading === 'sell' ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Store className="w-3 h-3 mr-1" />}
+              Conferma Vendita
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
-};
+}
 
-// Film Detail
+/* ─── Phase badge helper (mirrors ContentTemplate.getStatusInfo) ─── */
+function getPhaseBadge(item) {
+  const s = (item?.status || '').toLowerCase();
+  const ps = (item?.pipeline_state || '').toLowerCase();
+  const cinemas = item?.current_cinemas || 0;
+  const onTv = item?.on_tv || item?.tv_broadcast || false;
+  const isSeriesLike = item?._contentType === 'tv_series' || item?._contentType === 'anime';
 
-export default MyFilms;
+  if (cinemas > 0 || s === 'in_theaters') return { label: isSeriesLike ? 'IN TV' : 'CINEMA', cls: 'bg-emerald-500/90 text-white shadow-[0_0_6px_rgba(96,220,110,0.6)]', glow: 'emerald' };
+  if (onTv) return { label: 'IN TV', cls: 'bg-indigo-500/90 text-white shadow-[0_0_6px_rgba(110,150,255,0.6)]', glow: 'indigo' };
+  if (ps === 'la_prima' || ps === 'premiere_live' || ps === 'premiere_setup' || s === 'premiere_live' || s === 'la_prima' || s === 'la_prima_waiting' || s.includes('prima'))
+    return { label: 'LA PRIMA', cls: 'bg-yellow-400 text-black shadow-[0_0_8px_rgba(240,208,96,0.9)]', glow: 'gold' };
+  if (s === 'coming_soon' || s === 'pending_release' || ps === 'release_pending' || ps === 'hype' || ps === 'hype_setup' || ps === 'hype_live' || ps === 'marketing' || ps === 'distribution' || s.includes('hype'))
+    return { label: 'PROSSIMAMENTE', cls: 'bg-sky-400 text-black shadow-[0_0_8px_rgba(96,200,255,0.9)]', glow: 'sky' };
+  const V3 = {
+    idea: { label: 'SCEN', cls: 'bg-violet-500/90 text-white' },
+    cast: { label: 'CAST', cls: 'bg-yellow-400/90 text-black' },
+    prep: { label: 'PREP', cls: 'bg-sky-400/90 text-black' },
+    ciak: { label: 'CIAK', cls: 'bg-red-500/90 text-white' },
+    finalcut: { label: 'F.CUT', cls: 'bg-orange-500/90 text-white shadow-[0_0_6px_rgba(255,156,72,0.6)]' },
+  };
+  if (V3[ps]) return V3[ps];
+  if (s === 'shooting' || s === 'in_production' || s === 'production') return { label: 'CIAK', cls: 'bg-red-500/90 text-white' };
+  if (s === 'casting' || s === 'ready_for_casting') return { label: 'CAST', cls: 'bg-yellow-400/90 text-black' };
+  if (s === 'screenplay' || s === 'draft' || s === 'proposed' || s === 'concept' || s === 'idea') return { label: 'SCEN', cls: 'bg-violet-500/90 text-white' };
+  if (s === 'pre_production') return { label: 'PREP', cls: 'bg-sky-400/90 text-black' };
+  if (s === 'post_production' || s === 'completed' || s === 'ready_to_release') return { label: 'F.CUT', cls: 'bg-orange-500/90 text-white' };
+  if (s === 'remastering') return { label: 'REMAST', cls: 'bg-amber-500/90 text-white' };
+  return { label: 'CATAL', cls: 'bg-gray-600/80 text-gray-200' };
+}
+
+/* ─── Poster Card ─── */
+function PosterCard({ item, isOwner, regenLoading, onClick }) {
+  const isLive = item.status === 'in_theaters' || item.status === 'in_tv';
+  const url = posterSrc(item.poster_url);
+  const isRegen = regenLoading === item.id;
+  const phase = getPhaseBadge(item);
+  const glowStyle = phase.glow === 'gold' ? { boxShadow: '0 0 14px rgba(255,215,96,0.55), 0 0 4px rgba(255,215,96,0.8) inset' }
+    : phase.glow === 'sky' ? { boxShadow: '0 0 12px rgba(96,200,255,0.5), 0 0 4px rgba(96,200,255,0.7) inset' }
+    : phase.glow === 'emerald' ? { boxShadow: '0 0 10px rgba(80,220,110,0.4)' }
+    : phase.glow === 'indigo' ? { boxShadow: '0 0 10px rgba(110,150,255,0.4)' }
+    : undefined;
+  const borderCls = phase.glow === 'gold' ? 'border-yellow-400/70'
+    : phase.glow === 'sky' ? 'border-sky-400/70'
+    : phase.glow === 'emerald' ? 'border-emerald-500/50'
+    : 'border-white/5';
+
+  return (
+    <div className="relative cursor-pointer active:scale-95 transition-transform" onClick={onClick} data-testid={`poster-${item.id}`}>
+      <div className={`aspect-[2/3] rounded-md overflow-hidden bg-[#111113] border ${borderCls}`} style={glowStyle}>
+        {url ? (
+          <img src={url} alt={item.title} className="w-full h-full object-cover" loading="lazy"
+            onError={(e) => { e.target.style.display = 'none'; }} />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Film className="w-5 h-5 text-gray-700" />
+          </div>
+        )}
+        {isRegen && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+            <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+          </div>
+        )}
+        {/* Phase badge (Bacheca-style) */}
+        <div className={`absolute bottom-0.5 left-0.5 right-0.5 text-center py-[1px] rounded-sm text-[6px] font-bold tracking-wider ${phase.cls}`} data-testid={`phase-badge-${item.id}`}>
+          {phase.label}
+        </div>
+      </div>
+      {/* Live status dot */}
+      {isLive && (
+        <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-green-400 shadow-sm shadow-green-400/50 animate-pulse" />
+      )}
+      {/* Title below poster */}
+      <p className="text-[7px] text-gray-400 truncate mt-0.5 px-0.5 leading-tight">{item.title}</p>
+    </div>
+  );
+}
+
+/* ─── Action Button ─── */
+function ActionBtn({ icon, label, color, onClick, loading, testId }) {
+  return (
+    <button onClick={onClick} disabled={loading}
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all hover:bg-white/5 active:bg-white/10 ${color}`}
+      data-testid={testId}>
+      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : icon}
+      <span className="text-[11px] font-medium">{label}</span>
+    </button>
+  );
+}
+
+/* ─── Empty State ─── */
+function EmptyState({ tab, isOwner, navigate }) {
+  const msgs = {
+    film: { icon: Film, text: 'Nessun film', btn: isOwner ? 'Crea Film' : null, route: '/create-film', color: 'bg-yellow-500 text-black' },
+    al_cinema: { icon: Clapperboard, text: 'Nessun film al cinema di questo player', btn: null, route: null, color: 'bg-amber-500 text-black' },
+    saghe: { icon: BookOpen, text: 'Nessun sequel', btn: isOwner ? 'Crea Sequel' : null, route: '/sagas', color: 'bg-purple-600 text-white' },
+    serie: { icon: Tv, text: 'Nessuna serie TV', btn: isOwner ? 'Crea Serie TV' : null, route: '/create-series', color: 'bg-blue-600 text-white' },
+    anime: { icon: Sparkles, text: 'Nessun anime', btn: isOwner ? 'Crea Anime' : null, route: '/create-anime', color: 'bg-orange-600 text-white' },
+  };
+  const m = msgs[tab] || msgs.film;
+  return (
+    <div className="text-center py-16" data-testid={`empty-${tab}`}>
+      <m.icon className="w-10 h-10 text-gray-700 mx-auto mb-3" />
+      <p className="text-gray-400 text-sm mb-4">{m.text}</p>
+      {m.btn && (
+        <Button size="sm" className={`text-xs ${m.color}`} onClick={() => navigate(m.route)}>{m.btn}</Button>
+      )}
+    </div>
+  );
+}

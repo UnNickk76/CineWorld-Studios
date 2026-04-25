@@ -48,7 +48,7 @@ const SECTIONS = [
 const WAR_DURATIONS_H = { short: 24, medium: 48, long: 72 };
 
 const MajorPage = () => {
-  const { api, user } = useContext(AuthContext);
+  const { api, user, refreshUser } = useContext(AuthContext);
   const { language } = useContext(LanguageContext);
   const navigate = useNavigate();
   const [majorData, setMajorData] = useState(null);

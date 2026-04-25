@@ -1,6 +1,8 @@
-# Test Credentials - CineWorld Studio's
+# Test Credentials
 
-## Admin Account
+## Main Account
 - Email: fandrex1@gmail.com
 - Password: Fandrel2776
-- Nickname: NeoMorpheus (Admin)
+- Nickname: NeoMorpheus
+- Studio: Anacapito Studio's
+- Role: ADMIN

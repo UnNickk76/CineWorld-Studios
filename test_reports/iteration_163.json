@@ -1,0 +1,45 @@
+{
+  "summary": "Iter163 — Guest bypass + Location Picker + Tutorial V3 steps 0-17. Backend 7/7 PASSED (guest creation, /api/locations richness, guest-free save-hype, admin still charged, tutorial-step 0-17 accepted & 18 rejected, guest confirm-release no 'Fondi insufficienti'). Frontend: guest login via 'Prova senza registrarti' works, top nav shows $10.0M + 101 CinePass, tutorial-overlay (Velion 'Benvenuto!' + 'Iniziamo!') renders at login, data-testid='new-project-btn' present in /create-film. Could NOT fully validate location-categories/title-input/preplot-input/GRATIS badges in IdeaPhase because a Velion tutorial modal (separate '1/16' dashboard overlay) intercepts clicks after login; need main-agent to verify visually or main agent to pause Velion modal during GuestTutorial flow.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/auth/guest", "issue": "Review spec says default cinepass=101 but new guest response has cinepass=100. Header later shows 101 (likely due to auto daily-bonus +1 server-side). If 101 at creation is required, bump the default in auth.py create_guest; otherwise this is cosmetic/docs-only."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Tutorial overlays overlap", "issue": "After guest login, the GuestTutorial ([data-testid='tutorial-overlay'] 'Iniziamo!') and the Velion dashboard tutorial modal (showing '1/16 BENVENUTO IN CINEWORLD!') both trigger. After clicking 'Iniziamo!', the tutorial-overlay disappears and the 16-step Velion modal takes over, which intercepts clicks on new-project-btn. This prevents users (and automated tests) from reaching IdeaPhase via guided flow.", "selector": "[data-testid='tutorial-overlay'] vs dashboard Velion modal", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Guest → first film pipeline", "issue": "Unable to advance past new-project-btn because Velion tutorial modal covers the canvas; testing could not confirm visual GRATIS badges/strikethrough on speedup buttons, confirm-release-btn, release-total-guest, nor location picker cards.", "affected_selectors": ["[data-testid='location-categories']","[data-testid='location-cat-studios']","[data-testid='speedup-25']","[data-testid='confirm-release-btn']","[data-testid='release-total-guest']"]}
+    ],
+    "design_issues": [
+      {"screen": "Dashboard post-guest-login", "issues": ["Daily bonus modal + Velion tutorial modal + GuestTutorial bottom bar all appear simultaneously; overwhelming first impression. Consider suppressing daily-bonus & Velion-dashboard tutorials while GuestTutorial (tutorial_step<17) is active."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter163_guest_bypass_locations.py",
+    "/app/test_reports/pytest/pytest_iter163.xml"
+  ],
+  "action_items": [
+    "Suppress the Velion dashboard tutorial modal and the daily-bonus modal when user.is_guest && user.tutorial_step < 17 so the GuestTutorial flow is unobstructed.",
+    "Main agent: manually validate (or write extended Playwright after suppression) that /create-film IdeaPhase renders location-categories with 4 cat tabs, each location-option shows cost_per_day, and for guest strikethrough + 'GRATIS' badge.",
+    "Main agent: manually validate speedup buttons (speedup-25/50/75/100, ciak-speedup-*, finalcut-speedup-*) show CostCP strikethrough + GRATIS badge for guest, confirm-release-btn label 'Rilascia GRATIS!' and [data-testid='release-total-guest'] visible for guest.",
+    "Optional: raise the default guest cinepass from 100 → 101 in auth.py create_guest to match review spec exactly."
+  ],
+  "critical_code_review_comments": [
+    "pipeline_v3.py _spend (L264-268): clean bypass, returns guest_free=true — good. Consider also emitting the guest_free flag in /films/{pid}/speedup and /films/{pid}/schedule-release responses so the frontend can consistently hide 'charged' toasts.",
+    "auth.py L173-197: TUTORIAL_STEPS=set(range(0,18)) and TUTORIAL_COMPLETE_STEP=17 match spec. But /auth/tutorial-step silently allows a non-guest caller to 403; make sure backend error surface matches the frontend's retry logic (no guard needed if frontend only calls for is_guest).",
+    "confirm_release (L2378-2387): only skips the balance pre-check for guest; _spend itself is still called. Good — _spend is a no-op for guest. Double-confirmed no side effects.",
+    "IdeaPhase.jsx (L14-20): LOC_CAT_META hardcoded; icons/colors should be centralized if reused elsewhere (DRY). Not blocking.",
+    "GuestTutorial.jsx likely referenced but not reviewed in this run — main agent should ensure it z-indexes ABOVE the Velion dashboard tutorial OR the Velion tutorial is gated behind !is_guest."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter163_guest_bypass_locations.py"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "~50% — basics (auth, nav, tutorial-overlay, new-project-btn, funds/cinepass header) verified; IdeaPhase visuals + GRATIS badges NOT verifiable due to overlay interception"},
+  "test_credentials": "Guest: POST /api/auth/guest (returns token). Admin: fandrex1@gmail.com / Fandrel2776 (NeoMorpheus).",
+  "seed_data_creation": "Each pytest run creates ~3-4 guest users + 1-2 TEST_ prefixed admin V3 projects. No explicit cleanup; recommend periodic TEST_ sweep.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend is solid. Main UX blocker: two tutorial overlays (GuestTutorial + Velion dashboard '1/16') collide on guest login. Once the main agent gates the Velion dashboard tutorial behind !is_guest (or stacks z-index so GuestTutorial wins), rerun Playwright to validate location-categories render, multi-select chips [data-testid='selected-locations'], and GRATIS badges across speedup/release. Backend test file at /app/backend/tests/test_iter163_guest_bypass_locations.py is reusable.",
+  "rca of the issue": "Frontend blocker RCA: when a guest logs in, three UI systems activate simultaneously — (a) BonusGiornaliero modal (daily login bonus), (b) Velion dashboard tutorial (16 steps, predates this iter), (c) new GuestTutorial overlay (18 steps, this iter). The Velion dashboard modal has higher z-index and covers new-project-btn, so clicks on new-project-btn resolve to the Velion modal backdrop and don't advance the GuestTutorial. Mitigation: gate Velion dashboard tutorial with `if (user.is_guest && !user.tutorial_completed) return null` OR raise GuestTutorial z-index above Velion. Also suppress BonusGiornaliero for guests in tutorial."
+}

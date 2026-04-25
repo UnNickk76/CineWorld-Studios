@@ -24,6 +24,7 @@ import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
+import axios from 'axios';
 import {
   Film, Star, Award, TrendingUp, Clock, Play, Pause, Volume2, Users, Clapperboard,
   Send, Image, ChevronRight, ChevronDown, ChevronLeft, Menu, X, Settings,

@@ -76,23 +76,30 @@ from routes.economy import parse_date_with_timezone
 from routes.notifications import router as notifications_router
 from routes.social import router as social_router
 from routes.infrastructure import router as infrastructure_router
+from routes.radio import router as radio_router
 from routes.acting_school import router as acting_school_router
 from routes.casting_agency import router as casting_agency_router
 from routes.film_pipeline import router as film_pipeline_router
 from routes.pipeline_v2 import router as pipeline_v2_router
 from routes.pipeline_v3 import router as pipeline_v3_router
 from routes.series_pipeline import router as series_pipeline_router
+from routes.pipeline_series_v3 import router as pipeline_series_v3_router
 from routes.admin_recovery import router as admin_recovery_router
 from routes.city_tastes import router as city_tastes_router
 from routes.ri_cinema import router as ri_cinema_router
 from routes.sequel_pipeline import router as sequel_pipeline_router
 from routes.emittente_tv import router as emittente_tv_router
 from routes.tv_stations import router as tv_stations_router
+from routes.finance_bank import router as finance_bank_router, process_daily_loan_repayments
+from routes.progression import router as progression_router
 from routes.cinepass import router as cinepass_router, CINEPASS_COSTS, CINEPASS_REWARDS, CHALLENGE_LIMITS, get_infra_cinepass_cost, spend_cinepass
 from routes.minigames import router as minigames_router
 from routes.minigames_arcade import router as minigames_arcade_router
 from routes.pvp import router as pvp_router
 from routes.pvp_cinema import router as pvp_cinema_router
+from routes.market_v2 import router as market_v2_router
+from routes.medals_challenges import router as medals_challenges_router
+from routes.tv_competition import router as tv_competition_router
 from routes.velion import router as velion_router, init as velion_init
 from routes.cast import router as cast_router, initialize_cast_pool_if_needed as _cast_init_pool
 from routes.admin_migration import router as admin_migration_router
@@ -110,9 +117,11 @@ from routes.premiere import router as premiere_router
 from routes.coming_soon import router as coming_soon_router
 from routes.major import router as major_router
 from routes.emerging_screenplays import router as emerging_screenplays_router
+from routes.purchased_screenplays_v3 import router as purchased_screenplays_v3_router
 from routes.emerging_screenplays import expire_old_screenplays
 from routes.sponsors import router as sponsors_router, initialize_sponsors as _init_sponsors
 from routes.la_prima import router as la_prima_router
+from routes.la_prima_events import router as la_prima_events_router
 from routes.deletion import router as deletion_router
 from routes.maintenance import router as maintenance_router
 from routes.city_dynamics import router as city_dynamics_router
@@ -2262,9 +2271,60 @@ async def get_my_films(user: dict = Depends(get_current_user)):
         'audience_satisfaction': 1, 'budget': 1, 'total_budget': 1,
         'created_at': 1, 'released_at': 1, 'release_date': 1, 'studio_id': 1,
         'is_sequel': 1, 'sequel_parent_id': 1, 'current_week': 1,
-        'opening_day_revenue': 1, 'last_revenue_collected': 1
+        'opening_day_revenue': 1, 'last_revenue_collected': 1,
+        'pipeline_state': 1, 'pipeline_version': 1, 'premiere': 1, 'release_type': 1,
     }
     films = await db.films.find({'user_id': user['id']}, list_fields).sort('created_at', -1).to_list(100)
+
+    # Extend: include V3 film_projects (content_type=film) that are NOT yet in db.films
+    # (states: la_prima/premiere_live/hype/coming_soon/marketing/distribution/release_pending/idea/...)
+    existing_ids = {f['id'] for f in films}
+    fp_fields = {
+        '_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'subtitle': 1, 'poster_url': 1,
+        'genre': 1, 'quality_score': 1, 'virtual_likes': 1, 'likes_count': 1,
+        'created_at': 1, 'released_at': 1, 'pipeline_state': 1, 'premiere': 1,
+        'release_type': 1, 'total_revenue': 1, 'source_project_id': 1,
+        'budget_tier': 1, 'num_cinemas': 1,
+    }
+    v3_films = await db.film_projects.find(
+        {
+            'user_id': user['id'],
+            'content_type': 'film',
+            'pipeline_state': {'$nin': ['released', 'discarded', 'completed']},
+        },
+        fp_fields
+    ).sort('created_at', -1).to_list(100)
+    for fp in v3_films:
+        if fp['id'] in existing_ids:
+            continue
+        # Map pipeline_state → status for badge compatibility
+        ps = fp.get('pipeline_state', 'idea')
+        if ps == 'la_prima':
+            prem = fp.get('premiere') or {}
+            pdt = prem.get('datetime')
+            if pdt:
+                try:
+                    dt = datetime.fromisoformat(str(pdt).replace('Z', '+00:00'))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    now = datetime.now(timezone.utc)
+                    if now >= dt and now < dt + timedelta(hours=24):
+                        fp['status'] = 'premiere_live'
+                    elif now < dt:
+                        fp['status'] = 'la_prima_waiting'
+                    else:
+                        fp['status'] = 'la_prima'
+                except Exception:
+                    fp['status'] = 'la_prima'
+            else:
+                fp['status'] = 'la_prima'
+        elif ps in ('hype', 'hype_setup', 'hype_live', 'marketing', 'distribution', 'release_pending'):
+            fp['status'] = 'coming_soon'
+        else:
+            fp['status'] = ps
+        fp['pipeline_version'] = 3
+        films.append(fp)
+
     return films
 
 @api_router.get("/films/pending")
@@ -2729,11 +2789,11 @@ async def get_my_featured_films(user: dict = Depends(get_current_user), limit: i
     
     # Calculate a "featuring score" for each film
     for film in films:
-        # Base score from revenue and quality
-        revenue_score = min(100, (film.get('total_revenue', 0) / 1000000) * 10)  # Max 100 for 10M+
-        quality_score = film.get('quality_score', 50)
-        satisfaction_score = film.get('audience_satisfaction', 50)
-        likes_score = min(50, film.get('likes_count', 0) * 5)  # Max 50 for 10+ likes
+        # Base score from revenue and quality — tolleranti ai valori None nel DB
+        revenue_score = min(100, ((film.get('total_revenue') or 0) / 1000000) * 10)  # Max 100 for 10M+
+        quality_score = film.get('quality_score') or 50
+        satisfaction_score = film.get('audience_satisfaction') or 50
+        likes_score = min(50, (film.get('likes_count') or 0) * 5)  # Max 50 for 10+ likes
         
         # Recency bonus: films in theaters get priority
         recency_bonus = 0
@@ -2752,7 +2812,7 @@ async def get_my_featured_films(user: dict = Depends(get_current_user), limit: i
                 pass
         
         # Virtual likes score (new system)
-        virtual_likes_score = min(50, film.get('virtual_likes', 0) / 100)  # Max 50 for 5000+ virtual likes
+        virtual_likes_score = min(50, (film.get('virtual_likes') or 0) / 100)  # Max 50 for 5000+ virtual likes
         
         # Add some randomness for rotation (0-15 points)
         import random
@@ -2764,6 +2824,175 @@ async def get_my_featured_films(user: dict = Depends(get_current_user), limit: i
     films.sort(key=lambda f: f.get('_featuring_score', 0), reverse=True)
     
     return films[:limit]
+
+
+# ═══════════════════════════════════════════════════════════════
+# AL CINEMA — Tracking dashboard endpoint for "I Miei > Al Cinema"
+# ═══════════════════════════════════════════════════════════════
+def _ac_trend(spark: list) -> str:
+    if not spark or len(spark) < 3:
+        return 'new'
+    recent = sum(spark[-3:]) / 3
+    older = sum(spark[-6:-3]) / 3 if len(spark) >= 6 else (sum(spark[:-3]) / max(1, len(spark) - 3) if len(spark) > 3 else recent)
+    if older <= 0:
+        return 'growing' if recent > 0 else 'new'
+    delta = (recent - older) / older
+    if delta >= 0.10:
+        return 'growing'
+    if delta <= -0.10:
+        return 'declining'
+    return 'stable'
+
+
+def _ac_pct_delta(spark: list) -> float:
+    if not spark or len(spark) < 2:
+        return 0.0
+    recent = sum(spark[-3:]) / max(1, min(3, len(spark)))
+    older = sum(spark[-6:-3]) / max(1, min(3, len(spark) - 3)) if len(spark) >= 4 else spark[0]
+    if older <= 0:
+        return 0.0
+    return round(((recent - older) / older) * 100, 1)
+
+
+def _ac_advice(trend: str, days_in: int, days_rem: int, two_day_drop: bool) -> dict:
+    if days_in < 3:
+        return {'level': 'gray', 'title': 'Appena uscito', 'body': 'Aspetta qualche giorno per una valutazione strategica.'}
+    if two_day_drop and trend == 'declining':
+        return {'level': 'gold', 'title': 'Trasferisci in TV ORA',
+                'body': "Il film e' in calo da 2+ giorni. Trasferirlo subito sulla tua TV cattura lo slancio residuo con bonus hype (+6..+14)."}
+    if trend == 'declining' and days_rem <= 3:
+        return {'level': 'gold', 'title': 'Anticipa il ritiro',
+                'body': 'Trend negativo + pochi giorni rimasti. Trasferiscilo in TV per non perdere il pubblico residuo.'}
+    if trend == 'growing' and days_rem <= 2:
+        return {'level': 'amber', 'title': 'Valuta estensione',
+                'body': 'Sta crescendo ma stai per uscire. Estendi di qualche giorno per massimizzare gli incassi.'}
+    if trend == 'growing':
+        return {'level': 'green', 'title': 'Lascialo in sala', 'body': 'Sta crescendo: sfrutta il momento al cinema.'}
+    if trend == 'stable' and days_in >= 10:
+        return {'level': 'amber', 'title': 'Finestra TV ottimale',
+                'body': "Dopo 10+ giorni l'effetto novita' si esaurisce. Considerare la TV a breve."}
+    return {'level': 'green', 'title': 'Nessuna azione urgente', 'body': "Tieni d'occhio il trend nei prossimi giorni."}
+
+
+@api_router.get("/films/my/al-cinema")
+async def get_my_films_al_cinema(user: dict = Depends(get_current_user)):
+    """Tracking dashboard for user's films currently in theaters.
+    Returns enriched data: sparklines, residual value, trend, AI advice, personal records.
+    """
+    films = await db.films.find(
+        {'user_id': user['id'], 'status': 'in_theaters'},
+        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'genre': 1,
+         'quality_score': 1, 'total_revenue': 1, 'virtual_likes': 1, 'likes_count': 1,
+         'release_date': 1, 'theater_start': 1, 'theater_days': 1, 'weeks_in_theater': 1,
+         'daily_revenues': 1, 'attendance_history': 1, 'current_cinemas': 1,
+         'cumulative_attendance': 1, 'extension_count': 1, 'released_at': 1}
+    ).sort('released_at', -1).to_list(50)
+
+    now = datetime.now(timezone.utc)
+
+    # Personal records helpers (all user's historical daily revenues)
+    all_user_films = await db.films.find(
+        {'user_id': user['id']},
+        {'_id': 0, 'id': 1, 'total_revenue': 1, 'daily_revenues': 1}
+    ).to_list(500)
+    all_daily_vals = []
+    for fx in all_user_films:
+        for d in (fx.get('daily_revenues', []) or []):
+            v = d.get('revenue') if isinstance(d, dict) else d
+            if v:
+                try:
+                    all_daily_vals.append(float(v))
+                except Exception:
+                    pass
+    all_daily_vals.sort(reverse=True)
+    record_threshold = (all_daily_vals[2] if len(all_daily_vals) >= 3 else (all_daily_vals[0] if all_daily_vals else 0))
+
+    items = []
+    for f in films:
+        # days_in
+        try:
+            rd = f.get('release_date') or f.get('released_at')
+            if isinstance(rd, str):
+                rel = datetime.fromisoformat(rd.replace('Z', '+00:00'))
+                if rel.tzinfo is None:
+                    rel = rel.replace(tzinfo=timezone.utc)
+            elif isinstance(rd, datetime):
+                rel = rd.astimezone(timezone.utc) if rd.tzinfo else rd.replace(tzinfo=timezone.utc)
+            else:
+                rel = now
+            days_in = max(1, (now - rel).days)
+        except Exception:
+            days_in = f.get('theater_days', 1) or 1
+        planned = int((f.get('weeks_in_theater') or 2) * 7)
+        days_remaining = max(0, planned - days_in)
+
+        dr = f.get('daily_revenues', []) or []
+        spark = []
+        for d in dr[-7:]:
+            v = d.get('revenue') if isinstance(d, dict) else d
+            try:
+                spark.append(float(v or 0))
+            except Exception:
+                spark.append(0.0)
+        while len(spark) < 7:
+            spark.insert(0, 0.0)
+
+        trend = _ac_trend(spark)
+        hist = f.get('attendance_history', []) or []
+        cinema_spark = [int((h.get('total_cinemas') or 0)) for h in hist[-8:]]
+        while len(cinema_spark) < 8:
+            cinema_spark.insert(0, 0)
+
+        last3_avg = sum(spark[-3:]) / 3 if spark else 0
+        decay = 0.85 if trend == 'declining' else (1.05 if trend == 'growing' else 0.95)
+        residual_value = int(max(0, last3_avg * max(0, days_remaining) * decay))
+
+        today_rev = spark[-1] if spark else 0
+        yesterday_rev = spark[-2] if len(spark) >= 2 else today_rev
+        two_day_drop = (len(spark) >= 3 and spark[-1] < spark[-2] < spark[-3] and spark[-3] > 0)
+        recommended_for_tv = trend == 'declining' and (days_in >= 5 or two_day_drop)
+        advice = _ac_advice(trend, days_in, days_remaining, two_day_drop)
+
+        is_personal_record = bool(today_rev > 0 and record_threshold > 0 and today_rev >= record_threshold)
+
+        items.append({
+            'id': f['id'],
+            'title': f.get('title'),
+            'poster_url': f.get('poster_url'),
+            'genre': f.get('genre'),
+            'quality_score': f.get('quality_score'),
+            'total_revenue': f.get('total_revenue', 0),
+            'virtual_likes': f.get('virtual_likes', 0),
+            'days_in': days_in,
+            'days_remaining': days_remaining,
+            'planned_days': planned,
+            'current_cinemas': f.get('current_cinemas', 0),
+            'cumulative_attendance': f.get('cumulative_attendance', 0),
+            'daily_revenues_sparkline': spark,
+            'cinema_sparkline': cinema_spark,
+            'trend': trend,
+            'trend_delta_pct': _ac_pct_delta(spark),
+            'residual_value': residual_value,
+            'recommended_for_tv': recommended_for_tv,
+            'ai_advice': advice,
+            'today_revenue': today_rev,
+            'yesterday_revenue': yesterday_rev,
+            'is_personal_record': is_personal_record,
+            'extension_count': f.get('extension_count', 0),
+            'status': 'in_theaters',
+            'user_id': user['id'],
+        })
+
+    return {
+        'films': items,
+        'summary': {
+            'count': len(items),
+            'total_today_revenue': sum(i['today_revenue'] for i in items),
+            'total_residual_value': sum(i['residual_value'] for i in items),
+            'recommended_for_tv_count': sum(1 for i in items if i['recommended_for_tv']),
+        },
+    }
+
 
 @api_router.get("/films/my/for-sequel")
 async def get_my_films_for_sequel(user: dict = Depends(get_current_user)):
@@ -3324,6 +3553,57 @@ async def get_film(film_id: str, user: dict = Depends(get_current_user)):
             film.setdefault('owner_nickname', '')
     if not film:
         raise HTTPException(status_code=404, detail="Film non trovato")
+
+    # Bug fix: V3 released films in db.films use `screenplay_text`/`preplot` but frontend
+    # reads `screenplay`/`short_plot`/`pre_trama`. Also the full trailer doc lives in the
+    # source film_projects. Backfill these from the source project when missing.
+    needs_backfill = (
+        not film.get('screenplay')
+        or not film.get('trailer')
+        or not film.get('pre_trama')
+        or not film.get('short_plot')
+        or not film.get('theater_stats')
+        or not film.get('duration_minutes')
+        or not film.get('quality_score')
+    )
+    if needs_backfill:
+        src_id = film.get('source_project_id') or film.get('id')
+        src = await db.film_projects.find_one(
+            {'id': src_id},
+            {'_id': 0, 'screenplay': 1, 'screenplay_text': 1, 'pre_trama': 1,
+             'preplot': 1, 'short_plot': 1, 'description': 1, 'trailer': 1,
+             'theater_stats': 1, 'theater_weeks': 1, 'theater_end_date': 1,
+             'released_at': 1, 'premiere': 1,
+             'duration_minutes': 1, 'duration_category': 1,
+             'quality_score': 1, 'pre_imdb_score': 1, 'imdb_rating': 1,
+             'hype_score': 1, 'popularity_score': 1}
+        ) if src_id else None
+        if src:
+            if not film.get('screenplay'):
+                film['screenplay'] = src.get('screenplay') or src.get('screenplay_text') or ''
+            if not film.get('pre_trama'):
+                film['pre_trama'] = src.get('pre_trama') or src.get('preplot') or ''
+            if not film.get('short_plot'):
+                film['short_plot'] = src.get('short_plot') or src.get('preplot') or None
+            if not film.get('trailer') and src.get('trailer'):
+                film['trailer'] = src['trailer']
+            # Bug fix: backfill theater_stats so the "IN SALA · Xg · Yg rimasti" list view
+            # uses real counters instead of falling back to the default 21-day calc.
+            if not film.get('theater_stats') and src.get('theater_stats'):
+                film['theater_stats'] = src['theater_stats']
+            for k in ('theater_weeks', 'theater_end_date', 'released_at', 'premiere',
+                      'duration_minutes', 'duration_category',
+                      'quality_score', 'pre_imdb_score', 'imdb_rating',
+                      'hype_score', 'popularity_score'):
+                if not film.get(k) and src.get(k):
+                    film[k] = src[k]
+        # Fallback directly to v3 field names on the film doc itself
+        if not film.get('screenplay'):
+            film['screenplay'] = film.get('screenplay_text') or ''
+        if not film.get('pre_trama'):
+            film['pre_trama'] = film.get('preplot') or ''
+        if not film.get('short_plot'):
+            film['short_plot'] = film.get('preplot') or None
     
     # Map pipeline_state to status for ContentTemplate
     if film.get('pipeline_state'):
@@ -4853,6 +5133,47 @@ async def run_startup_migrations():
         changed = True
         logging.info(f"Migration recalculate_quality_v3_balanced: Recalculated {updated} films")
 
+    # Migration: Backfill hype timers for V3 projects stuck without timestamps
+    if 'backfill_hype_timers_v1' not in completed:
+        now = datetime.now(timezone.utc)
+        cursor = db.film_projects.find(
+            {'pipeline_version': 3, 'hype_started_at': {'$exists': False},
+             '$or': [{'pipeline_state': 'hype'}, {'hype_budget': {'$gt': 0}}, {'hype_progress': {'$gte': 100}}]},
+            {'_id': 0, 'id': 1, 'title': 1, 'pipeline_state': 1, 'hype_progress': 1}
+        )
+        projects = await cursor.to_list(200)
+        fixed = 0
+        for p in projects:
+            state = p.get('pipeline_state', '')
+            hp = p.get('hype_progress', 0) or 0
+            if state == 'hype' and hp >= 100:
+                # Hype complete but no timers — set as already completed
+                await db.film_projects.update_one({'id': p['id']}, {'$set': {
+                    'hype_started_at': (now - timedelta(hours=2)).isoformat(),
+                    'hype_complete_at': (now - timedelta(hours=1)).isoformat(),
+                    'hype_progress': 100,
+                }})
+                fixed += 1
+            elif state == 'hype':
+                # Still in hype with no timers — set timer to complete now
+                await db.film_projects.update_one({'id': p['id']}, {'$set': {
+                    'hype_started_at': (now - timedelta(hours=1)).isoformat(),
+                    'hype_complete_at': now.isoformat(),
+                    'hype_progress': 100,
+                }})
+                fixed += 1
+            elif state not in ('idea',):
+                # Past hype step — mark timers as completed in the past
+                await db.film_projects.update_one({'id': p['id']}, {'$set': {
+                    'hype_started_at': (now - timedelta(hours=3)).isoformat(),
+                    'hype_complete_at': (now - timedelta(hours=2)).isoformat(),
+                    'hype_progress': 100,
+                }})
+                fixed += 1
+        completed.append('backfill_hype_timers_v1')
+        changed = True
+        logging.info(f"Migration backfill_hype_timers_v1: Fixed {fixed}/{len(projects)} projects")
+
     if changed:
         await db.migrations.update_one(
             {'id': 'startup_migrations'},
@@ -5215,7 +5536,8 @@ async def admin_set_badge(data: dict, user: dict = Depends(get_current_user)):
 
 @api_router.post("/admin/set-perm-badge")
 async def admin_set_perm_badge(data: dict, user: dict = Depends(get_current_user)):
-    """Toggle permanent badges (cineadmin/cinemod) for a user. Admin only."""
+    """Toggle permanent badges (cineadmin/cinemod) for a user. Admin only.
+    Also sets the actual role: cineadmin -> co_admin, cinemod -> moderator."""
     if user.get('nickname') != ADMIN_NICKNAME:
         raise HTTPException(status_code=403, detail="Solo l'admin")
     nickname = data.get('nickname')
@@ -5225,15 +5547,37 @@ async def admin_set_perm_badge(data: dict, user: dict = Depends(get_current_user
         raise HTTPException(status_code=400, detail="badge_type deve essere cineadmin o cinemod")
     target = await db.users.find_one(
         {'nickname': {'$regex': f'^{nickname}$', '$options': 'i'}},
-        {'_id': 0, 'id': 1, 'nickname': 1, 'badges': 1}
+        {'_id': 0, 'id': 1, 'nickname': 1, 'badges': 1, 'role': 1}
     )
     if not target:
         raise HTTPException(status_code=404, detail=f"Utente '{nickname}' non trovato")
-    await db.users.update_one(
-        {'id': target['id']},
-        {'$set': {f'badges.{badge_type}': active}}
-    )
-    return {'success': True, 'nickname': target['nickname'], 'badge_type': badge_type, 'active': active}
+
+    update = {f'badges.{badge_type}': active}
+
+    # Set/remove actual role (MUST be uppercase to match ROLES in auth_utils.py)
+    if active:
+        if badge_type == 'cineadmin':
+            update['role'] = 'CO_ADMIN'
+        elif badge_type == 'cinemod':
+            update['role'] = 'MOD'
+    else:
+        # When removing badge, downgrade role if it matches
+        current_role = target.get('role', 'USER')
+        if badge_type == 'cineadmin' and current_role == 'CO_ADMIN':
+            # Check if they still have cinemod
+            if target.get('badges', {}).get('cinemod'):
+                update['role'] = 'MOD'
+            else:
+                update['role'] = 'USER'
+        elif badge_type == 'cinemod' and current_role == 'MOD':
+            update['role'] = 'USER'
+
+    await db.users.update_one({'id': target['id']}, {'$set': update})
+
+    role_label = {'CO_ADMIN': 'CO_ADMIN', 'MOD': 'MOD', 'USER': 'USER'}.get(update.get('role', ''), '')
+    role_msg = f' (ruolo: {role_label})' if role_label else ''
+
+    return {'success': True, 'nickname': target['nickname'], 'badge_type': badge_type, 'active': active, 'role': update.get('role'), 'message': f'{badge_type} {"assegnato" if active else "rimosso"}{role_msg}'}
 
 
 @api_router.get("/admin/search-users")
@@ -5316,8 +5660,13 @@ async def admin_delete_user(user_id: str, user: dict = Depends(get_current_user)
 
 
 @api_router.get("/admin/all-films")
-async def admin_get_all_films(q: str = '', user: dict = Depends(get_current_user)):
-    """Get all films for admin management (admin only)."""
+async def admin_get_all_films(q: str = '', content_type: str = 'film', user: dict = Depends(get_current_user)):
+    """Get all films/tv_series/anime for admin management (any state, admin only).
+
+    content_type ∈ {'film','tv_series','anime'}.
+    Returns both released items (films/tv_series collections) and in-progress V3
+    projects (film_projects/series_projects_v3).
+    """
     if user.get('nickname') != ADMIN_NICKNAME:
         raise HTTPException(status_code=403, detail="Solo l'admin")
 
@@ -5325,15 +5674,37 @@ async def admin_get_all_films(q: str = '', user: dict = Depends(get_current_user
     if q:
         query['title'] = {'$regex': q, '$options': 'i'}
 
-    films_cursor = db.films.find(
-        query,
-        {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1, 'genre': 1,
-         'quality_score': 1, 'status': 1, 'created_at': 1, 'total_revenue': 1}
-    ).sort('title', 1)
-    films = await films_cursor.to_list(500)
+    results = []
+    shared_proj = {'_id': 0, 'id': 1, 'title': 1, 'poster_url': 1, 'user_id': 1,
+                   'genre': 1, 'genre_name': 1, 'quality_score': 1,
+                   'status': 1, 'pipeline_state': 1, 'pipeline_version': 1,
+                   'created_at': 1, 'total_revenue': 1, 'type': 1,
+                   'source_project_id': 1}
 
-    # Enrich with studio name
-    user_ids = list(set(f.get('user_id') for f in films if f.get('user_id')))
+    if content_type == 'film':
+        async for d in db.films.find(query, shared_proj).sort('title', 1).limit(500):
+            d['stage'] = d.get('status') or 'released'
+            d['collection'] = 'films'
+            results.append(d)
+        # V3 film projects (pre-release)
+        async for d in db.film_projects.find({**query, 'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}}, shared_proj).sort('title', 1).limit(500):
+            d['stage'] = d.get('pipeline_state') or d.get('status') or 'idea'
+            d['collection'] = 'film_projects'
+            results.append(d)
+    elif content_type in ('tv_series', 'anime'):
+        async for d in db.tv_series.find({**query, 'type': content_type}, shared_proj).sort('title', 1).limit(500):
+            d['stage'] = d.get('status') or 'released'
+            d['collection'] = 'tv_series'
+            results.append(d)
+        async for d in db.series_projects_v3.find({**query, 'type': content_type, 'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}}, shared_proj).sort('title', 1).limit(500):
+            d['stage'] = d.get('pipeline_state') or 'idea'
+            d['collection'] = 'series_projects_v3'
+            results.append(d)
+    else:
+        raise HTTPException(400, "content_type non valido")
+
+    # Enrich with studio name and owner nickname
+    user_ids = list({f.get('user_id') for f in results if f.get('user_id')})
     users_map = {}
     if user_ids:
         users_list = await db.users.find(
@@ -5342,12 +5713,29 @@ async def admin_get_all_films(q: str = '', user: dict = Depends(get_current_user
         ).to_list(500)
         users_map = {u['id']: u for u in users_list}
 
-    for f in films:
+    # Pull bug-report flags to highlight entries that players are asking admin to fix/delete
+    try:
+        content_ids = [f['id'] for f in results]
+        open_reports = await db.bug_reports.find(
+            {'content_id': {'$in': content_ids}, 'status': {'$in': ['pending', 'open', None]}},
+            {'_id': 0, 'content_id': 1, 'category': 1, 'status': 1}
+        ).to_list(1000)
+    except Exception:
+        open_reports = []
+    reports_by_id = {}
+    for r in open_reports:
+        reports_by_id.setdefault(r['content_id'], []).append(r)
+
+    for f in results:
         owner = users_map.get(f.get('user_id'), {})
         f['studio_name'] = owner.get('production_house_name', 'Sconosciuto')
         f['owner_nickname'] = owner.get('nickname', '???')
+        f['has_open_report'] = f['id'] in reports_by_id
+        f['reports_count'] = len(reports_by_id.get(f['id'], []))
+        # Simple heuristic for "needs fix": missing critical fields
+        f['needs_fix'] = not f.get('poster_url') or (f.get('quality_score') is None)
 
-    return {'films': films, 'count': len(films)}
+    return {'films': results, 'count': len(results)}
 
 
 @api_router.delete("/admin/delete-film/{film_id}")
@@ -5356,9 +5744,15 @@ async def admin_delete_film(film_id: str, user: dict = Depends(get_current_user)
     if user.get('nickname') != ADMIN_NICKNAME:
         raise HTTPException(status_code=403, detail="Solo l'admin")
 
-    film = await db.films.find_one({'id': film_id}, {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1})
+    # Locate the document in any of the 4 content collections
+    film = None
+    for coll in ('films', 'film_projects', 'tv_series', 'series_projects_v3'):
+        doc = await db[coll].find_one({'id': film_id}, {'_id': 0, 'id': 1, 'title': 1, 'user_id': 1, 'source_project_id': 1})
+        if doc:
+            film = doc
+            break
     if not film:
-        raise HTTPException(status_code=404, detail="Film non trovato")
+        raise HTTPException(status_code=404, detail="Contenuto non trovato")
 
     deleted_related = {}
 
@@ -5387,8 +5781,25 @@ async def admin_delete_film(film_id: str, user: dict = Depends(get_current_user)
     if pf.deleted_count > 0:
         deleted_related['poster_files'] = pf.deleted_count
 
-    # Delete the film
-    await db.films.delete_one({'id': film_id})
+    # Delete from every content collection + source project id fallback
+    total = 0
+    for coll in ('films', 'film_projects', 'tv_series', 'series_projects_v3'):
+        r = await db[coll].delete_many({'id': film_id})
+        total += r.deleted_count
+    if film.get('source_project_id'):
+        for coll in ('film_projects', 'series_projects_v3'):
+            r = await db[coll].delete_many({'id': film['source_project_id']})
+            total += r.deleted_count
+    deleted_related['content_docs'] = total
+
+    # Resolve bug reports linked to this content
+    try:
+        await db.bug_reports.update_many(
+            {'content_id': film_id},
+            {'$set': {'status': 'resolved', 'resolved_at': datetime.now(timezone.utc).isoformat(), 'resolution': 'content deleted by admin'}}
+        )
+    except Exception:
+        pass
 
     # Invalidate cache
     _cache.invalidate()
@@ -5398,6 +5809,97 @@ async def admin_delete_film(film_id: str, user: dict = Depends(get_current_user)
         'deleted_film': film,
         'deleted_related': deleted_related
     }
+
+
+@api_router.get("/admin/all-trailers")
+async def admin_get_all_trailers(q: str = '', user: dict = Depends(get_current_user)):
+    """List all trailers across films/film_projects/tv_series/series_projects_v3 (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+
+    match = {"trailer.frames": {"$exists": True, "$ne": []}}
+    if q:
+        match["title"] = {"$regex": q, "$options": "i"}
+
+    proj = {"_id": 0, "id": 1, "title": 1, "poster_url": 1, "user_id": 1,
+            "trailer": 1, "type": 1, "status": 1, "pipeline_state": 1, "source_project_id": 1}
+    all_trailers = []
+    for coll, ctype in (("films", "film"), ("film_projects", "film"),
+                         ("tv_series", "series"), ("series_projects_v3", "series")):
+        async for d in db[coll].find(match, proj).limit(500):
+            t = d.get("trailer") or {}
+            resolved_type = d.get("type") or ctype
+            all_trailers.append({
+                "content_id": d["id"],
+                "collection": coll,
+                "content_type": resolved_type,
+                "title": d.get("title") or "(senza titolo)",
+                "poster_url": d.get("poster_url"),
+                "user_id": d.get("user_id"),
+                "tier": t.get("tier", "base"),
+                "mode": t.get("mode", "pre_launch"),
+                "generated_at": t.get("generated_at"),
+                "views_count": int(t.get("views_count", 0) or 0),
+                "likes_count": int(t.get("likes_count", 0) or 0),
+                "dislikes_count": int(t.get("dislikes_count", 0) or 0),
+                "parent_exists": True,
+                "parent_stage": d.get("status") or d.get("pipeline_state"),
+            })
+
+    # Enrich with owner nickname
+    user_ids = list({x["user_id"] for x in all_trailers if x.get("user_id")})
+    users_map = {}
+    if user_ids:
+        async for u in db.users.find({"id": {"$in": user_ids}}, {"_id": 0, "id": 1, "nickname": 1, "production_house_name": 1}):
+            users_map[u["id"]] = u
+    for x in all_trailers:
+        o = users_map.get(x.get("user_id") or "", {})
+        x["owner_nickname"] = o.get("nickname") or "???"
+        x["studio_name"] = o.get("production_house_name") or "Sconosciuto"
+        # If owner was deleted (user_id points to non-existent user), mark as ex-owner
+        x["owner_exists"] = x.get("user_id") in users_map
+
+    all_trailers.sort(key=lambda x: x.get("generated_at") or "", reverse=True)
+    return {"trailers": all_trailers, "count": len(all_trailers)}
+
+
+@api_router.get("/admin/trailer-detail/{content_id}")
+async def admin_get_trailer_detail(content_id: str, user: dict = Depends(get_current_user)):
+    """Fetch full trailer (with frames) for playback in admin popup."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    for coll in ("films", "film_projects", "tv_series", "series_projects_v3"):
+        d = await db[coll].find_one(
+            {"id": content_id, "trailer.frames": {"$exists": True, "$ne": []}},
+            {"_id": 0, "id": 1, "title": 1, "trailer": 1, "genre": 1, "user_id": 1}
+        )
+        if d:
+            return d
+    raise HTTPException(404, "Trailer non trovato")
+
+
+@api_router.delete("/admin/delete-trailer/{content_id}")
+async def admin_delete_trailer(content_id: str, user: dict = Depends(get_current_user)):
+    """Permanently remove the trailer from a content doc (admin only)."""
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+    total = 0
+    for coll in ("films", "film_projects", "tv_series", "series_projects_v3"):
+        r = await db[coll].update_many(
+            {"id": content_id, "trailer.frames": {"$exists": True}},
+            {"$unset": {"trailer": ""}}
+        )
+        total += r.modified_count
+    if total == 0:
+        raise HTTPException(404, "Trailer non trovato")
+    # Cleanup related votes if any
+    try:
+        await db.trailer_votes.delete_many({"content_id": content_id})
+    except Exception:
+        pass
+    return {"success": True, "modified": total}
+
+
 
 
 # ==================== ADMIN: TEST DATA CLEANUP ====================
@@ -6689,11 +7191,9 @@ async def get_film_virtual_audience(film_id: str, user: dict = Depends(get_curre
     
     # Generate reviews if needed (for notable films)
     reviews = existing_reviews
-    quality = film.get('quality_score', 50)
-    satisfaction = film.get('audience_satisfaction', 50)
+    quality = film.get('quality_score') or 50
+    satisfaction = film.get('audience_satisfaction') or 50
     avg_score = (quality + satisfaction) / 2
-    
-    # Only generate reviews for notable films (very good or very bad)
     if len(existing_reviews) < 3 and (avg_score >= 70 or avg_score <= 35):
         num_to_generate = min(3 - len(existing_reviews), 2 if avg_score <= 35 else 3)
         language = user.get('language', 'it')
@@ -7041,6 +7541,22 @@ async def startup_event():
 
     logging.info("[BACKUP] Auto-backup disabilitato. Usa pannello Admin per export manuale.")
 
+    # Recover orphaned promo-video jobs (tasks die with process)
+    try:
+        from promo_video import recover_orphaned_jobs as _promo_recover
+        await _promo_recover()
+    except Exception as _pe:
+        logging.warning(f"[promo] startup recovery skipped: {_pe}")
+
+    # XP/Fame v2 migration (one-shot, gated by system_flags flag)
+    try:
+        from utils.xp_migration_v2 import run_xp_migration_v2
+        mig_stats = await run_xp_migration_v2(db)
+        if mig_stats:
+            logging.info(f"[XP_MIGRATION_V2] Completed: {mig_stats}")
+    except Exception as _xe:
+        logging.error(f"[XP_MIGRATION_V2] Failed: {_xe}")
+
     # Auto-sync locale → Atlas ogni 30 minuti (solo se DB locale)
     try:
         if not is_atlas:
@@ -7137,44 +7653,52 @@ async def startup_event():
             except Exception as e:
                 logging.warning(f"Cast pool init: {e}")
 
+            # Legacy sequel migration — ONE-TIME ONLY (skip if already migrated or after reset)
             try:
-                legacy = await db.sequels.find({'status': 'completed'}).to_list(500)
-                mig_count = 0
-                for seq in legacy:
-                    if await db.films.find_one({'id': seq.get('id')}, {'_id': 0, 'id': 1}):
-                        continue
-                    now_iso = datetime.now(timezone.utc).isoformat()
-                    film_doc = {
-                        'id': seq['id'], 'user_id': seq['user_id'],
-                        'title': seq.get('title', 'Sequel'), 'genre': seq.get('genre', 'drama'),
-                        'subgenres': seq.get('subgenres', []), 'status': 'in_theaters',
-                        'quality_score': seq.get('quality_score', 50),
-                        'quality': int(seq.get('quality_score', 50)),
-                        'imdb_rating': round(seq.get('quality_score', 50) / 10, 1),
-                        'poster_url': seq.get('poster_url', ''),
-                        'total_revenue': seq.get('total_revenue', 0),
-                        'opening_revenue': seq.get('opening_revenue', 0),
-                        'weekly_revenue': 0, 'attendance': seq.get('attendance', 0),
-                        'release_type': 'immediate', 'is_sequel': True,
-                        'sequel_parent_id': seq.get('parent_film_id', ''),
-                        'sequel_number': seq.get('sequel_number', 2),
-                        'sequel_parent_title': seq.get('parent_title', ''),
-                        'hired_actors': seq.get('cast', []),
-                        'pre_screenplay': seq.get('screenplay', {}).get('text', '') if isinstance(seq.get('screenplay'), dict) else '',
-                        'production_cost': seq.get('production_cost', 0),
-                        'quality_breakdown': seq.get('quality_breakdown', {}),
-                        'created_at': seq.get('created_at', now_iso),
-                        'released_at': seq.get('completed_at', now_iso),
-                        'updated_at': now_iso,
-                    }
-                    await db.films.insert_one(film_doc)
-                    await db.films.update_one(
-                        {'id': seq.get('parent_film_id')},
-                        {'$max': {'sequel_count': seq.get('sequel_number', 2) - 1}}
+                mig_doc = await db.migrations.find_one({'id': 'startup_migrations'}, {'_id': 0})
+                sequel_migrated = (mig_doc or {}).get('sequel_migration_done', False)
+                if not sequel_migrated:
+                    legacy = await db.sequels.find({'status': 'completed'}).to_list(500)
+                    mig_count = 0
+                    for seq in legacy:
+                        if await db.films.find_one({'id': seq.get('id')}, {'_id': 0, 'id': 1}):
+                            continue
+                        now_iso = datetime.now(timezone.utc).isoformat()
+                        film_doc = {
+                            'id': seq['id'], 'user_id': seq['user_id'],
+                            'title': seq.get('title', 'Sequel'), 'genre': seq.get('genre', 'drama'),
+                            'subgenres': seq.get('subgenres', []), 'status': 'in_theaters',
+                            'quality_score': seq.get('quality_score', 50),
+                            'quality': int(seq.get('quality_score', 50)),
+                            'imdb_rating': round(seq.get('quality_score', 50) / 10, 1),
+                            'poster_url': seq.get('poster_url', ''),
+                            'total_revenue': seq.get('total_revenue', 0),
+                            'opening_revenue': seq.get('opening_revenue', 0),
+                            'weekly_revenue': 0, 'attendance': seq.get('attendance', 0),
+                            'release_type': 'immediate', 'is_sequel': True,
+                            'sequel_parent_id': seq.get('parent_film_id', ''),
+                            'sequel_number': seq.get('sequel_number', 2),
+                            'sequel_parent_title': seq.get('parent_title', ''),
+                            'hired_actors': seq.get('cast', []),
+                            'pre_screenplay': seq.get('screenplay', {}).get('text', '') if isinstance(seq.get('screenplay'), dict) else '',
+                            'production_cost': seq.get('production_cost', 0),
+                            'quality_breakdown': seq.get('quality_breakdown', {}),
+                            'created_at': seq.get('created_at', now_iso),
+                            'released_at': seq.get('completed_at', now_iso),
+                            'updated_at': now_iso,
+                        }
+                        await db.films.insert_one(film_doc)
+                        mig_count += 1
+                    if mig_count:
+                        logging.info(f"Migrated {mig_count} legacy sequels to films collection")
+                    # Mark as done so it never runs again
+                    await db.migrations.update_one(
+                        {'id': 'startup_migrations'},
+                        {'$set': {'sequel_migration_done': True}},
+                        upsert=True
                     )
-                    mig_count += 1
-                if mig_count:
-                    logging.info(f"Migrated {mig_count} legacy sequels to films collection")
+                else:
+                    logging.info("Legacy sequel migration already completed, skipping")
             except Exception as e:
                 logging.warning(f"Legacy sequel migration: {e}")
 
@@ -7313,14 +7837,16 @@ async def startup_event():
         auto_release_coming_soon,
         process_coming_soon_dynamic_events,
         auto_cleanup_corrupted_projects,
-        auto_revenue_tick
+        auto_revenue_tick,
+        process_tv_pipeline_auto_apply,
+        replenish_anime_crew_pool
     )
     from routes.city_dynamics import (
         initialize_city_dynamics,
         update_expired_cities,
         generate_film_city_notifications
     )
-    from scheduler_tasks import process_hype_and_events
+    from scheduler_tasks import process_hype_and_events, process_la_prima_buildup
     # Inizializza citta dinamiche
     await initialize_city_dynamics()
     # Inizializza hype per film esistenti senza campo hype
@@ -7419,6 +7945,18 @@ async def startup_event():
         id='auto_release_coming_soon',
         replace_existing=True
     )
+
+    # Every 5 minutes: Finalize scheduled LAMPO releases
+    try:
+        from routes.lampo import finalize_scheduled_lampo_releases
+        scheduler.add_job(
+            finalize_scheduled_lampo_releases,
+            IntervalTrigger(minutes=5),
+            id='finalize_scheduled_lampo',
+            replace_existing=True,
+        )
+    except Exception as _le:
+        print(f"[scheduler] Could not register LAMPO finalizer: {_le}")
     
     # Every 20 minutes: Dynamic events for Coming Soon content
     scheduler.add_job(
@@ -7427,6 +7965,54 @@ async def startup_event():
         id='coming_soon_dynamic_events',
         replace_existing=True
     )
+
+    # Every 30 minutes: La Prima pre-event hype buildup + auto news
+    scheduler.add_job(
+        process_la_prima_buildup,
+        IntervalTrigger(minutes=30),
+        id='la_prima_buildup',
+        replace_existing=True
+    )
+
+    # La Prima Events (PStar): imports done lazily to avoid startup failures
+    try:
+        from scheduler_la_prima_events import (
+            process_la_prima_ended_films, process_live_reactions, payout_daily, payout_weekly
+        )
+        scheduler.add_job(
+            process_la_prima_ended_films, IntervalTrigger(minutes=15),
+            id='la_prima_pstar_compute', replace_existing=True
+        )
+        scheduler.add_job(
+            process_live_reactions, IntervalTrigger(minutes=30),
+            id='la_prima_live_reactions', replace_existing=True
+        )
+        scheduler.add_job(
+            payout_daily, CronTrigger(hour=0, minute=5),
+            id='la_prima_daily_payout', replace_existing=True
+        )
+        scheduler.add_job(
+            payout_weekly, CronTrigger(day_of_week='mon', hour=0, minute=10),
+            id='la_prima_weekly_payout', replace_existing=True
+        )
+        logger.info("[PSTAR] Scheduler jobs registered")
+    except Exception as e:
+        logger.error(f"[PSTAR] scheduler init failed: {e}")
+
+    # TRAILER EVENTS: Daily + Weekly payout
+    try:
+        from scheduler_trailer_events import payout_daily_trailer_event, payout_weekly_trailer_event
+        scheduler.add_job(
+            payout_daily_trailer_event, CronTrigger(hour=0, minute=5),
+            id='trailer_daily_payout', replace_existing=True
+        )
+        scheduler.add_job(
+            payout_weekly_trailer_event, CronTrigger(day_of_week='mon', hour=0, minute=15),
+            id='trailer_weekly_payout', replace_existing=True
+        )
+        logger.info("[TRAILER EVENTS] Scheduler jobs registered")
+    except Exception as e:
+        logger.error(f"[TRAILER EVENTS] scheduler init failed: {e}")
     
     # Every 30 min: Auto-cleanup corrupted projects
     scheduler.add_job(
@@ -7441,6 +8027,114 @@ async def startup_event():
         auto_revenue_tick,
         IntervalTrigger(minutes=10),
         id='auto_revenue_tick',
+        replace_existing=True
+    )
+
+    # Every 5 minutes: auto-apply pipeline TV scheduling for V3 series/anime
+    scheduler.add_job(
+        process_tv_pipeline_auto_apply,
+        IntervalTrigger(minutes=5),
+        id='tv_pipeline_auto_apply',
+        replace_existing=True
+    )
+
+    # Every 14 days: replenish anime crew pool (anime_director + anime_illustrator)
+    scheduler.add_job(
+        replenish_anime_crew_pool,
+        IntervalTrigger(days=14),
+        id='replenish_anime_crew',
+        replace_existing=True
+    )
+
+    # Every 4 hours: Process due bank loan installments
+    scheduler.add_job(
+        process_daily_loan_repayments,
+        IntervalTrigger(hours=4),
+        id='bank_loan_repayments',
+        replace_existing=True
+    )
+
+    # Daily at 08:00: Market Deal of the Day + Close expired auctions
+    async def market_daily_tasks():
+        try:
+            _db = get_database()
+            now_iso = datetime.now(timezone.utc).isoformat()
+
+            # Close expired auctions
+            expired = await _db.market_listings.find(
+                {'status': 'active', 'sale_type': 'auction', 'auction_ends_at': {'$lt': now_iso}}
+            ).to_list(50)
+            for auction in expired:
+                if auction.get('highest_bidder'):
+                    # Winner! Transfer item and complete transaction
+                    price = auction.get('current_bid', 0)
+                    commission = int(price * 0.10)
+                    seller_amount = price - commission
+                    await _db.users.update_one({'id': auction['seller_id']}, {'$inc': {'funds': seller_amount}})
+                    # Transfer ownership
+                    item_type = auction.get('item_type')
+                    item_id = auction.get('item_id')
+                    buyer_id = auction['highest_bidder']
+                    if item_type == 'film':
+                        await _db.films.update_one({'id': item_id}, {'$set': {'user_id': buyer_id, 'producer_id': buyer_id}})
+                    elif item_type in ('series', 'anime'):
+                        await _db.tv_series.update_one({'id': item_id}, {'$set': {'user_id': buyer_id}})
+                    elif item_type == 'infrastructure':
+                        await _db.infrastructure.update_one({'id': item_id}, {'$set': {'owner_id': buyer_id}})
+                    # Record transaction
+                    import uuid as _uuid
+                    await _db.market_transactions.insert_one({
+                        'id': str(_uuid.uuid4()), 'listing_id': auction['id'],
+                        'seller_id': auction['seller_id'], 'buyer_id': buyer_id,
+                        'item_type': item_type, 'item_id': item_id,
+                        'title': auction.get('title', ''), 'price': price,
+                        'commission': commission, 'seller_received': seller_amount,
+                        'sale_type': 'auction', 'completed_at': now_iso,
+                    })
+                    await _db.market_listings.update_one({'id': auction['id']}, {'$set': {'status': 'sold'}})
+                    logging.info(f"[MARKET] Auction completed: {auction.get('title')} -> {buyer_id} for ${price}")
+                else:
+                    # No bids, cancel
+                    await _db.market_listings.update_one({'id': auction['id']}, {'$set': {'status': 'expired'}})
+
+            # Deal of the Day: pick random active listing with -30% discount
+            await _db.market_listings.update_many({'deal_of_day': True}, {'$set': {'deal_of_day': False}})
+            active_count = await _db.market_listings.count_documents({'status': 'active', 'sale_type': 'fixed'})
+            if active_count > 0:
+                import random
+                skip = random.randint(0, max(0, active_count - 1))
+                deal = await _db.market_listings.find({'status': 'active', 'sale_type': 'fixed'}).skip(skip).limit(1).to_list(1)
+                if deal:
+                    original_price = deal[0].get('price', 0)
+                    deal_price = int(original_price * 0.7)
+                    await _db.market_listings.update_one(
+                        {'id': deal[0]['id']},
+                        {'$set': {'deal_of_day': True, 'original_price': original_price, 'price': deal_price}}
+                    )
+                    logging.info(f"[MARKET] Deal of day: {deal[0].get('title')} at ${deal_price}")
+
+            # Close expired festivals
+            expired_festivals = await _db.festivals.find(
+                {'status': 'active', 'end_date': {'$lt': now_iso}}
+            ).to_list(10)
+            for f in expired_festivals:
+                await _db.festivals.update_one({'id': f['id']}, {'$set': {'status': 'completed'}})
+                # Award fame to winners
+                for cat_id, cat_data in f.get('categories', {}).items():
+                    nominees = sorted(cat_data.get('nominees', []), key=lambda x: -x.get('votes', 0))
+                    if nominees and nominees[0].get('votes', 0) > 0:
+                        winner_uid = nominees[0].get('user_id')
+                        if winner_uid:
+                            await _db.users.update_one({'id': winner_uid}, {'$inc': {'fame': 15, 'funds': 500000}})
+                logging.info(f"[FESTIVAL] Closed: {f.get('name')}")
+
+        except Exception as e:
+            logging.error(f"[MARKET] Daily tasks error: {e}")
+
+    scheduler.add_job(
+        market_daily_tasks,
+        CronTrigger(hour=8, minute=0),
+        id='market_daily_tasks',
         replace_existing=True
     )
     
@@ -7540,12 +8234,13 @@ async def startup_event():
     )
 
     # Trend scores: every 6 hours
-    from scheduler_tasks import update_trend_scores, evolve_city_tastes, seed_city_tastes_if_needed, check_theater_life, migrate_theater_films, expire_old_challenges, process_ri_cinema
+    from scheduler_tasks import update_trend_scores, evolve_city_tastes, seed_city_tastes_if_needed, check_theater_life, migrate_theater_films, expire_old_challenges, process_ri_cinema, auto_generate_weekly_events
     scheduler.add_job(update_trend_scores, IntervalTrigger(hours=6), id='update_trend_scores', replace_existing=True)
     scheduler.add_job(evolve_city_tastes, IntervalTrigger(hours=6), id='evolve_city_tastes', replace_existing=True)
     scheduler.add_job(check_theater_life, IntervalTrigger(hours=1), id='check_theater_life', replace_existing=True)
     scheduler.add_job(expire_old_challenges, IntervalTrigger(minutes=2), id='expire_old_challenges', replace_existing=True)
     scheduler.add_job(process_ri_cinema, IntervalTrigger(hours=2), id='process_ri_cinema', replace_existing=True)
+    scheduler.add_job(auto_generate_weekly_events, IntervalTrigger(days=7), id='auto_generate_weekly_events', replace_existing=True)
     scheduler.start()
     logging.info("APScheduler started with background jobs for autonomous game operations")
     import asyncio
@@ -9910,21 +10605,75 @@ app.include_router(api_router)
 app.include_router(auth_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
 app.include_router(social_router, prefix="/api")
+# Trailer AI (cinematic trailer generator)
+try:
+    from routes.trailers import router as trailers_router
+    app.include_router(trailers_router, prefix="/api")
+except Exception as _e:
+    logger.error(f"Failed to load trailers router: {_e}")
+
+# Trailer Events (TStar leaderboards, daily/weekly, hall of fame, voting)
+try:
+    from routes.trailer_events import router as trailer_events_router
+    app.include_router(trailer_events_router, prefix="/api")
+except Exception as _e:
+    logger.error(f"Failed to load trailer events router: {_e}")
+
+# Admin — AI Image Providers (Pollinations vs Emergent toggle)
+try:
+    from routes.admin_ai_providers import router as admin_ai_providers_router
+    app.include_router(admin_ai_providers_router)
+except Exception as _e:
+    logger.error(f"Failed to load admin_ai_providers router: {_e}")
+
+# Admin — Promo Video Generator (automated Instagram promo videos)
+try:
+    from routes.promo_video_admin import router as promo_video_admin_router
+    app.include_router(promo_video_admin_router)
+except Exception as _e:
+    logger.error(f"Failed to load promo_video_admin router: {_e}")
+# Content Likes (real + system hype-based)
+try:
+    from routes.likes import router as likes_router
+    app.include_router(likes_router, prefix="/api")
+except Exception as _e:
+    logger.error(f"Failed to load likes router: {_e}")
 app.include_router(infrastructure_router, prefix="/api")
+app.include_router(radio_router, prefix="/api")
 app.include_router(acting_school_router, prefix="/api")
 app.include_router(casting_agency_router)
 app.include_router(film_pipeline_router, prefix="/api")
 app.include_router(pipeline_v2_router)
 app.include_router(pipeline_v3_router)
 app.include_router(series_pipeline_router, prefix="/api")
+app.include_router(pipeline_series_v3_router)
 app.include_router(sequel_pipeline_router, prefix="/api")
 app.include_router(emittente_tv_router, prefix="/api")
 app.include_router(tv_stations_router, prefix="/api")
+app.include_router(finance_bank_router, prefix="/api")
+app.include_router(progression_router, prefix="/api")
 app.include_router(cinepass_router)
 app.include_router(minigames_router, prefix="/api")
 app.include_router(minigames_arcade_router, prefix="/api")
 app.include_router(pvp_router, prefix="/api")
 app.include_router(pvp_cinema_router, prefix="/api")
+app.include_router(market_v2_router, prefix="/api")
+app.include_router(medals_challenges_router, prefix="/api")
+app.include_router(tv_competition_router, prefix="/api")
+
+# Studio quota + infrastructure info (tooltip 'i')
+try:
+    from routes.studio_info import router as studio_info_router
+    app.include_router(studio_info_router)
+except Exception as _e:
+    logger.error(f"Failed to load studio_info router: {_e}")
+
+# Produzione LAMPO
+try:
+    from routes.lampo import router as lampo_router
+    app.include_router(lampo_router)
+except Exception as _e:
+    logger.error(f"Failed to load lampo router: {_e}")
 
 # Initialize Velion routes with db and JWT secret
 velion_init(db, JWT_SECRET)
@@ -9945,8 +10694,10 @@ app.include_router(premiere_router, prefix="/api")
 app.include_router(coming_soon_router, prefix="/api")
 app.include_router(major_router, prefix="/api")
 app.include_router(emerging_screenplays_router, prefix="/api")
+app.include_router(purchased_screenplays_v3_router)  # already has /api prefix in route paths
 app.include_router(sponsors_router, prefix="/api")
 app.include_router(la_prima_router, prefix="/api")
+app.include_router(la_prima_events_router, prefix="/api")
 app.include_router(deletion_router, prefix="/api")
 from routes.recovery import router as recovery_router
 app.include_router(recovery_router)

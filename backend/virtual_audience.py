@@ -185,9 +185,9 @@ def generate_review(quality_score: float, audience_satisfaction: float, language
 
 def calculate_virtual_likes(film: Dict[str, Any]) -> int:
     """Calculate virtual likes based on film metrics with some randomness."""
-    quality = film.get('quality_score', 50)
-    satisfaction = film.get('audience_satisfaction', 50)
-    revenue = film.get('total_revenue', 0)
+    quality = film.get('quality_score') or 50
+    satisfaction = film.get('audience_satisfaction') or 50
+    revenue = film.get('total_revenue') or 0
     actual_weeks = film.get('actual_weeks_in_theater', 1)
     status = film.get('status', 'released')
     

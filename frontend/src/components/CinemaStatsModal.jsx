@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, TrendingUp } from 'lucide-react';
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
 
 const CinemaStatsModal = ({ film, isOpen, onClose }) => {
   const [stats, setStats] = useState(null);
+  const [trendHistory, setTrendHistory] = useState([]);
   const [tvStations, setTvStations] = useState([]);
   const [selectedTv, setSelectedTv] = useState('');
   const [loading, setLoading] = useState('');
@@ -16,7 +17,12 @@ const CinemaStatsModal = ({ film, isOpen, onClose }) => {
     if (!isOpen || !film?.id) return;
     const h = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
     fetch(BACKEND + '/api/pipeline-v2/films/' + film.id + '/theater-stats', { headers: h })
-      .then(r => r.ok ? r.json() : null).then(d => d && setStats(d)).catch(() => {});
+      .then(r => r.ok ? r.json() : null).then(d => {
+        if (d) {
+          setStats(d);
+          setTrendHistory(d.cwtrend_history || []);
+        }
+      }).catch(() => {});
     if (isOwner) {
       fetch(BACKEND + '/api/my-tv/stations', { headers: h })
         .then(r => r.ok ? r.json() : []).then(d => setTvStations(Array.isArray(d) ? d : d?.stations || [])).catch(() => {});
@@ -50,13 +56,13 @@ const CinemaStatsModal = ({ film, isOpen, onClose }) => {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} />
-      <div style={{ position: 'relative', width: '100%', maxWidth: 380, background: '#111113', borderRadius: 16, border: '1px solid rgba(56,189,248,0.2)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 380, background: '#111113', borderRadius: 16, border: '1px solid rgba(56,189,248,0.2)', overflow: 'hidden' }} onClick={e => e.stopPropagation()} data-testid="cinema-stats-modal">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <div>
             <span style={{ fontSize: 13, fontWeight: 'bold', color: '#38bdf8' }}>{film?.pipeline_state === 'released' ? 'AL CINEMA' : 'FUORI SALA'}</span>
             {perfLabel && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 'bold', color: perfColor }}>{perfLabel}</span>}
           </div>
-          <button onClick={onClose} style={{ color: '#6b7280' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ color: '#6b7280' }} data-testid="cinema-stats-close"><X size={18} /></button>
         </div>
         <div style={{ padding: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
@@ -71,6 +77,10 @@ const CinemaStatsModal = ({ film, isOpen, onClose }) => {
               </div>
             ))}
           </div>
+
+          {/* CWTrend Sparkline */}
+          {trendHistory.length > 0 && <Sparkline data={trendHistory} />}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 8 }}>
             <span style={{ color: '#6b7280' }}>Giorni in sala</span>
             <span style={{ fontWeight: 'bold', color: '#facc15' }}>{'' + days}gg{remain > 0 ? ' / ' + remain + ' rimasti' : ''}</span>
@@ -96,7 +106,7 @@ const CinemaStatsModal = ({ film, isOpen, onClose }) => {
               )}
               <div style={{ display: 'flex', gap: 8 }}>
                 {film?.pipeline_state === 'released' && (
-                  <button onClick={() => doAction('withdraw-theater')} disabled={!!loading}
+                  <button onClick={() => doAction('withdraw-theater')} disabled={!!loading} data-testid="withdraw-theater-btn"
                     style={{ flex: 1, fontSize: 10, padding: '8px 0', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontWeight: 'bold', cursor: 'pointer' }}>
                     {loading === 'withdraw-theater' ? '...' : 'Ritira dal cinema'}
                   </button>
@@ -115,5 +125,70 @@ const CinemaStatsModal = ({ film, isOpen, onClose }) => {
     </div>
   );
 };
+
+/* ─── SVG Sparkline Component ─── */
+function Sparkline({ data }) {
+  if (!data || data.length < 2) return null;
+
+  const values = data.map(d => d.cwtrend);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const current = values[values.length - 1];
+  const prev = values[values.length - 2];
+  const trending = current >= prev;
+
+  const W = 220;
+  const H = 40;
+  const PAD = 4;
+  const points = values.map((v, i) => {
+    const x = PAD + (i / (values.length - 1)) * (W - PAD * 2);
+    const y = H - PAD - ((v - min) / range) * (H - PAD * 2);
+    return { x, y };
+  });
+
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const area = line + ` L ${points[points.length - 1].x.toFixed(1)} ${H} L ${points[0].x.toFixed(1)} ${H} Z`;
+  const lineColor = trending ? '#4ade80' : '#f87171';
+  const fillColor = trending ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)';
+
+  return (
+    <div style={{ marginBottom: 12, padding: '8px 0', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }} data-testid="cwtrend-sparkline">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <TrendingUp size={12} color={lineColor} />
+          <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: '600' }}>CWTrend (7gg)</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 14, fontWeight: 'bold', color: lineColor }}>{current?.toFixed(1)}</span>
+          <span style={{ fontSize: 9, color: trending ? '#4ade80' : '#f87171' }}>
+            {trending ? '+' : ''}{(current - prev).toFixed(1)}
+          </span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+          <defs>
+            <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={lineColor} stopOpacity="0.3" />
+              <stop offset="100%" stopColor={lineColor} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path d={area} fill="url(#sparkGrad)" />
+          <path d={line} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          {/* Current value dot */}
+          <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="3" fill={lineColor} stroke="#111113" strokeWidth="1.5" />
+        </svg>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 12px', marginTop: 2 }}>
+        {data.map((d, i) => (
+          <span key={i} style={{ fontSize: 7, color: '#4b5563' }}>
+            {d.day >= 0 ? `G${d.day}` : ''}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default CinemaStatsModal;

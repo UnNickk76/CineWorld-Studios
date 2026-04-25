@@ -1,0 +1,35 @@
+{
+  "summary": "Comprehensive backend testing of new Purchased Screenplays → Pipeline V3 bridge (iter 164). Created 17 pytest tests covering create-v3-project (avanzata + veloce, both emerging + agency sources, all pricing combinations), veloce-fast-track endpoint (success + 3 error cases), validation errors (invalid mode/source, missing screenplay, insufficient funds + no fund deduction), la_prima integration, and regression for existing endpoints. ALL 17 tests PASSED. Pricing math verified: emerging avanzata = base, emerging veloce = 2x base, agency avanzata = base*0.4, agency veloce = base*0.8 (2x*0.4). Cast auto-fill works (NPC fallback). Funds correctly deducted on success, not deducted on insufficient-funds 400. Source screenplay correctly marked as accepted (emerging) / purchased=true (agency). Veloce fast-track properly transitions to pipeline_state='distribution' with release_type='direct' and skips La Prima. La Prima coming-to-cinemas exposes from_purchased_screenplay/mode/source fields.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter164_purchased_screenplays_v3.py",
+    "/app/test_reports/pytest/iter164_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Non-atomic order in create_v3_from_screenplay: funds are deducted (line 303) BEFORE mark_screenplay_consumed (line 386). If insert_one or _mark_screenplay_consumed throws after deduction, the user loses money silently with no rollback. Consider wrapping in a try/except that refunds funds on failure, or perform consume-check first then deduct funds last.",
+    "veloce-fast-track endpoint sets pipeline_ui_step=8 and max_step_reached=8 hard-coded — coupling to UI step indices is fragile. If pipeline reorders steps, this will silently misalign.",
+    "_auto_fill_marketing returns hard-coded fake sponsor IDs ('sponsor_1', 'Top Sponsor A', etc.) rather than real sponsor docs from db.sponsors. This may confuse downstream economy/leaderboards that look up sponsors by id.",
+    "_calc_price uses int(cost*0.4) — for base_cost=500000, gives exactly 200000, but for non-multiple-of-5 base costs you'll get non-deterministic rounding. Acceptable but document.",
+    "_fetch_screenplay for source='emerging' compares expires_at as a string to _now() string. Works only because both are ISO-8601 with same TZ format; brittle if timezone format diverges.",
+    "Veloce fast-track does not credit XP/Fame; only the create endpoint does. If the design intends rewards on completion as well, that path is missing."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter164_purchased_screenplays_v3.py (new)"
+  ],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "not tested (backend only request)"},
+  "test_credentials": "fandrex1@gmail.com / Fandrel2776 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Tests seed TEST_emer_* docs in db.emerging_screenplays and TEST_ag_* docs in db.scout_screenplay_pool, plus TEST-prefixed film_projects. Module-scoped autouse fixture cleans them up afterwards. User funds are reset to 5_000_000 before each create test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test file at /app/backend/tests/test_iter164_purchased_screenplays_v3.py is reusable as regression. To run: export REACT_APP_BACKEND_URL, MONGO_URL, DB_NAME from /app/backend/.env, then `pytest backend/tests/test_iter164_purchased_screenplays_v3.py -v`. The tests directly hit the cluster's real Mongo (cineworld DB) via motor — they create and clean up TEST_-prefixed docs only. Frontend (EmergingScreenplays.jsx, CastingAgencyPage.jsx) was NOT tested per user's 'backend only' request. Two endpoints fully covered: POST /api/purchased-screenplays/create-v3-project and POST /api/purchased-screenplays/veloce-fast-track/{pid}.",
+  "rca of the issue": "No bugs reproduced — all 17 backend tests pass on first run. The only theoretical risk identified during code review is the non-atomic funds-deduction → screenplay-consume sequence (see critical_code_review_comments[0]). Reproduction would require an exception inside insert_one or _mark_screenplay_consumed AFTER db.users.update_one succeeded, which we could not trigger naturally. Mitigation: move funds deduction to last step, or use try/except with refund on exception."
+}

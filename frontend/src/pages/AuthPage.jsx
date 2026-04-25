@@ -715,6 +715,7 @@ const UserProfileModal = ({ userId, isOpen, onClose, api }) => {
 // Stats Detail Modal Component
 const StatsDetailModal = ({ isOpen, onClose, statType, api }) => {
   const { language } = useContext(LanguageContext);
+  const navigate = useNavigate();
   const [detailedStats, setDetailedStats] = useState(null);
   const [loading, setLoading] = useState(true);
   
@@ -797,7 +798,7 @@ const StatsDetailModal = ({ isOpen, onClose, statType, api }) => {
               <h4 className="text-sm font-semibold mb-2">{t('topFilms')} ({t('revenue')})</h4>
               <div className="space-y-1">
                 {(detailedStats.films?.top_by_revenue || []).map((film, i) => (
-                  <div key={film.id} className="bg-black/30 rounded p-2 flex justify-between items-center cursor-pointer hover:bg-black/50 transition-colors" onClick={() => { setShowStatsDetail(false); navigate(`/films/${film.id}`); }}>
+                  <div key={film.id} className="bg-black/30 rounded p-2 flex justify-between items-center cursor-pointer hover:bg-black/50 transition-colors" onClick={() => { onClose(); navigate(`/films/${film.id}`); }}>
                     <span className="text-xs hover:text-yellow-500">{i + 1}. {film.title}</span>
                     <span className="text-xs text-green-500">${(film.revenue / 1000000).toFixed(2)}M</span>
                   </div>

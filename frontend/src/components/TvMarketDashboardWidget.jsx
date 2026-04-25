@@ -11,7 +11,7 @@
  */
 import React, { useEffect, useState, useContext, useMemo } from 'react';
 import { Dialog, DialogContent } from './ui/dialog';
-import { AuthContext } from '../contexts/AuthContext';
+import { AuthContext } from '../contexts';
 import { Tv, X, Inbox, Send, FileText, Clock, AlertCircle, Check, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 

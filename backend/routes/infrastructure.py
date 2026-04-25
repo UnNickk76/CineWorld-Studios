@@ -554,7 +554,8 @@ async def get_infrastructure_upgrade_info(infra_id: str, user: dict = Depends(ge
     
     # Player level requirement: formula morbida (studi unici = current+1)
     player_level_required = get_player_level_required_for_upgrade(infra.get('type'), infra_type, current_level)
-    player_level = user.get('level_info', {}).get('level', user.get('level', 1))
+    # Use unified level source (same as /api/player/level-info and /infrastructure/types)
+    player_level = get_level_from_xp(user.get('total_xp', 0)).get('level', 0)
     
     upgrade_cost = calculate_upgrade_cost(infra_type.get('base_cost', 2000000), current_level)
     user_funds = user.get('funds', 0)
@@ -614,7 +615,8 @@ async def upgrade_infrastructure(infra_id: str, user: dict = Depends(get_current
     
     # Check player level requirement (formula morbida)
     player_level_required = get_player_level_required_for_upgrade(infra.get('type'), infra_type, current_level)
-    player_level = user.get('level_info', {}).get('level', user.get('level', 1))
+    # Use unified level source (same as /api/player/level-info and /infrastructure/types)
+    player_level = get_level_from_xp(user.get('total_xp', 0)).get('level', 0)
     
     if player_level < player_level_required:
         raise HTTPException(status_code=400, detail=f"Richiesto livello giocatore {player_level_required}")

@@ -1,3 +1,23 @@
+## Fix Infrastructure Upgrade Player Level (Apr 25, 2026 — sera 7)
+
+**Bug**: il popup "Upgrade infrastruttura" mostrava `Lv. giocatore: 0/1` (o simili) anche se il giocatore era a livello 16, bloccando il bottone "Migliora".
+
+**Root cause**: due fonti di verità per il `level`:
+- `/api/player/level-info` (usato dall'header `LEVEL 16`) → `game_systems.get_level_from_xp(total_xp)` con curva `50 * 1.037^L`.
+- `users.level` salvato in DB (legacy) e `level_info` non popolato → restituiva 1 o 0.
+L'endpoint `/infrastructure/{id}/upgrade-info` leggeva `user.get('level_info', {}).get('level', user.get('level', 1))` → discrepante con header.
+
+**Fix**: in `routes/infrastructure.py` (sia `upgrade-info` GET che `/upgrade` POST) ora si usa la stessa funzione di `/types`:
+```python
+player_level = get_level_from_xp(user.get('total_xp', 0)).get('level', 0)
+```
+Coerente con tutti gli altri check di livello (linee 82, 159, 256). Verificato via curl: per fandrex1 (1160 XP) ora `player_level=16` invece di `1`. Screenshot UI conferma `Lv. giocatore: 16/7` e "Migliora a Lv.2" abilitato.
+
+**Bonus**: corretti gli import errati `'../contexts/AuthContext'` → `'../contexts'` in `TvMarketDashboardWidget.jsx` e `TvMarketModal.jsx` (causavano errore di compilazione frontend "Module not found").
+
+Files: `backend/routes/infrastructure.py`, `frontend/src/components/TvMarketDashboardWidget.jsx`, `frontend/src/components/TvMarketModal.jsx`.
+
+
 ## Cruscotto TV Market in Dashboard (Apr 25, 2026 — sera 6)
 
 Nuovo widget dedicato `TvMarketDashboardWidget.jsx` integrato in Dashboard sopra "ULTIMI FILM AL CINEMA".

@@ -1,3 +1,20 @@
+## LAMPO Visibility Globale — chiarimenti + fix `/coming-soon` (Apr 25, 2026 — sera 2)
+
+### Investigazione bug "proprietario vede LAMPO, altri player no"
+**Diagnosi**: il codice in `/app` ha già le query corrette per mostrare i LAMPO globalmente:
+- `economy.py /dashboard/batch` → `recent_series_global` e `recent_anime_global` includono `lampo_scheduled` e `lampo_ready` (commit 5af992b)
+- `pipeline_series_v3.py /prossimamente` → query released include `lampo_scheduled, lampo_ready`
+- LAMPO stub setta `prossimamente_tv: True` correttamente
+
+**Causa**: l'utente sta confrontando l'ambiente di **PRODUZIONE deployata** (vecchio codice senza queste fix) con il preview. Il proprietario vede comunque i propri contenuti LAMPO grazie al fallback `my_series` (filtro `user_id` senza filtro status), ma gli altri player non hanno alcun fallback → vedono vuoto.
+
+**Soluzione**: deploy in produzione delle modifiche già presenti nel codebase.
+
+### Fix preventivo aggiuntivo (`/coming-soon`)
+- `series_pipeline.py /coming-soon`: la query principale `series_cursor` ora include anche `lampo_scheduled, lampo_ready` (in aggiunta al `lampo_series_cursor` già esistente). Doppia copertura ridondante per robustezza, dedup tramite `seen_ids`.
+
+Files: `backend/routes/series_pipeline.py`.
+
 ## LAMPO Cast Fallback + Episodi AI (Apr 25, 2026 — sera)
 
 ### Cast Fallback difensivo (`routes/lampo.py`)

@@ -1644,16 +1644,17 @@ async def schedule_series_release(series_id: str, req: ScheduleReleaseRequest, u
 @router.get("/coming-soon")
 async def get_coming_soon():
     """Get all content in coming_soon status (public endpoint)."""
-    # Series/Anime coming soon + in production + ready to release
+    # Series/Anime coming soon + in production + ready to release + LAMPO ready/scheduled
+    # I LAMPO scheduled e ready DEVONO essere visibili a tutti i player nella sezione Prossimamente.
     series_cursor = db.tv_series.find(
-        {'status': {'$in': ['coming_soon', 'production', 'ready_to_release']}, '$or': [
+        {'status': {'$in': ['coming_soon', 'production', 'ready_to_release', 'lampo_scheduled', 'lampo_ready']}, '$or': [
             {'scheduled_release_at': {'$ne': None}},
-            {'status': {'$in': ['production', 'ready_to_release']}}
+            {'status': {'$in': ['production', 'ready_to_release', 'lampo_scheduled', 'lampo_ready']}}
         ]},
         {'_id': 0, 'id': 1, 'title': 1, 'genre_name': 1, 'type': 1, 'poster_url': 1,
          'num_episodes': 1, 'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1,
          'created_at': 1, 'news_events': 1, 'auto_comments': 1, 'pre_screenplay': 1,
-         'description': 1, 'total_boycott_penalty': 1, 'status': 1}
+         'description': 1, 'total_boycott_penalty': 1, 'status': 1, 'is_lampo': 1, 'mode': 1}
     ).sort('scheduled_release_at', 1)
     series_items = await series_cursor.to_list(50)
     

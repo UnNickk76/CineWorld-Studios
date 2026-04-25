@@ -437,6 +437,9 @@ function EpisodesList({ episodes }) {
           const isOpen = expanded === i;
           const synopsis = ep.synopsis || `Episodio ${ep.episode_number || (i + 1)}`;
           const epNum = ep.episode_number || (i + 1);
+          // Il titolo "Ep. N" o "Capitolo N" è generico → fallback al synopsis nella riga compatta
+          const rawTitle = (ep.title || '').trim();
+          const isGenericTitle = !rawTitle || /^(ep\.?|episodio|capitolo)\s*\d+$/i.test(rawTitle);
           return (
             <button
               key={i}
@@ -455,15 +458,24 @@ function EpisodesList({ episodes }) {
                 </span>
                 <div className="flex-1 min-w-0">
                   {!isOpen ? (
-                    <span className="text-[10px] text-slate-300 leading-snug line-clamp-1">— {synopsis}</span>
-                  ) : (
-                    <div className="text-[10px] text-amber-100 leading-relaxed">
-                      {ep.title && ep.title !== `Ep. ${epNum}` && (
-                        <div className="font-bold text-amber-200 mb-0.5">{ep.title}</div>
+                    <div className="leading-snug">
+                      {!isGenericTitle ? (
+                        <>
+                          <span className="text-[10px] font-bold text-amber-200">{rawTitle}</span>
+                          <span className="text-[10px] text-slate-400 ml-1 line-clamp-1">— {synopsis}</span>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-slate-300 line-clamp-1">— {synopsis}</span>
                       )}
-                      <div>{synopsis}</div>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-amber-100 leading-relaxed">
+                      {!isGenericTitle && (
+                        <div className="font-bold text-amber-200 mb-1 text-[12px]">"{rawTitle}"</div>
+                      )}
+                      <div className="text-slate-200">{synopsis}</div>
                       {ep.duration_minutes && (
-                        <div className="text-[9px] text-amber-300/60 mt-1 italic">
+                        <div className="text-[9px] text-amber-300/60 mt-1.5 italic">
                           Durata: ~{ep.duration_minutes} min
                         </div>
                       )}

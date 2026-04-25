@@ -1,3 +1,22 @@
+## LAMPO Cast Fallback + Episodi AI (Apr 25, 2026 — sera)
+
+### Cast Fallback difensivo (`routes/lampo.py`)
+- `_pick_random_cast._sample` ora ha fallback: se la query con filtro `stars <= cap` ritorna vuoto, ritenta SENZA filtro stelle. Garantisce che director/actors/writer/composer non siano mai vuoti se ci sono NPCs nel pool.
+- Era una protezione contro edge case dove il filtro level-gating eliminava tutti i candidati.
+
+### Episodi AI per LAMPO Serie/Anime (`routes/lampo.py`)
+- `_generate_screenplay_lampo` ora accetta `num_episodes` e ritorna anche `episodes: [{title, synopsis}]` quando content_type è serie/anime.
+- Il prompt richiede titoli UNICI evocativi (max 4 parole, no "Episodio N"), sinossi specifiche di 1-2 frasi coerenti con la sceneggiatura, arco progressivo (setup → escalation → climax → risoluzione).
+- Worker (`_worker_generate`): preferisce episodi AI, fallback ai template `_random_episode_minitrama` solo se l'AI fallisce.
+- Test: per "Kudakodu/Nakisha" (8 episodi) — titoli generati: "Il primo incontro", "Doppio gioco", "Confessioni inattese", "Mandato pericoloso", "Piano in fuga", "Tradimento scoperto", "La scelta finale", "Amore o vendetta". Sinossi tutte progressive e fedeli alla pretrama.
+
+### Frontend rendering titoli (`LampoModal.jsx`)
+- `EpisodesList` ora mostra titolo prominente (ambra grassetto) + synopsis nella riga compatta.
+- Espanso: titolo grande tra virgolette, synopsis sotto.
+- Detection automatica di titoli generici (`/^(ep\.?|episodio|capitolo)\s*\d+$/i`): se generico, mostra solo la synopsis (no doppio rumore visivo).
+
+Files: `backend/routes/lampo.py`, `frontend/src/components/LampoModal.jsx`.
+
 ## LAMPO Fix Bundle (Apr 25, 2026 — pomeriggio)
 Tre fix critici basati su feedback foto utente:
 

@@ -125,6 +125,13 @@ async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5, 
             {"$sample": {"size": count}},
             {"$project": {"_id": 0}},
         ]).to_list(count)
+        # ⚠️ Fallback difensivo: se vuoto, ripeschiamo SENZA filtro stelle per garantire cast non vuoto
+        if not pool:
+            pool = await db.people.aggregate([
+                {"$match": {"$or": [{"type": rtype}, {"role_type": rtype}]}},
+                {"$sample": {"size": count}},
+                {"$project": {"_id": 0}},
+            ]).to_list(count)
         return pool
 
     director_list = await _sample(director_type, 1, allow_guest=True)
@@ -322,18 +329,19 @@ async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay
     await db.lampo_projects.update_one({"id": pid}, {"$set": {"linked_series_id": series_id}})
 
 
-async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, preplot: str) -> dict:
-    """Generate concise screenplay/synopsis text + extract 1-3 sub-genres via Emergent LLM (gpt-4o-mini).
+async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, preplot: str, num_episodes: int = 0) -> dict:
+    """Generate concise screenplay/synopsis text + extract 1-3 sub-genres + (optional) AI-generated episodes via Emergent LLM (gpt-4o-mini).
 
-    Returns: {"screenplay": str, "subgenres": list[str]}
+    Returns: {"screenplay": str, "subgenres": list[str], "episodes": [{title, synopsis}, ...]}
     """
     import os, json, re
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
-        return {"screenplay": "", "subgenres": []}
+        return {"screenplay": "", "subgenres": [], "episodes": []}
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         ct_label = {"film": "film", "tv_series": "serie TV", "anime": "anime"}.get(content_type, "film")
+        wants_episodes = (num_episodes or 0) > 0 and content_type in ("tv_series", "anime")
         chat = LlmChat(
             api_key=key,
             session_id=f"lampo-screenplay-{uuid.uuid4()}",
@@ -346,14 +354,28 @@ async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, 
                 "valido, senza markdown, senza testo extra prima o dopo."
             ),
         ).with_model("openai", "gpt-4o-mini")
+
+        # Costruisce dinamicamente la struttura JSON richiesta
+        episodes_block = ""
+        if wants_episodes:
+            n = max(1, min(26, int(num_episodes or 10)))
+            episodes_block = (
+                f',\n "episodes": [\n'
+                f'    {{"title": "<titolo unico ep.1, max 4 parole, italiano, evocativo>", "synopsis": "<mini-trama ep.1 in italiano: 1-2 frasi che descrivono cosa succede>"}},\n'
+                f"    ... (esattamente {n} episodi totali, NUMERATI 1..{n}, ciascuno con titolo unico e mini-trama coerente con la sceneggiatura)\n"
+                f'  ]'
+            )
+
         prompt = (
             f'TIPO: {ct_label} {genre}\n'
             f'TITOLO: "{title}"\n'
-            f'PRETRAMA DEL PRODUTTORE (DA RISPETTARE LETTERALMENTE):\n"""\n{preplot}\n"""\n\n'
+            + (f'NUMERO EPISODI: {num_episodes}\n' if wants_episodes else '')
+            + f'PRETRAMA DEL PRODUTTORE (DA RISPETTARE LETTERALMENTE):\n"""\n{preplot}\n"""\n\n'
             f"Restituisci ESATTAMENTE un JSON con questa struttura:\n"
             f'{{"screenplay": "<sceneggiatura sintetica max 350 parole in italiano: logline, conflitto, '
             f'4-5 punti chiave di trama, climax, risoluzione, atmosfera. Paragrafi brevi separati da \\n>",\n'
-            f' "subgenres": ["sotto-genere1", "sotto-genere2", "sotto-genere3"]}}\n\n'
+            f' "subgenres": ["sotto-genere1", "sotto-genere2", "sotto-genere3"]{episodes_block}\n'
+            f'}}\n\n'
             f"REGOLE TASSATIVE per la sceneggiatura:\n"
             f"1. RILEGGI la pretrama 2 volte prima di scrivere. Identifica: protagonista, antagonista, "
             f"vittima/e, persone amate, chi compie l'azione e chi la subisce.\n"
@@ -369,6 +391,16 @@ async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, 
             f"- Tutti in italiano, minuscoli, max 3 parole ciascuno.\n"
             f"- NON ripetere il genere principale '{genre}'.\n"
             f"- Devono essere coerenti con la pretrama, non generici."
+            + (
+                "\n\nREGOLE per gli episodi:\n"
+                f"- Esattamente {num_episodes} episodi.\n"
+                "- TITOLI: ognuno UNICO (mai ripetere lo stesso titolo), evocativi, max 4 parole, in italiano. "
+                "Niente 'Episodio N' come titolo.\n"
+                "- SINOSSI: 1-2 frasi che descrivono COSA SUCCEDE in quell'episodio specifico, coerente "
+                "con l'arco narrativo della sceneggiatura. Mai generiche tipo 'nuove alleanze, vecchi rancori'.\n"
+                "- Gli episodi devono raccontare un arco progressivo: setup → escalation → climax → risoluzione."
+                if wants_episodes else ""
+            )
         )
         resp = await chat.send_message(UserMessage(text=prompt))
         raw = (resp or "").strip()
@@ -392,16 +424,35 @@ async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, 
             s2 = s.strip().lower()
             if not s2 or s2 == (genre or "").lower():
                 continue
-            # clip to 3 words and 30 chars
             s2 = " ".join(s2.split()[:3])[:30]
             if s2 and s2 not in cleaned:
                 cleaned.append(s2)
             if len(cleaned) >= 3:
                 break
-        return {"screenplay": screenplay, "subgenres": cleaned}
+        # Sanitize episodes
+        episodes_out = []
+        if wants_episodes:
+            ep_raw = data.get("episodes") or []
+            if isinstance(ep_raw, list):
+                seen_titles = set()
+                for i, ep in enumerate(ep_raw[:num_episodes]):
+                    if not isinstance(ep, dict):
+                        continue
+                    t = (ep.get("title") or "").strip()
+                    syn = (ep.get("synopsis") or "").strip()
+                    # dedup titles (case-insensitive)
+                    tl = t.lower()
+                    if tl in seen_titles or not t:
+                        t = f"Capitolo {i + 1}"
+                    seen_titles.add(t.lower())
+                    episodes_out.append({
+                        "title": t,
+                        "synopsis": syn or f"Episodio {i + 1}",
+                    })
+        return {"screenplay": screenplay, "subgenres": cleaned, "episodes": episodes_out}
     except Exception as e:
-        logger.warning(f"LAMPO screenplay+subgenres gen failed: {e}")
-        return {"screenplay": "", "subgenres": []}
+        logger.warning(f"LAMPO screenplay+subgenres+episodes gen failed: {e}")
+        return {"screenplay": "", "subgenres": [], "episodes": []}
 
 
 def _random_episode_minitrama(ep_num: int, genre: str) -> str:
@@ -439,7 +490,10 @@ async def _worker_generate(pid: str):
             return
 
         screenplay_task = asyncio.create_task(
-            _generate_screenplay_lampo(proj["title"], proj["genre"], proj["content_type"], proj["preplot"])
+            _generate_screenplay_lampo(
+                proj["title"], proj["genre"], proj["content_type"], proj["preplot"],
+                num_episodes=int(proj.get("num_episodes") or 0) if proj["content_type"] in ("tv_series", "anime") else 0,
+            )
         )
         poster_task = asyncio.create_task(
             _generate_poster_lampo(proj["title"], proj["genre"], proj["content_type"], pid)
@@ -454,11 +508,12 @@ async def _worker_generate(pid: str):
 
         # Wait for parallel AI tasks (with safety timeout)
         try:
-            screenplay_data = await asyncio.wait_for(screenplay_task, timeout=12)
+            screenplay_data = await asyncio.wait_for(screenplay_task, timeout=20)
         except Exception:
-            screenplay_data = {"screenplay": "", "subgenres": []}
+            screenplay_data = {"screenplay": "", "subgenres": [], "episodes": []}
         screenplay_text = (screenplay_data or {}).get("screenplay") or ""
         subgenres = (screenplay_data or {}).get("subgenres") or []
+        ai_episodes = (screenplay_data or {}).get("episodes") or []
         try:
             poster_url = await asyncio.wait_for(poster_task, timeout=15)
         except Exception:
@@ -489,16 +544,24 @@ async def _worker_generate(pid: str):
             except Exception as dist_err:
                 logger.warning(f"LAMPO distribution plan fail pid={pid}: {dist_err}")
 
-        # Episodes per serie/anime
+        # Episodes per serie/anime — usa AI se disponibili, altrimenti fallback templates
         episodes = []
         if proj["content_type"] in ("tv_series", "anime"):
             num_ep = max(1, min(26, int(proj.get("num_episodes") or 10)))
             base_duration = 50 if proj["content_type"] == "tv_series" else 24
             for i in range(1, num_ep + 1):
+                # Preferisci episodio AI se presente per questo indice
+                ai_ep = ai_episodes[i - 1] if (i - 1) < len(ai_episodes) else None
+                if ai_ep and (ai_ep.get("title") or ai_ep.get("synopsis")):
+                    ep_title = (ai_ep.get("title") or f"Capitolo {i}").strip()
+                    ep_synopsis = (ai_ep.get("synopsis") or _random_episode_minitrama(i, proj["genre"])).strip()
+                else:
+                    ep_title = f"Capitolo {i}"
+                    ep_synopsis = _random_episode_minitrama(i, proj["genre"])
                 episodes.append({
                     "episode_number": i,
-                    "title": f"Ep. {i}",
-                    "synopsis": _random_episode_minitrama(i, proj["genre"]),
+                    "title": ep_title,
+                    "synopsis": ep_synopsis,
                     "duration_minutes": base_duration + random.randint(-3, 7),
                 })
 

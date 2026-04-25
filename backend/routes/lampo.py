@@ -576,6 +576,23 @@ async def release_lampo(
 
     is_scheduled = release_dt > now_dt + timedelta(minutes=2)
 
+    # ─── Theater duration (FILM only) — 5-45 giorni in base a qualità/budget/cast/random ───
+    def _calc_theater_days() -> int:
+        import random as _rnd
+        cwsv = float(proj.get("cwsv") or 5.0)  # 0-10
+        budget_mod = {"low": 0, "mid": 4, "high": 9}.get(proj.get("budget_tier", "mid"), 4)
+        cast_actors = (proj.get("cast") or {}).get("actors") or []
+        cast_stars = sum(int(a.get("stars") or a.get("popularity") or 0) for a in cast_actors)
+        cast_mod = min(8, cast_stars // 2)
+        # base = qualità * 3 → 0-30 giorni
+        base = cwsv * 3
+        rnd_mod = _rnd.randint(-3, 6)
+        days = int(base + budget_mod + cast_mod + rnd_mod)
+        return max(5, min(45, days))
+
+    theater_days = _calc_theater_days() if ct == "film" else None
+    theater_weeks_val = max(1, round(theater_days / 7)) if theater_days else None
+
     # Hype bonus invisibile (silenzioso) — leggermente > del sistema classico (1.10-1.20)
     # per dare valore alla scelta di posticipare. Più tempo aspetti, più hype maturi.
     hype_bonus = 1.0
@@ -623,6 +640,8 @@ async def release_lampo(
                 "sponsors": proj.get("sponsors", []),
                 "equipment_tier": proj.get("equipment_tier"),
                 "attendance_trend": [],
+                "theater_days": theater_days,
+                "theater_weeks": theater_weeks_val,
                 "distribution_scope": (proj.get("distribution_plan") or {}).get("scope_label"),
                 "distribution_bucket": (proj.get("distribution_plan") or {}).get("bucket"),
                 "release_continents": (proj.get("distribution_plan") or {}).get("continents", []),
@@ -639,6 +658,7 @@ async def release_lampo(
             return {
                 "success": True, "type": "film", "released_id": film_id, "scheduled": True,
                 "release_at": release_dt.isoformat(),
+                "theater_days": theater_days,
                 "message": f"'{proj['title']}' uscirà nei cinema il {release_dt.strftime('%d/%m/%Y %H:%M')} UTC.",
             }
 
@@ -690,6 +710,8 @@ async def release_lampo(
             "sponsors": proj.get("sponsors", []),
             "equipment_tier": proj.get("equipment_tier"),
             "attendance_trend": [],
+            "theater_days": theater_days,
+            "theater_weeks": theater_weeks_val,
             "distribution_scope": (proj.get("distribution_plan") or {}).get("scope_label"),
             "distribution_bucket": (proj.get("distribution_plan") or {}).get("bucket"),
             "release_continents": (proj.get("distribution_plan") or {}).get("continents", []),
@@ -711,7 +733,7 @@ async def release_lampo(
         )
         ev_label = (release_event or {}).get("name", "")
         msg = f"'{proj['title']}' è al cinema!" + (f" Evento: {ev_label}" if ev_label else "")
-        return {"success": True, "type": "film", "released_id": film_id, "scheduled": False, "message": msg, "release_event": release_event, "xp_gained": xp_event_bonus + int((proj.get('cwsv') or 5) * 10)}
+        return {"success": True, "type": "film", "released_id": film_id, "scheduled": False, "theater_days": theater_days, "message": msg, "release_event": release_event, "xp_gained": xp_event_bonus + int((proj.get('cwsv') or 5) * 10)}
 
     # ───────────────── tv_series / anime ─────────────────
     target_station_id = proj.get("target_tv_station_id")
@@ -871,6 +893,10 @@ async def finalize_scheduled_lampo_releases():
                 pass
             hype = film.get("lampo_hype_bonus", 1.0) or 1.0
             initial_likes = int(50 * hype)  # boost iniziale invisibile
+            # Backfill theater_days/theater_weeks se mancanti (LAMPO pre-feature default 10g)
+            existing_td = film.get("theater_days")
+            theater_days_fix = existing_td if existing_td else 10
+            theater_weeks_fix = max(1, round(theater_days_fix / 7))
             await db.films.update_one(
                 {"id": film["id"]},
                 {"$set": {
@@ -879,6 +905,8 @@ async def finalize_scheduled_lampo_releases():
                     "released_at": now,
                     "release_event": release_event,
                     "lampo_finalized_at": now,
+                    "theater_days": theater_days_fix,
+                    "theater_weeks": theater_weeks_fix,
                 }, "$inc": {"virtual_likes": initial_likes}}
             )
             base_xp = int((film.get("cwsv") or 5) * 10)

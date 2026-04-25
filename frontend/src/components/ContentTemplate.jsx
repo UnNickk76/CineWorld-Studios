@@ -14,6 +14,7 @@ import PStarBanner from './PStarBanner';
 import CineConfirm from './v3/CineConfirm';
 import { Trash2 } from 'lucide-react';
 import { LampoLightning } from './LampoLightning';
+import { getPreReleasePressReviews, getPreReleaseAudience } from '../utils/preReleasePhrases';
 import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
@@ -766,7 +767,20 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   }
 
   const statusInfo = getStatusInfo(film, contentType);
-  const reviews = generateReviews(film.quality_score, film.popularity_score, contentType);
+  // ⏳ "Not yet released" detector: scheduled in future OR LAMPO unreleased
+  const _isNotReleasedYet = (() => {
+    if (film?.status === 'lampo_ready' || film?.status === 'lampo_scheduled') return true;
+    const sch = film?.scheduled_release_at;
+    if (sch) { try { return new Date(sch).getTime() > Date.now(); } catch {} }
+    const ra = film?.released_at;
+    if (ra) { try { return new Date(ra).getTime() > Date.now(); } catch {} }
+    return false;
+  })();
+  const isNotReleasedYet = _isNotReleasedYet;
+  // Reviews/perception → frasi pre-release deterministiche se non ancora uscito
+  const reviews = isNotReleasedYet
+    ? getPreReleasePressReviews(film)
+    : generateReviews(film.quality_score, film.popularity_score, contentType);
   const castInfo = extractCastInfo(film.cast, film);
   // IMDb / CW Score: scale 0-10. Prefer imdb_rating, then pre_imdb_score (already 0-10),
   // finally quality_score (0-100, needs /10). Never divide a 0-10 value by 10 again.
@@ -793,8 +807,8 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
     }).filter(Boolean).join('\n\n═══════════════════════════════════\n\n')
   ) : '';
   const screenplayFinal = screenplay || seriesFallbackScreenplay;
-  const perception = getPublicPerception(film);
-  const events = getEventHeadlines(film);
+  const perception = isNotReleasedYet ? getPreReleaseAudience(film) : getPublicPerception(film);
+  const events = isNotReleasedYet ? [] : getEventHeadlines(film);
   const typeLabel = isAnime ? 'Anime' : (isSeries || film?.type === 'tv_series') ? 'Serie TV' : 'Film';
 
   // Cinema days — safe local variables, no hooks, no effects
@@ -1028,6 +1042,30 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           <div className="ct2-cinema-bar-main">
             <span>IN SALA · {cinemaDays}g</span>
           </div>
+        ) : isNotReleasedYet ? (
+          <div className="ct2-cinema-bar-main" data-testid="ct-countdown">
+            {(() => {
+              const target = film?.scheduled_release_at || film?.released_at;
+              if (!target) return <span>USCITA PROSSIMA · attesa in crescita</span>;
+              try {
+                const ms = new Date(target).getTime() - Date.now();
+                if (ms <= 0) return <span>USCITA IMMINENTE · in arrivo</span>;
+                const totalMin = Math.floor(ms / 60000);
+                const days = Math.floor(totalMin / 1440);
+                const hours = Math.floor((totalMin % 1440) / 60);
+                const minutes = totalMin % 60;
+                let str = '';
+                if (days > 0) str = `${days}g ${hours}h`;
+                else if (hours > 0) str = `${hours}h ${minutes}m`;
+                else str = `${minutes}m`;
+                return (
+                  <span style={{ color: '#fbbf24', fontWeight: 700 }}>
+                    ⚡ ESCE TRA {str}
+                  </span>
+                );
+              } catch { return <span>USCITA PROSSIMA</span>; }
+            })()}
+          </div>
         ) : (
           <div className="ct2-cinema-bar-main">
             <span>IN SALA · dati in aggiornamento</span>
@@ -1036,8 +1074,10 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       </div>
       <PStarBanner film={film} />
 
-      {/* 6. JOURNALIST REVIEWS (green boxes) */}
-      <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>
+      {/* 6. JOURNALIST REVIEWS (green boxes) — pre-release: aspettative dei giornali */}
+      <div className="ct2-section-label" data-testid="ct-reviews-label">
+        {isNotReleasedYet ? 'Le aspettative della stampa' : 'Cosa ne pensano i giornali'}
+      </div>
       <div className="ct2-reviews-row" data-testid="ct-reviews">
         {reviews.map((r, i) => (
           <div key={i} className="ct2-review-box" data-testid={`ct-review-${i}`}>
@@ -1051,7 +1091,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       <div className="ct2-public-box" data-testid="ct-public-box">
         <div className="ct2-public-header">
           <Eye size={14} />
-          <span>Pubblico & Eventi</span>
+          <span>{isNotReleasedYet ? 'Hype del Pubblico' : 'Pubblico & Eventi'}</span>
         </div>
         <div className="ct2-public-lines">
           {perception.map((line, i) => <div key={i} className="ct2-public-line">{line}</div>)}
@@ -1107,6 +1147,9 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
             <SystemLikeBadge count={likes.trailer?.system_count || 0} variant="chip" />
           </div>
         </div>
+      ) : film?.is_lampo || film?.mode === 'lampo' ? (
+        // ⚡ LAMPO non ha mai trailer — non mostrare il placeholder
+        null
       ) : (
         <div className="ct2-trailer-placeholder" data-testid="ct-trailer-placeholder">
           <Play size={20} />

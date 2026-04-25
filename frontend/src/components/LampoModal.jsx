@@ -324,6 +324,24 @@ function LampoResult({ project, onReleased, onClose, api }) {
   const [releasing, setReleasing] = useState(false);
   const [timing, setTiming] = useState('immediate'); // immediate|6h|12h|18h|1d|2d|4d|6d|8d
   const [dayTime, setDayTime] = useState('20:00');   // HH:mm for "days" options
+  // ⚡ Predicted theater days (computed locally, mirror del backend per dare anteprima)
+  const predictedTheaterDays = useMemo(() => {
+    if (project.content_type !== 'film') return null;
+    const cwsv = Number(project.cwsv || 5);
+    const budgetMod = { low: 0, mid: 4, high: 9 }[project.budget_tier] ?? 4;
+    const stars = (project.cast?.actors || []).reduce((s, a) => s + (Number(a.stars || a.popularity) || 0), 0);
+    const castMod = Math.min(8, Math.floor(stars / 2));
+    const base = cwsv * 3;
+    const days = Math.round(base + budgetMod + castMod + 2);
+    return Math.max(5, Math.min(45, days));
+  }, [project]);
+  const theaterReason = useMemo(() => {
+    if (!predictedTheaterDays) return null;
+    if (predictedTheaterDays <= 10) return 'Pochi giorni in sala: il film non ha generato grandi aspettative.';
+    if (predictedTheaterDays <= 22) return 'Permanenza nella media: aspettative oneste.';
+    if (predictedTheaterDays <= 35) return 'Molti giorni al cinema: il pubblico ha grande attesa per questo film.';
+    return 'Programmazione blockbuster: il calendario è blindato per settimane.';
+  }, [predictedTheaterDays]);
   const CT = CT_META[project.content_type];
   const ContentIcon = CT.icon;
 
@@ -496,6 +514,20 @@ function LampoResult({ project, onReleased, onClose, api }) {
           <div className="text-[11px] font-bold text-violet-300 capitalize">{project.equipment_tier || project.budget_tier}</div>
         </div>
       </div>
+
+      {/* ⚡ Theater duration prediction (solo film) */}
+      {predictedTheaterDays && (
+        <div className="mb-3 p-3 rounded-lg bg-gradient-to-br from-emerald-500/5 to-cyan-500/5 border border-emerald-400/20">
+          <div className="text-[9px] uppercase text-emerald-300/90 font-semibold mb-1 flex items-center gap-1">
+            🎬 Permanenza in sala stimata
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-['Bebas_Neue'] text-emerald-200">{predictedTheaterDays}</span>
+            <span className="text-[11px] text-emerald-300/80">giorni</span>
+          </div>
+          <p className="text-[10px] text-slate-300 italic leading-snug mt-1">{theaterReason}</p>
+        </div>
+      )}
 
       {/* ─── Timing release picker ─── */}
       <div className="mb-3 p-3 rounded-lg bg-gradient-to-br from-amber-500/5 to-orange-500/5 border border-amber-400/20">

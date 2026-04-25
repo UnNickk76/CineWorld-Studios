@@ -228,6 +228,32 @@ const InfrastructurePage = () => {
 
   const [pendingRevenue, setPendingRevenue] = useState(null);
   const [collectingRevenue, setCollectingRevenue] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
+
+  const handleRename = async () => {
+    if (!selectedInfra) return;
+    const name = (renameValue || '').trim();
+    if (name.length < 2 || name.length > 60) {
+      toast.error('Il nome deve essere tra 2 e 60 caratteri');
+      return;
+    }
+    setRenaming(true);
+    try {
+      await api.put(`/infrastructure/${selectedInfra.id}/rename`, { custom_name: name });
+      toast.success('Nome aggiornato!');
+      setSelectedInfra({ ...selectedInfra, custom_name: name });
+      setInfraDetail({ ...(infraDetail || {}), custom_name: name });
+      const my = await api.get('/infrastructure/my');
+      setMyInfra(my.data);
+      setRenameOpen(false);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore nel rinominare');
+    } finally {
+      setRenaming(false);
+    }
+  };
 
   const loadPendingRevenue = async (infraId) => {
     try {
@@ -649,6 +675,16 @@ const InfrastructurePage = () => {
           <DialogHeader>
             <DialogTitle className="font-['Bebas_Neue'] text-xl flex items-center gap-2">
               <Building className="w-5 h-5 text-yellow-500" /> {selectedInfra?.custom_name || 'Dettaglio Infrastruttura'}
+              <button
+                type="button"
+                onClick={() => { setRenameValue(selectedInfra?.custom_name || ''); setRenameOpen(true); }}
+                className="ml-auto p-1.5 rounded-md hover:bg-white/10 active:scale-95 transition-all"
+                data-testid="rename-infra-btn"
+                aria-label="Rinomina"
+                title="Rinomina"
+              >
+                <Edit className="w-4 h-4 text-cyan-300" />
+              </button>
             </DialogTitle>
             <DialogDescription>
               {selectedInfra?.city?.name}, {selectedInfra?.country} • {selectedInfra?.type}
@@ -775,6 +811,42 @@ const InfrastructurePage = () => {
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDetailDialog(false)}>Chiudi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Rename Dialog */}
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="bg-[#14110d] border-cyan-500/20 max-w-sm" data-testid="rename-infra-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-['Bebas_Neue'] text-lg flex items-center gap-2">
+              <Edit className="w-4 h-4 text-cyan-300" /> Rinomina infrastruttura
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-400">
+              Dai un nome unico al tuo {selectedInfra?.type === 'production_studio' ? 'Studio di Produzione' : 'studio'} (2-60 caratteri).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              value={renameValue}
+              onChange={e => setRenameValue(e.target.value)}
+              placeholder="Es. Anacapito Studios"
+              maxLength={60}
+              className="h-10 bg-black/30 border-cyan-500/20 focus:border-cyan-400/50"
+              data-testid="rename-infra-input"
+              autoFocus
+            />
+            <div className="text-[10px] text-gray-500 text-right">{(renameValue || '').length}/60</div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameOpen(false)} disabled={renaming}>Annulla</Button>
+            <Button
+              onClick={handleRename}
+              disabled={renaming || (renameValue || '').trim().length < 2}
+              className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold"
+              data-testid="rename-infra-confirm-btn"
+            >
+              {renaming ? 'Salvo…' : 'Salva'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -5738,6 +5738,57 @@ async def admin_get_all_films(q: str = '', content_type: str = 'film', user: dic
     return {'films': results, 'count': len(results)}
 
 
+@api_router.post("/admin/set-content-status")
+async def admin_set_content_status(payload: dict, user: dict = Depends(get_current_user)):
+    """Aggiorna lo `status` (e opzionalmente `prossimamente_tv`/`pipeline_state`) di un contenuto.
+
+    Body atteso:
+      - item_id: str (id del contenuto)
+      - collection: str ∈ {'films','film_projects','tv_series','series_projects_v3'}
+      - status: str (nuovo stato)
+      - prossimamente_tv: bool (opzionale, solo per tv_series)
+      - sync_pipeline_state: bool (opzionale, copia status anche in pipeline_state per V3 projects)
+
+    Solo admin. Modifica reale e immediata in DB.
+    """
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+
+    item_id = (payload or {}).get('item_id')
+    collection = (payload or {}).get('collection')
+    new_status = (payload or {}).get('status')
+    prossimamente_tv = (payload or {}).get('prossimamente_tv')
+    sync_pipeline_state = bool((payload or {}).get('sync_pipeline_state'))
+
+    if not item_id or not collection or not new_status:
+        raise HTTPException(status_code=400, detail="item_id, collection, status sono obbligatori")
+    if collection not in ('films', 'film_projects', 'tv_series', 'series_projects_v3'):
+        raise HTTPException(status_code=400, detail="collection non valida")
+
+    update_set = {
+        'status': new_status,
+        'updated_at': datetime.now(timezone.utc).isoformat(),
+        'admin_status_override_at': datetime.now(timezone.utc).isoformat(),
+        'admin_status_override_by': user.get('nickname'),
+    }
+    if prossimamente_tv is not None and collection == 'tv_series':
+        update_set['prossimamente_tv'] = bool(prossimamente_tv)
+    if sync_pipeline_state and collection in ('film_projects', 'series_projects_v3'):
+        update_set['pipeline_state'] = new_status
+
+    res = await db[collection].update_one({'id': item_id}, {'$set': update_set})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Contenuto non trovato nella collection indicata")
+
+    # Restituisce il nuovo documento (light) per UI refresh
+    doc = await db[collection].find_one(
+        {'id': item_id},
+        {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'pipeline_state': 1,
+         'prossimamente_tv': 1, 'type': 1, 'is_lampo': 1}
+    )
+    return {'success': True, 'updated': res.modified_count, 'item': doc}
+
+
 @api_router.delete("/admin/delete-film/{film_id}")
 async def admin_delete_film(film_id: str, user: dict = Depends(get_current_user)):
     """Delete a specific film and its associated data (admin only). IRREVERSIBLE."""

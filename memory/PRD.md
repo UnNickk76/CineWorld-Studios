@@ -1,3 +1,33 @@
+## Admin: Editor stato contenuti cliccabile (Apr 25, 2026 — sera 3)
+
+### Backend (`server.py`)
+Nuovo endpoint `POST /api/admin/set-content-status` (admin only):
+- Body: `{item_id, collection, status, prossimamente_tv?, sync_pipeline_state?}`
+- Aggiorna realmente `db.{films|film_projects|tv_series|series_projects_v3}`
+- Audit fields: `admin_status_override_at`, `admin_status_override_by`
+- Per `tv_series`: setta opzionalmente `prossimamente_tv`
+- Per V3 projects: copia opzionalmente status anche in `pipeline_state`
+
+### Frontend (`AdminStatusEditor.jsx` + `AdminPage.jsx`)
+- Nuovo componente riutilizzabile `AdminStatusEditor` mobile-first.
+- La card "STATO" nel popup admin film/serie/anime è ora cliccabile (badge "TAP per modificare ›").
+- Editor mostra TUTTI gli stati possibili divisi per collection con:
+  - Status code (mono), label leggibile, descrizione, sezioni dashboard dove appare ("📍 In Arrivo Su TV", "📍 Ultimi Aggiornamenti", ecc.)
+  - Stato attuale evidenziato in cima
+  - Toggle "Prossimamente TV" per `tv_series` (controlla visibilità in IN ARRIVO SU TV)
+  - Checkbox "Sincronizza pipeline_state" per progetti V3
+- Bottone CONFERMA verde sticky in cima al popup (sopra l'overlay, sempre visibile).
+- z-index 200 per stare sopra il popup admin sottostante.
+- Modifica REALE in DB confermata via test curl.
+
+Cataloghi stati implementati:
+- `films`: in_theaters, lampo_ready, lampo_scheduled, completed, archived, released, pending_release, discarded, deleted (9 stati)
+- `film_projects`: idea, casting, screenplay, pre_production, shooting, pending_release, coming_soon, discarded, released (9 stati)
+- `tv_series`: in_tv, catalog, completed, released, lampo_ready, lampo_scheduled, coming_soon, production, ready_to_release, discarded (10 stati)
+- `series_projects_v3`: idea, hype, cast, prep, ciak, finalcut, marketing, distribution, release_pending, discarded (10 stati)
+
+Files: `backend/server.py`, `frontend/src/components/AdminStatusEditor.jsx`, `frontend/src/pages/AdminPage.jsx`.
+
 ## LAMPO Visibility Globale — chiarimenti + fix `/coming-soon` (Apr 25, 2026 — sera 2)
 
 ### Investigazione bug "proprietario vede LAMPO, altri player no"

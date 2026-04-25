@@ -10,6 +10,7 @@ import { Dialog, DialogContent } from '../components/ui/dialog';
 import TrailerPlayerModal from '../components/TrailerPlayerModal';
 import { PlayerBadge } from '../components/PlayerBadge';
 import AdminFilmRecovery from '../components/AdminFilmRecovery';
+import AdminStatusEditor from '../components/AdminStatusEditor';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
@@ -652,6 +653,7 @@ function FilmsTab({ api }) {
   const [contentType, setContentType] = useState('film'); // film | tv_series | anime
   const [selected, setSelected] = useState(null);
   const [fixLoading, setFixLoading] = useState(false);
+  const [statusEditOpen, setStatusEditOpen] = useState(false);
 
   const loadFilms = useCallback(async (q = '', ct = contentType) => {
     setLoading(true);
@@ -813,10 +815,18 @@ function FilmsTab({ api }) {
               </div>
               <div className="p-3 space-y-2">
                 <div className="grid grid-cols-2 gap-2 text-[10px]">
-                  <div className="bg-white/[0.03] rounded p-2">
-                    <p className="text-gray-500 uppercase text-[8px] font-bold">Stato</p>
-                    <p className="text-white font-bold">{selected.stage}</p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStatusEditOpen(true)}
+                    className="bg-white/[0.03] hover:bg-amber-500/10 active:bg-amber-500/15 rounded p-2 text-left transition-colors border border-transparent hover:border-amber-500/30 touch-manipulation"
+                    data-testid="admin-stato-edit-btn"
+                  >
+                    <p className="text-gray-500 uppercase text-[8px] font-bold flex items-center justify-between">
+                      <span>Stato</span>
+                      <span className="text-amber-400 text-[7px] tracking-wider">TAP per modificare ›</span>
+                    </p>
+                    <p className="text-white font-bold underline decoration-dotted decoration-amber-500/50 underline-offset-2">{selected.stage}</p>
+                  </button>
                   <div className="bg-white/[0.03] rounded p-2">
                     <p className="text-gray-500 uppercase text-[8px] font-bold">Collezione</p>
                     <p className="text-white font-bold text-[9px]">{selected.collection}</p>
@@ -861,6 +871,22 @@ function FilmsTab({ api }) {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ⚙️ Editor cambio stato — riusabile e davanti al popup */}
+      <AdminStatusEditor
+        open={statusEditOpen}
+        onClose={() => setStatusEditOpen(false)}
+        item={selected}
+        api={api}
+        onUpdated={(updated) => {
+          // Aggiorna la card aperta e ricarica la lista
+          if (updated && selected) {
+            setSelected(prev => prev ? { ...prev, stage: updated.status, prossimamente_tv: updated.prossimamente_tv ?? prev.prossimamente_tv } : prev);
+          }
+          loadFilms(searchQuery, contentType);
+          toast.success('Stato aggiornato in DB');
+        }}
+      />
       </>
       )}
     </div>

@@ -27,29 +27,87 @@ import LampoReleaseOverlay from './LampoReleaseOverlay';
 
 const GENRES = {
   film: [
-    { value: 'action', label: 'Azione' },
-    { value: 'drama', label: 'Drammatico' },
-    { value: 'comedy', label: 'Commedia' },
-    { value: 'horror', label: 'Horror' },
-    { value: 'thriller', label: 'Thriller' },
-    { value: 'romance', label: 'Romantico' },
-    { value: 'scifi', label: 'Fantascienza' },
-    { value: 'fantasy', label: 'Fantasy' },
+    { value: 'action',       label: 'Azione',         desc: 'Inseguimenti, scontri, adrenalina ed eroi in azione.' },
+    { value: 'adventure',    label: 'Avventura',      desc: 'Viaggi epici, esplorazione e scoperte in luoghi esotici.' },
+    { value: 'drama',        label: 'Drammatico',     desc: 'Storie intense con conflitti emotivi e personaggi sfaccettati.' },
+    { value: 'comedy',       label: 'Commedia',       desc: 'Situazioni leggere e umoristiche per far ridere il pubblico.' },
+    { value: 'romance',      label: 'Romantico',      desc: 'Amore, relazioni e sentimenti al centro della storia.' },
+    { value: 'horror',       label: 'Horror',         desc: 'Tensione, paura ed elementi soprannaturali o disturbanti.' },
+    { value: 'thriller',     label: 'Thriller',       desc: 'Suspense, tensione costante e colpi di scena imprevedibili.' },
+    { value: 'mystery',      label: 'Mistero',        desc: 'Enigmi e indagini con verità da svelare poco a poco.' },
+    { value: 'crime',        label: 'Crime',          desc: 'Crimini, indagini e mondo della criminalità organizzata.' },
+    { value: 'noir',         label: 'Noir',           desc: 'Atmosfere cupe, antieroi cinici e dilemmi morali.' },
+    { value: 'scifi',        label: 'Fantascienza',   desc: 'Tecnologia avanzata, futuri possibili e mondi alieni.' },
+    { value: 'fantasy',      label: 'Fantasy',        desc: 'Magia, creature mitiche e mondi immaginari.' },
+    { value: 'historical',   label: 'Storico',        desc: 'Eventi e personaggi tratti dal passato reale.' },
+    { value: 'biopic',       label: 'Biografico',     desc: 'Vita vera di un personaggio reale, raccontata sul grande schermo.' },
+    { value: 'war',          label: 'Guerra',         desc: 'Conflitti militari, eroismo e tragedie del fronte.' },
+    { value: 'western',      label: 'Western',        desc: 'Frontiera americana, cowboy, fuorilegge e sceriffi.' },
+    { value: 'musical',      label: 'Musical',        desc: 'Canzoni, coreografie e numeri musicali integrati nella trama.' },
+    { value: 'documentary',  label: 'Documentario',   desc: 'Realtà raccontata con interviste, archivi e testimonianze.' },
+    { value: 'family',       label: 'Famiglia',       desc: 'Avventure adatte a tutte le età, valori e cuore.' },
+    { value: 'animation',    label: 'Animazione',     desc: 'Cinema d\'animazione: fantasia visiva senza limiti.' },
+    { value: 'sport',        label: 'Sportivo',       desc: 'Competizioni, sfide atletiche e trionfi sul campo.' },
+    { value: 'erotic',       label: 'Erotico',        desc: 'Tensione sensuale e desiderio al centro del racconto.' },
+    { value: 'disaster',     label: 'Catastrofico',   desc: 'Cataclismi, sopravvivenza e umanità sull\'orlo del baratro.' },
+    { value: 'superhero',    label: 'Supereroi',      desc: 'Eroi con super-poteri, missioni e cattivi spettacolari.' },
   ],
   tv_series: [
-    { value: 'drama', label: 'Drammatica' },
-    { value: 'comedy', label: 'Sitcom' },
-    { value: 'crime', label: 'Crime' },
-    { value: 'thriller', label: 'Thriller' },
-    { value: 'fantasy', label: 'Fantasy' },
-    { value: 'scifi', label: 'Fantascienza' },
+    { value: 'drama',        label: 'Drammatica',     desc: 'Personaggi complessi, archi narrativi lunghi ed emozioni profonde.' },
+    { value: 'comedy',       label: 'Sitcom',         desc: 'Episodi auto-conclusivi pensati per far ridere a ciclo continuo.' },
+    { value: 'comedy_drama', label: 'Commedia Brillante', desc: 'Tono ironico ma con sottotrame emotive e personaggi profondi.' },
+    { value: 'crime',        label: 'Crime',          desc: 'Indagini, casi criminali e detective sotto pressione.' },
+    { value: 'procedural',   label: 'Procedural',     desc: 'Casi auto-conclusivi a episodio (poliziesco, medico, legale…).' },
+    { value: 'medical',      label: 'Medico',         desc: 'Ospedali, dottori e dilemmi etici tra corsie e sale operatorie.' },
+    { value: 'legal',        label: 'Legal Drama',    desc: 'Tribunali, avvocati e battaglie processuali ad alta tensione.' },
+    { value: 'thriller',     label: 'Thriller',       desc: 'Mistero serializzato, paranoia e cliffhanger continui.' },
+    { value: 'mystery',      label: 'Mistero',        desc: 'Un grande enigma centrale che si svela episodio dopo episodio.' },
+    { value: 'fantasy',      label: 'Fantasy',        desc: 'Mondi magici, regni in guerra e creature leggendarie.' },
+    { value: 'scifi',        label: 'Fantascienza',   desc: 'Futuri distopici, viaggi spaziali e tecnologia spinta al limite.' },
+    { value: 'supernatural', label: 'Soprannaturale', desc: 'Fantasmi, vampiri, magia e mondi nascosti nella realtà.' },
+    { value: 'horror',       label: 'Horror',         desc: 'Paura serializzata, mostri e atmosfere disturbanti.' },
+    { value: 'historical',   label: 'Storica',        desc: 'Epoche passate ricostruite con costumi e intrighi d\'epoca.' },
+    { value: 'period',       label: 'Period Drama',   desc: 'Famiglie nobili, manie e segreti di un\'epoca specifica.' },
+    { value: 'teen',         label: 'Teen Drama',     desc: 'Adolescenti, scuola, amori complicati e crisi identitarie.' },
+    { value: 'family',       label: 'Famiglia',       desc: 'Adatta a tutte le età, valori familiari al centro.' },
+    { value: 'workplace',    label: 'Workplace',      desc: 'Ufficio, redazione, cucina: vita lavorativa al centro.' },
+    { value: 'anthology',    label: 'Antologia',      desc: 'Stagione = nuova storia, nuovo cast. Concept indipendenti.' },
+    { value: 'soap',         label: 'Soap Opera',     desc: 'Intrighi familiari serrati, amori, tradimenti e segreti.' },
+    { value: 'reality_drama',label: 'Docuserie',      desc: 'Realtà raccontata in stile narrativo, con protagonisti reali.' },
+    { value: 'sport',        label: 'Sportiva',       desc: 'Squadre, campionati e dinamiche dentro/fuori dal campo.' },
+    { value: 'spy',          label: 'Spionaggio',     desc: 'Agenti segreti, intelligence e missioni internazionali.' },
+    { value: 'political',    label: 'Politica',       desc: 'Palazzi del potere, intrighi di stato e campagne elettorali.' },
+    { value: 'apocalyptic',  label: 'Post-Apocalittica', desc: 'Sopravvivenza in un mondo dopo la catastrofe.' },
   ],
   anime: [
-    { value: 'shonen', label: 'Shonen' },
-    { value: 'seinen', label: 'Seinen' },
-    { value: 'shojo', label: 'Shojo' },
-    { value: 'mecha', label: 'Mecha' },
-    { value: 'isekai', label: 'Isekai' },
+    { value: 'shonen',         label: 'Shonen',           desc: 'Azione e avventura per ragazzi: amicizia, lotta, superare sé stessi.' },
+    { value: 'seinen',         label: 'Seinen',           desc: 'Pubblico adulto: temi maturi, violenza realistica, psicologia.' },
+    { value: 'shojo',          label: 'Shojo',            desc: 'Per ragazze: emozioni, romance e crescita interiore.' },
+    { value: 'josei',          label: 'Josei',            desc: 'Per donne adulte: vita reale, relazioni e quotidianità.' },
+    { value: 'kodomomuke',     label: 'Kodomomuke',       desc: 'Per bambini: avventure semplici, valori positivi, colori vivaci.' },
+    { value: 'mecha',          label: 'Mecha',            desc: 'Robot giganti, piloti adolescenti e battaglie cosmiche.' },
+    { value: 'isekai',         label: 'Isekai',           desc: 'Protagonista trasportato in un altro mondo (spesso fantasy/RPG).' },
+    { value: 'slice_of_life',  label: 'Slice of Life',    desc: 'Quotidianità, scuola e piccoli momenti che diventano grandi.' },
+    { value: 'iyashikei',      label: 'Iyashikei',        desc: 'Rilassante e curativo: ritmi lenti, atmosfere serene.' },
+    { value: 'magical_girl',   label: 'Mahou Shoujo',     desc: 'Ragazze magiche con trasformazioni e missioni di luce.' },
+    { value: 'sports',         label: 'Sports',           desc: 'Allenamenti estremi, rivalità e tornei adrenalinici.' },
+    { value: 'romance',        label: 'Romance',          desc: 'Storie d\'amore: dolci, struggenti o esilaranti.' },
+    { value: 'comedy',         label: 'Commedia',         desc: 'Gag, situazioni assurde e personaggi sopra le righe.' },
+    { value: 'fantasy',        label: 'Fantasy',          desc: 'Magia, regni perduti e creature mitologiche.' },
+    { value: 'scifi',          label: 'Fantascienza',     desc: 'Spazio, tecnologia futura e mondi alieni.' },
+    { value: 'cyberpunk',      label: 'Cyberpunk',        desc: 'Megalopoli distopiche, hacker e impianti cibernetici.' },
+    { value: 'mystery',        label: 'Mistero',          desc: 'Enigmi inquietanti da decifrare con la mente.' },
+    { value: 'psychological',  label: 'Psicologico',      desc: 'Mente umana al limite: paranoia, identità, oscurità.' },
+    { value: 'horror',         label: 'Horror',           desc: 'Yokai, demoni e atmosfere che gelano il sangue.' },
+    { value: 'historical',     label: 'Storico',          desc: 'Giappone feudale, samurai, epoche reali rivisitate.' },
+    { value: 'music',          label: 'Musicale / Idol',  desc: 'Band, idol e palchi: sogni in chiave musicale.' },
+    { value: 'gourmet',        label: 'Gourmet',          desc: 'Cucina, sapori e battaglie culinarie.' },
+    { value: 'ecchi',          label: 'Ecchi',            desc: 'Umorismo audace e situazioni piccanti, per pubblico adulto.' },
+    { value: 'harem',          label: 'Harem',            desc: 'Un protagonista circondato da molti pretendenti.' },
+    { value: 'yuri',           label: 'Yuri',             desc: 'Storie d\'amore tra ragazze, dolci o intense.' },
+    { value: 'yaoi',           label: 'Yaoi',             desc: 'Storie d\'amore tra ragazzi, romantiche o passionali.' },
+    { value: 'apocalyptic',    label: 'Post-Apocalittico',desc: 'Sopravvivere in un mondo dopo il disastro.' },
+    { value: 'tournament',     label: 'Battle Royale',    desc: 'Tornei mortali, abilità speciali e ultimo che resta vince.' },
   ],
 };
 
@@ -202,6 +260,17 @@ function LampoForm({ contentType, onStart, onBack, onClose }) {
             </div>
           )}
         </div>
+
+        {/* Descrizione del genere selezionato */}
+        {(() => {
+          const sel = GENRES[contentType].find(g => g.value === genre);
+          return sel?.desc ? (
+            <div className="-mt-1 px-2 py-1.5 rounded-md bg-amber-500/5 border border-amber-500/15" data-testid="lampo-genre-desc">
+              <p className="text-[10px] text-amber-100/80 leading-snug italic">{sel.desc}</p>
+              <p className="text-[8px] text-amber-300/60 mt-0.5 uppercase tracking-wider">L'AI sceglierà 1-3 sotto-generi dalla tua pretrama</p>
+            </div>
+          ) : null;
+        })()}
 
         <div>
           <label className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Pretrama</label>
@@ -441,6 +510,15 @@ function LampoResult({ project, onReleased, onClose, api }) {
         <div className="flex-1 min-w-0">
           <h3 className="text-base font-bold text-white truncate">{project.title}</h3>
           <p className="text-[10px] text-slate-400 capitalize">{project.genre} · {CT.title}</p>
+          {Array.isArray(project.subgenres) && project.subgenres.length > 0 && (
+            <div className="flex gap-1 flex-wrap mt-1.5" data-testid="lampo-subgenres-recap">
+              {project.subgenres.slice(0, 3).map((sg, i) => (
+                <span key={i} className="px-1.5 py-0.5 text-[9px] rounded-full bg-amber-500/10 border border-amber-400/30 text-amber-200 font-medium tracking-wide">
+                  #{sg}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="mt-2 p-2 rounded-lg bg-black/40 border border-amber-500/20">
             <div className="text-[9px] uppercase text-slate-400 font-semibold">Valutazione CWSv</div>
             <div className={`text-3xl font-['Bebas_Neue'] ${scoreColor}`}>{project.cwsv?.toFixed(1) || '—'}</div>

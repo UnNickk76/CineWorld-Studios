@@ -230,11 +230,12 @@ async def _generate_poster_lampo(title: str, genre: str, content_type: str, proj
     return ""
 
 
-async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay_text, episodes, sponsors, distribution_plan):
+async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay_text, episodes, sponsors, distribution_plan, subgenres=None):
     """Inserisce nello standard films/tv_series uno stub 'lampo_ready' (bozza pre-rilascio).
     Idempotente: se già esiste uno stub con source_project_id == pid, non duplica."""
     ct = proj["content_type"]
     now = datetime.now(timezone.utc).isoformat()
+    subgenres = subgenres or []
     if ct == "film":
         existing = await db.films.find_one({"source_project_id": pid}, {"_id": 0, "id": 1})
         if existing:
@@ -250,6 +251,7 @@ async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay
             "title": proj["title"],
             "genre": proj["genre"],
             "subgenre": proj.get("subgenre"),
+            "subgenres": subgenres,
             "preplot": proj["preplot"],
             "screenplay": screenplay_text or "",
             "synopsis": screenplay_text or proj.get("preplot", ""),
@@ -294,6 +296,7 @@ async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay
         "title": proj["title"],
         "genre": proj["genre"],
         "genre_name": proj["genre"],
+        "subgenres": subgenres,
         "preplot": proj["preplot"],
         "screenplay": screenplay_text or "",
         "synopsis": screenplay_text or proj.get("preplot", ""),
@@ -319,31 +322,73 @@ async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay
     await db.lampo_projects.update_one({"id": pid}, {"$set": {"linked_series_id": series_id}})
 
 
-async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, preplot: str) -> str:
-    """Generate concise screenplay/synopsis text via Emergent LLM (gpt-4o-mini)."""
-    import os
+async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, preplot: str) -> dict:
+    """Generate concise screenplay/synopsis text + extract 1-3 sub-genres via Emergent LLM (gpt-4o-mini).
+
+    Returns: {"screenplay": str, "subgenres": list[str]}
+    """
+    import os, json, re
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
-        return ""
+        return {"screenplay": "", "subgenres": []}
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         ct_label = {"film": "film", "tv_series": "serie TV", "anime": "anime"}.get(content_type, "film")
         chat = LlmChat(
             api_key=key,
             session_id=f"lampo-screenplay-{uuid.uuid4()}",
-            system_message="Sei uno sceneggiatore italiano. Scrivi sceneggiature concise ma di impatto.",
+            system_message=(
+                "Sei uno sceneggiatore italiano esperto. Rispondi SEMPRE e SOLO con un oggetto JSON valido, "
+                "senza markdown, senza testo extra prima o dopo."
+            ),
         ).with_model("openai", "gpt-4o-mini")
         prompt = (
-            f'Scrivi una sceneggiatura sintetica (max 350 parole) in italiano per un {ct_label} {genre} '
-            f'intitolato "{title}". Pretrama del produttore: "{preplot}".\n\n'
-            f"Includi: Logline (1-2 frasi), conflitto principale, 4-5 punti chiave della trama, "
-            f"climax e risoluzione, atmosfera/tono. Tutto in italiano, paragrafi brevi."
+            f'Per un {ct_label} {genre} intitolato "{title}" con pretrama del produttore: "{preplot}"\n\n'
+            f"Restituisci ESATTAMENTE un JSON con questa struttura:\n"
+            f'{{"screenplay": "<sceneggiatura sintetica max 350 parole in italiano: logline, conflitto, '
+            f'4-5 punti chiave di trama, climax, risoluzione, atmosfera. Paragrafi brevi separati da \\n>",\n'
+            f' "subgenres": ["sotto-genere1", "sotto-genere2", "sotto-genere3"]}}\n\n'
+            f"REGOLE per i sotto-generi:\n"
+            f"- Estrai 1-3 sotto-generi pertinenti analizzando la pretrama (es: 'thriller psicologico', "
+            f"'distopico', 'noir', 'survival', 'commedia romantica', 'coming of age', 'mystery', 'satirico', "
+            f"'spionaggio', 'soprannaturale', 'biografico', 'guerra', 'storico', 'cyberpunk', "
+            f"'mecha', 'isekai', 'slice of life', 'sport', 'musicale', 'epico', ecc.).\n"
+            f"- Tutti in italiano, minuscoli, max 3 parole ciascuno.\n"
+            f"- NON ripetere il genere principale '{genre}'.\n"
+            f"- Devono essere coerenti con la pretrama, non generici."
         )
         resp = await chat.send_message(UserMessage(text=prompt))
-        return (resp or "").strip()
+        raw = (resp or "").strip()
+        # Strip markdown fences if present
+        raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.MULTILINE).strip()
+        try:
+            data = json.loads(raw)
+        except Exception:
+            # Fallback: try to find a JSON block
+            m = re.search(r"\{.*\}", raw, flags=re.DOTALL)
+            data = json.loads(m.group(0)) if m else {}
+        screenplay = (data.get("screenplay") or "").strip()
+        subs = data.get("subgenres") or []
+        if not isinstance(subs, list):
+            subs = []
+        # Sanitize subgenres
+        cleaned = []
+        for s in subs[:5]:
+            if not isinstance(s, str):
+                continue
+            s2 = s.strip().lower()
+            if not s2 or s2 == (genre or "").lower():
+                continue
+            # clip to 3 words and 30 chars
+            s2 = " ".join(s2.split()[:3])[:30]
+            if s2 and s2 not in cleaned:
+                cleaned.append(s2)
+            if len(cleaned) >= 3:
+                break
+        return {"screenplay": screenplay, "subgenres": cleaned}
     except Exception as e:
-        logger.warning(f"LAMPO screenplay gen failed: {e}")
-        return ""
+        logger.warning(f"LAMPO screenplay+subgenres gen failed: {e}")
+        return {"screenplay": "", "subgenres": []}
 
 
 def _random_episode_minitrama(ep_num: int, genre: str) -> str:
@@ -396,9 +441,11 @@ async def _worker_generate(pid: str):
 
         # Wait for parallel AI tasks (with safety timeout)
         try:
-            screenplay_text = await asyncio.wait_for(screenplay_task, timeout=10)
+            screenplay_data = await asyncio.wait_for(screenplay_task, timeout=12)
         except Exception:
-            screenplay_text = ""
+            screenplay_data = {"screenplay": "", "subgenres": []}
+        screenplay_text = (screenplay_data or {}).get("screenplay") or ""
+        subgenres = (screenplay_data or {}).get("subgenres") or []
         try:
             poster_url = await asyncio.wait_for(poster_task, timeout=15)
         except Exception:
@@ -463,6 +510,7 @@ async def _worker_generate(pid: str):
                 "cwsv": cwsv,
                 "poster_url": poster_url or "",
                 "screenplay": screenplay_text or "",
+                "subgenres": subgenres or [],
                 "episodes": episodes,
                 "marketing_tier": "high" if proj["budget_tier"] == "high" else ("mid" if proj["budget_tier"] == "mid" else "low"),
                 "sponsors": sponsors,
@@ -475,7 +523,7 @@ async def _worker_generate(pid: str):
         # ⚡ Insert "lampo_ready" stub into films/tv_series so drafts appear in standard dashboards
         # Status: lampo_ready → frontend mostra "A breve al cinema" / "A breve in TV"
         try:
-            await _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay_text, episodes, sponsors, distribution_plan)
+            await _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay_text, episodes, sponsors, distribution_plan, subgenres)
         except Exception as stub_err:
             logger.warning(f"LAMPO ready stub insert failed pid={pid}: {stub_err}")
     except Exception as e:
@@ -696,6 +744,7 @@ async def release_lampo(
                 "title": proj["title"],
                 "genre": proj["genre"],
                 "subgenre": proj.get("subgenre"),
+                "subgenres": proj.get("subgenres", []),
                 "preplot": proj["preplot"],
                 "screenplay": proj.get("screenplay", ""),
                 "synopsis": proj.get("screenplay", "") or proj.get("preplot", ""),
@@ -768,6 +817,7 @@ async def release_lampo(
             "title": proj["title"],
             "genre": proj["genre"],
             "subgenre": proj.get("subgenre"),
+            "subgenres": proj.get("subgenres", []),
             "preplot": proj["preplot"],
             "screenplay": proj.get("screenplay", ""),
             "synopsis": proj.get("screenplay", "") or proj.get("preplot", ""),
@@ -834,6 +884,7 @@ async def release_lampo(
         "title": proj["title"],
         "genre": proj["genre"],
         "genre_name": proj["genre"],
+        "subgenres": proj.get("subgenres", []),
         "preplot": proj["preplot"],
         "screenplay": proj.get("screenplay", ""),
         "synopsis": proj.get("screenplay", "") or proj.get("preplot", ""),

@@ -1,3 +1,11 @@
+## LAMPO Generi & Sub-generi AI (Apr 25, 2026)
+- **GENRES espansi** in `LampoModal.jsx`: 24 film (era 8), 25 serie TV (era 6), 28 anime (era 5). Ogni genere ha `desc` con descrizione breve in italiano.
+- **Descrizione genere** mostrata nel form sotto il select in box ambra (testid `lampo-genre-desc`) + nota "L'AI sceglierà 1-3 sotto-generi dalla tua pretrama".
+- **Sub-generi AI**: rimossa la selezione manuale. `_generate_screenplay_lampo` ora ritorna `{screenplay, subgenres}` via singola chiamata gpt-4o-mini con output JSON. L'AI analizza la pretrama ed estrae 1-3 sub-generi pertinenti (es. "thriller psicologico", "noir", "coming of age", "cyberpunk"). Sanitizzati: minuscoli, max 3 parole, no duplicati, no genere principale.
+- **Persistenza**: `subgenres` salvato in `lampo_projects`, propagato a `films` e `tv_series` (sia stub `lampo_ready`/`lampo_scheduled` sia release immediata).
+- **UI recap step finale**: `LampoResult` mostra sub-generi come chip ambra "#nome" sotto il titolo (testid `lampo-subgenres-recap`).
+- Files: `frontend/src/components/LampoModal.jsx`, `backend/routes/lampo.py`.
+
 ## LAMPO + Infrastrutture fix (Feb 2026)
 Tre fix critici post-rilascio LAMPO:
 1. **Auto-seed production_studio Lv 0** — ogni utente (nuovo o legacy) riceve automaticamente uno studio di produzione di default al Livello 0 all'apertura di `GET /api/infrastructure/my`, gratuito. Idempotente (non sovrascrive studi esistenti). Sblocca core gameplay anche senza acquisto.

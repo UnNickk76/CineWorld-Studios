@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import random
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Literal
 
@@ -1770,10 +1771,17 @@ class SelectCastBody(BaseModel):
     npc_id: str
     role: str  # director, screenwriter, actor, composer
     cast_role: Optional[str] = None  # protagonista, antagonista, supporto, etc.
+    force_accept: Optional[bool] = False  # bypass rejection check (post-renegoziazione)
 
 @router.post("/films/{pid}/select-cast-member")
 async def select_cast_member(pid: str, req: SelectCastBody, user: dict = Depends(get_current_user)):
-    """Select a specific NPC for the cast."""
+    """Select a specific NPC for the cast.
+
+    Sistema rifiuti: se `req.force_accept` non è True, l'NPC può rifiutare
+    in base a `calculate_rejection_chance` (level/fame/genre/star). Il client
+    può rinegoziare via `/cast/renegotiate/{negotiation_id}` (esistente in
+    routes/cast.py) e poi rifare select-cast-member con `force_accept=True`.
+    """
     project = await _get_project(pid, user["id"])
     cast = project.get("cast", {"director": None, "screenwriters": [], "actors": [], "composer": None})
     cast.setdefault("screenwriters", [])
@@ -1797,6 +1805,64 @@ async def select_cast_member(pid: str, req: SelectCastBody, user: dict = Depends
         raise HTTPException(400, "Hai gia un compositore (max 1)")
     if role == "screenwriter" and len(cast.get("screenwriters", [])) >= 3:
         raise HTTPException(400, "Hai gia 3 sceneggiatori (max 3)")
+
+    # ─── Sistema rifiuti V3 (collegato a calculate_rejection_chance di routes/cast.py) ───
+    force_accept = bool(getattr(req, "force_accept", False))
+    if not force_accept:
+        try:
+            from routes.cast import calculate_rejection_chance
+            from datetime import timedelta as _td
+            full_user = await db.users.find_one({"id": user["id"]}, {"_id": 0})
+            # Skip NPC che hai già rifiutato nelle ultime 24h
+            existing_rej = await db.rejections.find_one({
+                "user_id": user["id"], "person_id": req.npc_id,
+                "created_at": {"$gte": (datetime.now(timezone.utc) - _td(hours=24)).isoformat()}
+            })
+            if existing_rej:
+                return {
+                    "success": False, "rejected": True, "already_refused": True,
+                    "person_name": npc.get("name"),
+                    "reason": existing_rej.get("reason"),
+                    "negotiation_id": existing_rej.get("id"),
+                    "requested_fee": existing_rej.get("requested_fee"),
+                    "can_renegotiate": existing_rej.get("renegotiation_count", 0) < 3,
+                }
+            will_refuse, reason = calculate_rejection_chance(npc, full_user, project.get("genre"))
+            if will_refuse:
+                rejection_id = str(uuid.uuid4())
+                expected_fee = npc.get("cost_per_film", npc.get("fee", 50000))
+                requested_fee = round(expected_fee * (1.1 + random.random() * 0.3))
+                await db.rejections.insert_one({
+                    "id": rejection_id,
+                    "user_id": user["id"],
+                    "person_id": req.npc_id,
+                    "person_name": npc.get("name"),
+                    "person_type": npc.get("type", role),
+                    "reason": reason,
+                    "can_renegotiate": True,
+                    "requested_fee": requested_fee,
+                    "expected_fee": expected_fee,
+                    "renegotiation_count": 0,
+                    "context": "v3_pipeline",
+                    "project_id": pid,
+                    "intended_role": role,
+                    "intended_cast_role": req.cast_role or "generico",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+                return {
+                    "success": False, "rejected": True, "already_refused": False,
+                    "person_name": npc.get("name"),
+                    "person_type": npc.get("type", role),
+                    "reason": reason,
+                    "stars": npc.get("stars", 3),
+                    "fame": npc.get("fame_score", 50),
+                    "negotiation_id": rejection_id,
+                    "can_renegotiate": True,
+                    "requested_fee": requested_fee,
+                    "expected_fee": expected_fee,
+                }
+        except Exception as _rej_err:
+            logger.warning(f"Rejection check skipped: {_rej_err}")
 
     entry = {
         "id": npc.get("id"),

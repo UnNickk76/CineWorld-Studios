@@ -1,3 +1,31 @@
+## Bundle 10 fix (Apr 26, 2026 — sera 2)
+
+### A. Sistema Rifiuti V3 nei Pipeline (Task P1)
+- `routes/pipeline_v3.py` `select-cast-member`:
+  - Aggiunto campo `force_accept: bool = False` al body `SelectCastBody`.
+  - Wrap intorno a `routes/cast.py:calculate_rejection_chance(npc, user, genre)`:
+    1. Verifica esistenza rifiuto attivo (24h) in collection `rejections` → ritorna `already_refused: true`.
+    2. Calcola probabilità rifiuto basata su level/fame/genre/star del NPC vs profilo player.
+    3. Se rifiuta: salva entry in `rejections` con `requested_fee = expected_fee × (1.1-1.4)` random, `negotiation_id`, `renegotiation_count: 0`.
+    4. Risponde con `{rejected: true, reason: "...", requested_fee, expected_fee, negotiation_id, can_renegotiate}`.
+  - Bypass via `force_accept=true` (post-rinegoziazione confermata dall'utente).
+- Frontend `CastPhase.jsx`:
+  - Nuovo state `rejectDlg` + dialog mobile-friendly con messaggio rifiuto, fee originale (line-through) vs fee richiesta (in evidenza ambra).
+  - Bottoni: "Lascia perdere", "Paga $X" (force_accept=true), "Insisti senza aumentare" (retry senza force).
+  - Verificato via curl: 1° tentativo accept, 2°-5° tentativi rifiuto coerente con stessa fee (memoria 24h funziona).
+
+### B. UI Selettore Stile TV Station (Task P2)
+- `TVStationPage.jsx` Step 2 setup wizard:
+  - Nuovo `useEffect` carica `/api/tv-stations/available-styles` all'apertura step 2.
+  - Card "Stile Branding" con grid 2-col di 10 preset:
+    - Generica (cyan), NetfleX (rosso), Disnext+ (blu chiaro), Topmount+ (blu acceso), PrimeFlix (ciano), AppleVue (bianco), SkyView (blu sport), ItaliaPlay (blu istit.), Dazz! (giallo neon), ItalVision (blu telco)
+  - Ogni bottone mostra label + tagline con il proprio color/font_family. Click → ring rosso conferma selezione.
+  - `submitStep2` ora invia anche `style: selectedStyle`.
+- Backend `routes/tv_stations.py`: `setup-step2` accetta `style` opzionale e lo aggiorna nella station.
+
+Files: `backend/routes/pipeline_v3.py`, `frontend/src/components/v3/CastPhase.jsx`, `frontend/src/pages/TVStationPage.jsx`.
+
+
 ## Bundle 9 fix (Apr 26, 2026 — sera)
 
 ### A. Badge TV cliccabile (miglioramento)

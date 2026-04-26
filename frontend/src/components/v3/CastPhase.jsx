@@ -239,11 +239,47 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
     v3api(`/films/${film.id}/npc-agency-proposals`).then(setNpcAgencies).catch(() => {});
   }, [film.id]);
 
-  const selectMember = async (npc, role, castRole) => {
+  const [rejectDlg, setRejectDlg] = useState(null); // { npc, role, castRole, reason, requested_fee, expected_fee, negotiation_id }
+
+  const selectMember = async (npc, role, castRole, opts = {}) => {
     setLoading(true);
     try {
-      await v3api(`/films/${film.id}/select-cast-member`, 'POST', { npc_id: npc.id, role, cast_role: castRole || 'generico' });
-      await onRefresh(); toast?.(`${npc.name} aggiunto al cast!`);
+      const res = await v3api(`/films/${film.id}/select-cast-member`, 'POST', {
+        npc_id: npc.id, role, cast_role: castRole || 'generico',
+        force_accept: !!opts.force_accept,
+      });
+      if (res && res.rejected) {
+        // Apri dialog rinegoziazione
+        setRejectDlg({
+          npc, role, castRole,
+          reason: res.reason || 'Ha rifiutato',
+          requested_fee: res.requested_fee || 0,
+          expected_fee: res.expected_fee || 0,
+          negotiation_id: res.negotiation_id,
+          can_renegotiate: res.can_renegotiate !== false,
+          already_refused: !!res.already_refused,
+        });
+        setLoading(false);
+        return;
+      }
+      await onRefresh();
+      toast?.(`${npc.name} aggiunto al cast!`);
+    } catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  const tryRenegotiate = async (acceptHigherFee) => {
+    if (!rejectDlg) return;
+    setLoading(true);
+    try {
+      if (acceptHigherFee) {
+        // Forza l'accettazione bypassando il check (l'utente ha accettato la fee aumentata)
+        await selectMember(rejectDlg.npc, rejectDlg.role, rejectDlg.castRole, { force_accept: true });
+        setRejectDlg(null);
+      } else {
+        // Riprovo senza force_accept (potrebbe rifiutare di nuovo o accettare casualmente)
+        await selectMember(rejectDlg.npc, rejectDlg.role, rejectDlg.castRole);
+      }
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
@@ -548,6 +584,55 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
             setCastSource('npc_agencies');
             v3api(`/films/${film.id}/npc-agency-proposals`).then(setNpcAgencies).catch(() => {});
           }} />
+        )}
+
+        {/* Rejection / Renegotiation Dialog */}
+        {rejectDlg && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-3" data-testid="cast-rejection-dialog">
+            <div className="w-full max-w-sm bg-gradient-to-br from-red-950/40 to-black border border-red-500/30 rounded-xl p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <div className="w-8 h-8 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 text-sm font-bold">!</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] uppercase tracking-wider text-red-400 font-bold">{rejectDlg.npc.name} ha rifiutato</p>
+                  <p className="text-[11px] text-white italic mt-0.5">"{rejectDlg.reason}"</p>
+                </div>
+              </div>
+              {rejectDlg.can_renegotiate && rejectDlg.requested_fee > 0 && (
+                <div className="rounded-lg bg-white/5 border border-white/10 p-2.5 space-y-1">
+                  <p className="text-[8px] text-gray-500 uppercase">Controproposta</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-400">Fee originale:</span>
+                    <span className="text-[10px] text-gray-500 line-through">${(rejectDlg.expected_fee || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-amber-300">Fee richiesta:</span>
+                    <span className="text-[12px] font-bold text-amber-400">${(rejectDlg.requested_fee || 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => setRejectDlg(null)} disabled={loading}
+                        data-testid="cast-rejection-cancel"
+                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] text-gray-400 hover:bg-white/10">
+                  Lascia perdere
+                </button>
+                {rejectDlg.can_renegotiate && rejectDlg.requested_fee > 0 && (
+                  <button onClick={() => tryRenegotiate(true)} disabled={loading}
+                          data-testid="cast-rejection-accept-fee"
+                          className="flex-1 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-bold disabled:opacity-50">
+                    Paga ${(rejectDlg.requested_fee || 0).toLocaleString()}
+                  </button>
+                )}
+              </div>
+              {!rejectDlg.already_refused && rejectDlg.can_renegotiate && (
+                <button onClick={() => tryRenegotiate(false)} disabled={loading}
+                        data-testid="cast-rejection-retry"
+                        className="w-full py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-[9px] text-cyan-300 hover:bg-cyan-500/20">
+                  Insisti senza aumentare la fee (rischio rifiuto definitivo 24h)
+                </button>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </PhaseWrapper>

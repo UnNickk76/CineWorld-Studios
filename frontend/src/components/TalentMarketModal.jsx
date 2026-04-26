@@ -33,6 +33,9 @@ const DURATION_PRESETS = [
   { days: 180, label: '180g', mult: 4.6 },
 ];
 
+const GENDER_SYMBOL = { M: '♂', F: '♀', male: '♂', female: '♀' };
+const GENDER_COLOR = { M: 'text-blue-400', F: 'text-pink-400', male: 'text-blue-400', female: 'text-pink-400' };
+
 function StarRow({ count }) {
   const c = Math.max(1, Math.min(5, count || 1));
   return (
@@ -130,6 +133,9 @@ function NpcCard({ npc, role, onPreEngage, onShowSkills, busy, accentClass }) {
                 data-testid={`name-${npc.id}`} title="Vedi skill">
                 {npc.name}
               </button>
+              {npc.gender && GENDER_SYMBOL[npc.gender] && (
+                <span className={`text-sm font-bold ${GENDER_COLOR[npc.gender] || ''}`}>{GENDER_SYMBOL[npc.gender]}</span>
+              )}
               <StarRow count={npc.stars} />
             </div>
             <p className="text-[10px] text-gray-500 mt-0.5">
@@ -183,6 +189,9 @@ function ProposalCard({ prop, onAccept, busy }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs sm:text-sm font-semibold text-white truncate">{prop.npc_name}</span>
+              {prop.npc_gender && GENDER_SYMBOL[prop.npc_gender] && (
+                <span className={`text-sm font-bold ${GENDER_COLOR[prop.npc_gender] || ''}`}>{GENDER_SYMBOL[prop.npc_gender]}</span>
+              )}
               <Badge className="bg-purple-500/20 text-purple-300 text-[8px] h-3.5 border border-purple-500/30 px-1">
                 {ROLE_TABS.find(r => r.key === prop.role)?.label || prop.role}
               </Badge>
@@ -374,6 +383,9 @@ function RosterCard({ eng, busy, onRelease, onOpenDiary, onShowSkills }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs sm:text-sm font-semibold text-white truncate">{snap.name}</span>
+              {snap.gender && GENDER_SYMBOL[snap.gender] && (
+                <span className={`text-sm font-bold ${GENDER_COLOR[snap.gender] || ''}`}>{GENDER_SYMBOL[snap.gender]}</span>
+              )}
               <span className="text-base">{eng.happiness_emoji || '🙂'}</span>
               <Badge className="bg-white/5 text-gray-300 text-[8px] h-3.5 border border-white/10 px-1">
                 {ROLE_TABS.find(r => r.key === eng.role)?.label || eng.role}
@@ -432,6 +444,9 @@ function UnderContractCard({ item, busy, onMakeOffer }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs sm:text-sm font-semibold text-white truncate">{item.npc_name}</span>
+              {item.npc_gender && GENDER_SYMBOL[item.npc_gender] && (
+                <span className={`text-sm font-bold ${GENDER_COLOR[item.npc_gender] || ''}`}>{GENDER_SYMBOL[item.npc_gender]}</span>
+              )}
               <span className="text-base">{item.happiness_emoji || '🙂'}</span>
               <Badge className="bg-white/5 text-gray-300 text-[8px] h-3.5 border border-white/10 px-1">
                 {ROLE_TABS.find(r => r.key === item.role)?.label || item.role}

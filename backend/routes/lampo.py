@@ -749,6 +749,60 @@ async def get_my_lampo_projects(user: dict = Depends(get_current_user)):
     return {"projects": docs}
 
 
+# ─── Autosave bozza form (richiesta utente) ─────────────────────────
+class LampoDraftFormReq(BaseModel):
+    content_type: Literal["film", "tv_series", "anime"]
+    title: Optional[str] = ""
+    genre: Optional[str] = None
+    subgenre: Optional[str] = None
+    preplot: Optional[str] = ""
+    budget_tier: Optional[Literal["low", "mid", "high"]] = "mid"
+    num_episodes: Optional[int] = None
+    target_tv_station_id: Optional[str] = None
+
+
+@router.post("/draft-form")
+async def save_lampo_draft_form(req: LampoDraftFormReq, user: dict = Depends(get_current_user)):
+    """Salva la bozza del form LAMPO (autosave dal momento in cui si scrive il titolo).
+
+    Una bozza per (user_id, content_type). Sopravvive a refresh / chiusure pagina.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    payload = req.model_dump()
+    payload["user_id"] = user["id"]
+    payload["updated_at"] = now
+    await db.lampo_form_drafts.update_one(
+        {"user_id": user["id"], "content_type": req.content_type},
+        {"$set": payload, "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+    return {"success": True, "draft": payload}
+
+
+@router.get("/draft-form")
+async def get_lampo_draft_form(
+    content_type: Literal["film", "tv_series", "anime"],
+    user: dict = Depends(get_current_user),
+):
+    """Recupera l'ultima bozza del form LAMPO per il content_type indicato."""
+    doc = await db.lampo_form_drafts.find_one(
+        {"user_id": user["id"], "content_type": content_type}, {"_id": 0}
+    )
+    return {"draft": doc}
+
+
+@router.delete("/draft-form")
+async def delete_lampo_draft_form(
+    content_type: Literal["film", "tv_series", "anime"],
+    user: dict = Depends(get_current_user),
+):
+    """Elimina la bozza dopo che la produzione è stata avviata."""
+    await db.lampo_form_drafts.delete_one(
+        {"user_id": user["id"], "content_type": content_type}
+    )
+    return {"success": True}
+
+
 async def _upsert_lampo_film(film_doc: dict) -> str:
     pid = film_doc.get("source_project_id")
     existing = await db.films.find_one({"source_project_id": pid}, {"_id": 0, "id": 1}) if pid else None

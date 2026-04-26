@@ -197,9 +197,56 @@ function LampoForm({ contentType, onStart, onBack, onClose }) {
   const [budgetTier, setBudgetTier] = useState('mid');
   const [numEpisodes, setNumEpisodes] = useState(10);
   const [submitting, setSubmitting] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   const cost = BUDGET_COSTS[contentType][budgetTier];
   const cp = BUDGET_CP[contentType][budgetTier];
+
+  // Recover saved draft on mount
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const res = await api.get('/lampo/draft-form', { params: { content_type: contentType } });
+        const d = res.data?.draft;
+        if (!cancel && d) {
+          if (d.title) setTitle(d.title);
+          if (d.genre) setGenre(d.genre);
+          if (d.preplot) setPreplot(d.preplot);
+          if (d.budget_tier) setBudgetTier(d.budget_tier);
+          if (d.num_episodes) setNumEpisodes(d.num_episodes);
+          if (d.title || d.preplot) {
+            toast.info('Bozza ripristinata', { duration: 2000 });
+          }
+        }
+      } catch {}
+      if (!cancel) setDraftLoaded(true);
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentType]);
+
+  // Autosave draft (debounced) ogni volta che il titolo è ≥ 1 carattere
+  useEffect(() => {
+    if (!draftLoaded) return;
+    if (!title || title.trim().length < 1) return;
+    const tm = setTimeout(async () => {
+      setSavingDraft(true);
+      try {
+        await api.post('/lampo/draft-form', {
+          content_type: contentType,
+          title: title.trim(),
+          genre,
+          preplot: preplot.trim(),
+          budget_tier: budgetTier,
+          num_episodes: contentType !== 'film' ? numEpisodes : null,
+        });
+      } catch {}
+      setSavingDraft(false);
+    }, 1500);
+    return () => clearTimeout(tm);
+  }, [title, genre, preplot, budgetTier, numEpisodes, contentType, draftLoaded, api]);
 
   const canSubmit = title.trim().length >= 2 && preplot.trim().length >= 10 && !submitting;
 
@@ -216,6 +263,8 @@ function LampoForm({ contentType, onStart, onBack, onClose }) {
         num_episodes: contentType !== 'film' ? numEpisodes : undefined,
       });
       toast.success(`Produzione LAMPO avviata! Costo: $${(res.data.scaled_cost || 0).toLocaleString()}`);
+      // Pulisci la bozza ora che la produzione è partita
+      try { await api.delete('/lampo/draft-form', { params: { content_type: contentType } }); } catch {}
       onStart(res.data.project);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Errore nell\'avvio');
@@ -229,6 +278,12 @@ function LampoForm({ contentType, onStart, onBack, onClose }) {
         <div className="flex items-center gap-2">
           <Zap className="w-5 h-5 text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
           <h2 className="text-xl font-['Bebas_Neue'] text-amber-200">Produzione LAMPO!</h2>
+          {savingDraft && (
+            <span className="text-[8px] text-amber-300/60 italic" data-testid="lampo-draft-saving">salvando...</span>
+          )}
+          {!savingDraft && draftLoaded && title.trim().length >= 1 && (
+            <span className="text-[8px] text-emerald-300/60 italic" data-testid="lampo-draft-saved">💾 bozza salvata</span>
+          )}
         </div>
         <button onClick={onClose} className="text-white/50 hover:text-white p-1"><X className="w-4 h-4" /></button>
       </div>

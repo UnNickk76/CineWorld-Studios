@@ -878,6 +878,14 @@ async def send_agency_actor_to_school(actor_id: str, user: dict = Depends(get_cu
     # Create school student from agency actor
     now = datetime.now(timezone.utc).isoformat()
     base_skills = actor.get('skills', {}) or {}
+    talent = actor.get('hidden_talent', 0.5)
+    # Pre-compute target skills (final cap) + duration (5-20 days, talent-based)
+    try:
+        from routes.acting_school import compute_training_plan
+        target_skills, duration_days = compute_training_plan(base_skills, talent, is_from_agency=True)
+    except Exception:
+        target_skills = dict(base_skills)
+        duration_days = 14
     student = {
         'id': actor['id'],
         'user_id': user['id'],
@@ -890,10 +898,13 @@ async def send_agency_actor_to_school(actor_id: str, user: dict = Depends(get_cu
         'base_skills': dict(base_skills),
         'initial_skills': dict(base_skills),
         'skills': dict(base_skills),
+        # Pre-determined target + duration (talent-based) ⇒ progress = elapsed/duration
+        'target_skills': target_skills,
+        'training_duration_days': duration_days,
         'skill_caps': actor.get('skill_caps', {}),
-        'hidden_talent': actor.get('hidden_talent', 0.5),
+        'hidden_talent': talent,
         # potential drives the cap formula in calculate_casting_student_skills
-        'potential': actor.get('hidden_talent', 0.5),
+        'potential': talent,
         'strong_genres': actor.get('strong_genres', []),
         'strong_genres_names': actor.get('strong_genres_names', []),
         'adaptable_genre': actor.get('adaptable_genre', ''),

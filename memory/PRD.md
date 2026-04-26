@@ -1,3 +1,38 @@
+## Bundle 7 fix (Apr 26, 2026 — late morning)
+
+### 1. LAMPO Autosave Bozza Form (richiesta utente)
+- Backend: 3 nuovi endpoint in `routes/lampo.py`:
+  - `POST /api/lampo/draft-form` — upsert bozza per (user, content_type)
+  - `GET /api/lampo/draft-form?content_type=film|tv_series|anime` — recupera ultima bozza
+  - `DELETE /api/lampo/draft-form` — pulizia dopo avvio produzione
+- Collection: `lampo_form_drafts` (one per user × content_type, upsert con `updated_at`)
+- Frontend `LampoModal.jsx LampoForm`:
+  - Al mount: GET bozza → popola tutti i campi (title/genre/preplot/budget_tier/num_episodes), toast "Bozza ripristinata"
+  - Autosave debounced 1.5s ogni volta che l'utente modifica un campo (a partire dal 1° carattere del titolo)
+  - Indicatore live "💾 bozza salvata" / "salvando..." accanto al titolo della modal
+  - DELETE bozza al click "AVVIA LAMPO" (transazione completa)
+- Verificato via curl: bozza salvata + recuperata correttamente.
+
+### 2. Refactor Scuola: durata talent-based + cap pre-determinato
+- **Modello nuovo**: all'iscrizione si pre-calcolano `target_skills` (cap finale fisso) e `training_duration_days` (5-22 giorni in base al talento + jitter random ±3).
+- `compute_training_plan(base_skills, hidden_talent, is_from_agency)` in `routes/acting_school.py`:
+  - Durata: `5 + (1-talent)×15 ± random(-3,+3)`. Talent 1.0 → 5-8gg, talent 0.5 → 11-15gg, talent 0 → 18-22gg.
+  - Target ex-agenzia: `base + (2 + talent×5) ± random(-1,+1)` (range +1/+8 punti).
+  - Target fresh student: `base + (30 + talent×30) ± random(-5,+10)` (range +25/+70 punti).
+- `calculate_casting_student_skills` ora calcola `progress = elapsed/duration` (clamp 0-1) e interpola `base → target` linearmente. **Stop al raggiungimento del cap** (no più crescita "infinita").
+- `status` cambia automaticamente in `ready_to_graduate` quando `progress=1` per ex-agenzia (resta lì finché l'utente non clicca "Trasferisci in Agenzia"). Il bottone "graduate" già esisteva.
+- API `/casting-students` ora include `target_skills`, `training_duration_days`, `training_progress_pct`.
+- **Imprevedibilità**: anche un talento 1.0 può fare 8gg invece di 5 (random factor), come richiesto.
+- Migrazione retroattiva: 1 studente (Jin Garcia) popolato con `target_skills=32` (base 26 + bonus 6) e `duration=8gg`. Verificato via curl.
+
+### 3. Considerazioni su miglioramenti accettati (Step 3 prossimo)
+Da implementare nel prossimo task quando l'utente confermerà:
+- Sistema contratti attori 30/90/180gg con loyalty +5% rinnovo, hot sheet free agents, prestige tier, emoji ⚡⏳ visibilità training. Sempre conveniente vs ingaggio singolo.
+- Free Agents → nuova sezione "Attori" nel Market.
+
+Files: `backend/routes/lampo.py`, `backend/routes/acting_school.py`, `backend/routes/casting_agency.py`, `frontend/src/components/LampoModal.jsx`.
+
+
 ## Bundle 6 fix (Apr 26, 2026 — mattino)
 
 ### 1. Bug: skill=0 dopo invio attore in Scuola di Recitazione

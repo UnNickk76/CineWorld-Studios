@@ -74,8 +74,9 @@ export async function v3api(path, method = 'GET', body) {
 }
 
 /* ═══════ STEPPER ═══════ */
-export const StepperBar = ({ current, onSelect }) => {
-  const ci = V3_STEPS.findIndex(s => s.id === current);
+export const StepperBar = ({ current, onSelect, isTvMovie = false }) => {
+  const STEPS = isTvMovie ? V3_STEPS.filter(s => s.id !== 'la_prima' && s.id !== 'distribution') : V3_STEPS;
+  const ci = STEPS.findIndex(s => s.id === current);
   const ref = useRef(null);
   useEffect(() => {
     if (ref.current) {
@@ -90,7 +91,7 @@ export const StepperBar = ({ current, onSelect }) => {
   }, [current]);
   return (
     <div ref={ref} className="flex items-center gap-0 overflow-x-auto py-2 px-1 scrollbar-hide" data-testid="v3-stepper">
-      {V3_STEPS.map((s, i) => {
+      {STEPS.map((s, i) => {
         const Icon = s.icon;
         const style = STEP_STYLES[s.color];
         const done = i < ci; const active = i === ci;

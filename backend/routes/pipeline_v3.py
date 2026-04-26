@@ -2664,6 +2664,12 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         total_funds = 0
         total_cp = 0
 
+    # === TV MOVIE: apply -70% cost discount + cap CP ===
+    is_tv_movie = bool(project.get("is_tv_movie"))
+    if is_tv_movie:
+        total_funds = int(total_funds * 0.30)
+        total_cp = min(int(total_cp * 0.30), 10)  # max 10 CP al rilascio
+
     # Deduct funds (if any cost) — scaling applied inside _spend based on level
     if total_funds > 0 or total_cp > 0:
         user_doc = await db.users.find_one({'id': user['id']}, {'_id': 0, 'funds': 1, 'cinepass': 1, 'is_guest': 1, 'level': 1, 'films_produced_count': 1})
@@ -2742,7 +2748,16 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "cwsv_display": cwsv_display,
         "cwsv_data": cwsv_data,
         "final_quality": quality_score,
-        "status": "in_theaters",
+        "status": "in_tv_programming" if is_tv_movie else "in_theaters",
+        # === TV MOVIE FLAGS ===
+        "is_tv_movie": is_tv_movie,
+        "target_station_id": project.get("target_station_id") if is_tv_movie else None,
+        "target_station_name": project.get("target_station_name") if is_tv_movie else None,
+        "target_station_style": project.get("target_station_style") if is_tv_movie else None,
+        "tv_air_datetime": project.get("tv_air_datetime") if is_tv_movie else None,
+        "tv_time_slot": project.get("tv_time_slot") if is_tv_movie else None,
+        "tv_replays_count": 0 if is_tv_movie else None,
+        "tv_replays_max": 3 if is_tv_movie else None,
         "released": True,
         "pipeline_version": 3,
         "theater_days": project.get("distribution_theater_days", 21),
@@ -2768,6 +2783,22 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     }
 
     result = await db.films.insert_one(film_doc)
+
+    # === TV MOVIE: attach to TV station palinsesto ===
+    if is_tv_movie and project.get("target_station_id"):
+        try:
+            await db.tv_stations.update_one(
+                {"id": project["target_station_id"], "user_id": user["id"]},
+                {"$addToSet": {"contents.films": {
+                    "id": film_doc["id"],
+                    "added_at": _now(),
+                    "via_tv_movie": True,
+                    "scheduled_at": project.get("tv_air_datetime"),
+                    "time_slot": project.get("tv_time_slot"),
+                }}}
+            )
+        except Exception:
+            pass
 
     project = await _update_project(pid, user["id"], {
         "film_id": film_doc["id"],

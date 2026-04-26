@@ -88,6 +88,7 @@ from routes.series_pipeline import router as series_pipeline_router
 from routes.pipeline_series_v3 import router as pipeline_series_v3_router
 from routes.admin_recovery import router as admin_recovery_router
 from routes.admin_avatars import router as admin_avatars_router
+from routes.tv_movies import router as tv_movies_router
 from routes.my_drafts import router as my_drafts_router
 from routes.city_tastes import router as city_tastes_router
 from routes.ri_cinema import router as ri_cinema_router
@@ -10783,6 +10784,7 @@ app.include_router(velion_router)
 app.include_router(cast_router, prefix="/api")
 app.include_router(admin_recovery_router)
 app.include_router(admin_avatars_router)
+app.include_router(tv_movies_router)
 app.include_router(my_drafts_router)
 app.include_router(city_tastes_router)
 app.include_router(ri_cinema_router)

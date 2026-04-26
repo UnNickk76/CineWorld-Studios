@@ -133,6 +133,7 @@ const AllTVStationsPage = React.lazy(() => import('./pages/AllTVStationsPage'));
 const CastingAgencyPage = React.lazy(() => import('./pages/CastingAgencyPage'));
 const TalentMarketPage = React.lazy(() => import('./pages/TalentMarketPage'));
 const MyDraftsPage = React.lazy(() => import('./pages/MyDraftsPage'));
+const CreateTvMoviePage = React.lazy(() => import('./pages/CreateTvMoviePage'));
 const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 const HqPage = React.lazy(() => import('./pages/HqPage'));
 const PvPArenaPage = React.lazy(() => import('./pages/PvPArenaPage'));
@@ -1432,6 +1433,7 @@ const TopNavbar = () => {
             <div className="grid grid-cols-3 gap-2 p-3">
               {[
                 { icon: Video, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400', count: prodCounts.film },
+                { icon: Radio, label: 'Film TV', path: '/create-tv-movie', color: 'bg-rose-500/15 border-rose-500/30 text-rose-400', count: 0, locked: !productionUnlocks?.has_emittente_tv, lockReason: 'Devi possedere una TV' },
                 { icon: Copy, label: 'Sequel', path: '/create-sequel', color: 'bg-orange-500/15 border-orange-500/30 text-orange-400', count: 0 },
                 { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', count: prodCounts.series },
                 { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400', count: prodCounts.anime },
@@ -1440,13 +1442,17 @@ const TopNavbar = () => {
                 { icon: Clock, label: 'Bozze', path: '/le-mie-bozze', color: 'bg-amber-500/15 border-amber-500/30 text-amber-400', count: 0 },
               ].map(item => (
                 <button key={item.path}
-                  className={`relative flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border ${item.color} transition-all hover:scale-105 active:scale-95`}
-                  onClick={() => { setShowProductionMenu(false); navigate(item.path); }}
+                  className={`relative flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border ${item.color} transition-all ${item.locked ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:scale-105 active:scale-95'}`}
+                  onClick={() => {
+                    if (item.locked) { toast.info(item.lockReason || 'Bloccato'); return; }
+                    setShowProductionMenu(false); navigate(item.path);
+                  }}
                   data-testid={`produci-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                 >
                   <item.icon className="w-6 h-6" />
                   <span className="text-[10px] font-bold">{item.label}</span>
-                  {item.count > 0 && (
+                  {item.locked && <Lock className="absolute top-1 left-1 w-3 h-3 text-gray-500" />}
+                  {!item.locked && item.count > 0 && (
                     <span className="absolute top-1 right-1 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
                       {item.count}
                     </span>
@@ -2211,6 +2217,7 @@ function App() {
                 <Route path="/drafts" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />
                 <Route path="/le-mie-bozze" element={<ProtectedRoute><MyDraftsPage /></ProtectedRoute>} />
+                <Route path="/create-tv-movie" element={<ProtectedRoute><CreateTvMoviePage /></ProtectedRoute>} />
                 <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />
                 <Route path="/stars" element={<ProtectedRoute><DiscoveredStars /></ProtectedRoute>} />
                 <Route path="/releases" element={<ProtectedRoute><ReleaseNotes /></ProtectedRoute>} />

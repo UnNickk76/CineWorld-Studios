@@ -7,6 +7,7 @@ import { V3_STEPS, StepperBar, GENRE_LABELS, v3api } from '../components/v3/V3Sh
 import { IdeaPhase } from '../components/v3/IdeaPhase';
 import { CastPhase } from '../components/v3/CastPhase';
 import { HypePhase, PrepPhase, CiakPhase, FinalCutPhase, MarketingPhase, LaPrimaPhase, DistributionPhase, StepFinale, DiscardFilmButton } from '../components/v3/Phases';
+import TvMovieSchedulePhase from '../components/v3/TvMovieSchedulePhase';
 import TrailerGeneratorCard from '../components/TrailerGeneratorCard';
 import LampoModal from '../components/LampoModal';
 import { AuthContext } from '../contexts';
@@ -433,6 +434,11 @@ export default function PipelineV3() {
   // ═══ PHASE CONTENT ═══
   const phaseProps = { film: selected, onRefresh: refreshSelected, toast: showToast, onDirty: markDirty, readOnly: isReadOnly };
   const renderPhase = () => {
+    const isTvMovie = !!selected?.is_tv_movie;
+    // Per i film TV, La Prima e Distribution sono sostituiti dallo step "Programmazione TV"
+    if (isTvMovie && (viewStep === 'la_prima' || viewStep === 'distribution')) {
+      return <TvMovieSchedulePhase selected={selected} onAdvance={advance} loading={loading} currentStep={viewStep} />;
+    }
     switch (viewStep) {
       case 'idea': return <IdeaPhase {...phaseProps} />;
       case 'hype': return <HypePhase {...phaseProps} />;
@@ -464,6 +470,11 @@ export default function PipelineV3() {
             <h2 className="text-xs font-bold text-white truncate">{selected.title || 'Nuovo Progetto'}</h2>
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
               <span className="text-[7px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium uppercase">{GENRE_LABELS[selected.genre] || selected.genre}</span>
+              {selected.is_tv_movie && (
+                <span className="text-[7px] px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30 font-bold uppercase inline-flex items-center gap-0.5" data-testid="tv-movie-badge">
+                  📺 TV: {selected.target_station_name || 'TV'}
+                </span>
+              )}
               {prevoto?.prevoto ? (
                 <span className={`text-[7px] px-1.5 py-0.5 rounded font-black border ${
                   prevoto.prevoto >= 8 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
@@ -568,7 +579,7 @@ export default function PipelineV3() {
           </div>
         )}
 
-        <StepperBar current={viewStep} onSelect={(sid, idx) => {
+        <StepperBar current={viewStep} isTvMovie={!!selected.is_tv_movie} onSelect={(sid, idx) => {
           // Allow clicking to preview any step; if user picks current step → clear override
           if (sid === currentStep) setViewStepOverride(null);
           else setViewStepOverride(sid);

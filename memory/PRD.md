@@ -1,3 +1,65 @@
+## FILM PER LA TV — FASE 1 MVP (Apr 26, 2026 — sera 9)
+
+Pipeline V3 dedicata "Film per la TV" lockata se l'utente non possiede stazioni TV.
+
+### Backend
+**Nuovo file** `routes/tv_movies.py` (registrato in `server.py`):
+- `GET /api/tv-movies/cost-modifier` → `{multiplier:0.30, discount_pct:70, max_release_cp:10, max_speedup_cp:5, time_slots:{...}}`
+- `GET /api/tv-movies/check-eligibility` → eligible + lista stations dell'utente.
+- `POST /api/tv-movies/create` → crea `film_projects` con flag:
+  - `is_tv_movie=True`, `target_station_id`, `target_station_name`, `target_station_style`
+  - `release_type='tv_direct'`, `distribution_world=False`, `pipeline_version=3`, `pipeline_state='idea'`
+  - `hype_score=15` (bonus iniziale per visibilita' immediata)
+- `POST /api/tv-movies/{pid}/schedule-airing` → setta `tv_air_datetime` + `tv_time_slot` (prime/daytime/late/morning).
+- Slots con modificatori share + costo airing.
+
+**Modifiche `routes/pipeline_v3.py`** (endpoint `confirm-release`):
+- Se `is_tv_movie=True`:
+  - `total_funds *= 0.30` (-70%)
+  - `total_cp = min(total_cp * 0.30, 10)` (max 10 CP)
+  - `status='in_tv_programming'` (invece di `in_theaters`)
+  - Salva `target_station_id/name/style/tv_air_datetime/tv_time_slot/tv_replays_*` nel film_doc
+  - Auto-aggiunge il film a `tv_stations.contents.films` con `via_tv_movie=true`, `scheduled_at`, `time_slot`.
+
+### Frontend
+**Nuova pagina** `pages/CreateTvMoviePage.jsx` (route `/create-tv-movie`):
+- Banner rosa con i 5 vantaggi della pipeline TV.
+- Form: titolo + genere + pretrama + selezione TV destinazione.
+- Se l'utente non ha TV → CTA "Costruisci la tua TV" che porta a `/infrastructure?focus=tv_station`.
+
+**Bottone Produci** `App.js`:
+- Nuovo bottone "Film TV" (icona Radio, rosa) nel menu Produci.
+- `locked: !productionUnlocks?.has_emittente_tv` → mostra grayscale + Lock + toast "Devi possedere una TV".
+
+**Pipeline V3** (`pages/PipelineV3.jsx`, `components/v3/V3Shared.jsx`):
+- `StepperBar` accetta `isTvMovie`: filtra fuori `la_prima` e `distribution`.
+- `renderPhase` gestisce stati `la_prima`/`distribution` per TV movie → renderizza nuovo componente `TvMovieSchedulePhase` (data + ora + slot picker).
+- Header film mostra badge "📺 TV: NomeStazione" rosa.
+
+**Nuovo componente** `components/v3/TvMovieSchedulePhase.jsx`:
+- Auto-imposta `release_type='direct'` al mount.
+- Date picker (min ora+1h) + Time picker.
+- 4 slot orari con metadata share/cost.
+- Bottone "Programma e Procedi al Rilascio" → chiama `schedule-airing` poi `advance` a `release_pending`.
+
+### Test verificati
+- `GET /tv-movies/cost-modifier` ✅ ritorna {multiplier:0.30, discount:70%}.
+- `GET /tv-movies/check-eligibility` ✅ ritorna AnacapitoFlix.
+- `POST /tv-movies/create` ✅ crea progetto con tutti i flag corretti (`is_tv_movie=True`, `release_type=tv_direct`, `hype_score=15`).
+- `POST /tv-movies/{id}/schedule-airing` ✅ setta data/slot.
+- Frontend `/create-tv-movie` ✅ visualizza banner + form + selezione TV (screenshot).
+
+### Limitazioni FASE 1 (da completare in Fase 2/3)
+- Idee bonus non ancora implementate: Anteprima TV mini-evento, bonus genere↔stile, repliche, slot orari con effetto reale su share, maratona.
+- Premi TV-specifici (Fase 3).
+- Visibilita' Prossimamente Dashboard + Prossimamente TV: il film appare gia' (essendo `pipeline_version=3` con `pipeline_state` non excluded), ma manca un badge visivo "FILM TV" e una sezione dedicata.
+- Cost reduction sugli step intermedi (advance/cast/prep): per ora applicato SOLO al rilascio finale. Da estendere agli altri step.
+
+Files: `routes/tv_movies.py` (new), `routes/pipeline_v3.py`, `server.py`, `pages/CreateTvMoviePage.jsx` (new), `pages/PipelineV3.jsx`, `components/v3/V3Shared.jsx`, `components/v3/TvMovieSchedulePhase.jsx` (new), `App.js`.
+
+---
+
+
 ## Selettore Stile TV per emittenti esistenti + CTA "Costruisci una TV" (Apr 26, 2026 — sera 8)
 
 ### A. Selettore Stile TV nelle emittenti esistenti

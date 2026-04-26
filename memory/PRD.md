@@ -1,3 +1,23 @@
+## UI Cleanup — MyDraftsWidget spostato in pagina dedicata (Apr 26, 2026 — sera 4)
+
+Su feedback utente "in dashboard su account admin???? Semmai in Admin panel con sezione dedicata!":
+- **Rimosso** `MyDraftsWidget` dalla Dashboard (`Dashboard.jsx`).
+- **Creata pagina dedicata** `/le-mie-bozze` (`pages/MyDraftsPage.jsx`) con header "LE MIE BOZZE" + descrizione + widget completo.
+- **Nuovo bottone** "Bozze" (icona Clock, ambra) nel menu Produci (App.js, sezione `produci-menu`).
+- **Route registrata** in `App.js`.
+
+Verificato via screenshot: dashboard pulita, pagina `/le-mie-bozze` mostra correttamente i 14 progetti in lavorazione.
+
+Files: `frontend/src/pages/Dashboard.jsx` (rimosso widget + import), `frontend/src/App.js` (route + bottone Produci + lazy import), `frontend/src/pages/MyDraftsPage.jsx` (nuovo).
+
+### Nota: "Prossimamente FILM" vuoto su PRODUZIONE
+- Verificato endpoint preview `/api/coming-soon`: ritorna 6 film correttamente per fandrex1 (admin).
+- Lo screenshot mobile dell'utente mostra URL `cineworld-studios.it` = ambiente PRODUZIONE deployato (non preview).
+- La produzione ha codice/DB diversi dal preview. Il fix del coming-soon è già nel codice del preview (vedi Bundle "LAMPO Visibility Globale"). **Soluzione**: ridepiegare in produzione.
+
+---
+
+
 ## Step C COMPLETATO — Admin Avatar Dashboard (Apr 26, 2026 — sera 3)
 
 ### Frontend integration

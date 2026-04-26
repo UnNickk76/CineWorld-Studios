@@ -132,6 +132,7 @@ const TVStationPage = React.lazy(() => import('./pages/TVStationPage'));
 const AllTVStationsPage = React.lazy(() => import('./pages/AllTVStationsPage'));
 const CastingAgencyPage = React.lazy(() => import('./pages/CastingAgencyPage'));
 const TalentMarketPage = React.lazy(() => import('./pages/TalentMarketPage'));
+const MyDraftsPage = React.lazy(() => import('./pages/MyDraftsPage'));
 const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 const HqPage = React.lazy(() => import('./pages/HqPage'));
 const PvPArenaPage = React.lazy(() => import('./pages/PvPArenaPage'));
@@ -1436,6 +1437,7 @@ const TopNavbar = () => {
                 { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400', count: prodCounts.anime },
                 { icon: BookOpen, label: 'Sceneggiature', path: '/emerging-screenplays', color: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400', count: 0 },
                 { icon: Users, label: 'Agenzia', path: '/agenzia', color: 'bg-purple-500/15 border-purple-500/30 text-purple-400', count: 0 },
+                { icon: Clock, label: 'Bozze', path: '/le-mie-bozze', color: 'bg-amber-500/15 border-amber-500/30 text-amber-400', count: 0 },
               ].map(item => (
                 <button key={item.path}
                   className={`relative flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border ${item.color} transition-all hover:scale-105 active:scale-95`}
@@ -2208,6 +2210,7 @@ function App() {
                 <Route path="/medals" element={<ProtectedRoute><MedalsChallengePage /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />
+                <Route path="/le-mie-bozze" element={<ProtectedRoute><MyDraftsPage /></ProtectedRoute>} />
                 <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />
                 <Route path="/stars" element={<ProtectedRoute><DiscoveredStars /></ProtectedRoute>} />
                 <Route path="/releases" element={<ProtectedRoute><ReleaseNotes /></ProtectedRoute>} />

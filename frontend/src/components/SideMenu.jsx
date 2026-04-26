@@ -8,10 +8,12 @@ const SideMenu = ({ open, setOpen }) => {
   const { setIsOpen: openProductionMenu } = useProductionMenu();
   const { api } = useContext(AuthContext);
   const [categories, setCategories] = useState({ has_strutture: false, has_agenzia: false, has_strategico: false });
+  const [draftsCount, setDraftsCount] = useState(0);
 
   useEffect(() => {
     if (open && api) {
       api.get('/infrastructure/owned-categories').then(r => setCategories(r.data)).catch(() => {});
+      api.get('/my/drafts/count').then(r => setDraftsCount(r.data?.count || 0)).catch(() => {});
     }
   }, [open, api]);
 
@@ -85,7 +87,7 @@ const SideMenu = ({ open, setOpen }) => {
           {visibleItems.map(item => (
             <button
               key={item.label}
-              className={`flex flex-col items-center justify-center min-h-[60px] rounded-lg border text-white text-[10px] active:scale-95 transition-all hover:bg-white/5 ${
+              className={`relative flex flex-col items-center justify-center min-h-[60px] rounded-lg border text-white text-[10px] active:scale-95 transition-all hover:bg-white/5 ${
                 !item.always ? 'border-white/15 bg-white/3 hover:border-white/25' : 'border-white/10 hover:border-white/20'
               }`}
               onClick={item.action}
@@ -93,6 +95,12 @@ const SideMenu = ({ open, setOpen }) => {
             >
               <span className="text-base leading-none mb-1">{item.icon}</span>
               <span className="text-center leading-tight px-0.5">{item.label}</span>
+              {item.label === 'Produci' && draftsCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 bg-amber-500 rounded-full text-[8px] font-bold text-black flex items-center justify-center animate-pulse"
+                  title={`${draftsCount} progetti in lavorazione`} data-testid="produci-drafts-badge">
+                  {draftsCount}
+                </span>
+              )}
             </button>
           ))}
         </div>

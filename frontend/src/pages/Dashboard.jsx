@@ -16,6 +16,7 @@ import { LampoLightning } from '../components/LampoLightning';
 import TvRightsBadge from '../components/TvRightsBadge';
 import TvMarketModal from '../components/TvMarketModal';
 import TvMarketDashboardWidget from '../components/TvMarketDashboardWidget';
+import MyDraftsWidget from '../components/MyDraftsWidget';
 import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from '../components/SectionSortMenu';
 import ProssimamenteDetailModal from '../components/ProssimamenteDetailModal';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
@@ -587,6 +588,11 @@ const Dashboard = () => {
               </div>
             </div>
           )}
+
+          {/* I miei progetti in lavorazione (bozze autosalvanti) */}
+          <div className="mb-4">
+            <MyDraftsWidget />
+          </div>
 
           {/* 3. Prossimamente FILM */}
           <div className="mb-4 rounded-xl glow-blue" data-testid="dashboard-coming-soon-film">

@@ -1,3 +1,21 @@
+## Fix Mercato Diritti TV — tab "Fai Offerta" sempre visibile (Apr 26, 2026 — sera 7)
+
+### Problema
+Il testo nella Panoramica diceva *"puoi comunque inviare un'offerta spontanea al proprietario tramite 'Fai Offerta'"* ma il tab "Fai Offerta" era nascosto se l'utente non possedeva alcuna TV.
+
+### Fix
+- `frontend/src/components/TvMarketModal.jsx` linea 236: rimosso il check `myStations.length > 0` dal rendering del tab.
+- Il tab è ora sempre visibile per non-owner.
+- Se l'utente non ha TV, l'`OfferForm` mostra già il messaggio rosa "Nessuna TV in tuo possesso — Per acquistare diritti devi prima costruire una stazione TV (Infrastrutture)" (già implementato, righe 471-478).
+
+### Test
+Screenshot conferma 2 tab "Panoramica" e "Fai Offerta" entrambi visibili anche per buyer senza stazioni.
+
+Files: `frontend/src/components/TvMarketModal.jsx`.
+
+---
+
+
 ## Fix MyDraftsWidget — clic ora apre la pipeline corretta (Apr 26, 2026 — sera 6)
 
 ### Problema

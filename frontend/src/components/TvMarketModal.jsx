@@ -233,7 +233,7 @@ export default function TvMarketModal({ open, onClose, content }) {
               <TabBtn active={activeTab === 'offers'} onClick={() => setActiveTab('offers')} icon={Users} label={`Offerte ${incomingOffers.length ? `(${incomingOffers.length})` : ''}`} />
             </>
           ) : (
-            myStations.length > 0 && <TabBtn active={activeTab === 'offer'} onClick={() => setActiveTab('offer')} icon={Send} label="Fai Offerta" />
+            <TabBtn active={activeTab === 'offer'} onClick={() => setActiveTab('offer')} icon={Send} label="Fai Offerta" />
           )}
         </div>
 

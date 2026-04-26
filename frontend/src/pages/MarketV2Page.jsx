@@ -10,10 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import {
   Store, Film, Tv, Sparkles, Building2, Radio, Gavel, Tag, Send,
   Loader2, Clock, Star, TrendingUp, Search, Filter, ChevronRight,
-  Trash2, DollarSign, Crown, Zap, X
+  Trash2, DollarSign, Crown, Zap, X, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import TalentMarketModal from '../components/TalentMarketModal';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 const posterSrc = (url) => {
@@ -30,6 +31,7 @@ const SECTIONS = [
   { id: 'anime', label: 'Anime', icon: Sparkles, color: 'text-orange-400' },
   { id: 'infrastructure', label: 'Infra', icon: Building2, color: 'text-emerald-400' },
   { id: 'tv_rights', label: 'Dir.TV', icon: Radio, color: 'text-purple-400' },
+  { id: 'npc', label: 'NPC', icon: Users, color: 'text-pink-400' },
 ];
 
 const SALE_ICONS = { fixed: Tag, auction: Gavel, offer: Send };
@@ -50,6 +52,7 @@ export default function MarketV2Page() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [showFilters, setShowFilters] = useState(false);
+  const [showTalentMarketModal, setShowTalentMarketModal] = useState(false);
 
   // Sell modal
   const [showSellModal, setShowSellModal] = useState(false);
@@ -230,13 +233,20 @@ export default function MarketV2Page() {
           <>
           <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
             {SECTIONS.map(s => (
-              <button key={s.id} onClick={() => setSection(s.id)}
+              <button key={s.id} onClick={() => {
+                if (s.id === 'npc') {
+                  setShowTalentMarketModal(true);
+                } else {
+                  setSection(s.id);
+                }
+              }}
                 className={`flex items-center gap-1 px-2 py-1 rounded-md text-[9px] font-medium whitespace-nowrap transition
-                  ${section === s.id ? 'bg-white/10 text-white' : 'bg-white/[0.03] text-gray-500'}`}
+                  ${s.id === 'npc' ? 'bg-pink-500/15 text-pink-200 border border-pink-500/30' :
+                    section === s.id ? 'bg-white/10 text-white' : 'bg-white/[0.03] text-gray-500'}`}
                 data-testid={`market-section-${s.id}`}>
-                <s.icon className={`w-3 h-3 ${section === s.id ? s.color : ''}`} />
+                <s.icon className={`w-3 h-3 ${s.id === 'npc' ? 'text-pink-300' : (section === s.id ? s.color : '')}`} />
                 {s.label}
-                {s.id !== 'all' && counts[s.id] > 0 && <span className="text-[8px] opacity-50">{counts[s.id]}</span>}
+                {s.id !== 'all' && s.id !== 'npc' && counts[s.id] > 0 && <span className="text-[8px] opacity-50">{counts[s.id]}</span>}
               </button>
             ))}
           </div>
@@ -523,6 +533,12 @@ export default function MarketV2Page() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* NPC Talent Market modal — Sistema Talenti Vivente */}
+      <TalentMarketModal
+        open={showTalentMarketModal}
+        onClose={() => setShowTalentMarketModal(false)}
+      />
     </div>
   );
 }

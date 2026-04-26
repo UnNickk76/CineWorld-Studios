@@ -704,6 +704,7 @@ export default function CastingAgencyPage() {
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState(null);
   const [showFreeAgents, setShowFreeAgents] = useState(false);
+  const [showTalentMarket, setShowTalentMarket] = useState(false);
 
   const releaseActor = async (actorId) => {
     const actor = actors.find(a => a.id === actorId);

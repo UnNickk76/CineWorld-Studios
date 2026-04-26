@@ -36,6 +36,21 @@ export default function CreateTvMoviePage() {
   const [preplot, setPreplot] = useState('');
   const [stationId, setStationId] = useState('');
   const [creating, setCreating] = useState(false);
+  const [bonusInfo, setBonusInfo] = useState(null);
+
+  // Re-check bonus genere↔stile ogni volta che genere o stazione cambiano
+  useEffect(() => {
+    if (!stationId || !genre) { setBonusInfo(null); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const r = await axios.get(`${API}/api/tv-movies/genre-style-bonus/${stationId}/${genre.toLowerCase()}`, { headers });
+        if (alive) setBonusInfo(r.data);
+      } catch (_) { /* ignore */ }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stationId, genre]);
 
   useEffect(() => {
     (async () => {
@@ -155,6 +170,16 @@ export default function CreateTvMoviePage() {
               <select value={genre} onChange={(e) => setGenre(e.target.value)} className="w-full bg-[#0d0d0f] border border-white/10 rounded-md px-3 py-2 text-xs text-white" data-testid="tv-movie-genre-select">
                 {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
+              {/* FASE 2: indicatore bonus genere↔stile */}
+              {bonusInfo && bonusInfo.matches && (
+                <div className="mt-1.5 flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/15 border border-emerald-500/30" data-testid="genre-style-bonus-active">
+                  <Sparkles className="w-3 h-3 text-emerald-400" />
+                  <span className="text-[10px] text-emerald-300 font-bold">+{bonusInfo.bonus_pct}% CWSv (genere preferito da {bonusInfo.station_name})</span>
+                </div>
+              )}
+              {bonusInfo && !bonusInfo.matches && bonusInfo.preferred_genres?.length > 0 && (
+                <p className="mt-1 text-[9px] text-gray-500" data-testid="genre-style-hint">{bonusInfo.station_name} preferisce: {bonusInfo.preferred_genres.join(', ')}</p>
+              )}
             </div>
 
             <div>

@@ -2654,6 +2654,16 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     except Exception:
         pass
 
+    # ─── FASE 2: Bonus Genere↔Stile TV (+5% CWSv) ───────────
+    if project.get("is_tv_movie") and project.get("tv_genre_style_match"):
+        try:
+            bonus_pct = float(project.get("tv_genre_bonus_pct") or 5.0)
+            quality_score = round(min(10.0, quality_score * (1.0 + bonus_pct / 100.0)), 2)
+            cwsv_data["tv_genre_match_bonus_pct"] = bonus_pct
+            cwsv_display = str(int(round(quality_score * 10)))
+        except Exception:
+            pass
+
     # Calculate production cost (safe — handles missing data)
     # Note: we pass base cost to _spend; scaling is applied INSIDE _spend to avoid double-scaling
     try:
@@ -2758,6 +2768,15 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "tv_time_slot": project.get("tv_time_slot") if is_tv_movie else None,
         "tv_replays_count": 0 if is_tv_movie else None,
         "tv_replays_max": 3 if is_tv_movie else None,
+        # FASE 2 metadata
+        "tv_genre_style_match": project.get("tv_genre_style_match") if is_tv_movie else None,
+        "tv_genre_bonus_pct": project.get("tv_genre_bonus_pct") if is_tv_movie else None,
+        "tv_anteprima_active": project.get("tv_anteprima_active") if is_tv_movie else None,
+        "tv_maratona_eligible": project.get("tv_maratona_eligible") if is_tv_movie else None,
+        "tv_share_modifier": (
+            {"prime": 1.0, "daytime": 0.7, "late": 0.5, "morning": 0.4}.get(project.get("tv_time_slot") or "prime", 1.0)
+            if is_tv_movie else None
+        ),
         "released": True,
         "pipeline_version": 3,
         "theater_days": project.get("distribution_theater_days", 21),
@@ -2772,7 +2791,7 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "la_prima_city": (project.get("premiere") or {}).get("city") if (project.get("release_type") == "premiere") else None,
         "la_prima_nation": (project.get("premiere") or {}).get("nation") if (project.get("release_type") == "premiere") else None,
         "opening_day_revenue": _calc_opening_day(quality_score, project),
-        "current_cinemas": max(1, len(project.get("distribution_continents", []))),
+        "current_cinemas": 0 if is_tv_movie else max(1, len(project.get("distribution_continents", []))),
         # Purchased-screenplay flags — propagate to films so UI can show the book badge
         "from_purchased_screenplay": bool(project.get("from_purchased_screenplay")),
         "purchased_screenplay_mode": project.get("purchased_screenplay_mode"),
@@ -2783,6 +2802,26 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     }
 
     result = await db.films.insert_one(film_doc)
+
+    # === FASE 2: TV MOVIE — apply slot share + maratona modifiers to opening day ===
+    if is_tv_movie:
+        try:
+            slot = project.get("tv_time_slot") or "prime"
+            slot_mod = {"prime": 1.0, "daytime": 0.7, "late": 0.5, "morning": 0.4}.get(slot, 1.0)
+            maratona_mod = 1.15 if project.get("tv_maratona_eligible") else 1.0
+            base_rev = int(film_doc.get("opening_day_revenue") or 0)
+            new_rev = int(base_rev * slot_mod * maratona_mod)
+            await db.films.update_one(
+                {"id": film_doc["id"]},
+                {"$set": {
+                    "opening_day_revenue": new_rev,
+                    "tv_share_modifier_applied": round(slot_mod * maratona_mod, 3),
+                    "tv_slot_mod": slot_mod,
+                    "tv_maratona_mod": maratona_mod,
+                }}
+            )
+        except Exception:
+            pass
 
     # === TV MOVIE: attach to TV station palinsesto ===
     if is_tv_movie and project.get("target_station_id"):

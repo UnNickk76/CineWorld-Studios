@@ -134,6 +134,7 @@ const CastingAgencyPage = React.lazy(() => import('./pages/CastingAgencyPage'));
 const TalentMarketPage = React.lazy(() => import('./pages/TalentMarketPage'));
 const MyDraftsPage = React.lazy(() => import('./pages/MyDraftsPage'));
 const CreateTvMoviePage = React.lazy(() => import('./pages/CreateTvMoviePage'));
+const TvAwardsPage = React.lazy(() => import('./pages/TvAwardsPage'));
 const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 const HqPage = React.lazy(() => import('./pages/HqPage'));
 const PvPArenaPage = React.lazy(() => import('./pages/PvPArenaPage'));
@@ -1197,6 +1198,7 @@ const TopNavbar = () => {
     { path: '/journal', icon: Newspaper, label: 'cinema_journal' },
     { path: '/stars', icon: Star, label: 'discovered_stars' },
     { path: '/festivals', icon: Award, label: 'festivals' },
+    { path: '/tv-awards', icon: Trophy, label: 'TV Awards' },
     { path: '/social', icon: Globe, label: 'cineboard' },
     { path: '/games', icon: Coins, label: 'contests' },
     { path: '/minigiochi', icon: Gamepad2, label: language === 'it' ? 'Minigiochi + Sfide' : 'Minigames + VS' },
@@ -2218,6 +2220,7 @@ function App() {
                 <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />
                 <Route path="/le-mie-bozze" element={<ProtectedRoute><MyDraftsPage /></ProtectedRoute>} />
                 <Route path="/create-tv-movie" element={<ProtectedRoute><CreateTvMoviePage /></ProtectedRoute>} />
+                <Route path="/tv-awards" element={<ProtectedRoute><TvAwardsPage /></ProtectedRoute>} />
                 <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />
                 <Route path="/stars" element={<ProtectedRoute><DiscoveredStars /></ProtectedRoute>} />
                 <Route path="/releases" element={<ProtectedRoute><ReleaseNotes /></ProtectedRoute>} />

@@ -1,3 +1,57 @@
+## FILM PER LA TV — FASE 2 + FASE 3 COMPLETATE (Apr 26, 2026 — sera 10)
+
+### FASE 2 — Bonus Features
+
+**Backend** (`routes/tv_movies.py`):
+- **Bonus genere↔stile TV**: nuova mappa `STYLE_PREFERRED_GENRES` con 10 stili (netflix→thriller/crime/drama/sci_fi, disney→animation/fantasy/adventure/musical/romance, paramount→action/adventure/thriller, prime→drama/thriller/comedy, apple→drama/biographical/documentary, sky→thriller/crime/documentary, rai→historical/drama/biographical/documentary, dazn→documentary, tim→comedy/romance/drama).
+  - Nuovo endpoint `GET /tv-movies/genre-style-bonus/{station_id}/{genre}` ritorna match + bonus_pct (5%) + preferred_genres.
+  - Salvato su `film_projects.tv_genre_style_match` + `tv_genre_bonus_pct` alla creazione.
+  - Applicato al CWSv in `pipeline_v3.py confirm-release`: `quality_score *= 1.05` se match.
+- **Slot orari con effetto share reale**: dopo l'inserimento del film_doc nel release, modificatori applicati su `opening_day_revenue`:
+  - prime: ×1.0 · daytime: ×0.7 · late: ×0.5 · morning: ×0.4
+  - Salvato `tv_share_modifier_applied`, `tv_slot_mod`, `tv_maratona_mod`.
+- **Maratona** (3+ film TV stessa TV stesso giorno = +15% share): rilevamento automatico in `schedule-airing` (count `tv_air_datetime` nello stesso giorno solare). Flag `tv_maratona_eligible=true` + bonus moltiplicato a release.
+- **Repliche/Rerun** (`POST /tv-movies/{film_id}/rerun`): max 3, decay `0.7^N` su spettatori, attaccato al palinsesto TV con `rerun_number`. Aggiorna `total_viewers` e `total_revenue` proporzionalmente.
+- **Anteprima TV** (`POST /tv-movies/{pid}/anteprima-tv`): mini evento gratuito → +20 hype_score, flag `tv_anteprima_active=true`.
+
+**Frontend**:
+- `pages/CreateTvMoviePage.jsx`: indicatore bonus genere↔stile in tempo reale ("✨ +5% CWSv (genere preferito da [TV])"), o hint dei generi preferiti se no match.
+- `components/ContentTemplate.jsx`: nuovi bottoni accanto a "Mercato TV" — **✨ Anteprima** (rosa) e **🔁 Replica** (cyan) visibili solo per film TV, gestiscono confirm + toast + chiamata API.
+- `current_cinemas` impostato a 0 per i film TV (non occupano sale).
+
+### FASE 3 — TV Awards
+
+**Backend** (`tv_movies.py awards_router`):
+- `GET /api/tv-awards/categories` → 6 categorie: Miglior Film TV (🏆), Regia TV (🎬), Attore TV (🎭), Attrice TV (🎭), Sceneggiatura TV (📜), Colonna Sonora TV (🎵).
+- `GET /api/tv-awards/leaderboard?year=YYYY` → top 10 per `quality_score` (anno corrente di default), aggrega regia/attori dai cast con scoring per somma quality_score, separato per genere (♂/♀).
+
+**Frontend** (`pages/TvAwardsPage.jsx`):
+- Pagina dedicata `/tv-awards` con header Trophy + banner ambra.
+- Year selector (2024-2026).
+- 6 card per categoria con top 5 ranked (medaglie ambra/grigio/bronzo per top 3) + poster + station + cwsv_display.
+- Empty state per anno senza candidati.
+- Aggiunto link nel menu nav (Trophy icon).
+
+### Test verificati
+- `genre-style-bonus/netflix/thriller` → matches=true, bonus_pct=5.0 ✅
+- `genre-style-bonus/default/drama` → matches=false ✅
+- `tv-awards/categories` → 6 categorie ✅
+- `tv-awards/leaderboard?year=2026` → struttura corretta (vuota nel preview perché no film TV ancora rilasciati) ✅
+- Frontend `/tv-awards` ✅ rendering completo
+- Frontend `/create-tv-movie` con genre=Thriller → bonus indicator visibile ✅
+
+### Files
+- `routes/tv_movies.py` (esteso con FASE 2+3, ~150 nuove righe)
+- `routes/pipeline_v3.py` (bonus genere applicato + slot/maratona modifiers)
+- `server.py` (registrato `awards_router`)
+- `pages/TvAwardsPage.jsx` (NEW)
+- `pages/CreateTvMoviePage.jsx` (bonus indicator)
+- `components/ContentTemplate.jsx` (bottoni Anteprima + Replica)
+- `App.js` (route + navItems)
+
+---
+
+
 ## FILM PER LA TV — FASE 1 MVP (Apr 26, 2026 — sera 9)
 
 Pipeline V3 dedicata "Film per la TV" lockata se l'utente non possiede stazioni TV.

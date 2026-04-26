@@ -974,14 +974,56 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
             data-testid="ct-production-house-title">
             una produzione {film.logo_url && <img src={film.logo_url} alt="" className="inline w-3 h-3 rounded-sm object-contain mx-0.5" />}<span className="font-bold not-italic">{film.production_house_name || film.producer_nickname || 'Indipendente'}</span>
           </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowTvMarket(true); }}
-            data-testid="ct-tv-market-btn"
-            className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black active:scale-95 transition-all touch-manipulation flex items-center gap-1 shadow-[0_0_8px_rgba(251,191,36,0.3)]"
-            aria-label="Apri mercato diritti TV"
-          >
-            <Tv size={10} /> Mercato TV
-          </button>
+          <div className="flex items-center gap-1.5">
+            {/* FASE 2: Bottoni TV-specifici */}
+            {film.is_tv_movie && film.status !== 'released' && !film.tv_anteprima_active && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const token = localStorage.getItem('cineworld_token');
+                    const r = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/tv-movies/${film.id}/anteprima-tv`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+                    const d = await r.json();
+                    if (r.ok) { window.toast?.success?.(`Anteprima attivata! +${d.hype_boost} hype`); }
+                    else throw new Error(d.detail);
+                  } catch (err) { window.toast?.error?.(err.message); }
+                }}
+                data-testid="ct-tv-anteprima-btn"
+                className="px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/80 hover:bg-rose-500 text-white active:scale-95 transition-all touch-manipulation flex items-center gap-1"
+                aria-label="Attiva Anteprima TV"
+              >
+                ✨ Anteprima
+              </button>
+            )}
+            {film.is_tv_movie && (film.status === 'in_tv_programming' || film.status === 'completed') && (film.tv_replays_count ?? 0) < (film.tv_replays_max ?? 3) && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (!window.confirm('Trasmettere una nuova replica? Spettatori previsti -30%.')) return;
+                  try {
+                    const token = localStorage.getItem('cineworld_token');
+                    const r = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/tv-movies/${film.id}/rerun`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+                    const d = await r.json();
+                    if (r.ok) { window.toast?.success?.(`Replica #${d.replay_number} programmata · ${d.expected_viewers.toLocaleString()} spettatori attesi`); }
+                    else throw new Error(d.detail);
+                  } catch (err) { window.toast?.error?.(err.message); }
+                }}
+                data-testid="ct-tv-rerun-btn"
+                className="px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-cyan-500/80 hover:bg-cyan-500 text-white active:scale-95 transition-all touch-manipulation flex items-center gap-1"
+                aria-label="Replica TV"
+              >
+                🔁 Replica
+              </button>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowTvMarket(true); }}
+              data-testid="ct-tv-market-btn"
+              className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black active:scale-95 transition-all touch-manipulation flex items-center gap-1 shadow-[0_0_8px_rgba(251,191,36,0.3)]"
+              aria-label="Apri mercato diritti TV"
+            >
+              <Tv size={10} /> Mercato TV
+            </button>
+          </div>
         </div>
       )}
 

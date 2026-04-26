@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Users, Star, Briefcase, Trash2, RefreshCw, ChevronRight, BookOpen, Award, Shield, Swords, Heart, Sparkles, Search, Pen, Diamond, ChevronDown, ChevronUp, UserPlus, Lock, Unlock, FileSignature, Clapperboard, ArrowRight, Zap } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
+import FreeAgentsMarketModal from '../components/FreeAgentsMarketModal';
 
 const GENRE_ICONS = {
   action: Swords, comedy: Sparkles, drama: Heart, horror: Shield,
@@ -31,12 +32,20 @@ function SkillBar({ name, value, cap }) {
   );
 }
 
-function ActorCard({ actor, onFire, onSendToSchool, firing, sendingToSchool }) {
+function ActorCard({ actor, onFire, onSendToSchool, onRelease, firing, sendingToSchool, releasing }) {
   const [expanded, setExpanded] = useState(false);
   const skills = actor.skills || {};
   const avgSkill = Object.values(skills).length > 0
     ? Math.round(Object.values(skills).reduce((a, b) => a + b, 0) / Object.values(skills).length)
     : 0;
+
+  // Contract countdown
+  const contractDays = actor.contract_expires_at
+    ? Math.max(0, Math.ceil((new Date(actor.contract_expires_at) - new Date()) / (1000 * 60 * 60 * 24)))
+    : null;
+  const contractColor = contractDays === null ? 'text-gray-500'
+    : contractDays > 14 ? 'text-emerald-400'
+    : contractDays > 3 ? 'text-amber-400' : 'text-red-400';
 
   return (
     <Card className="bg-[#1A1A1B] border-gray-800 hover:border-gray-700 transition-all" data-testid={`agency-actor-${actor.id}`}>
@@ -53,6 +62,12 @@ function ActorCard({ actor, onFire, onSendToSchool, firing, sendingToSchool }) {
             <p className="text-[10px] text-gray-500">
               {actor.nationality} &bull; {actor.age} anni &bull; Skill media: <span className={avgSkill >= 70 ? 'text-emerald-400' : avgSkill >= 50 ? 'text-cyan-400' : 'text-amber-400'}>{avgSkill}</span>
               &bull; Film: {actor.films_count || 0}
+              {contractDays !== null && (
+                <> &bull; <span className={contractColor} data-testid={`contract-days-${actor.id}`}>📜 {contractDays}gg</span></>
+              )}
+              {actor.loyalty_score > 0 && (
+                <> &bull; <span className="text-purple-400" title="Bonus loyalty CWSv">💜 +{Math.round(actor.loyalty_score)}%</span></>
+              )}
             </p>
             <div className="flex flex-wrap gap-1 mt-1">
               {(actor.strong_genres_names || actor.strong_genres || []).map((g, i) => (
@@ -80,6 +95,13 @@ function ActorCard({ actor, onFire, onSendToSchool, firing, sendingToSchool }) {
               <Button size="sm" variant="ghost" className="h-6 text-[9px] text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10"
                 onClick={() => onSendToSchool(actor.id)} disabled={sendingToSchool} data-testid={`send-to-school-${actor.id}`}>
                 {sendingToSchool ? <RefreshCw className="w-3 h-3 animate-spin" /> : <BookOpen className="w-3 h-3" />}
+              </Button>
+            )}
+            {onRelease && (
+              <Button size="sm" variant="ghost" className="h-6 text-[9px] text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                title="Libera (va al Mercato Free Agents)"
+                onClick={() => onRelease(actor.id)} disabled={releasing} data-testid={`release-actor-${actor.id}`}>
+                {releasing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Unlock className="w-3 h-3" />}
               </Button>
             )}
           </div>
@@ -680,6 +702,19 @@ export default function CastingAgencyPage() {
   const [recruitsInfo, setRecruitsInfo] = useState({});
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState(null);
+  const [showFreeAgents, setShowFreeAgents] = useState(false);
+
+  const releaseActor = async (actorId) => {
+    const actor = actors.find(a => a.id === actorId);
+    if (!await gameConfirm({ title: `Liberare ${actor?.name}?`, subtitle: 'Lo metti nel Mercato Free Agents. Altri produttori potranno ingaggiarlo.', confirmLabel: 'Libera' })) return;
+    setActionId(actorId);
+    try {
+      await api.post(`/agency/release-actor/${actorId}`);
+      toast.success(`${actor?.name} è stato liberato`);
+      loadInfo(); loadActors();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    finally { setActionId(null); }
+  };
 
   const loadInfo = useCallback(async () => {
     try {
@@ -832,6 +867,13 @@ export default function CastingAgencyPage() {
       {/* Actors Tab */}
       {tab === 'actors' && (
         <div className="space-y-2">
+          {/* Free Agents Market entry */}
+          <Button onClick={() => setShowFreeAgents(true)} data-testid="open-free-agents-market"
+                  className="w-full bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/30 text-amber-200 hover:from-amber-500/30 hover:to-orange-500/30 h-9">
+            <Users className="w-4 h-4 mr-2" />
+            Mercato Attori Liberi
+            <ChevronRight className="w-3 h-3 ml-1" />
+          </Button>
           {actors.length === 0 ? (
             <div className="text-center py-10 text-gray-500">
               <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -841,6 +883,7 @@ export default function CastingAgencyPage() {
           ) : (
             actors.map(actor => (
               <ActorCard key={actor.id} actor={actor} onFire={fire} onSendToSchool={sendToSchool}
+                onRelease={releaseActor} releasing={actionId === actor.id}
                 firing={actionId === actor.id} sendingToSchool={actionId === actor.id} />
             ))
           )}
@@ -914,6 +957,12 @@ export default function CastingAgencyPage() {
           <p className="text-[9px] text-gray-500 mt-1.5">Gli attori migliorano gradualmente dopo ogni film. Crescita basata su qualità del film e talento nascosto.</p>
         </CardContent>
       </Card>
+
+      <FreeAgentsMarketModal
+        open={showFreeAgents}
+        onClose={() => setShowFreeAgents(false)}
+        onSigned={() => { loadActors(); loadInfo(); }}
+      />
     </div>
   );
 }

@@ -36,7 +36,7 @@ function formatItalianDateTime(iso) {
   }
 }
 
-export default function TvAiringBadge({ contentId, compact = false }) {
+export default function TvAiringBadge({ contentId, compact = false, onClick }) {
   const { api } = useContext(AuthContext);
   const [info, setInfo] = useState(null);
 
@@ -59,11 +59,14 @@ export default function TvAiringBadge({ contentId, compact = false }) {
   if (!dt) return null;
 
   const isLive = info.broadcast_state === 'airing';
+  const Tag = onClick ? 'button' : 'div';
+  const handleClick = onClick ? (e) => { e.stopPropagation(); onClick(info); } : undefined;
 
   return (
-    <div
+    <Tag
       data-testid="tv-airing-badge"
-      className={`inline-flex items-center gap-2 ${compact ? 'px-2 py-1 text-[9px]' : 'px-3 py-1.5 text-[11px]'} rounded-full font-bold tv-airing-glow`}
+      onClick={handleClick}
+      className={`inline-flex items-center gap-2 ${compact ? 'px-2 py-1 text-[9px]' : 'px-3 py-1.5 text-[11px]'} rounded-full font-bold tv-airing-glow ${onClick ? 'hover:scale-105 active:scale-95 cursor-pointer' : ''} transition-transform`}
       style={{
         color,
         border: `1px solid rgba(${glow},0.45)`,
@@ -91,6 +94,6 @@ export default function TvAiringBadge({ contentId, compact = false }) {
         }
         .tv-airing-glow { animation: tvAiringPulse 2.4s ease-in-out infinite; }
       `}</style>
-    </div>
+    </Tag>
   );
 }

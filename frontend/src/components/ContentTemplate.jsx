@@ -964,7 +964,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       </div>
       {/* TV Airing badge — visible only if content is in palinsesto */}
       <div className="px-4 mt-1 flex items-center">
-        <TvAiringBadge contentId={filmId} />
+        <TvAiringBadge contentId={filmId} onClick={(info) => navigate(`/tv-station/${info.station_id}`)} />
       </div>
       {/* Production House — clickable */}
       {(film.production_house_name || film.producer_nickname || film.user_id) && (

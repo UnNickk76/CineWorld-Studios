@@ -49,10 +49,16 @@ class SetupStep1Request(BaseModel):
     infra_id: str
     station_name: str
     nation: str
+    style: Optional[str] = "default"  # netflix, disney, paramount, prime, apple, sky, rai, dazn, tim, default
 
 class SetupStep2Request(BaseModel):
     station_id: str
     ad_seconds: int = 30
+    style: Optional[str] = None  # allow updating style later
+
+class UpdateStationStyleRequest(BaseModel):
+    station_id: str
+    style: str
 
 class AddContentRequest(BaseModel):
     station_id: str
@@ -122,6 +128,10 @@ async def setup_step1(req: SetupStep1Request, user: dict = Depends(get_current_u
         raise HTTPException(400, "Nazione non valida")
     
     now = datetime.now(timezone.utc).isoformat()
+    valid_styles = {"default", "netflix", "disney", "paramount", "prime", "apple", "sky", "rai", "dazn", "tim"}
+    chosen_style = (req.style or "default").lower()
+    if chosen_style not in valid_styles:
+        chosen_style = "default"
     station = {
         'id': str(uuid.uuid4()),
         'infra_id': req.infra_id,
@@ -129,6 +139,7 @@ async def setup_step1(req: SetupStep1Request, user: dict = Depends(get_current_u
         'owner_nickname': user.get('nickname', 'Player'),
         'station_name': req.station_name.strip(),
         'nation': req.nation,
+        'style': chosen_style,
         'ad_seconds': 30,
         'setup_step': 2,
         'setup_complete': False,
@@ -147,16 +158,55 @@ async def setup_step1(req: SetupStep1Request, user: dict = Depends(get_current_u
             {'$set': {
                 'station_name': req.station_name.strip(),
                 'nation': req.nation,
+                'style': chosen_style,
                 'setup_step': 2,
                 'updated_at': now,
             }}
         )
-        station = {**existing_station, 'station_name': req.station_name.strip(), 'nation': req.nation, 'setup_step': 2}
+        station = {**existing_station, 'station_name': req.station_name.strip(), 'nation': req.nation, 'style': chosen_style, 'setup_step': 2}
     else:
         await db.tv_stations.insert_one(station)
         del station['_id']
     
-    return {"station": station, "nations": NATIONS}
+    return {"station": station, "nations": NATIONS, "available_styles": sorted(valid_styles)}
+
+
+@router.post("/tv-stations/update-style")
+async def update_station_style(req: UpdateStationStyleRequest, user: dict = Depends(get_current_user)):
+    """Cambia lo stile branding di un'emittente TV (font/colori del badge In TV)."""
+    valid_styles = {"default", "netflix", "disney", "paramount", "prime", "apple", "sky", "rai", "dazn", "tim"}
+    chosen = (req.style or "default").lower()
+    if chosen not in valid_styles:
+        raise HTTPException(400, f"Stile non valido. Disponibili: {sorted(valid_styles)}")
+    station = await db.tv_stations.find_one(
+        {"id": req.station_id, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not station:
+        raise HTTPException(404, "Emittente TV non trovata")
+    await db.tv_stations.update_one(
+        {"id": req.station_id, "user_id": user["id"]},
+        {"$set": {"style": chosen, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": True, "style": chosen}
+
+
+@router.get("/tv-stations/available-styles")
+async def get_available_tv_styles():
+    """Lista degli stili branding disponibili per le emittenti TV (con copy non-copyright)."""
+    return {
+        "styles": [
+            {"key": "default", "label": "Generica", "color": "#06b6d4", "font_family": "Bebas Neue", "tagline": "Stile pulito CineWorld"},
+            {"key": "netflix", "label": "NetfleX", "color": "#E50914", "font_family": "Bebas Neue", "tagline": "Rosso intenso, look streaming dominante"},
+            {"key": "disney", "label": "Disnext+", "color": "#0066CC", "font_family": "Inter", "tagline": "Blu fiabesco, family-friendly"},
+            {"key": "paramount", "label": "Topmount+", "color": "#0064FF", "font_family": "Inter", "tagline": "Blu acceso, vibe cinematografico"},
+            {"key": "prime", "label": "PrimeFlix", "color": "#00A8E1", "font_family": "Inter", "tagline": "Ciano commerce-driven"},
+            {"key": "apple", "label": "AppleVue", "color": "#FFFFFF", "font_family": "SF Pro Display", "tagline": "Minimal premium, bianco/grigio"},
+            {"key": "sky", "label": "SkyView", "color": "#0072FF", "font_family": "Inter", "tagline": "Blu sportivo, ricercato"},
+            {"key": "rai", "label": "ItaliaPlay", "color": "#0046AD", "font_family": "Inter", "tagline": "Blu istituzionale italiano"},
+            {"key": "dazn", "label": "Dazz!", "color": "#F8FF13", "font_family": "Inter", "tagline": "Giallo neon, sport-energy"},
+            {"key": "tim", "label": "ItalVision", "color": "#0046AD", "font_family": "Inter", "tagline": "Blu telco, family content"},
+        ]
+    }
 
 
 @router.post("/tv-stations/setup-step2")

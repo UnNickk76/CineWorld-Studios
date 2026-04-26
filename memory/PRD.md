@@ -1,3 +1,49 @@
+## Bundle 9 fix (Apr 26, 2026 — sera)
+
+### A. Badge TV cliccabile (miglioramento)
+- `TvAiringBadge.jsx`: prop `onClick(info)` opzionale → render come `<button>` con hover/active scale + cursor pointer.
+- `ContentTemplate.jsx`: badge ora apre la pagina `/tv-station/{id}` al click.
+
+### B. Selettore Stile TV Station (Task C - backend pronto)
+- `routes/tv_stations.py`:
+  - `SetupStep1Request` accetta `style` (default/netflix/disney/paramount/prime/apple/sky/rai/dazn/tim).
+  - `POST /api/tv-stations/update-style` per cambiare stile su una emittente esistente.
+  - `GET /api/tv-stations/available-styles` ritorna 10 stili con label non-copyright (NetfleX/Disnext+/Topmount+/PrimeFlix/AppleVue/SkyView/ItaliaPlay/Dazz!/ItalVision/Generica), color, font_family, tagline.
+- Validazione server-side. Lo stile influenza il glow/font del badge "In TV dal..." già pronto in `TvAiringBadge.STYLE_PRESETS`.
+- Frontend selector form da agganciare al setup TV station (UI da fare al prossimo passaggio).
+
+### C. Sistema Contratti Attori + Free Agents Market + Sistema Rifiuti V3 (Task A - MVP completo)
+
+**Backend nuovo file `routes/agency_contracts.py`** (registrato in server.py):
+- **Modello**: `agency_actors` ora supporta `contract_started_at`, `contract_duration_days`, `contract_expires_at`, `renewals_count`, `loyalty_score`, `contract_total_paid`.
+- **Endpoint**:
+  - `POST /api/agency/sign-contract/{actor_id}` — body `{duration_days: 30|90|180}`. Costo: `cost_per_film × {0.6, 1.5, 2.7}` (semestrale ha sconto -10% cumulato).
+  - `POST /api/agency/renew-contract/{actor_id}` — body `{duration_days, renegotiate_fee: bool}`. Senza rinegoziazione: `loyalty_score += 5%` (cap 50%). Con rinegoziazione: -10% fee ma reset loyalty.
+  - `POST /api/agency/release-actor/{actor_id}` — sposta in `free_agents` collection.
+  - `GET /api/market/free-agents?limit&offset&min_stars&gender` — lista pubblica. Player con Agenzia+Scuola: -45%. Solo Agenzia o Scuola: -25%. Esclude i propri ex-attori.
+  - `POST /api/market/free-agents/sign/{actor_id}` — body `{duration_days, offered_fee}`. **Sistema rifiuti**:
+    - Probabilità accettazione = 60% base + perks (+10/+20%) + fame×0.4% (cap +20%) + livello×1% (cap +25%) + fee_ratio modifier.
+    - Rifiuto: `{rejected: true, message: "Il mio agente dice...", suggested_fee, recommended_fee}`. Il client può rinegoziare fino a 3 volte.
+    - 5 messaggi di rifiuto random in italiano.
+  - `GET /api/agency/contracts/expiring-soon?days=7` — utility per UI countdown.
+
+**Frontend**:
+- Nuovo `FreeAgentsMarketModal.jsx`: dialog completa con elenco free agents, selettore durata 30/90/180gg, slider/input offerta, sistema rinegoziazione (counter 1/3, 2/3, definitivo), banner perks "✓ Agenzia ✓ Scuola Sconto -45%".
+- `CastingAgencyPage.jsx`:
+  - Nuovo bottone gradient amber "Mercato Attori Liberi" sopra la lista propri attori.
+  - `ActorCard` ora mostra **countdown contratto** (📜 14gg verde/ambra/rosso) e **loyalty bonus** (💜 +15%).
+  - Nuovo bottone "Libera" 🔓 (ambra) per ogni attore.
+- Loyalty bonus visivamente persistente, costi sempre più convenienti dei singoli ingaggi V3/LAMPO (come da richiesta).
+
+**Verificato via curl**:
+- Sign 30d → fee $17.641, expires +30gg ✓
+- Release Hana Chen → spostata in free_agents ✓
+- Market list → count corretto, filtro auto-esclusione ✓
+- Available TV styles → 10 preset ritornati con label/color/font/tagline ✓
+
+Files: `backend/routes/tv_stations.py`, `backend/routes/agency_contracts.py` (NEW), `backend/server.py`, `frontend/src/components/TvAiringBadge.jsx`, `frontend/src/components/ContentTemplate.jsx`, `frontend/src/components/FreeAgentsMarketModal.jsx` (NEW), `frontend/src/pages/CastingAgencyPage.jsx`.
+
+
 ## Bundle 8 fix (Apr 26, 2026 — pomeriggio)
 
 ### A. Badge "In TV dal {data ora} su {emittente}" (Task B richiesto)

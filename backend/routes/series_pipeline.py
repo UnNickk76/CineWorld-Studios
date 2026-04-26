@@ -1658,11 +1658,10 @@ async def get_coming_soon():
     ).sort('scheduled_release_at', 1)
     series_items = await series_cursor.to_list(50)
     
-    # Films coming soon + in production (visible until released)
+    # Films coming soon + in production (visible until released) — visibili anche senza poster
     film_cursor = db.film_projects.find(
         {'status': {'$in': ['coming_soon', 'ready_for_casting', 'casting', 'sponsor', 'ciak', 'screenplay', 'pre_production', 'shooting', 'pending_release', 'prima']},
-         'pipeline_state': {'$nin': ['released', 'completed', 'out_of_theaters', 'discarded']},
-         'poster_url': {'$ne': None}},
+         'pipeline_state': {'$nin': ['released', 'completed', 'out_of_theaters', 'discarded']}},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
          'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
          'news_events': 1, 'auto_comments': 1, 'pre_screenplay': 1,
@@ -1670,11 +1669,13 @@ async def get_coming_soon():
     ).sort('created_at', -1)
     film_items = await film_cursor.to_list(50)
 
-    # V2 Pipeline films (have poster, not yet released/discarded)
+    # V2 Pipeline films — visibili dalla fase locandina in poi (idea esclusa)
     v2_cursor = db.film_projects.find(
         {'pipeline_version': 2,
-         'poster_url': {'$ne': None},
-         'pipeline_state': {'$nin': ['released', 'completed', 'discarded']}},
+         '$or': [
+            {'pipeline_state': {'$nin': ['idea', 'released', 'completed', 'discarded']}},
+            {'pipeline_state': 'idea', 'poster_url': {'$nin': [None, '']}},
+         ]},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
          'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
          'pre_imdb_score': 1, 'pipeline_state': 1, 'pipeline_ui_step': 1,
@@ -1690,11 +1691,17 @@ async def get_coming_soon():
     )
     remaster_items = await remaster_cursor.to_list(50)
 
-    # V3 Pipeline films (have poster, not yet released/discarded)
+    # V3 Pipeline films — appaiono in Prossimamente DA quando entrano nella fase locandina ('hype')
+    # in poi (anche prima che il poster sia effettivamente generato). Esclusi: 'idea' (fase
+    # pre-locandina), 'released', 'completed', 'discarded', 'deleted'.
+    # Eccezione: se un film ha già un poster_url ma e' ancora in 'idea' (es. test admin),
+    # lo includiamo lo stesso per visibilita'.
     v3_cursor = db.film_projects.find(
         {'pipeline_version': 3,
-         'poster_url': {'$nin': [None, '']},
-         'pipeline_state': {'$nin': ['released', 'completed', 'discarded']}},
+         '$or': [
+            {'pipeline_state': {'$nin': ['idea', 'released', 'completed', 'discarded', 'deleted']}},
+            {'pipeline_state': 'idea', 'poster_url': {'$nin': [None, '']}},
+         ]},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
          'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
          'pre_imdb_score': 1, 'pipeline_state': 1, 'pipeline_ui_step': 1,
@@ -1702,11 +1709,13 @@ async def get_coming_soon():
     ).sort('created_at', -1)
     v3_items = await v3_cursor.to_list(50)
 
-    # V3 Pipeline SERIES/ANIME projects (have poster, not yet released/discarded)
+    # V3 Pipeline SERIES/ANIME — visibili dalla fase locandina in poi (idea esclusa).
     v3_series_cursor = db.series_projects_v3.find(
         {'pipeline_version': 3,
-         'poster_url': {'$nin': [None, '']},
-         'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}},
+         '$or': [
+            {'pipeline_state': {'$nin': ['idea', 'released', 'discarded', 'deleted']}},
+            {'pipeline_state': 'idea', 'poster_url': {'$nin': [None, '']}},
+         ]},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'genre_name': 1, 'subgenres': 1,
          'poster_url': 1, 'user_id': 1, 'created_at': 1, 'type': 1,
          'num_episodes': 1, 'pipeline_state': 1, 'pipeline_version': 1}

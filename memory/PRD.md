@@ -142,14 +142,39 @@ talent_pre_engagements:
 
 ### 🎚️ LIVELLI INFRA (proposta)
 
-| Livello | Slot | Pool NPC | Sconto | Max durata |
-|---------|------|----------|--------|------------|
-| 1 | 3 | 50 | -20% | 30gg |
-| 3 | 8 | 200 | -30% | 60gg |
-| 5 | 15 | 500 | -40% | 90gg |
-| 10 | 30 | 2000+ | -50% | 180gg |
+**Visibilità NPCs in Market** (per ogni livello agenzia scout):
+| Livello | 5★ visibili | 4★ visibili | 3★ visibili | 2★ visibili | 1★ visibili |
+|---------|-------------|-------------|-------------|-------------|-------------|
+| 1 | 1 | 2 | 4 | 50 | 100 |
+| 5 | 2 | 4 | 8 | 75 | 150 |
+| 10 | 4 | 6 | 14 | 100 | 200 |
+| 15 | 6 | 8 | 18 | 125 | 250 |
 
-Stesso schema applicato a infra: Talent Scout (attori) / Agenzia Scout Sceneggiatori / Agenzia Scout Registi / Agenzia Scout Compositori / Agenzia Scout Disegnatori. Player può investire selettivamente.
+**Ingaggiabili max per livello**:
+| Livello | 5★ | 4★ | 3★ | 2★ | 1★ |
+|---------|----|----|----|----|----|
+| 1 | 0 | 1 | 2 | 5 | 10 |
+| 5 | 1 | 2 | 5 | 10 | 15 |
+| 10 | 1 | 3 | 8 | 15 | 20 |
+| 15 | 2 | 4 | 10 | 18 | 25 |
+
+> Nota: **NON esiste un vero limite di livelli** ma il bilanciamento è pensato per ~Lv 15 come max realistico (raggiungibile con difficoltà).
+
+**Slot totali, sconto, max durata**: stessi tier precedenti (Lv 1→3 slot/-20%/30gg, Lv 15→40 slot/-55%/180gg).
+
+### 🆕 NPC che si propongono spontaneamente al player
+- **Trigger**: ogni 24-72h, gli NPC possono "candidarsi" spontaneamente al player se:
+  - Player ha CWSv media ≥ soglia per quel tier NPC
+  - Player ha agenzia scout di livello compatibile
+  - NPC è insoddisfatto del proprio owner attuale (happiness <30 → propensione a proporsi altrove)
+- **UX**:
+  - Notifica push: *"⭐ Tony Stark vuole entrare nella tua agenzia! Offerta speciale: $X per 60gg."*
+  - **Badge rosso** sulla sezione Talenti del Market
+  - Sotto-sezione dedicata **"📨 Si propongono a te"** nel Market Talenti
+  - Offerta limitata nel tempo (es. 48h prima che l'NPC ritorni nel pool generico)
+  - Costo proposto solitamente **inferiore del 15-25%** rispetto al prezzo standard
+
+
 
 ---
 

@@ -10,9 +10,10 @@
  * Mobile-first, bottom-sheet style su mobile, dialog su desktop.
  */
 import React, { useEffect, useMemo, useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent } from './ui/dialog';
 import { AuthContext } from '../contexts';
-import { Tv, X, Crown, Users, Lock, AlertTriangle, Check, Loader2, Send, ArrowRight } from 'lucide-react';
+import { Tv, X, Crown, Users, Lock, AlertTriangle, Check, Loader2, Send, ArrowRight, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const fmtMoney = (n) => `$${Number(n || 0).toLocaleString('it-IT')}`;
@@ -295,6 +296,7 @@ export default function TvMarketModal({ open, onClose, content }) {
               onSend={sendOffer}
               loading={loading}
               hasActiveFullContract={hasActiveFullContract}
+              onClose={onClose}
             />
           )}
         </div>
@@ -467,13 +469,25 @@ const PublishForm = ({ listing, suggestion, pubMode, setPubMode, pubMoney, setPu
   </div>
 );
 
-const OfferForm = ({ listing, suggestion, myStations, offerStation, setOfferStation, offerMode, setOfferMode, offerMoney, setOfferMoney, offerCredits, setOfferCredits, offerDuration, setOfferDuration, offerMessage, setOfferMessage, onSend, loading, hasActiveFullContract }) => {
+const OfferForm = ({ listing, suggestion, myStations, offerStation, setOfferStation, offerMode, setOfferMode, offerMoney, setOfferMoney, offerCredits, setOfferCredits, offerDuration, setOfferDuration, offerMessage, setOfferMessage, onSend, loading, hasActiveFullContract, onClose }) => {
+  const navigate = useNavigate();
   if (!myStations || myStations.length === 0) {
     return (
-      <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/30 text-center">
-        <Tv size={20} className="inline text-rose-300 mb-1.5" />
-        <p className="text-[11px] text-rose-200 font-bold">Nessuna TV in tuo possesso</p>
-        <p className="text-[10px] text-white/60 mt-1">Per acquistare diritti devi prima costruire una stazione TV (Infrastrutture).</p>
+      <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/30 text-center space-y-3" data-testid="offer-no-station-cta">
+        <div>
+          <Tv size={22} className="inline text-rose-300 mb-1.5" />
+          <p className="text-[12px] text-rose-100 font-bold">Nessuna emittente TV in tuo possesso</p>
+          <p className="text-[10px] text-white/60 mt-1.5 leading-relaxed">
+            Per fare offerte sul mercato diritti devi prima costruire una <span className="font-bold text-white">stazione TV</span> dalle Infrastrutture.
+          </p>
+        </div>
+        <button
+          onClick={() => { onClose?.(); navigate('/infrastructure?focus=tv_station'); }}
+          className="w-full py-2.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[11px] font-bold hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 touch-manipulation"
+          data-testid="offer-build-tv-cta"
+        >
+          <Building2 size={14} /> Costruisci la tua TV <ArrowRight size={12} />
+        </button>
       </div>
     );
   }

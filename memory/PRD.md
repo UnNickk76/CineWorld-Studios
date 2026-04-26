@@ -1,3 +1,37 @@
+## Selettore Stile TV per emittenti esistenti + CTA "Costruisci una TV" (Apr 26, 2026 — sera 8)
+
+### A. Selettore Stile TV nelle emittenti esistenti
+Prima il selettore stile branding (NetfleX/Disnext+/Topmount+/PrimeFlix/AppleVue/SkyView/ItaliaPlay/Dazz!/ItalVision/Generica) era disponibile SOLO nel wizard di setup iniziale di una nuova TV. Ora è anche **modificabile per emittenti esistenti** dalla tab "Gestione" del menu TV.
+
+**File**: `frontend/src/components/TVMenuModal.jsx`
+- Caricamento stili al mount (`/tv-stations/available-styles`).
+- Stato `selectedStyle` inizializzato da `station.style || 'default'`.
+- Card "STILE BRANDING" nella tab Gestione (sopra "Azzera Palinsesto"):
+  - Grid 2-col con 10 preset cliccabili (label colorata + tagline + font del brand).
+  - Bottone "Applica Stile" rosso (disabled se selezione non cambiata) → POST `/tv-stations/update-style`.
+  - Toast successo + `onRefresh()` per ricaricare la station.
+- `data-testid` aggiunti: `gestione-style-{key}`, `save-style-btn`.
+
+### B. CTA "Costruisci una TV" nel TvMarketModal
+**File**: `frontend/src/components/TvMarketModal.jsx`
+- Tab "Fai Offerta" sempre visibile (già fatto in precedenza).
+- `OfferForm`: se `myStations.length === 0`, ora mostra un CTA con messaggio + bottone gradient rosa "Costruisci la tua TV" che chiama `onClose()` e naviga a `/infrastructure?focus=tv_station`.
+- Aggiunto prop `onClose` al form.
+
+### C. Deep-link Infrastrutture
+**File**: `frontend/src/pages/InfrastructurePage.jsx`
+- Nuovo `useEffect` che leggi `?focus=tv_station` (o `emittente_tv`) e auto-imposta `activeCategory='studi'` + `activeSubTab='disponibili'`.
+- L'utente atterra direttamente sulla scheda dove può comprare l'EMITTENTE TV.
+
+### Test verificato via screenshot
+- Tab "Gestione" → Card STILE BRANDING con 10 preset + bottone "Applica Stile" ✅
+- `/infrastructure?focus=tv_station` → categoria "STUDI" pre-selezionata con EMITTENTE TV visibile ✅
+
+Files: `TVMenuModal.jsx`, `TvMarketModal.jsx`, `InfrastructurePage.jsx`.
+
+---
+
+
 ## Fix Mercato Diritti TV — tab "Fai Offerta" sempre visibile (Apr 26, 2026 — sera 7)
 
 ### Problema

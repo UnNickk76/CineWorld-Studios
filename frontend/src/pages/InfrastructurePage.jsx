@@ -308,6 +308,15 @@ const InfrastructurePage = () => {
   const [activeCategory, setActiveCategory] = useState('cinema');
   const [activeSubTab, setActiveSubTab] = useState('disponibili');
 
+  // Deep-link focus: ?focus=tv_station preseleziona la categoria "studi" (dove vive emittente_tv).
+  useEffect(() => {
+    const focus = searchParams.get('focus');
+    if (focus === 'tv_station' || focus === 'emittente_tv') {
+      setActiveCategory('studi');
+      setActiveSubTab('disponibili');
+    }
+  }, [searchParams]);
+
   const activeCat = CATEGORIES.find(c => c.id === activeCategory) || CATEGORIES[0];
   const filteredTypes = infraTypes.filter(it => activeCat.types.includes(it.id));
   const filteredOwned = myInfra.infrastructure?.filter(inf => activeCat.types.includes(inf.type)) || [];

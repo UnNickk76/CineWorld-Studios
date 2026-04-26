@@ -58,10 +58,18 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
   const [timerPopup, setTimerPopup] = useState(null); // { content, contentType }
   const [addingUpcoming, setAddingUpcoming] = useState(false);
 
+  // Stile branding state
+  const [availableStyles, setAvailableStyles] = useState([]);
+  const [selectedStyle, setSelectedStyle] = useState(station?.style || 'default');
+  const [savingStyle, setSavingStyle] = useState(false);
+
   useEffect(() => {
     if (open && station) {
       setSettingsAd(station.ad_seconds || 30);
+      setSelectedStyle(station.style || 'default');
       loadUpcoming();
+      // Load available branding styles once
+      api.get('/tv-stations/available-styles').then(r => setAvailableStyles(r.data?.styles || [])).catch(() => {});
     }
   }, [open, station]);
 
@@ -176,6 +184,17 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
       onRefresh?.();
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     setSavingSettings(false);
+  };
+
+  // Style update
+  const saveStyle = async () => {
+    setSavingStyle(true);
+    try {
+      await api.post('/tv-stations/update-style', { station_id: stationId, style: selectedStyle });
+      toast.success('Stile aggiornato');
+      onRefresh?.();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
+    setSavingStyle(false);
   };
 
   // Broadcast actions
@@ -464,6 +483,48 @@ export function TVMenuModal({ open, onClose, station, enrichedContents, capacity
           {/* === GESTIONE === */}
           {activeTab === 'gestione' && (
             <div className="space-y-3" data-testid="tab-gestione-content">
+              {/* Stile branding */}
+              <Card className="bg-[#111113] border-white/5">
+                <CardContent className="p-3">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Stile Branding</p>
+                  <p className="text-[10px] text-gray-600 mb-2">Definisce font, colore e glow del badge "In TV dal..." sui contenuti.</p>
+                  {availableStyles.length === 0 ? (
+                    <p className="text-[10px] text-gray-500 italic py-2">Caricamento stili...</p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-1.5 mb-2">
+                        {availableStyles.map(s => {
+                          const isSel = selectedStyle === s.key;
+                          return (
+                            <button
+                              key={s.key}
+                              onClick={() => setSelectedStyle(s.key)}
+                              data-testid={`gestione-style-${s.key}`}
+                              className={`relative rounded-lg p-2 text-left border transition-all touch-manipulation ${isSel ? 'border-red-500 ring-2 ring-red-500/30' : 'border-white/10 hover:border-white/20'}`}
+                              style={{ background: isSel ? `linear-gradient(135deg, ${s.color}22, transparent)` : 'rgba(255,255,255,0.02)' }}
+                            >
+                              <p className="text-[11px] font-bold leading-tight" style={{ color: s.color, fontFamily: s.font_family }}>{s.label}</p>
+                              <p className="text-[8px] text-gray-500 leading-tight mt-0.5 line-clamp-1">{s.tagline}</p>
+                              {isSel && <Check className="absolute top-1 right-1 w-3 h-3 text-red-400" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        size="sm"
+                        className="w-full h-8 text-xs bg-red-500 hover:bg-red-600 font-bold"
+                        onClick={saveStyle}
+                        disabled={savingStyle || selectedStyle === (station.style || 'default')}
+                        data-testid="save-style-btn"
+                      >
+                        {savingStyle ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Check className="w-3.5 h-3.5 mr-1.5" />}
+                        Applica Stile
+                      </Button>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
               <Card className="bg-[#111113] border-white/5">
                 <CardContent className="p-3">
                   <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Gestione Emittente</p>

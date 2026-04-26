@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart, Image as ImageIcon, Video } from 'lucide-react';
+import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart, Image as ImageIcon, Video, RotateCcw } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 import { Dialog, DialogContent } from '../components/ui/dialog';
@@ -686,11 +686,23 @@ function FilmsTab({ api }) {
   const handleFix = async (film) => {
     setFixLoading(true);
     try {
-      await api.post(`/admin-recovery/fix-one/${film.id}`);
+      await api.post(`/admin/recovery/fix-one/${film.id}`);
       toast.success(`"${film.title}" riparato`);
       setSelected(null);
       loadFilms(searchQuery, contentType);
     } catch (e) { toast.error(e.response?.data?.detail || 'Fix non applicabile'); }
+    finally { setFixLoading(false); }
+  };
+
+  const handleRestoreToDraft = async (film) => {
+    if (!window.confirm(`Riportare "${film.title}" in BOZZA? Tornerà in "Le Mie Bozze" e potrai riprenderlo da zero.`)) return;
+    setFixLoading(true);
+    try {
+      await api.post(`/admin/recovery/restore-to-draft/${film.id}`);
+      toast.success(`"${film.title}" riportato in bozza`);
+      setSelected(null);
+      loadFilms(searchQuery, contentType);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore riporto in bozza'); }
     finally { setFixLoading(false); }
   };
 
@@ -851,7 +863,7 @@ function FilmsTab({ api }) {
                     <p className="text-[10px] text-amber-300 font-bold">{selected.reports_count} segnalazione(i) aperta(e)</p>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="grid grid-cols-3 gap-2 pt-1">
                   <button
                     onClick={() => handleFix(selected)}
                     disabled={fixLoading || !selected.needs_fix}
@@ -861,11 +873,19 @@ function FilmsTab({ api }) {
                     Fix {selected.needs_fix ? '' : '(ok)'}
                   </button>
                   <button
+                    onClick={() => handleRestoreToDraft(selected)}
+                    disabled={fixLoading}
+                    data-testid="admin-restore-draft-btn"
+                    className="py-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 text-[10px] font-bold hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Riporta in bozza
+                  </button>
+                  <button
                     onClick={() => setDeleteTarget(selected)}
                     data-testid="admin-detail-delete-btn"
                     className="py-2.5 rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-[10px] font-bold hover:bg-rose-500/20 transition-all flex items-center justify-center gap-1"
                   >
-                    <Trash2 className="w-3 h-3" /> Elimina definitivamente
+                    <Trash2 className="w-3 h-3" /> Elimina
                   </button>
                 </div>
               </div>

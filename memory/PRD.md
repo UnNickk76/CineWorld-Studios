@@ -1,3 +1,28 @@
+## Admin Popup — Bottone "Riporta in bozza" aggiunto (Apr 26, 2026 — sera 5)
+
+Su feedback utente: nel popup Admin > Gestione Film mancava il bottone "Riporta in bozza".
+
+### Fix
+- `pages/AdminPage.jsx` `FilmsTab`:
+  - Nuovo handler `handleRestoreToDraft` chiama `POST /api/admin/recovery/restore-to-draft/{id}`.
+  - Layout 3 colonne (era 2): **Fix** (ambra) | **Riporta in bozza** (verde, icona RotateCcw) | **Elimina** (rosso).
+  - Conferma `window.confirm` prima dell'azione.
+  - Toast di successo + reload lista al termine.
+- Bug correlato corretto: `handleFix` usava path errato `/admin-recovery/fix-one/{id}` → ora `/admin/recovery/fix-one/{id}` (allineato al prefix `routes/admin_recovery.py:9`).
+
+### Test
+Screenshot conferma il popup con i 3 bottoni visibili e correttamente styled. Endpoint backend già esistente (`admin_recovery.restore_to_draft`).
+
+Files: `frontend/src/pages/AdminPage.jsx`.
+
+### Nota su "Prossimamente FILM" su PRODUZIONE (cineworld-studios.it)
+- Endpoint `/api/coming-soon` PREVIEW: include correttamente LAMPO films (`status` in `['lampo_ready', 'lampo_scheduled']`).
+- Logica deduplica in `series_pipeline.py` non esclude lampo_ready da `db.films`.
+- Se in produzione il film "SuperHero" (status lampo_ready, 9% qualità) non appare, probabilmente il deploy non è ancora stato propagato. **Azione utente**: ridepiegare in produzione.
+
+---
+
+
 ## UI Cleanup — MyDraftsWidget spostato in pagina dedicata (Apr 26, 2026 — sera 4)
 
 Su feedback utente "in dashboard su account admin???? Semmai in Admin panel con sezione dedicata!":

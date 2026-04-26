@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import {
   X, Star, Users, Pen, Music, Palette, Clapperboard,
   Sparkles, Search, RefreshCw, Lock, Mail, Clock, DollarSign, ChevronRight, Award,
-  Briefcase, AlertTriangle, Trash2,
+  Briefcase, AlertTriangle, Trash2, BookOpen, Globe, TrendingDown,
 } from 'lucide-react';
 
 /**
@@ -281,7 +281,7 @@ function PreEngageDialog({ npc, role, perks, onConfirm, onCancel, submitting }) 
   );
 }
 
-function RosterCard({ eng, busy, onRelease }) {
+function RosterCard({ eng, busy, onRelease, onOpenDiary }) {
   const snap = eng.npc_snapshot || {};
   const isThreat = eng.contract_status === 'threatened';
   const dr = eng.days_remaining ?? 0;
@@ -306,6 +306,12 @@ function RosterCard({ eng, busy, onRelease }) {
                 {ROLE_TABS.find(r => r.key === eng.role)?.label || eng.role}
               </Badge>
               <StarRow count={eng.npc_stars} />
+              {onOpenDiary && (
+                <button onClick={onOpenDiary} className="text-amber-300 hover:text-amber-200 ml-auto"
+                  title="Diario emotivo" data-testid={`open-diary-${eng.id}`}>
+                  <BookOpen className="w-3 h-3" />
+                </button>
+              )}
             </div>
             <p className="text-[10px] text-gray-500 mt-0.5">
               {isThreat ? (
@@ -339,6 +345,142 @@ function RosterCard({ eng, busy, onRelease }) {
   );
 }
 
+function UnderContractCard({ item, busy, onMakeOffer }) {
+  const isThreat = item.is_threatened;
+  return (
+    <Card className={`bg-[#0F0F10] border ${
+      isThreat ? 'border-red-500/40 animate-pulse' : 'border-white/10'
+    }`} data-testid={`under-contract-${item.engagement_id}`}>
+      <CardContent className="p-2.5">
+        <div className="flex items-start gap-2.5">
+          <img src={item.npc_avatar_url || '/avatar-placeholder.png'}
+            onError={(e) => { e.currentTarget.src = '/avatar-placeholder.png'; }}
+            className="w-10 h-10 rounded-full bg-gray-800 object-cover flex-shrink-0" alt="" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs sm:text-sm font-semibold text-white truncate">{item.npc_name}</span>
+              <span className="text-base">{item.happiness_emoji || '🙂'}</span>
+              <Badge className="bg-white/5 text-gray-300 text-[8px] h-3.5 border border-white/10 px-1">
+                {ROLE_TABS.find(r => r.key === item.role)?.label || item.role}
+              </Badge>
+              <StarRow count={item.npc_stars} />
+            </div>
+            <p className="text-[10px] text-gray-400 mt-0.5">
+              <Briefcase className="w-2.5 h-2.5 inline mr-0.5" />
+              {item.owner_studio} · <span className={isThreat ? 'text-red-300 font-semibold' : 'text-gray-300'}>{item.days_remaining}gg al termine</span>
+            </p>
+            {isThreat && (
+              <p className="text-[9px] text-red-400 font-semibold mt-0.5">
+                <AlertTriangle className="w-2.5 h-2.5 inline mr-0.5" />
+                NPC sta per rescindere — momento ideale per un'offerta!
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+          <div className="text-[10px] text-gray-400">
+            Min. offerta: <span className="text-yellow-300 font-bold">${(item.min_buyout_offer || 0).toLocaleString()}</span>
+          </div>
+          <Button size="sm" className="h-7 px-2.5 text-[10px] bg-red-600 hover:bg-red-700"
+            onClick={() => onMakeOffer(item)} disabled={busy}
+            data-testid={`make-offer-${item.engagement_id}`}>
+            {busy ? <RefreshCw className="w-3 h-3 animate-spin" /> : <>Fai Offerta <DollarSign className="w-3 h-3 ml-0.5" /></>}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BuyoutDialog({ item, onConfirm, onCancel, submitting }) {
+  const minOffer = item?.min_buyout_offer || 0;
+  const [amount, setAmount] = useState(minOffer);
+  const [message, setMessage] = useState('');
+  const lock = Math.floor(amount * 0.10);
+  return (
+    <div className="fixed inset-0 z-[120] bg-black/70 flex items-end sm:items-center justify-center p-3"
+      onClick={() => !submitting && onCancel()}
+      data-testid="buyout-dialog">
+      <div className="bg-[#111113] border border-white/10 rounded-2xl max-w-md w-full p-4 space-y-3"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <img src={item.npc_avatar_url || '/avatar-placeholder.png'}
+              onError={(e) => { e.currentTarget.src = '/avatar-placeholder.png'; }}
+              className="w-9 h-9 rounded-full bg-gray-800 flex-shrink-0" alt="" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate">{item.npc_name}</p>
+              <p className="text-[10px] text-gray-400">Offerta acquisto · da {item.owner_studio}</p>
+            </div>
+          </div>
+          <button onClick={onCancel} disabled={submitting} className="text-gray-500 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div>
+          <p className="text-[10px] text-gray-400 mb-1">Importo offerta (min ${minOffer.toLocaleString()})</p>
+          <input type="number" min={minOffer} step={1000}
+            value={amount} onChange={(e) => setAmount(parseInt(e.target.value) || 0)}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-sm text-white"
+            data-testid="buyout-amount-input" />
+        </div>
+        <div>
+          <p className="text-[10px] text-gray-400 mb-1">Messaggio (opzionale)</p>
+          <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={2}
+            placeholder="Convinci l'owner..."
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white resize-none" />
+        </div>
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 text-[10px] text-amber-200 space-y-0.5">
+          <p>💡 Pagherai subito <span className="font-bold text-amber-300">${lock.toLocaleString()}</span> di lock (10%).</p>
+          <p>Se l'owner accetta, paghi il resto e ricevi l'NPC alla scadenza del suo contratto.</p>
+          <p>Se rifiuta, perdi il lock. Se contro-offre, decidi se accettare.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" className="flex-1 h-9 text-xs" onClick={onCancel} disabled={submitting}
+            data-testid="buyout-cancel">Annulla</Button>
+          <Button className="flex-1 h-9 text-xs bg-red-600 hover:bg-red-700"
+            onClick={() => onConfirm({ amount, message })} disabled={submitting || amount < minOffer}
+            data-testid="buyout-confirm">
+            {submitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Invia offerta'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DiaryPopup({ engId, npcName, api, onClose }) {
+  const [text, setText] = useState('');
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    api.get(`/talent-scout/diary/${engId}`)
+      .then(res => { if (active) { setText(res.data?.diary || ''); setLoading(false); } })
+      .catch(() => { if (active) { setText('Il talento non ha lasciato pensieri oggi.'); setLoading(false); } });
+    return () => { active = false; };
+  }, [engId, api]);
+  return (
+    <div className="fixed inset-0 z-[120] bg-black/70 flex items-end sm:items-center justify-center p-3"
+      onClick={onClose} data-testid="diary-popup">
+      <div className="bg-gradient-to-br from-[#1A1A1B] to-[#0B0B0C] border border-amber-500/30 rounded-2xl max-w-sm w-full p-4 space-y-3"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-amber-400" />
+            <p className="text-sm font-bold text-amber-200">Diario di {npcName}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+        {loading ? (
+          <div className="text-center py-4 text-gray-500"><RefreshCw className="w-4 h-4 animate-spin mx-auto" /></div>
+        ) : (
+          <p className="text-sm text-gray-200 italic leading-relaxed">"{text}"</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function TalentMarketModal({ open, onClose }) {
   const { api } = useContext(AuthContext);
   const [tab, setTab] = useState('actor');
@@ -346,6 +488,10 @@ export default function TalentMarketModal({ open, onClose }) {
   const [roleData, setRoleData] = useState({}); // {role: {items, infra_level, ...}}
   const [proposals, setProposals] = useState([]);
   const [roster, setRoster] = useState([]);
+  const [underContract, setUnderContract] = useState([]);
+  const [showOnlyUnhappy, setShowOnlyUnhappy] = useState(true);
+  const [pendingBuyout, setPendingBuyout] = useState(null);
+  const [diaryFor, setDiaryFor] = useState(null); // {eng_id, name}
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [pendingPreEngage, setPendingPreEngage] = useState(null); // {npc, role}
@@ -382,6 +528,17 @@ export default function TalentMarketModal({ open, onClose }) {
     } catch { /* ignore */ }
   }, [api]);
 
+  const loadUnderContract = useCallback(async (onlyUnhappy = true) => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/market/talents/under-contract?only_unhappy=${onlyUnhappy}&limit=60`);
+      setUnderContract(res.data?.items || []);
+    } catch (e) {
+      toast.error('Errore caricamento contratti');
+    }
+    setLoading(false);
+  }, [api]);
+
   useEffect(() => {
     if (!open) return;
     loadPerks();
@@ -397,11 +554,13 @@ export default function TalentMarketModal({ open, onClose }) {
       loadProposals();
     } else if (tab === 'roster') {
       loadRoster();
+    } else if (tab === 'under_contract') {
+      loadUnderContract(showOnlyUnhappy);
     } else if (!roleData[tab]) {
       loadRole(tab);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, open]);
+  }, [tab, open, showOnlyUnhappy]);
 
   const startPreEngage = (npc, role) => setPendingPreEngage({ npc, role });
 
@@ -446,6 +605,22 @@ export default function TalentMarketModal({ open, onClose }) {
       await Promise.all([loadPerks(), loadRoster()]);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Errore liberazione');
+    }
+    setBusyId(null);
+  };
+
+  const submitBuyoutOffer = async ({ amount, message }) => {
+    if (!pendingBuyout) return;
+    setBusyId(pendingBuyout.engagement_id);
+    try {
+      await api.post(`/market/talents/buyout-offer/${pendingBuyout.engagement_id}`, {
+        offered_amount: amount, message,
+      });
+      toast.success(`Offerta inviata. Lock pagato: $${Math.floor(amount * 0.10).toLocaleString()}`);
+      setPendingBuyout(null);
+      await loadUnderContract(showOnlyUnhappy);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Errore invio offerta');
     }
     setBusyId(null);
   };
@@ -519,6 +694,18 @@ export default function TalentMarketModal({ open, onClose }) {
             </button>
           ))}
           <button
+            onClick={() => setTab('under_contract')}
+            className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border transition-all whitespace-nowrap ${
+              tab === 'under_contract'
+                ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                : 'border-white/10 text-gray-400 hover:bg-white/5'
+            }`}
+            data-testid="tab-under-contract"
+          >
+            <Globe className="w-3 h-3" />
+            Sotto Contratto
+          </button>
+          <button
             onClick={() => setTab('roster')}
             className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border transition-all whitespace-nowrap relative ${
               tab === 'roster'
@@ -589,6 +776,7 @@ export default function TalentMarketModal({ open, onClose }) {
                   <Briefcase className="w-3 h-3 inline mr-1 align-text-bottom" />
                   Talenti pre-ingaggiati. La felicità decade se non li usi: gli infelici minacceranno di andarsene.
                   <span className="block mt-1 text-amber-400/70">😊 felice • 🙂 ok • 😐 neutro • 😠 scontento • 😡 in rescissione</span>
+                  <span className="block mt-0.5 text-amber-400/70">Tocca <BookOpen className="w-2.5 h-2.5 inline" /> sulla card per leggere il diario emotivo.</span>
                 </p>
               </div>
               {roster.length === 0 ? (
@@ -600,7 +788,42 @@ export default function TalentMarketModal({ open, onClose }) {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {roster.map(r => (
-                    <RosterCard key={r.id} eng={r} busy={busyId === r.id} onRelease={releaseEngagement} />
+                    <RosterCard key={r.id} eng={r} busy={busyId === r.id}
+                      onRelease={releaseEngagement}
+                      onOpenDiary={() => setDiaryFor({ eng_id: r.id, name: r.npc_snapshot?.name || 'Talento' })} />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : tab === 'under_contract' ? (
+            <div className="space-y-2.5">
+              <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-2.5 flex items-center justify-between gap-2">
+                <p className="text-[10px] text-red-200 flex-1">
+                  <TrendingDown className="w-3 h-3 inline mr-1 align-text-bottom" />
+                  Talenti pre-ingaggiati da ALTRI player. Più sono infelici, più è probabile rubarli.
+                </p>
+                <button onClick={() => setShowOnlyUnhappy(v => !v)}
+                  className={`text-[9px] px-2 py-1 rounded font-bold border whitespace-nowrap ${
+                    showOnlyUnhappy ? 'bg-red-500/20 border-red-500/40 text-red-200' :
+                    'bg-white/5 border-white/10 text-gray-400'
+                  }`}
+                  data-testid="toggle-only-unhappy">
+                  {showOnlyUnhappy ? '😡 Solo infelici' : '🌐 Tutti'}
+                </button>
+              </div>
+              {loading ? (
+                <div className="text-center py-8 text-gray-500"><RefreshCw className="w-5 h-5 animate-spin mx-auto" /></div>
+              ) : underContract.length === 0 ? (
+                <div className="text-center py-10 text-gray-500">
+                  <Globe className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs">Nessun talento sotto contratto trovato.</p>
+                  <p className="text-[10px] text-gray-600 mt-1">{showOnlyUnhappy ? 'Prova a togliere il filtro.' : 'Nessun altro player ha ingaggi attivi al momento.'}</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {underContract.map(it => (
+                    <UnderContractCard key={it.engagement_id} item={it} busy={busyId === it.engagement_id}
+                      onMakeOffer={(item) => setPendingBuyout(item)} />
                   ))}
                 </div>
               )}
@@ -619,6 +842,26 @@ export default function TalentMarketModal({ open, onClose }) {
             submitting={busyId === pendingPreEngage.npc.id}
             onConfirm={confirmPreEngage}
             onCancel={() => setPendingPreEngage(null)}
+          />
+        )}
+
+        {/* Buyout offer dialog */}
+        {pendingBuyout && (
+          <BuyoutDialog
+            item={pendingBuyout}
+            submitting={busyId === pendingBuyout.engagement_id}
+            onConfirm={submitBuyoutOffer}
+            onCancel={() => setPendingBuyout(null)}
+          />
+        )}
+
+        {/* Diary popup */}
+        {diaryFor && (
+          <DiaryPopup
+            engId={diaryFor.eng_id}
+            npcName={diaryFor.name}
+            api={api}
+            onClose={() => setDiaryFor(null)}
           />
         )}
       </DialogContent>

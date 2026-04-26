@@ -8034,6 +8034,18 @@ async def startup_event():
         )
     except Exception as _the:
         print(f"[scheduler] Could not register talent happiness decay: {_the}")
+
+    # Every 30 minutes: Process expired buyout transfers (Step 5)
+    try:
+        from routes.talent_market import process_expired_transfers
+        scheduler.add_job(
+            process_expired_transfers,
+            IntervalTrigger(minutes=30),
+            id='talent_buyout_transfers',
+            replace_existing=True,
+        )
+    except Exception as _tt:
+        print(f"[scheduler] Could not register talent buyout transfers: {_tt}")
     
     # Every 20 minutes: Dynamic events for Coming Soon content
     scheduler.add_job(

@@ -40,8 +40,29 @@
   - **Frontend `TalentMarketModal.jsx`**: nuovo tab "Mio Roster" con `RosterCard` (happiness emoji, giorni rimanenti, fee pagata, bottone Libera). Counter rosso pulsante sul tab se ci sono talenti threatened.
   - Test E2E backend OK: boost 75→93 (quality 85) + decay 10→6 con auto-trigger threatened + notifica creata + grace_period_ends_at impostato a +3gg.
 
+- **Step 5 — Mercato "NPC Sotto Contratto" (Furto Cross-Player) + Diario Emotivo AI**:
+  - **Backend** (`/app/backend/routes/talent_market.py`):
+    - `GET /api/market/talents/under-contract` (lista pubblica NPCs altrui, ordinati per happiness asc + threatened first).
+    - `POST /api/market/talents/buyout-offer/{eng_id}` (offerta minima = fee_paid × 1.2, lock 10% subito).
+    - Flusso owner: `accept` (50% payout immediato + transfer schedulato) / `decline` (incassa il lock 10%) / `counter` (reset 72h).
+    - Flusso buyer: `buyer-accept` per accettare contro-offerta.
+    - `process_expired_transfers()`: scheduler 30min, alla scadenza contratto crea nuovo pre_engagement per il buyer (h=70, durata 30gg, marker `from_buyout`).
+    - Notifiche: `talent_buyout_offer/accepted/declined/countered/transferred_in/transferred_out`.
+    - **Diario emotivo** (`GET /api/talent-scout/diary/{eng_id}`): genera frase breve (max 30 parole) in italiano via Emergent LLM (gpt-4o-mini) basata su happiness, days_remaining, ultimo film. Cachato 1h. Fallback testuale se LLM non disponibile.
+  - **Scheduler** (`/app/backend/server.py`): job `talent_buyout_transfers` ogni 30min.
+  - **Frontend `TalentMarketModal.jsx`**:
+    - Nuovo tab "Sotto Contratto" 🌐 con `UnderContractCard` (avatar NPC + studio owner + happiness emoji + giorni + min offerta) e toggle "Solo infelici/Tutti".
+    - `BuyoutDialog`: input importo (validato min), messaggio, breakdown lock 10%, regole esplicite.
+    - `RosterCard` arricchito con icona 📖 cliccabile per aprire `DiaryPopup` con frase AI.
+  - Test E2E backend OK (con simulazione 2 player diretta su DB):
+    - Buyer offre $70k → lock $7k pagato
+    - Owner accetta → riceve $35k, buyer paga il resto
+    - Trasferimento al expire → NPC nel roster del buyer (h=70, $70k)
+    - 4 notifiche generate, cleanup ok.
+  - Diario AI testato → output coerente in italiano: *"Sento l'ansia che mi attanaglia, ogni giorno che passa senza un ruolo si trasforma in un'ombra sempre più pesante..."*
+
 ### 🟡 STEP IN ATTESA
-- **Step 5** — Mercato "NPC Sotto Contratto" (furto cross-player + counter-offerte).
+- 🎉 Tutti gli step della prima versione del Sistema Talenti Vivente sono stati implementati. Vedi P1/P2 per estensioni future.
 
 ---
 

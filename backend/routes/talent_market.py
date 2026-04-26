@@ -749,3 +749,465 @@ async def boost_happiness_on_film_use(user_id: str, cast_members: list, film_id:
             pass
     
     return boosted
+
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  STEP 5 — MERCATO "NPC SOTTO CONTRATTO" (FURTO CROSS-PLAYER)
+# ═══════════════════════════════════════════════════════════════════
+
+_BUYOUT_MIN_PREMIUM = 0.20
+_BUYOUT_OFFER_TTL_HOURS = 72
+_OWNER_ACCEPT_BONUS = 0.50
+_BUYOUT_FEE_PCT = 0.10
+
+
+class BuyoutOfferReq(BaseModel):
+    offered_amount: int = Field(..., ge=1000)
+    message: Optional[str] = None
+
+
+class CounterOfferReq(BaseModel):
+    counter_amount: int = Field(..., ge=1000)
+    message: Optional[str] = None
+
+
+@router.get("/market/talents/under-contract")
+async def list_under_contract(
+    user: dict = Depends(get_current_user),
+    role: Optional[Literal["actor", "director", "screenwriter", "composer", "illustrator"]] = None,
+    only_unhappy: bool = False,
+    page: int = 0,
+    limit: int = 30,
+):
+    """Lista pubblica degli NPC sotto contratto presso ALTRI player."""
+    q = {
+        "user_id": {"$ne": user["id"]},
+        "contract_status": {"$in": ["active", "threatened"]},
+    }
+    if role:
+        q["role"] = role
+    if only_unhappy:
+        q["happiness_score"] = {"$lt": _HAPPINESS_THRESHOLD_THREATENED + 10}
+
+    cursor = db.talent_pre_engagements.find(q, {"_id": 0}).sort("happiness_score", 1)
+    raw = await cursor.to_list(500)
+
+    owner_ids = list({e["user_id"] for e in raw})
+    owners = await db.users.find(
+        {"id": {"$in": owner_ids}},
+        {"_id": 0, "id": 1, "nickname": 1, "production_house_name": 1, "avatar_url": 1}
+    ).to_list(500)
+    owner_map = {u["id"]: u for u in owners}
+
+    now = datetime.now(timezone.utc)
+    items = []
+    for e in raw:
+        snap = e.get("npc_snapshot") or {}
+        try:
+            exp = datetime.fromisoformat(str(e.get("contract_expires_at", "")).replace("Z", "+00:00"))
+            dr = max(0, int((exp - now).total_seconds() // 86400))
+        except Exception:
+            dr = 0
+        h = int(e.get("happiness_score", 75) or 75)
+        if h >= 75:
+            emoji = "😊"
+        elif h >= 55:
+            emoji = "🙂"
+        elif h >= 35:
+            emoji = "😐"
+        elif h >= 15:
+            emoji = "😠"
+        else:
+            emoji = "😡"
+        owner = owner_map.get(e.get("user_id"), {})
+        min_offer = max(1000, int((e.get("fee_paid") or 50000) * (1 + _BUYOUT_MIN_PREMIUM)))
+        items.append({
+            "engagement_id": e.get("id"),
+            "npc_id": e.get("npc_id"),
+            "npc_name": snap.get("name"),
+            "npc_avatar_url": snap.get("avatar_url"),
+            "npc_stars": e.get("npc_stars", snap.get("stars", 2)),
+            "role": e.get("role"),
+            "cast_role_intended": e.get("cast_role_intended"),
+            "owner_id": e.get("user_id"),
+            "owner_nickname": owner.get("nickname", "?"),
+            "owner_studio": owner.get("production_house_name", "Studio"),
+            "owner_avatar_url": owner.get("avatar_url"),
+            "days_remaining": dr,
+            "happiness_score": h,
+            "happiness_emoji": emoji,
+            "is_threatened": e.get("contract_status") == "threatened",
+            "fee_paid": e.get("fee_paid"),
+            "min_buyout_offer": min_offer,
+        })
+
+    items.sort(key=lambda x: (-int(x["is_threatened"]), x["happiness_score"], x["days_remaining"]))
+    return {"total": len(items), "items": items[page * limit: (page + 1) * limit]}
+
+
+@router.post("/market/talents/buyout-offer/{eng_id}")
+async def make_buyout_offer(eng_id: str, req: BuyoutOfferReq, user: dict = Depends(get_current_user)):
+    """Player fa offerta su NPC altrui. Lock 10% subito."""
+    eng = await db.talent_pre_engagements.find_one({"id": eng_id}, {"_id": 0})
+    if not eng:
+        raise HTTPException(404, "Contratto non trovato")
+    if eng.get("user_id") == user["id"]:
+        raise HTTPException(400, "Non puoi fare offerte sui tuoi NPCs")
+    if eng.get("contract_status") not in ("active", "threatened"):
+        raise HTTPException(400, "Contratto non più attivo")
+
+    min_offer = max(1000, int((eng.get("fee_paid") or 50000) * (1 + _BUYOUT_MIN_PREMIUM)))
+    if req.offered_amount < min_offer:
+        raise HTTPException(400, f"Offerta minima: ${min_offer:,}")
+
+    lock_amount = int(req.offered_amount * _BUYOUT_FEE_PCT)
+    me = await db.users.find_one({"id": user["id"]}, {"_id": 0, "funds": 1})
+    if (me.get("funds") or 0) < lock_amount:
+        raise HTTPException(400, f"Fondi insufficienti per il lock 10% (servono ${lock_amount:,})")
+
+    existing = await db.talent_buyout_offers.find_one({
+        "engagement_id": eng_id, "buyer_id": user["id"], "status": "pending",
+    }, {"_id": 0})
+    if existing:
+        raise HTTPException(400, "Hai già un'offerta pending su questo contratto")
+
+    offer = {
+        "id": str(uuid.uuid4()),
+        "engagement_id": eng_id,
+        "npc_id": eng.get("npc_id"),
+        "npc_snapshot": eng.get("npc_snapshot"),
+        "role": eng.get("role"),
+        "owner_id": eng.get("user_id"),
+        "buyer_id": user["id"],
+        "buyer_studio": user.get("production_house_name", "Studio"),
+        "buyer_nickname": user.get("nickname", "?"),
+        "offered_amount": req.offered_amount,
+        "lock_amount": lock_amount,
+        "happiness_at_offer": eng.get("happiness_score"),
+        "message": req.message,
+        "status": "pending",
+        "counter_amount": None,
+        "created_at": _now_iso(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=_BUYOUT_OFFER_TTL_HOURS)).isoformat(),
+    }
+    await db.talent_buyout_offers.insert_one(dict(offer))
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"funds": -lock_amount}})
+    offer.pop("_id", None)
+
+    npc_name = (eng.get("npc_snapshot") or {}).get("name", "Un tuo talento")
+    await _create_notification_safe(
+        eng.get("user_id"), "talent_buyout_offer",
+        "💰 Offerta di acquisto su un tuo talento",
+        f'{user.get("nickname", "Un altro studio")} offre ${req.offered_amount:,} per {npc_name}.',
+        {"offer_id": offer["id"], "engagement_id": eng_id, "npc_id": eng.get("npc_id"),
+         "amount": req.offered_amount, "buyer_studio": user.get("production_house_name")}
+    )
+    return {"success": True, "offer": offer, "lock_paid": lock_amount}
+
+
+@router.get("/market/talents/buyout-offers/incoming")
+async def buyout_offers_incoming(user: dict = Depends(get_current_user)):
+    cursor = db.talent_buyout_offers.find(
+        {"owner_id": user["id"], "status": {"$in": ["pending", "countered"]}, "expires_at": {"$gt": _now_iso()}},
+        {"_id": 0}
+    ).sort("created_at", -1)
+    return {"items": await cursor.to_list(100)}
+
+
+@router.get("/market/talents/buyout-offers/outgoing")
+async def buyout_offers_outgoing(user: dict = Depends(get_current_user)):
+    cursor = db.talent_buyout_offers.find(
+        {"buyer_id": user["id"], "status": {"$in": ["pending", "countered", "accepted"]}},
+        {"_id": 0}
+    ).sort("created_at", -1)
+    return {"items": await cursor.to_list(100)}
+
+
+@router.post("/market/talents/buyout-offers/{offer_id}/accept")
+async def accept_buyout_offer(offer_id: str, user: dict = Depends(get_current_user)):
+    offer = await db.talent_buyout_offers.find_one({"id": offer_id}, {"_id": 0})
+    if not offer:
+        raise HTTPException(404, "Offerta non trovata")
+    if offer.get("owner_id") != user["id"]:
+        raise HTTPException(403, "Non sei l'owner di questa offerta")
+    if offer.get("status") not in ("pending", "countered"):
+        raise HTTPException(400, "Offerta non più aperta")
+
+    eng_id = offer.get("engagement_id")
+    eng = await db.talent_pre_engagements.find_one({"id": eng_id}, {"_id": 0})
+    if not eng:
+        raise HTTPException(404, "Contratto non trovato")
+
+    final_amount = offer.get("counter_amount") or offer.get("offered_amount")
+    remaining = max(0, final_amount - (offer.get("lock_amount") or 0))
+    buyer = await db.users.find_one({"id": offer.get("buyer_id")}, {"_id": 0, "funds": 1})
+    if (buyer.get("funds") or 0) < remaining:
+        await db.talent_buyout_offers.update_one(
+            {"id": offer_id}, {"$set": {"status": "buyer_default", "closed_at": _now_iso()}}
+        )
+        raise HTTPException(400, "Il buyer non ha più fondi sufficienti — offerta annullata")
+
+    await db.users.update_one({"id": offer.get("buyer_id")}, {"$inc": {"funds": -remaining}})
+    owner_payout = int(final_amount * _OWNER_ACCEPT_BONUS)
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"funds": owner_payout}})
+
+    await db.talent_pre_engagements.update_one(
+        {"id": eng_id},
+        {"$set": {"pending_buyout_offer": {
+            "offer_id": offer_id, "buyer_id": offer.get("buyer_id"),
+            "amount": final_amount, "transfer_at": eng.get("contract_expires_at"),
+        }}}
+    )
+    await db.talent_buyout_offers.update_one(
+        {"id": offer_id},
+        {"$set": {"status": "accepted", "accepted_at": _now_iso(),
+                  "final_amount": final_amount, "owner_payout": owner_payout}}
+    )
+
+    await _create_notification_safe(
+        offer.get("buyer_id"), "talent_buyout_accepted",
+        "✅ Offerta accettata",
+        f"{(eng.get('npc_snapshot') or {}).get('name', 'Il talento')} sarà tuo alla scadenza del contratto attuale.",
+        {"offer_id": offer_id, "engagement_id": eng_id, "transfer_at": eng.get("contract_expires_at")}
+    )
+    return {"success": True, "owner_payout": owner_payout, "buyer_paid": final_amount}
+
+
+@router.post("/market/talents/buyout-offers/{offer_id}/decline")
+async def decline_buyout_offer(offer_id: str, user: dict = Depends(get_current_user)):
+    offer = await db.talent_buyout_offers.find_one({"id": offer_id}, {"_id": 0})
+    if not offer:
+        raise HTTPException(404, "Offerta non trovata")
+    if offer.get("owner_id") != user["id"]:
+        raise HTTPException(403, "Non sei l'owner di questa offerta")
+    if offer.get("status") not in ("pending", "countered"):
+        raise HTTPException(400, "Offerta non più aperta")
+
+    lock = int(offer.get("lock_amount") or 0)
+    if lock > 0:
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"funds": lock}})
+
+    await db.talent_buyout_offers.update_one(
+        {"id": offer_id},
+        {"$set": {"status": "declined", "declined_at": _now_iso()}}
+    )
+
+    await _create_notification_safe(
+        offer.get("buyer_id"), "talent_buyout_declined",
+        "❌ Offerta rifiutata",
+        f"L'owner ha rifiutato la tua offerta. Hai perso il lock di ${lock:,}.",
+        {"offer_id": offer_id}
+    )
+    return {"success": True, "owner_compensation": lock}
+
+
+@router.post("/market/talents/buyout-offers/{offer_id}/counter")
+async def counter_buyout_offer(offer_id: str, req: CounterOfferReq, user: dict = Depends(get_current_user)):
+    offer = await db.talent_buyout_offers.find_one({"id": offer_id}, {"_id": 0})
+    if not offer:
+        raise HTTPException(404, "Offerta non trovata")
+    if offer.get("owner_id") != user["id"]:
+        raise HTTPException(403, "Non sei l'owner")
+    if offer.get("status") != "pending":
+        raise HTTPException(400, "Solo offerte pending possono essere contro-offerte")
+    if req.counter_amount <= (offer.get("offered_amount") or 0):
+        raise HTTPException(400, "La contro-offerta deve essere superiore all'offerta originale")
+
+    await db.talent_buyout_offers.update_one(
+        {"id": offer_id},
+        {"$set": {
+            "counter_amount": req.counter_amount,
+            "counter_message": req.message,
+            "status": "countered",
+            "countered_at": _now_iso(),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=_BUYOUT_OFFER_TTL_HOURS)).isoformat(),
+        }}
+    )
+
+    await _create_notification_safe(
+        offer.get("buyer_id"), "talent_buyout_countered",
+        "🔁 Contro-offerta ricevuta",
+        f"L'owner chiede ${req.counter_amount:,} per il talento.",
+        {"offer_id": offer_id, "counter_amount": req.counter_amount}
+    )
+    return {"success": True}
+
+
+@router.post("/market/talents/buyout-offers/{offer_id}/buyer-accept")
+async def buyer_accept_counter(offer_id: str, user: dict = Depends(get_current_user)):
+    offer = await db.talent_buyout_offers.find_one({"id": offer_id}, {"_id": 0})
+    if not offer:
+        raise HTTPException(404, "Offerta non trovata")
+    if offer.get("buyer_id") != user["id"]:
+        raise HTTPException(403, "Non sei il buyer")
+    if offer.get("status") != "countered":
+        raise HTTPException(400, "Nessuna contro-offerta da accettare")
+
+    counter = offer.get("counter_amount") or 0
+    delta_lock = int((counter - (offer.get("offered_amount") or 0)) * _BUYOUT_FEE_PCT)
+    if delta_lock > 0:
+        me = await db.users.find_one({"id": user["id"]}, {"_id": 0, "funds": 1})
+        if (me.get("funds") or 0) < delta_lock:
+            raise HTTPException(400, f"Fondi insufficienti per il lock aggiuntivo (${delta_lock:,})")
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"funds": -delta_lock}})
+
+    await db.talent_buyout_offers.update_one(
+        {"id": offer_id},
+        {"$set": {"offered_amount": counter, "lock_amount": (offer.get("lock_amount") or 0) + delta_lock,
+                  "status": "pending", "buyer_accepted_counter_at": _now_iso()}}
+    )
+    return {"success": True, "additional_lock": delta_lock}
+
+
+async def process_expired_transfers():
+    """Trasferisce NPCs ai buyer dopo scadenza contratto se c'è pending_buyout_offer."""
+    now = datetime.now(timezone.utc)
+    transferred = 0
+    cursor = db.talent_pre_engagements.find(
+        {"pending_buyout_offer": {"$ne": None},
+         "contract_status": {"$in": ["active", "threatened"]}},
+        {"_id": 0}
+    )
+    async for eng in cursor:
+        try:
+            exp = datetime.fromisoformat(str(eng.get("contract_expires_at", "")).replace("Z", "+00:00"))
+            if exp > now:
+                continue
+            buyout = eng.get("pending_buyout_offer") or {}
+            buyer_id = buyout.get("buyer_id")
+            if not buyer_id:
+                continue
+            new_eng = {
+                "id": str(uuid.uuid4()),
+                "user_id": buyer_id,
+                "npc_id": eng.get("npc_id"),
+                "npc_snapshot": eng.get("npc_snapshot"),
+                "npc_stars": eng.get("npc_stars"),
+                "role": eng.get("role"),
+                "cast_role_intended": eng.get("cast_role_intended"),
+                "contract_started_at": _now_iso(),
+                "contract_duration_days": 30,
+                "contract_expires_at": _expires_iso(30),
+                "fee_paid": buyout.get("amount"),
+                "contract_status": "active",
+                "happiness_score": 70,
+                "usage_history": [],
+                "usage_by_role": {},
+                "renewals_count": 0,
+                "renegotiations_count": 0,
+                "from_buyout": True,
+                "previous_owner_id": eng.get("user_id"),
+                "created_at": _now_iso(),
+            }
+            await db.talent_pre_engagements.insert_one(dict(new_eng))
+            await db.talent_pre_engagements.update_one(
+                {"id": eng.get("id")},
+                {"$set": {"contract_status": "transferred", "transferred_at": _now_iso(),
+                          "transferred_to_user_id": buyer_id}}
+            )
+            transferred += 1
+            await _create_notification_safe(
+                buyer_id, "talent_transferred_in",
+                "🎉 Talento acquisito",
+                f"{(eng.get('npc_snapshot') or {}).get('name', 'Il nuovo talento')} è ora nel tuo roster (30gg).",
+                {"engagement_id": new_eng["id"], "npc_id": eng.get("npc_id")}
+            )
+            await _create_notification_safe(
+                eng.get("user_id"), "talent_transferred_out",
+                "👋 Talento trasferito",
+                f"{(eng.get('npc_snapshot') or {}).get('name', 'Il talento')} ha lasciato il tuo studio.",
+                {"engagement_id": eng.get("id"), "npc_id": eng.get("npc_id")}
+            )
+        except Exception:
+            pass
+    return {"transferred": transferred}
+
+
+# ─── DIARIO EMOTIVO BREVE (AI) ─────────────────────────────────────
+
+@router.get("/talent-scout/diary/{eng_id}")
+async def talent_diary(eng_id: str, user: dict = Depends(get_current_user)):
+    """Diario emotivo breve (1 frase, max 30 parole) generato via AI."""
+    eng = await db.talent_pre_engagements.find_one(
+        {"id": eng_id, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not eng:
+        raise HTTPException(404, "Engagement non trovato")
+
+    cached = eng.get("diary_cache") or {}
+    cached_at = cached.get("at")
+    if cached_at:
+        try:
+            cdt = datetime.fromisoformat(str(cached_at).replace("Z", "+00:00"))
+            if (datetime.now(timezone.utc) - cdt).total_seconds() < 3600:
+                return {"diary": cached.get("text", ""), "cached": True}
+        except Exception:
+            pass
+
+    snap = eng.get("npc_snapshot") or {}
+    name = snap.get("name", "Il talento")
+    h = int(eng.get("happiness_score", 75) or 75)
+    status = eng.get("contract_status", "active")
+    usage = eng.get("usage_history") or []
+    last_use = usage[-1] if usage else None
+    role = eng.get("role", "actor")
+    role_it = {"actor": "attore", "director": "regista", "screenwriter": "sceneggiatore",
+               "composer": "compositore", "illustrator": "disegnatore"}.get(role, "talento")
+
+    try:
+        exp = datetime.fromisoformat(str(eng.get("contract_expires_at", "")).replace("Z", "+00:00"))
+        dr = max(0, int((exp - datetime.now(timezone.utc)).total_seconds() // 86400))
+    except Exception:
+        dr = 0
+
+    def _fallback():
+        if status == "threatened":
+            return f"{name} è furibondo: minaccia di rescindere il contratto se non torna sul set."
+        if h >= 75 and last_use:
+            return f"{name} è entusiasta dopo l'ultimo film: non vede l'ora del prossimo progetto."
+        if h >= 75:
+            return f"{name} è felice di far parte dello studio, ma aspetta con impazienza il primo ruolo."
+        if h >= 55:
+            return f"{name} è soddisfatto, ma comincia a domandarsi quando tornerà davanti alla cinepresa."
+        if h >= 35:
+            return f"{name} è incerto: l'inattività pesa, e il contratto è a {dr}gg dalla fine."
+        return f"{name} è scontento: senza lavoro recente, valuta altre offerte."
+
+    import os as _os
+    key = _os.environ.get("EMERGENT_LLM_KEY")
+    text = _fallback()
+    if key:
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            recent_films = ", ".join((u.get("film_title") or "?") for u in usage[-3:]) or "nessuno ancora"
+            chat = LlmChat(
+                api_key=key,
+                session_id=f"talent-diary-{eng_id}",
+                system_message=(
+                    "Sei la voce interiore di un personaggio di un'industria cinematografica fittizia. "
+                    "Scrivi UNA SOLA frase in italiano (max 30 parole), in prima persona, che esprima "
+                    "lo stato d'animo attuale del personaggio. Niente titoli, niente virgolette esterne, "
+                    "solo la frase. Sii diretto, autentico, evocativo."
+                ),
+            ).with_model("openai", "gpt-4o-mini")
+            prompt = (
+                f"Personaggio: {name}, {role_it}.\n"
+                f"Felicità (0-100): {h}.\n"
+                f"Stato contratto: {status} ({dr}gg rimanenti).\n"
+                f"Film recenti: {recent_films}.\n"
+                f"Numero apparizioni: {len(usage)}.\n\n"
+                "Scrivi una frase breve (max 30 parole) sullo stato d'animo ORA."
+            )
+            resp = await chat.send_message(UserMessage(text=prompt))
+            generated = (resp or "").strip().strip('"').strip("'")
+            if generated and len(generated) < 400:
+                text = generated
+        except Exception:
+            pass
+
+    await db.talent_pre_engagements.update_one(
+        {"id": eng_id, "user_id": user["id"]},
+        {"$set": {"diary_cache": {"text": text, "at": _now_iso()}}}
+    )
+    return {"diary": text, "cached": False}

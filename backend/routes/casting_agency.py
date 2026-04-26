@@ -15,6 +15,15 @@ from emerging_screenplays import generate_synopsis
 
 router = APIRouter()
 
+
+def _ensure_avatar(actor: dict) -> dict:
+    """Garantisce un avatar_url dicebear-style derivato dal nome se mancante."""
+    if actor and not actor.get('avatar_url'):
+        name = (actor.get('name') or 'NPC').strip()
+        seed = ''.join(c for c in name if c.isalnum())[:40] or 'NPC'
+        actor['avatar_url'] = f'https://api.dicebear.com/7.x/avataaars/svg?seed={seed}'
+    return actor
+
 # Genre list for actor specializations
 ALL_GENRES = [
     'action', 'comedy', 'drama', 'horror', 'sci_fi', 'romance',
@@ -473,6 +482,7 @@ async def get_actors_for_casting(user: dict = Depends(get_current_user)):
         a['skills'] = convert_legacy_skills(a.get('skills', {}))
         if a.get('skill_caps'):
             a['skill_caps'] = convert_legacy_skill_caps(a['skill_caps'])
+        _ensure_avatar(a)
 
     # 2. School students (available for casting, continue training + bonus)
     school_students = await db.casting_school_students.find(
@@ -485,6 +495,7 @@ async def get_actors_for_casting(user: dict = Depends(get_current_user)):
         # Calculate current skills for display
         from routes.acting_school import calculate_current_skills
         s['skills'] = calculate_current_skills(s)
+        _ensure_avatar(s)
 
     current_count = len(effective_actors)
     slots_available = max(0, max_actors - current_count)

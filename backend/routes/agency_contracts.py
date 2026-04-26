@@ -216,6 +216,10 @@ async def list_free_agents(
 
     async for actor in cursor:
         actor = _serialize_actor(actor)
+        # Avatar fallback (dicebear basato sul nome)
+        if not actor.get('avatar_url'):
+            seed = ''.join(c for c in (actor.get('name') or 'NPC') if c.isalnum())[:40] or 'NPC'
+            actor['avatar_url'] = f'https://api.dicebear.com/7.x/avataaars/svg?seed={seed}'
         # base offer = cost_per_film × price_mult per durata (mostra 30gg di default)
         opt = CONTRACT_OPTIONS[30]
         list_price = int((actor.get("cost_per_film", 100000) * opt["price_mult"]) * discount_mult)

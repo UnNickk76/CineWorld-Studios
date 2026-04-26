@@ -124,7 +124,7 @@ def _stars_from_npc(npc: dict) -> int:
 
 
 def _serialize_npc_card(npc: dict, fee: int, role: str) -> dict:
-    return {
+    return _ensure_avatar({
         "id": npc.get("id"),
         "name": npc.get("name"),
         "age": npc.get("age"),
@@ -140,7 +140,7 @@ def _serialize_npc_card(npc: dict, fee: int, role: str) -> dict:
         "cost_per_film": npc.get("cost_per_film", 0),
         "pre_engage_fee_30d": fee,
         "role": role,
-    }
+    })
 
 
 # ─── MODELLI ────────────────────────────────────────────────────────
@@ -334,28 +334,42 @@ async def my_roster(
     user: dict = Depends(get_current_user),
     role: Optional[Literal["actor", "director", "screenwriter", "composer", "illustrator"]] = None,
 ):
-    """Lista pre-engagement attivi dell'utente, filtrabili per ruolo."""
+    """Lista pre-engagement attivi dell'utente, filtrabili per ruolo.
+    Arricchisce npc_snapshot con skills/avatar dal collection people se mancanti.
+    """
     q = {"user_id": user["id"], "contract_status": {"$in": ["active", "threatened"]}}
     if role:
         q["role"] = role
     cursor = db.talent_pre_engagements.find(q, {"_id": 0}).sort("contract_expires_at", 1)
     items = await cursor.to_list(200)
-    # Compute days remaining + happiness flags
     now = datetime.now(timezone.utc)
+    # Enrich snapshot from people collection if skills/avatar missing
+    npc_ids = list({it.get("npc_id") for it in items if it.get("npc_id")})
+    people_map = {}
+    if npc_ids:
+        async for p in db.people.find({"id": {"$in": npc_ids}}, {"_id": 0}):
+            people_map[p["id"]] = p
     for it in items:
+        snap = it.get("npc_snapshot") or {}
+        full = people_map.get(it.get("npc_id")) or {}
+        # Merge: snapshot vince per i campi che ha, full riempie i mancanti
+        merged = {**full, **{k: v for k, v in snap.items() if v is not None}}
+        # Avatar fallback dicebear se ancora mancante
+        if not merged.get("avatar_url"):
+            seed = ''.join(c for c in (merged.get("name") or "NPC") if c.isalnum())[:40] or "NPC"
+            merged["avatar_url"] = f'https://api.dicebear.com/7.x/avataaars/svg?seed={seed}'
+        it["npc_snapshot"] = merged
         try:
             exp = datetime.fromisoformat(it["contract_expires_at"].replace("Z", "+00:00"))
             it["days_remaining"] = max(0, int((exp - now).total_seconds() // 86400))
         except Exception:
             it["days_remaining"] = 0
-        # Happiness emoji + urgency
         h = int(it.get("happiness_score", 75) or 75)
         if h >= 75: it["happiness_emoji"] = "😊"
         elif h >= 55: it["happiness_emoji"] = "🙂"
         elif h >= 35: it["happiness_emoji"] = "😐"
         elif h >= 15: it["happiness_emoji"] = "😠"
         else: it["happiness_emoji"] = "😡"
-        # Grace period info
         if it.get("contract_status") == "threatened" and it.get("grace_period_ends_at"):
             try:
                 grace = datetime.fromisoformat(str(it["grace_period_ends_at"]).replace("Z", "+00:00"))
@@ -515,7 +529,7 @@ async def spawn_random_proposals_for_user(user_id: str):
             "target_user_id": user_id,
             "npc_id": npc["id"],
             "npc_name": npc.get("name"),
-            "npc_avatar_url": npc.get("avatar_url"),
+            "npc_avatar_url": npc.get("avatar_url") or f"https://api.dicebear.com/7.x/avataaars/svg?seed={''.join(c for c in (npc.get('name') or 'NPC') if c.isalnum())[:40] or 'NPC'}",
             "npc_gender": npc.get("gender"),
             "npc_stars": tier,
             "role": role,
@@ -757,6 +771,14 @@ async def boost_happiness_on_film_use(user_id: str, cast_members: list, film_id:
 #  STEP 5 — MERCATO "NPC SOTTO CONTRATTO" (FURTO CROSS-PLAYER)
 # ═══════════════════════════════════════════════════════════════════
 
+def _ensure_avatar(d: dict, name_field: str = "name") -> dict:
+    """Garantisce avatar_url dicebear basato sul nome se mancante."""
+    if d and not d.get("avatar_url"):
+        seed = "".join(c for c in (d.get(name_field) or "NPC") if c.isalnum())[:40] or "NPC"
+        d["avatar_url"] = f"https://api.dicebear.com/7.x/avataaars/svg?seed={seed}"
+    return d
+
+
 _BUYOUT_MIN_PREMIUM = 0.20
 _BUYOUT_OFFER_TTL_HOURS = 72
 _OWNER_ACCEPT_BONUS = 0.50
@@ -827,7 +849,7 @@ async def list_under_contract(
             "engagement_id": e.get("id"),
             "npc_id": e.get("npc_id"),
             "npc_name": snap.get("name"),
-            "npc_avatar_url": snap.get("avatar_url"),
+            "npc_avatar_url": snap.get("avatar_url") or f"https://api.dicebear.com/7.x/avataaars/svg?seed={''.join(c for c in (snap.get('name') or 'NPC') if c.isalnum())[:40] or 'NPC'}",
             "npc_gender": snap.get("gender"),
             "npc_stars": e.get("npc_stars", snap.get("stars", 2)),
             "role": e.get("role"),

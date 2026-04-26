@@ -8,6 +8,7 @@ import { Users, Star, Briefcase, Trash2, RefreshCw, ChevronRight, BookOpen, Awar
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 import FreeAgentsMarketModal from '../components/FreeAgentsMarketModal';
+import TalentMarketModal from '../components/TalentMarketModal';
 
 const GENRE_ICONS = {
   action: Swords, comedy: Sparkles, drama: Heart, horror: Shield,
@@ -874,6 +875,13 @@ export default function CastingAgencyPage() {
             Mercato Attori Liberi
             <ChevronRight className="w-3 h-3 ml-1" />
           </Button>
+          {/* Talent Market — Sistema Pre-Ingaggio (Talenti Vivente) */}
+          <Button onClick={() => setShowTalentMarket(true)} data-testid="open-talent-market"
+                  className="w-full bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/30 text-yellow-200 hover:from-yellow-500/30 hover:to-amber-500/30 h-9">
+            <Sparkles className="w-4 h-4 mr-2" />
+            Mercato Talenti (Pre-ingaggio)
+            <ChevronRight className="w-3 h-3 ml-1" />
+          </Button>
           {actors.length === 0 ? (
             <div className="text-center py-10 text-gray-500">
               <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -962,6 +970,10 @@ export default function CastingAgencyPage() {
         open={showFreeAgents}
         onClose={() => setShowFreeAgents(false)}
         onSigned={() => { loadActors(); loadInfo(); }}
+      />
+      <TalentMarketModal
+        open={showTalentMarket}
+        onClose={() => setShowTalentMarket(false)}
       />
     </div>
   );

@@ -34,11 +34,11 @@ router = APIRouter(prefix="/api", tags=["talent_market"])
 # ─── COSTANTI ──────────────────────────────────────────────────────
 
 ROLE_INFRA_MAP = {
-    "actor":       ["talent_scout", "casting_agency", "agenzia_attori"],
-    "director":    ["scout_directors", "agenzia_registi"],
-    "screenwriter": ["scout_screenwriters", "agenzia_sceneggiatori"],
-    "composer":    ["scout_composers", "agenzia_compositori"],
-    "illustrator": ["scout_illustrators", "agenzia_disegnatori"],
+    "actor":        ["talent_scout_actors", "casting_agency", "agenzia_attori"],
+    "director":     ["talent_scout_directors", "scout_directors", "agenzia_registi"],
+    "screenwriter": ["talent_scout_screenwriters", "scout_screenwriters", "agenzia_sceneggiatori"],
+    "composer":     ["talent_scout_composers", "scout_composers", "agenzia_compositori"],
+    "illustrator":  ["talent_scout_illustrators", "scout_illustrators", "agenzia_disegnatori"],
 }
 
 

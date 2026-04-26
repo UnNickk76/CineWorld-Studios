@@ -2,6 +2,33 @@
 
 > ✦ Sistema completo "NPCs vivi": pre-ingaggio + rescissione + happiness + furto cross-player ✦
 
+### ✅ STEP COMPLETATI
+- **Step 1 — Backend MVP** (`/app/backend/routes/talent_market.py`):
+  - Endpoint `GET /api/talent-scout/perks` per visibilità/slot/sconto/durata max scalati per livello infra di ogni ruolo.
+  - Endpoint `GET /api/market/talents?role=...` lista NPCs filtrata per ruolo + livello infra.
+  - Endpoint `POST /api/market/talents/pre-engage/{npc_id}` con scarico fondi + slot enforce.
+  - Endpoint `GET /api/talent-scout/my-roster` + `POST /api/talent-scout/release/{eng_id}` (no rimborso).
+  - Endpoint `GET /api/market/talents/proposed-to-me` + `POST /api/market/talents/proposed/{prop_id}/accept`.
+  - `ROLE_INFRA_MAP` allineata con i tipi infra reali (`talent_scout_actors`, `talent_scout_screenwriters`, ecc.).
+  - Schema `talent_pre_engagements`: id, user_id, npc_id, npc_snapshot, role, cast_role_intended, contract_duration_days, contract_expires_at, fee_paid, contract_status, happiness_score, usage_history, ecc.
+  - Test E2E backend OK (login → perks → list → pre-engage → roster → release).
+
+- **Step 2 — Frontend Mercato Talenti** (`/app/frontend/src/components/TalentMarketModal.jsx` + `pages/TalentMarketPage.jsx`):
+  - Modal con 5 tab ruolo (Attori/Registi/Sceneggiatori/Compositori/Disegnatori) + tab "Proposti a me".
+  - PerkBar per ogni ruolo: livello, slot used/total, sconto %, durata massima.
+  - NpcCard responsive (mobile-first) con avatar, stelle, top-3 skill, fee 30g, bottone "Pre-ingaggia".
+  - Sub-dialog "Pre-ingaggio" con selettore durata (30/60/90/180g, lock se sopra max), selettore ruolo cast (solo per attori), breakdown costo finale.
+  - ProposalCard per offerte spontanee con accept rapido a 30g.
+  - Integrato in `CastingAgencyPage` (tab Attori) come bottone "Mercato Talenti (Pre-ingaggio)".
+  - Route dedicata `/talent-market` aggiunta in `App.js`.
+
+### 🟡 STEP IN ATTESA
+- **Step 3** — Integrazione pre-ingaggiati in pipelines (V3 classic, LAMPO, Sceneggiature Pronte) con badge "📜 Pre-ingaggiato" a $0.
+- **Step 4** — Happiness decay heartbeat + auto-rescissione con grace period 3gg.
+- **Step 5** — Mercato "NPC Sotto Contratto" (furto cross-player + counter-offerte).
+
+---
+
 ### 🎯 Concept Generale
 Tutti gli NPCs (attori posseduti, pre-ingaggiati, scuola) sono **entità vive** con happiness, aspettative, comportamento autonomo. Possono lasciare il player, essere "rubati" da altri, accettare/rifiutare rinnovi. Ogni infrastruttura (Agenzia / Talent Scout / Scuola) ha un livello che scala visibilità+slot+sconti.
 

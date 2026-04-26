@@ -1,61 +1,179 @@
-## 📋 ROADMAP — Feature in attesa: "Pre-Ingaggio NPCs via Talent Scout" (P1, da implementare)
+## 📋 ROADMAP — Feature in attesa: "Pre-Ingaggio NPCs via Talent Scout / Agenzie" (P1, da implementare) — VERSIONE 2 UNIFICATA
 
-**Concept**: Sistema di pre-ingaggio NPCs collegato all'infrastruttura **Talent Scout**. Il player paga in anticipo un pool di talenti, sbloccandone l'uso a costo $0 nei progetti futuri.
+> ✦ Feature corposa con economia + relazione + market dinamico ✦
 
-### Struttura
+### 🎯 Concept
+Sistema di pre-ingaggio NPCs collegato a infrastrutture **Agenzia Talent Scout** (per attori) + **Agenzia Scout Sceneggiatori/Registi/Compositori/Disegnatori** (per altri ruoli). Il player paga in anticipo un pool di talenti, sbloccandone l'uso a costo $0 nei progetti futuri. NPCs hanno reazione emotiva: rinnovano/rifiutano/rescindono in base a come vengono trattati.
 
-**Nuova sezione Market: "Talenti / Pre-Ingaggio"** con sotto-sezioni:
+### 🏗️ Struttura Market
+
+**1. Nuova sezione Market: "Talenti / Pre-Ingaggio"** con sotto-sezioni per ruolo:
 - 🎬 Registi
 - ✍️ Sceneggiatori
 - 🎭 Attori (con scelta ruolo: protagonista/antagonista/supporto/cameo)
 - 🎨 Disegnatori (anime)
 - 🎵 Compositori
 
-**Pool**: tutti gli NPC del game (`people` collection).
+**2. Visibilità basata su livello infrastrutture**
+- Ogni infra (Agenzia Talent Scout, Agenzia Scout Sceneggiatori, ecc.) ha un livello
+- Più alto → **più NPCs visibili** e di **qualità maggiore** (stelle, fame)
+- Livello determina anche il **numero massimo ingaggiabili per genere**
 
-**Parametri pre-ingaggio**:
-- Costo inferiore vs ingaggio singolo classico (sconto -20/-50% scaled da livello Talent Scout)
+**3. Pool**: tutti gli NPCs della collection `people`, filtrati per ruolo + livello infra del player.
+
+**4. Parametri pre-ingaggio**:
+- Costo inferiore vs ingaggio singolo (sconto -20/-50% scaled da livello infra)
 - Durata contratto X giorni (30/60/90/180)
-- Per attori: scelta ruolo specifico al momento del pre-ingaggio
-- Slot massimi pre-ingaggio basati sul livello Talent Scout
+- Per attori: scelta ruolo specifico al momento del pre-ingaggio (protagonista/antagonista/supporto/cameo)
+- Slot massimi pre-ingaggio per **categoria cast** basati sul livello infra
 
-### Comportamento nei pipeline
+### 🆕 Nuova sezione Market: "NPC Sotto Contratto" (visibile a TUTTI)
+- Lista pubblica di tutti gli NPCs attualmente sotto contratto presso un player
+- Mostra: nome NPC, owner attuale, durata contratto, **livello contentezza** (verde/giallo/rosso)
+- **Acquisto anticipato**: altri player possono offrire per acquisire il contratto PRIMA della scadenza
+  - Successo dell'offerta proporzionale a contentezza dell'NPC con owner attuale (se è insoddisfatto, accetta più facilmente di passare)
+  - Owner attuale riceve % dell'offerta (rimborso ingaggio) + perde lo slot
 
-**V3 classica**: pre-ingaggiati visibili nel casting con badge "📜 Pre-ingaggiato", costo $0 (già pagati). Player può sceglierli o ignorarli liberamente.
+### 🎮 Comportamento nei pipeline
 
-**LAMPO**: auto-cast pesca automaticamente **almeno 2 pre-ingaggiati** in aggiunta a school+agency → riduce drasticamente costo progetto.
+**V3 classica**: pre-ingaggiati visibili nel casting con **badge "📜 Pre-Ingaggiato"** (gold/purple), costo $0. Player può sceglierli o ignorarli.
+
+**LAMPO**: auto-cast pesca automaticamente **almeno 2 pre-ingaggiati** (in aggiunta a school+agency) → riduzione drastica costo progetto.
 
 **Sceneggiature Pronte / Agenzia Sceneggiatori**: stesso comportamento auto-include di LAMPO (2+ pre-ingaggiati automatici).
 
-### Schema DB (proposta)
-```python
+### 🔄 Sistema Rinnovo / Rifiuto / Rescissione
+
+**Sistema rinnovo a ridosso scadenza**:
+- A 5gg dalla fine: prompt al player "Vuoi rinnovare?"
+- L'NPC può **accettare o rifiutare** in base a logica peer-comparison:
+  - **Confronto solo tra stesso tipo cast** (un attore confronta solo con altri attori, non con registi)
+  - Calcolo: `usage_count / avg_usage_count_di_stesso_tipo` → se < 0.5, NPC rifiuta o chiede aumento sostanziale
+- Se accetta: nuovo contratto a costo invariato/leggermente migliorato; loyalty bonus +5% CWSv
+
+**Sistema rifiuto specifico per attori (basato su ruolo)**:
+- Caso A — **Sotto-utilizzato in ruolo richiesto**: se ingaggiato come "protagonista" ma usato sempre come "supporto" → rifiuta rinnovo per ruolo "protagonista" (può accettare per ruolo inferiore con sconto)
+- Caso B — **Promosso oltre le aspettative**: se ingaggiato come "generico" ma usato come "protagonista" → **molto propenso ad accettare rinnovo a costi bassi** (è felice della crescita)
+- Calcolo basato su matrice `intended_role` × `actual_uses[role]`
+
+**Sistema rescissione anticipata da NPC** (l'NPC molla il player):
+- Trigger: se NPC non viene usato in proporzione attesa (es. <1 film ogni 30gg di contratto)
+- NPC può **rescindere unilateralmente** → torna nel Market come Free Agent
+- Player riceve **rimborso parziale** del fee pagato:
+  - 0gg: 100% (impossibile, c'è grace period)
+  - 50% durata: 50% rimborso
+  - 80% durata: 20% rimborso
+  - 95% durata: 0% rimborso
+- Notifica al player: "Tony Stark ha lasciato la tua agenzia: 'Mi tieni in panchina, vado dove possa lavorare'"
+
+### 👤 Nuova sezione Agenzia (player view)
+
+**3 sub-tabs principali**:
+1. **🎓 Scuola** (studenti casting_school_students)
+2. **💼 Propri** (agency_actors classici)
+3. **📜 Pre-Ingaggio dal Market** (talent_pre_engagements)
+
+Ogni tab con **sotto-filtri per tipo cast** (registi/sceneggiatori/attori/disegnatori/compositori).
+
+**Per ogni NPC mostra**:
+- Tipo contratto (durata totale)
+- Giorni rimanenti (countdown)
+- **Livello contentezza** (4 stati: 😊 Felice / 🙂 OK / 😐 Insoddisfatto / 😠 In rotta)
+- Numero film/progetti fatti durante il contratto
+- Ruoli effettivamente ricoperti (per attori)
+- **Loyalty score** cumulativo (% bonus CWSv)
+- Bottoni: **Rinnova / Libera / Cambia Ruolo Atteso**
+- (idea extra) Pulsante **"Regalia"**: spendi denaro extra per aumentare contentezza
+
+### 💾 Schema DB previsto
+
+```
 talent_pre_engagements:
 - id, user_id, npc_id, role (director/writer/actor/illustrator/composer)
-- cast_role (per attori)
+- cast_role_intended (per attori: protagonist/co_protagonist/antagonist/supporting/cameo)
 - contract_started_at, contract_duration_days, contract_expires_at
-- fee_paid, contract_status (active/expired/used)
-- usage_history: [{film_id, used_at}]
+- fee_paid, fee_per_film_when_used (= 0 se pre-pagato)
+- contract_status: active/renewed/expired/released_by_npc/sold_to_other_player
+- happiness_score: 0-100 (calcolato dinamicamente)
+- usage_history: [{film_id, role_used, cwsv, used_at}]
+- usage_by_role: {protagonist: 2, supporting: 5, ...}
+- renewals_count, renegotiations_count
+- next_renewal_check_at: ISO datetime
+- listed_for_purchase: bool (visibile in market "NPC sotto contratto")
+- purchase_offers: [{from_user_id, amount, made_at, status}]
 ```
 
-### Livelli Talent Scout (proposta tier)
-- Lv 1: 3 slot · sconto -20% · max 30gg
-- Lv 3: 8 slot · sconto -30% · max 60gg
-- Lv 5: 15 slot · sconto -40% · max 90gg
-- Lv 10: 30 slot · sconto -50% · max 180gg
+### 🎚️ Livelli infra (proposta tier)
 
-### Endpoint backend previsti
-- `GET /api/market/talents?role=director|writer|actor|illustrator|composer&min_stars=&max_fee=`
-- `POST /api/market/talents/pre-engage/{npc_id}` body `{role, cast_role?, duration_days, offered_fee}`
-- `GET /api/talent-scout/my-roster` → roster pre-ingaggiati attivi del player
-- `POST /api/talent-scout/release/{engagement_id}` → libera prima della scadenza
-- `GET /api/talent-scout/perks` → ritorna slot rimanenti, sconto attuale, max duration in base al livello infra
+**Agenzia Talent Scout** (attori, già esiste):
+- Lv 1: 3 slot · pool 50 NPC visibili · sconto -20% · max 30gg
+- Lv 3: 8 slot · pool 200 NPC visibili · sconto -30% · max 60gg
+- Lv 5: 15 slot · pool 500 NPC visibili · sconto -40% · max 90gg
+- Lv 10: 30 slot · pool 2000 NPC visibili · sconto -50% · max 180gg
 
-### Integrazione frontend
-- Nuova tab "TALENTI" nel Market generico (accanto a Film/Serie/Anime/Mercato TV/Free Agents)
-- In `CastPhase.jsx` (V3): mostra pre-ingaggiati con badge speciale (purple/gold) sopra il roster proprio
-- In `routes/lampo.py` `_pick_random_cast`: dopo own_roster (school+agency), pesca anche da pre-engaged → priorità nell'ordine
+**Agenzia Scout (per altri tipi)**: Stesso schema con scaling specifico per ruolo.
 
-**STATUS**: in attesa di implementazione, conferma utente al prossimo messaggio.
+### 🌐 Endpoint backend previsti
+
+```
+GET  /api/market/talents?role=&min_stars=&max_fee=&page=
+POST /api/market/talents/pre-engage/{npc_id}
+GET  /api/market/contracted-npcs        ← nuovo: lista pubblica NPC sotto contratto altri player
+POST /api/market/contracted-npcs/{engagement_id}/offer-buyout    ← acquisto anticipato
+
+GET  /api/talent-scout/my-roster?role=
+POST /api/talent-scout/renew/{engagement_id}
+POST /api/talent-scout/release/{engagement_id}
+POST /api/talent-scout/gift/{engagement_id}    ← regalia per aumentare contentezza
+GET  /api/talent-scout/perks                   ← slot rimanenti per ogni infra
+GET  /api/talent-scout/renewal-prompts          ← lista contratti in scadenza < 5gg
+```
+
+### 🧠 Algoritmo Happiness Score (per NPC)
+
+```python
+def compute_happiness(engagement, user_films_in_period):
+    base = 75
+    # Frequenza utilizzo
+    expected_uses = (engagement.contract_duration_days / 30) * 1.2  # 1+ film/mese atteso
+    actual_uses = len(engagement.usage_history)
+    usage_ratio = actual_uses / max(1, expected_uses)
+    if usage_ratio < 0.3: base -= 35
+    elif usage_ratio < 0.6: base -= 15
+    elif usage_ratio > 1.5: base += 10
+    
+    # Per attori: corrispondenza ruolo
+    if engagement.role == 'actor':
+        intended = engagement.cast_role_intended
+        used_in_intended = engagement.usage_by_role.get(intended, 0)
+        if intended in ('protagonist', 'co_protagonist') and used_in_intended == 0:
+            base -= 25  # ingaggiato come prota ma mai usato
+        elif intended == 'cameo' and engagement.usage_by_role.get('protagonist', 0) > 0:
+            base += 15  # promosso sopra le aspettative
+    
+    # Qualità film fatti
+    avg_cwsv = mean([h['cwsv'] for h in engagement.usage_history]) if engagement.usage_history else 0
+    if avg_cwsv >= 75: base += 10
+    elif avg_cwsv < 40: base -= 10
+    
+    return max(0, min(100, base))
+```
+
+### 🌪️ Trigger NPC release (auto-rescissione)
+- Happiness < 25 + contratto > 50% durata → NPC rescinde (probabilità 30% ogni heartbeat)
+- Happiness < 10 + contratto > 70% durata → NPC rescinde (probabilità 70%)
+
+### 🔌 Integrazione frontend
+- **Nuova tab "TALENTI"** nel Market generico (accanto a Film/Serie/Anime/Mercato TV/Free Agents)
+- **Nuova tab "NPC SOTTO CONTRATTO"** nel Market (visibile pubblicamente a tutti i player)
+- In `CastPhase.jsx` (V3): badge "📜 Pre-Ingaggiato" + costo $0 + filtro dedicato
+- In `CastingAgencyPage.jsx`: nuovo tab "Pre-Ingaggio" con sub-filtri per ruolo + happiness UI emoji
+- In `routes/lampo.py` `_pick_random_cast`: dopo own_roster, pesca anche da pre_engaged → priorità nell'ordine
+- In `routes/quick_v3.py` (sceneggiature pronte): stessa logica auto-include
+
+**STATUS**: in progettazione, l'utente continuerà a fornire altri dettagli prima dell'implementazione.
+
+
 
 
 ## Bundle 10 fix (Apr 26, 2026 — sera 2)

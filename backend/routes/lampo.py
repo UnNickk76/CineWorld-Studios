@@ -551,15 +551,44 @@ async def _worker_generate(pid: str):
             ).limit(20).to_list(20)
             for s in school_students:
                 own_pool.append({**s, "_own_source": "school"})
+            # Step 3 — Pre-engaged actors injected con priorità (max 2 garantiti)
+            pre_engs = await db.talent_pre_engagements.find(
+                {"user_id": proj["user_id"], "role": "actor",
+                 "contract_status": {"$in": ["active", "threatened"]}},
+                {"_id": 0}
+            ).limit(20).to_list(20)
+            pre_pool = []
+            for e in pre_engs:
+                snap = e.get("npc_snapshot", {}) or {}
+                # Enrich da people se snapshot sparso
+                if not snap.get("skills"):
+                    try:
+                        full = await db.people.find_one({"id": e.get("npc_id")}, {"_id": 0})
+                        if full:
+                            snap = {**full, **snap}
+                    except Exception:
+                        pass
+                pre_pool.append({
+                    **snap,
+                    "id": e.get("npc_id"),
+                    "_own_source": "pre_engaged",
+                    "_pre_engage_id": e.get("id"),
+                })
 
-            if own_pool and cast.get("actors"):
+            if cast.get("actors") and (own_pool or pre_pool):
                 import random as _rnd2
-                # max 2 own actors per LAMPO project
-                k = min(2, len(own_pool), len(cast["actors"]))
-                own_pick = _rnd2.sample(own_pool, k)
-                for i, ow in enumerate(own_pick):
-                    # Replace the i-th actor (preserve character_role)
-                    char_role = cast["actors"][i].get("character_role") if i < len(cast["actors"]) else None
+                actor_slots = len(cast["actors"])
+                used_idx = set()
+                # 1. Pre-engaged hanno priorità: max 2, prima del random own pool
+                k_pre = min(2, len(pre_pool), actor_slots)
+                pre_pick = _rnd2.sample(pre_pool, k_pre) if k_pre > 0 else []
+                for ow in pre_pick:
+                    # Trova primo slot non usato
+                    i = next((idx for idx in range(actor_slots) if idx not in used_idx), None)
+                    if i is None:
+                        break
+                    used_idx.add(i)
+                    char_role = cast["actors"][i].get("character_role")
                     enriched = {
                         **ow,
                         "id": ow.get("id"),
@@ -571,15 +600,80 @@ async def _worker_generate(pid: str):
                         "role_label": "Attore" if proj["content_type"] != "anime" else "Disegnatore",
                         "skills": ow.get("skills", {}),
                         "fame_score": ow.get("fame_score", 30),
-                        "score": 60 + (ow.get("stars", 2) * 4),
+                        "score": 65 + (ow.get("stars", 2) * 4),
                         "is_guest_star": False,
                         "is_own_roster": True,
-                        "own_source": ow.get("_own_source", "agency"),
+                        "own_source": "pre_engaged",
                         "is_agency_actor": True,
+                        "is_pre_engaged": True,
+                        "pre_engage_id": ow.get("_pre_engage_id"),
                     }
                     if char_role:
                         enriched["character_role"] = char_role
                     cast["actors"][i] = enriched
+                # 2. Owned (agency/school) per riempire i restanti slot, max 2 totali
+                remaining_own_slots = max(0, 2 - k_pre)
+                if remaining_own_slots > 0 and own_pool:
+                    k_own = min(remaining_own_slots, len(own_pool), actor_slots - len(used_idx))
+                    own_pick = _rnd2.sample(own_pool, k_own) if k_own > 0 else []
+                    for ow in own_pick:
+                        i = next((idx for idx in range(actor_slots) if idx not in used_idx), None)
+                        if i is None:
+                            break
+                        used_idx.add(i)
+                        char_role = cast["actors"][i].get("character_role")
+                        enriched = {
+                            **ow,
+                            "id": ow.get("id"),
+                            "name": ow.get("name", "?"),
+                            "stars": ow.get("stars", 2),
+                            "gender": ow.get("gender", ""),
+                            "gender_label": "M" if str(ow.get("gender", "")).lower().startswith("m") else "F",
+                            "role_type": "actor" if proj["content_type"] != "anime" else "anime_illustrator",
+                            "role_label": "Attore" if proj["content_type"] != "anime" else "Disegnatore",
+                            "skills": ow.get("skills", {}),
+                            "fame_score": ow.get("fame_score", 30),
+                            "score": 60 + (ow.get("stars", 2) * 4),
+                            "is_guest_star": False,
+                            "is_own_roster": True,
+                            "own_source": ow.get("_own_source", "agency"),
+                            "is_agency_actor": True,
+                        }
+                        if char_role:
+                            enriched["character_role"] = char_role
+                        cast["actors"][i] = enriched
+
+            # 3. Pre-engaged registi/sceneggiatori/compositori auto-assegnati se disponibili (no agency_actors equivalente)
+            for role_key, cast_field in [("director", "director"), ("screenwriter", "screenwriter"), ("composer", "composer")]:
+                try:
+                    eng_role = await db.talent_pre_engagements.find_one(
+                        {"user_id": proj["user_id"], "role": role_key,
+                         "contract_status": {"$in": ["active", "threatened"]}},
+                        {"_id": 0}
+                    )
+                    if not eng_role:
+                        continue
+                    snap = eng_role.get("npc_snapshot", {}) or {}
+                    if not snap.get("skills"):
+                        full = await db.people.find_one({"id": eng_role.get("npc_id")}, {"_id": 0})
+                        if full:
+                            snap = {**full, **snap}
+                    enriched = {
+                        **snap,
+                        "id": eng_role.get("npc_id"),
+                        "name": snap.get("name", "?"),
+                        "stars": eng_role.get("npc_stars", 2),
+                        "gender": snap.get("gender", ""),
+                        "skills": snap.get("skills", {}),
+                        "fame_score": snap.get("fame_score", 30),
+                        "is_own_roster": True,
+                        "own_source": "pre_engaged",
+                        "is_pre_engaged": True,
+                        "pre_engage_id": eng_role.get("id"),
+                    }
+                    cast[cast_field] = enriched
+                except Exception as _e_role:
+                    logger.warning(f"LAMPO pre-engaged {role_key} fail pid={pid}: {_e_role}")
         except Exception as _own_err:
             logger.warning(f"LAMPO own-roster injection fail pid={pid}: {_own_err}")
 

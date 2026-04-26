@@ -1121,6 +1121,12 @@ async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user))
         {'_id': 0}
     ).to_list(100)
 
+    # Get pre-engaged talents (Step 3 — Living Talent System)
+    pre_engagements = await db.talent_pre_engagements.find(
+        {'user_id': user['id'], 'role': 'actor', 'contract_status': {'$in': ['active', 'threatened']}},
+        {'_id': 0}
+    ).to_list(100)
+
     # Already cast in this project
     cast = project.get("cast", {})
     cast_ids = set()
@@ -1196,6 +1202,52 @@ async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user))
             "crc": _calc_crc_from_npc(student),
             "already_cast": sid in cast_ids,
             "strong_genres": student.get("strong_genres", []),
+        })
+
+    # Pre-engaged talents (Step 3) — costo 0, badge dedicato
+    for eng in pre_engagements:
+        snap = eng.get('npc_snapshot', {}) or {}
+        npc_id = eng.get('npc_id', '')
+        # Try to enrich from people collection if snapshot is sparse
+        if not snap.get('skills') or not snap.get('age'):
+            try:
+                full = await db.people.find_one({'id': npc_id}, {'_id': 0})
+                if full:
+                    snap = {**full, **snap}
+            except Exception:
+                pass
+        days_remaining = 0
+        try:
+            from datetime import datetime, timezone
+            exp = datetime.fromisoformat(str(eng.get('contract_expires_at', '')).replace('Z', '+00:00'))
+            days_remaining = max(0, int((exp - datetime.now(timezone.utc)).total_seconds() // 86400))
+        except Exception:
+            pass
+        result.append({
+            "id": npc_id,
+            "name": snap.get("name", "?"),
+            "age": snap.get("age"),
+            "nationality": snap.get("nationality", ""),
+            "gender": snap.get("gender", ""),
+            "stars": eng.get("npc_stars", snap.get("stars", 2)),
+            "fame": snap.get("fame_score", 0),
+            "fame_category": snap.get("fame_category", ""),
+            "skills": snap.get("skills", {}),
+            "primary_skills": snap.get("primary_skills", []),
+            "cost": 0,
+            "original_cost": snap.get("cost_per_film", 0),
+            "discount_pct": 100,
+            "is_returning": npc_id in past_actor_ids,
+            "is_agency": True,
+            "is_own_roster": True,
+            "is_pre_engaged": True,
+            "pre_engage_id": eng.get("id"),
+            "pre_engage_days_remaining": days_remaining,
+            "cast_role_intended": eng.get("cast_role_intended"),
+            "source": "pre_engaged",
+            "crc": _calc_crc_from_npc(snap),
+            "already_cast": npc_id in cast_ids,
+            "strong_genres": snap.get("strong_genres", []),
         })
 
     # Sort by CRc

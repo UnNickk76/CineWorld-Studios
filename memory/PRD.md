@@ -22,8 +22,13 @@
   - Integrato in `CastingAgencyPage` (tab Attori) come bottone "Mercato Talenti (Pre-ingaggio)".
   - Route dedicata `/talent-market` aggiunta in `App.js`.
 
+- **Step 3 — Integrazione Pre-Ingaggiati nelle Pipeline**:
+  - **V3 Classic** (`/app/backend/routes/pipeline_v3.py` `get_my_agency_actors`): aggiunti pre-engaged in roster con `is_pre_engaged: true`, `cost: 0`, `pre_engage_days_remaining`, `cast_role_intended`, `source: 'pre_engaged'`. Frontend `CastPhase.jsx` mostra gruppo "📜 Pre-ingaggiati" separato + badge giallo nel cast selezionato.
+  - **LAMPO** (`/app/backend/routes/lampo.py`): auto-cast prioritizza pre-engaged actors (max 2 garantiti), poi riempie con own pool (school/agency). Director/screenwriter/composer pre-engaged auto-assegnati se disponibili, sostituendo gli NPC random.
+  - **Sceneggiature Pronte** (`/app/backend/routes/purchased_screenplays_v3.py` `_auto_fill_cast`): pre-engaged inseriti per primi (max 2 attori a costo 0) + director/screenwriter/composer pre-engaged sostituiscono gli NPC random.
+  - Test E2E backend OK: pre-engage da $47k → endpoint `my-agency-actors` ritorna 12 attori (10 agency + 1 pre_engaged + 1 school) con dettagli completi.
+
 ### 🟡 STEP IN ATTESA
-- **Step 3** — Integrazione pre-ingaggiati in pipelines (V3 classic, LAMPO, Sceneggiature Pronte) con badge "📜 Pre-ingaggiato" a $0.
 - **Step 4** — Happiness decay heartbeat + auto-rescissione con grace period 3gg.
 - **Step 5** — Mercato "NPC Sotto Contratto" (furto cross-player + counter-offerte).
 

@@ -85,16 +85,68 @@ async def fix_one_film(film_id: str, user: dict = Depends(get_current_user)):
     if user.get('nickname') != 'NeoMorpheus' and user.get('role') not in ('admin', 'CO_ADMIN'):
         raise HTTPException(403, "Solo admin")
 
-    film = await db.film_projects.find_one({'id': film_id}, {'_id': 0})
-    if not film:
-        film = await db.films.find_one({'id': film_id}, {'_id': 0})
-        if not film:
-            raise HTTPException(404, "Film non trovato")
-        changes = await fix_single_film(film, 'films')
-        return {'status': 'fixed', 'collection': 'films', 'changes': list(changes.keys())}
+    # Cerca in tutte le collezioni rilevanti
+    for coll in ('film_projects', 'films', 'lampo_projects', 'purchased_screenplays',
+                 'series_projects_v3', 'tv_series', 'sequel_projects'):
+        film = await db[coll].find_one({'id': film_id}, {'_id': 0})
+        if film:
+            changes = await fix_single_film(film, coll)
+            return {'status': 'fixed', 'collection': coll, 'changes': list(changes.keys())}
+    raise HTTPException(404, "Contenuto non trovato in nessuna collezione")
 
-    changes = await fix_single_film(film, 'film_projects')
-    return {'status': 'fixed', 'collection': 'film_projects', 'changes': list(changes.keys())}
+
+@router.post("/restore-to-draft/{film_id}")
+async def restore_to_draft(film_id: str, user: dict = Depends(get_current_user)):
+    """Riporta un progetto in stato bozza (pipeline_state='idea', status='draft').
+    Funziona su tutte le collezioni: V3 film/serie/anime/sequel, LAMPO, sceneggiature pronte.
+    """
+    is_admin = user.get('nickname') == 'NeoMorpheus' or user.get('role') in ('admin', 'CO_ADMIN')
+
+    target = None
+    target_coll = None
+    for coll in ('film_projects', 'lampo_projects', 'purchased_screenplays',
+                 'series_projects_v3', 'sequel_projects', 'films', 'tv_series'):
+        doc = await db[coll].find_one({'id': film_id}, {'_id': 0})
+        if doc:
+            target, target_coll = doc, coll
+            break
+    if not target:
+        raise HTTPException(404, "Contenuto non trovato")
+
+    if not is_admin and target.get('user_id') != user.get('id'):
+        raise HTTPException(403, "Non autorizzato")
+
+    # Restore-to-draft fields uniformi (così appare in "I Miei" come bozza)
+    update = {
+        'pipeline_state': 'idea',
+        'status': 'draft',
+        'pipeline_ui_step': 0,
+        'is_draft': True,
+        'restored_to_draft_at': datetime.now(timezone.utc).isoformat(),
+        'restored_to_draft_by': user.get('id'),
+    }
+    # Per i film "released"/"completed" rimuoviamo gli effetti collaterali
+    update['released_at'] = None
+    update['quality_score'] = target.get('quality_score') or None
+    # Non tocchiamo quality_score se già impostato — mantiene memoria
+    if target.get('recovery_fixed'):
+        update['recovery_fixed'] = False
+
+    res = await db[target_coll].update_one({'id': film_id}, {'$set': update})
+
+    # Se il record era stato anche nella collection 'films' (released), rimuoverlo da lì
+    # ma SOLO se è una bozza riportata indietro (manteniamo film_projects come fonte di verità)
+    if target_coll != 'films':
+        await db.films.delete_many({'id': film_id})
+        if target.get('source_project_id'):
+            await db.films.delete_many({'id': target['source_project_id']})
+
+    return {
+        'status': 'restored_to_draft',
+        'collection': target_coll,
+        'title': target.get('title'),
+        'modified': res.modified_count,
+    }
 
 
 @router.delete("/delete/{film_id}")
@@ -105,7 +157,8 @@ async def delete_film(film_id: str, user: dict = Depends(get_current_user)):
     # Locate the doc to determine ownership
     target = None
     target_coll = None
-    for coll in ('films', 'film_projects', 'tv_series', 'series_projects_v3'):
+    for coll in ('films', 'film_projects', 'tv_series', 'series_projects_v3',
+                 'lampo_projects', 'purchased_screenplays', 'sequel_projects'):
         doc = await db[coll].find_one({'id': film_id}, {'_id': 0, 'id': 1, 'user_id': 1, 'title': 1, 'source_project_id': 1})
         if doc:
             target, target_coll = doc, coll
@@ -118,11 +171,13 @@ async def delete_film(film_id: str, user: dict = Depends(get_current_user)):
 
     # Wipe from every collection the id could live in, plus the source project id for released films
     total = 0
-    for coll in ('films', 'film_projects', 'tv_series', 'series_projects_v3'):
+    for coll in ('films', 'film_projects', 'tv_series', 'series_projects_v3',
+                 'lampo_projects', 'purchased_screenplays', 'sequel_projects'):
         res = await db[coll].delete_many({'id': film_id})
         total += res.deleted_count
     if target.get('source_project_id'):
-        for coll in ('film_projects', 'series_projects_v3'):
+        for coll in ('film_projects', 'series_projects_v3', 'lampo_projects',
+                     'purchased_screenplays', 'sequel_projects'):
             res = await db[coll].delete_many({'id': target['source_project_id']})
             total += res.deleted_count
     # Best-effort cleanup of related artefacts (likes, ratings, news, scheduled_for_tv_station refs)

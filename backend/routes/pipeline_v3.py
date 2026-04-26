@@ -2639,10 +2639,10 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "final_quality": quality_score,
     })
 
-    # Hook: medals + challenges
+    # Hook: medals + challenges + cast evolution + star discovery
     try:
         from game_hooks import on_film_released
-        await on_film_released(user["id"])
+        await on_film_released(user["id"], film_doc=film_doc, project=project)
     except Exception:
         pass
 

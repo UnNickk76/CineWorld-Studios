@@ -528,33 +528,49 @@ def get_casting_student_capacity(school_level: int) -> int:
 # Calculate current skills for a casting student based on time and potential
 def calculate_casting_student_skills(student: dict) -> dict:
     enrolled_at = student.get('enrolled_at')
-    if not enrolled_at:
-        return student.get('skills', {})
-    
+    base_skills = student.get('base_skills') or student.get('initial_skills') or student.get('skills') or {}
+    if not enrolled_at or not base_skills:
+        # Fallback: never zero — return whatever baseline we have
+        return base_skills, False
+
     if isinstance(enrolled_at, str):
         enrolled_at = datetime.fromisoformat(enrolled_at.replace('Z', '+00:00'))
-    
+
     now = datetime.now(timezone.utc)
     elapsed_hours = (now - enrolled_at).total_seconds() / 3600
     elapsed_days = elapsed_hours / 24
-    
-    potential = student.get('potential', 0.7)
+
+    talent = student.get('hidden_talent', student.get('potential', 0.5))
     motivation = student.get('motivation', 0.8)
-    initial_skills = student.get('initial_skills', student.get('skills', {}))
-    
+    is_from_agency = bool(student.get('from_agency'))
+
     current = {}
     all_maxed = True
-    for skill_name, init_val in initial_skills.items():
-        # Max skill value based on potential (potential 0.6 → max 60, potential 1.0 → max 100)
-        max_val = int(potential * 100)
-        # Improvement rate: +3-6 points per day, scaled by motivation
-        improvement_per_day = (3 + motivation * 3) * (0.8 + potential * 0.4)
-        new_val = int(init_val + improvement_per_day * elapsed_days)
-        new_val = min(new_val, max_val)
-        current[skill_name] = new_val
-        if new_val < max_val:
-            all_maxed = False
-    
+
+    if is_from_agency:
+        # Ex-agency actor: già formato. Cap = base + bonus piccolo (2-7) scaled by talent.
+        # Esempio: base 77, talent 0.7 → cap = 77 + 4 = 81
+        # Improvement rate molto basso (0.3-0.8 punti/giorno).
+        for skill_name, base_val in base_skills.items():
+            bonus_max = int(2 + talent * 5)  # 2 → 7
+            cap = min(100, int(base_val) + bonus_max)
+            improvement_per_day = (0.3 + motivation * 0.5) * (0.7 + talent * 0.6)
+            new_val = int(int(base_val) + improvement_per_day * elapsed_days)
+            new_val = min(new_val, cap)
+            current[skill_name] = new_val
+            if new_val < cap:
+                all_maxed = False
+    else:
+        # Fresh school student: cap basato su potenziale, +30/+60 punti possibili.
+        for skill_name, init_val in base_skills.items():
+            max_val = int(talent * 100)
+            improvement_per_day = (3 + motivation * 3) * (0.8 + talent * 0.4)
+            new_val = int(int(init_val) + improvement_per_day * elapsed_days)
+            new_val = min(new_val, max_val)
+            current[skill_name] = new_val
+            if new_val < max_val:
+                all_maxed = False
+
     return current, all_maxed
 
 # Daily training cost for casting students
@@ -623,6 +639,9 @@ async def get_casting_students(user: dict = Depends(get_current_user)):
             'is_legendary': s.get('is_legendary', False),
             'current_skills': current_skills,
             'initial_skills': s.get('initial_skills', s.get('skills', {})),
+            'base_skills': s.get('base_skills') or s.get('initial_skills') or s.get('skills', {}),
+            'from_agency': bool(s.get('from_agency')),
+            'hidden_talent': s.get('hidden_talent', s.get('potential', 0.5)),
             'status': s.get('status', 'training'),
             'all_maxed': all_maxed,
             'can_graduate': can_graduate,

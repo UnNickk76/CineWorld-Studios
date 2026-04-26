@@ -877,6 +877,7 @@ async def send_agency_actor_to_school(actor_id: str, user: dict = Depends(get_cu
 
     # Create school student from agency actor
     now = datetime.now(timezone.utc).isoformat()
+    base_skills = actor.get('skills', {}) or {}
     student = {
         'id': actor['id'],
         'user_id': user['id'],
@@ -885,9 +886,14 @@ async def send_agency_actor_to_school(actor_id: str, user: dict = Depends(get_cu
         'nationality': actor.get('nationality', 'Unknown'),
         'age': actor.get('age', 25),
         'avatar_url': actor.get('avatar_url', ''),
-        'base_skills': actor.get('skills', {}),
+        # Preserve baseline so we can show "base + boost" in UI and avoid skill=0
+        'base_skills': dict(base_skills),
+        'initial_skills': dict(base_skills),
+        'skills': dict(base_skills),
         'skill_caps': actor.get('skill_caps', {}),
         'hidden_talent': actor.get('hidden_talent', 0.5),
+        # potential drives the cap formula in calculate_casting_student_skills
+        'potential': actor.get('hidden_talent', 0.5),
         'strong_genres': actor.get('strong_genres', []),
         'strong_genres_names': actor.get('strong_genres_names', []),
         'adaptable_genre': actor.get('adaptable_genre', ''),

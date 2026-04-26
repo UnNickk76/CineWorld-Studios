@@ -1,3 +1,38 @@
+## Bundle 6 fix (Apr 26, 2026 — mattino)
+
+### 1. Bug: skill=0 dopo invio attore in Scuola di Recitazione
+- **Root cause**: `send_agency_actor_to_school` salvava solo `base_skills` ma `calculate_casting_student_skills` leggeva `initial_skills`/`skills` (assenti) → fallback a `{}` → skill_media = 0.
+- **Fix `routes/casting_agency.py`**: ora lo studente eredita `initial_skills` e `skills` da `base_skills`, oltre a `potential` da `hidden_talent`.
+- **Fix `routes/acting_school.py`**:
+  - `calculate_casting_student_skills` ora gestisce due regole separate:
+    - **Ex-agenzia (already trained)**: cap = base + bonus piccolo `2 + talent×5` (range 2-7 punti). Improvement rate 0.3-0.8/giorno.
+    - **Fresh student**: cap = `talent×100`, improvement rate alto (3-6 pt/giorno) → range crescita 30-60 punti.
+- **Migrazione retroattiva**: 1 studente ex-agenzia con dati incompleti riparato (`base_skills` → `initial_skills`/`skills`). Verificato via curl: Jin Garcia ora mostra Comedy 38, Doppiaggio 49, ecc. invece di 0.
+
+### 2. UI Scuola — Skill Base + Boost in colore
+- `ActingSchool.jsx` `SkillBar`: ora supporta prop `baseValue`. Quando presente, la barra mostra:
+  - Segmento **verde** = valore base (skill originali ex-agenzia)
+  - Segmento **ciano** = boost ottenuto dalla scuola
+  - Etichetta numerica: `<base>+<boost>` (es. `77+4`).
+- Backend `casting-students` endpoint ora ritorna `base_skills`, `from_agency`, `hidden_talent` per il frontend.
+
+### 3. Reintegrazione sistemi dormienti (richiesta utente)
+- **Skill evolution per film** (`game_systems.evolve_cast_skills` esisteva ma non chiamato):
+  - Nuovo `_evolve_cast_after_film` in `game_hooks.py` collegato a `on_film_released`. Scala 0-100 corretta.
+  - Per ogni cast member: skill cambiano in base a CWSv film (+0.8/+2.5 per film top, fino a -1.5 per flop), moltiplicatore per ruolo (protagonista 1.5×, cameo 0.5×). Breakthrough +1.5/+4 (5%), declino -0.5/-1.5 (2%).
+  - Persistenza: `agency_actors` (own_source=agency), `casting_school_students` (own_source=school), `people` (NPC silent micro-growth).
+- **Star Discovery** (`calculate_star_discovery_chance` ricollegato):
+  - Per cast attori "unknown" + film_quality ≥75: 5-25% chance + skill_bonus → diventano "rising star".
+  - Notifica `star_discovery` push al player + bonus fame +5 (cumulativo se più scoperte).
+- `pipeline_v3.py release` ora chiama `on_film_released(user_id, film_doc, project)` con tutti i dati.
+
+### 4. Sistema Rifiuti/Rinegoziazione (analisi)
+- **Esiste** in `routes/cast.py` (linee 540-674): `POST /api/cast/hire` può ritornare rejection con `requested_fee`, `renegotiation_count`, `can_renegotiate`. `POST /api/cast/renegotiate/{id}` permette fino a 3 rinegoziazioni con chance decrescenti (-15%/tentativo) e messaggi vari ("Non è abbastanza...", "Il mio agente dice...").
+- **NON collegato**: la pipeline V3 (`select-cast-member`, `cast-agency-actor`) non passa per questo flusso → nessun rifiuto in V3 oggi. **Proposto** per future task: wrappare `select-cast-member` per usare `decide_acceptance` di cast.py (che già considera level/fame del player).
+
+Files: `backend/routes/casting_agency.py`, `backend/routes/acting_school.py`, `backend/game_hooks.py`, `backend/routes/pipeline_v3.py`, `frontend/src/pages/ActingSchool.jsx`.
+
+
 ## Bundle 5 fix (Apr 25, 2026 — sera 9)
 
 ### 1. Bug "Non possiedi una Scuola di Recitazione"

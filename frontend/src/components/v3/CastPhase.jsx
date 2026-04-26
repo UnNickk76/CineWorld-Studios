@@ -366,7 +366,7 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                 <button onClick={() => setSkillNpc(a)} className="text-[8px] font-bold text-cyan-400 hover:text-cyan-300 underline decoration-dotted underline-offset-2">{a.name}</button>
                 {a.gender && GENDER_SYMBOL[a.gender] && <span className={`text-[9px] ${GENDER_COLOR[a.gender] || ''}`}>{GENDER_SYMBOL[a.gender]}</span>}
                 <span className="text-[7px] text-gray-500">({roleDisplay(a.cast_role)})</span>
-                {a.is_pre_engaged && <span className="text-[6px] px-1 py-0.5 rounded bg-yellow-500/15 text-yellow-300 border border-yellow-500/40 font-bold flex items-center gap-0.5">📜 Pre-ingaggiato</span>}
+                {a.is_pre_engaged && <span className={`text-[6px] px-1 py-0.5 rounded ${a.is_threatened ? 'bg-red-500/20 text-red-300 border border-red-500/40 animate-pulse' : 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/40'} font-bold flex items-center gap-0.5`}>{a.is_threatened ? '⚠️' : '📜'} {a.is_threatened ? `Rescissione ${a.grace_days_remaining ?? 3}gg` : 'Pre-ingaggiato'}{a.happiness_emoji ? ` ${a.happiness_emoji}` : ''}</span>}
                 {a.is_own_roster && a.own_source === 'school' && <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-0.5"><GraduationCap className="w-2 h-2" />Scuola</span>}
                 {a.is_own_roster && a.own_source === 'agency' && <span className="text-[6px] px-1 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-0.5"><Briefcase className="w-2 h-2" />Mia Agenzia</span>}
                 {a.is_agency_actor && !a.is_own_roster && <span className="text-[6px] px-1 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">Agenzia</span>}
@@ -482,7 +482,14 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                                   'bg-amber-500/15 text-amber-400 border-amber-500/25'
                                 }`}>CRc {actor.crc}</span>
                                 {actor.is_pre_engaged && actor.pre_engage_days_remaining != null && (
-                                  <span className="text-[6px] px-1 py-0.5 rounded font-bold bg-yellow-500/10 text-yellow-300 border border-yellow-500/20">{actor.pre_engage_days_remaining}gg</span>
+                                  <span className={`text-[6px] px-1 py-0.5 rounded font-bold border ${
+                                    actor.is_threatened ? 'bg-red-500/20 text-red-300 border-red-500/40 animate-pulse' :
+                                    actor.pre_engage_days_remaining < 7 ? 'bg-orange-500/20 text-orange-300 border-orange-500/40 animate-pulse' :
+                                    'bg-yellow-500/10 text-yellow-300 border-yellow-500/20'
+                                  }`}>
+                                    {actor.is_threatened ? `⚠️ ${actor.grace_days_remaining ?? 3}gg` : `${actor.pre_engage_days_remaining}gg`}
+                                    {actor.happiness_emoji ? ` ${actor.happiness_emoji}` : ''}
+                                  </span>
                                 )}
                               </div>
                               <div className="flex items-center gap-1 mt-0.5 text-[7px]">

@@ -28,8 +28,19 @@
   - **Sceneggiature Pronte** (`/app/backend/routes/purchased_screenplays_v3.py` `_auto_fill_cast`): pre-engaged inseriti per primi (max 2 attori a costo 0) + director/screenwriter/composer pre-engaged sostituiscono gli NPC random.
   - Test E2E backend OK: pre-engage da $47k → endpoint `my-agency-actors` ritorna 12 attori (10 agency + 1 pre_engaged + 1 school) con dettagli completi.
 
+- **Step 4 — Sistema Felicità + Auto-Rescissione**:
+  - **Backend** (`/app/backend/routes/talent_market.py`):
+    - `apply_happiness_decay()`: scheduler heartbeat ogni 6h. Decay -2/heartbeat se >5gg senza utilizzo, -4 se >14gg. Trigger threatened se happiness<30 + contratto>30% trascorso (con notifica). Auto-rescissione dopo grace_period 3gg. Recovery automatico se happiness rimbalza ≥45 durante grace.
+    - `boost_happiness_on_film_use()`: chiamato da hook film release. +18 punti se quality≥80, +12 se ≥60, +7 se ≥40, +3 sotto. Pusha entry in `usage_history`.
+    - `my-roster` arricchito con `happiness_emoji` (😊🙂😐😠😡), `is_urgent`, `grace_days_remaining`.
+    - Notifiche: `talent_threatening_release`, `talent_auto_released`, `talent_recovered`.
+  - **Hook** (`/app/backend/game_hooks.py` `on_film_released`): chiama `boost_happiness_on_film_use` per i pre-engaged in cast.
+  - **Scheduler** (`/app/backend/server.py`): job `talent_happiness_decay` ogni 6 ore.
+  - **Frontend `CastPhase.jsx`**: badge "📜 Pre-ingaggiato 😊" con happiness emoji, badge rosso pulsante "⚠️ Rescissione Xgg" se threatened, badge arancione pulsante se days<7 (urgenza).
+  - **Frontend `TalentMarketModal.jsx`**: nuovo tab "Mio Roster" con `RosterCard` (happiness emoji, giorni rimanenti, fee pagata, bottone Libera). Counter rosso pulsante sul tab se ci sono talenti threatened.
+  - Test E2E backend OK: boost 75→93 (quality 85) + decay 10→6 con auto-trigger threatened + notifica creata + grace_period_ends_at impostato a +3gg.
+
 ### 🟡 STEP IN ATTESA
-- **Step 4** — Happiness decay heartbeat + auto-rescissione con grace period 3gg.
 - **Step 5** — Mercato "NPC Sotto Contratto" (furto cross-player + counter-offerte).
 
 ---

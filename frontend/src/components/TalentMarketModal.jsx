@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import {
   X, Star, Users, Pen, Music, Palette, Clapperboard,
   Sparkles, Search, RefreshCw, Lock, Mail, Clock, DollarSign, ChevronRight, Award,
+  Briefcase, AlertTriangle, Trash2,
 } from 'lucide-react';
 
 /**
@@ -280,12 +281,71 @@ function PreEngageDialog({ npc, role, perks, onConfirm, onCancel, submitting }) 
   );
 }
 
+function RosterCard({ eng, busy, onRelease }) {
+  const snap = eng.npc_snapshot || {};
+  const isThreat = eng.contract_status === 'threatened';
+  const dr = eng.days_remaining ?? 0;
+  const urgent = isThreat || dr < 7;
+  return (
+    <Card className={`bg-[#0F0F10] border ${
+      isThreat ? 'border-red-500/40 animate-pulse' :
+      urgent ? 'border-orange-500/40' :
+      'border-white/10'
+    }`} data-testid={`roster-card-${eng.id}`}>
+      <CardContent className="p-2.5">
+        <div className="flex items-start gap-2.5">
+          <img
+            src={snap.avatar_url || '/avatar-placeholder.png'}
+            onError={(e) => { e.currentTarget.src = '/avatar-placeholder.png'; }}
+            className="w-10 h-10 rounded-full bg-gray-800 object-cover flex-shrink-0" alt="" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs sm:text-sm font-semibold text-white truncate">{snap.name}</span>
+              <span className="text-base">{eng.happiness_emoji || '🙂'}</span>
+              <Badge className="bg-white/5 text-gray-300 text-[8px] h-3.5 border border-white/10 px-1">
+                {ROLE_TABS.find(r => r.key === eng.role)?.label || eng.role}
+              </Badge>
+              <StarRow count={eng.npc_stars} />
+            </div>
+            <p className="text-[10px] text-gray-500 mt-0.5">
+              {isThreat ? (
+                <span className="text-red-300 font-semibold">
+                  <AlertTriangle className="w-3 h-3 inline mr-0.5" />
+                  Rescissione tra {eng.grace_days_remaining ?? 3}gg — usalo in un film!
+                </span>
+              ) : (
+                <>Contratto: <span className={urgent ? 'text-orange-300 font-semibold' : 'text-gray-300'}>{dr}gg</span> rimanenti
+                {' • '}Felicità: <span className="text-amber-300">{eng.happiness_score ?? 75}</span></>
+              )}
+            </p>
+            {eng.cast_role_intended && (
+              <p className="text-[9px] text-gray-600 mt-0.5">Ruolo: {eng.cast_role_intended}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+          <div className="text-[10px] text-gray-500">
+            Pagato: <span className="text-yellow-300">${(eng.fee_paid || 0).toLocaleString()}</span>
+          </div>
+          <Button size="sm" variant="ghost"
+            className="h-6 px-2 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            onClick={() => onRelease(eng)} disabled={busy}
+            data-testid={`release-roster-${eng.id}`}>
+            {busy ? <RefreshCw className="w-3 h-3 animate-spin" /> : <><Trash2 className="w-3 h-3 mr-1" />Libera</>}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function TalentMarketModal({ open, onClose }) {
   const { api } = useContext(AuthContext);
   const [tab, setTab] = useState('actor');
   const [perks, setPerks] = useState(null);
   const [roleData, setRoleData] = useState({}); // {role: {items, infra_level, ...}}
   const [proposals, setProposals] = useState([]);
+  const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [pendingPreEngage, setPendingPreEngage] = useState(null); // {npc, role}
@@ -315,11 +375,19 @@ export default function TalentMarketModal({ open, onClose }) {
     } catch { /* ignore */ }
   }, [api]);
 
+  const loadRoster = useCallback(async () => {
+    try {
+      const res = await api.get('/talent-scout/my-roster');
+      setRoster(res.data?.items || []);
+    } catch { /* ignore */ }
+  }, [api]);
+
   useEffect(() => {
     if (!open) return;
     loadPerks();
     loadProposals();
-    loadRole(tab === 'proposed' ? 'actor' : tab);
+    loadRoster();
+    loadRole(tab === 'proposed' || tab === 'roster' ? 'actor' : tab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -327,6 +395,8 @@ export default function TalentMarketModal({ open, onClose }) {
     if (!open) return;
     if (tab === 'proposed') {
       loadProposals();
+    } else if (tab === 'roster') {
+      loadRoster();
     } else if (!roleData[tab]) {
       loadRole(tab);
     }
@@ -360,9 +430,22 @@ export default function TalentMarketModal({ open, onClose }) {
     try {
       const res = await api.post(`/market/talents/proposed/${prop.id}/accept?duration_days=30`);
       toast.success(`Proposta accettata! Costo: $${res.data.fee?.toLocaleString()}`);
-      await Promise.all([loadPerks(), loadProposals()]);
+      await Promise.all([loadPerks(), loadProposals(), loadRoster()]);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Errore accettazione');
+    }
+    setBusyId(null);
+  };
+
+  const releaseEngagement = async (eng) => {
+    if (!window.confirm(`Liberare ${eng.npc_snapshot?.name || 'questo talento'}? La fee non sarà rimborsata.`)) return;
+    setBusyId(eng.id);
+    try {
+      await api.post(`/talent-scout/release/${eng.id}`);
+      toast.success('Talento liberato');
+      await Promise.all([loadPerks(), loadRoster()]);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Errore liberazione');
     }
     setBusyId(null);
   };
@@ -436,6 +519,27 @@ export default function TalentMarketModal({ open, onClose }) {
             </button>
           ))}
           <button
+            onClick={() => setTab('roster')}
+            className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border transition-all whitespace-nowrap relative ${
+              tab === 'roster'
+                ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                : 'border-white/10 text-gray-400 hover:bg-white/5'
+            }`}
+            data-testid="tab-roster"
+          >
+            <Briefcase className="w-3 h-3" />
+            Mio Roster
+            {roster.length > 0 && (
+              <span className={`absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full text-[8px] font-bold text-white flex items-center justify-center ${
+                roster.some(r => r.contract_status === 'threatened') ? 'bg-red-500 animate-pulse' :
+                roster.some(r => (r.days_remaining ?? 99) < 7) ? 'bg-orange-500' :
+                'bg-amber-500'
+              }`}>
+                {roster.length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setTab('proposed')}
             className={`flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border transition-all whitespace-nowrap relative ${
               tab === 'proposed'
@@ -474,6 +578,29 @@ export default function TalentMarketModal({ open, onClose }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {proposals.map(p => (
                     <ProposalCard key={p.id} prop={p} busy={busyId === p.id} onAccept={acceptProposal} />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : tab === 'roster' ? (
+            <div className="space-y-2.5">
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5">
+                <p className="text-[10px] text-amber-200">
+                  <Briefcase className="w-3 h-3 inline mr-1 align-text-bottom" />
+                  Talenti pre-ingaggiati. La felicità decade se non li usi: gli infelici minacceranno di andarsene.
+                  <span className="block mt-1 text-amber-400/70">😊 felice • 🙂 ok • 😐 neutro • 😠 scontento • 😡 in rescissione</span>
+                </p>
+              </div>
+              {roster.length === 0 ? (
+                <div className="text-center py-10 text-gray-500">
+                  <Briefcase className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs">Nessun talento pre-ingaggiato.</p>
+                  <p className="text-[10px] text-gray-600 mt-1">Vai sui tab dei ruoli per esplorare il mercato.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {roster.map(r => (
+                    <RosterCard key={r.id} eng={r} busy={busyId === r.id} onRelease={releaseEngagement} />
                   ))}
                 </div>
               )}

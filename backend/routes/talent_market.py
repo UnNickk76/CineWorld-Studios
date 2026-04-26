@@ -340,7 +340,7 @@ async def my_roster(
         q["role"] = role
     cursor = db.talent_pre_engagements.find(q, {"_id": 0}).sort("contract_expires_at", 1)
     items = await cursor.to_list(200)
-    # Compute days remaining
+    # Compute days remaining + happiness flags
     now = datetime.now(timezone.utc)
     for it in items:
         try:
@@ -348,6 +348,21 @@ async def my_roster(
             it["days_remaining"] = max(0, int((exp - now).total_seconds() // 86400))
         except Exception:
             it["days_remaining"] = 0
+        # Happiness emoji + urgency
+        h = int(it.get("happiness_score", 75) or 75)
+        if h >= 75: it["happiness_emoji"] = "😊"
+        elif h >= 55: it["happiness_emoji"] = "🙂"
+        elif h >= 35: it["happiness_emoji"] = "😐"
+        elif h >= 15: it["happiness_emoji"] = "😠"
+        else: it["happiness_emoji"] = "😡"
+        # Grace period info
+        if it.get("contract_status") == "threatened" and it.get("grace_period_ends_at"):
+            try:
+                grace = datetime.fromisoformat(str(it["grace_period_ends_at"]).replace("Z", "+00:00"))
+                it["grace_days_remaining"] = max(0, int((grace - now).total_seconds() // 86400))
+            except Exception:
+                it["grace_days_remaining"] = 0
+        it["is_urgent"] = it.get("days_remaining", 0) < 7 or it.get("contract_status") == "threatened"
     return {"items": items, "count": len(items)}
 
 
@@ -518,3 +533,219 @@ async def spawn_random_proposals_for_user(user_id: str):
         await db.npc_proposals.insert_one(prop)
         spawned += 1
     return spawned
+
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  STEP 4 — HAPPINESS SYSTEM + AUTO-RESCISSIONE
+# ═══════════════════════════════════════════════════════════════════
+
+# Parametri tunable
+_HAPPINESS_THRESHOLD_THREATENED = 30   # < 30 → considerato "infelice"
+_HAPPINESS_THRESHOLD_RECOVERY = 45     # ≥ 45 (durante grace) → riconcilia
+_GRACE_PERIOD_DAYS = 3                 # giorni di preavviso prima rescissione
+_DECAY_INACTIVE_DAYS = 5               # senza utilizzo da X gg → decay
+_DECAY_PER_HEARTBEAT = 2               # punti tolti ogni heartbeat
+_DECAY_LONG_INACTIVE = 4               # se >= 14 gg senza utilizzo
+
+
+async def _create_notification_safe(user_id: str, ntype: str, title: str, message: str, data: dict | None = None):
+    """Crea notifica per il player. Non blocca su errori."""
+    try:
+        from social_system import create_notification
+        notif = create_notification(
+            user_id=user_id,
+            notification_type=ntype,
+            title=title,
+            message=message,
+            data=data or {},
+        )
+        await db.notifications.insert_one(notif)
+    except Exception:
+        # Fallback minimo
+        try:
+            await db.notifications.insert_one({
+                "id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "type": ntype,
+                "title": title,
+                "message": message,
+                "data": data or {},
+                "read": False,
+                "created_at": _now_iso(),
+            })
+        except Exception:
+            pass
+
+
+async def apply_happiness_decay():
+    """Heartbeat: scalo happiness su tutti i pre-engagement attivi/threatened.
+    
+    Logic:
+    - NPC mai usato o ultimo utilizzo > _DECAY_INACTIVE_DAYS gg → -_DECAY_PER_HEARTBEAT
+    - NPC ultimo utilizzo > 14 gg → -_DECAY_LONG_INACTIVE (decay raddoppiato)
+    - Happiness < 30 + status='active' + contratto > 30% trascorso → trigger threatened (+notifica + grace 3gg)
+    - Status='threatened' + grace_period_ends_at < now → auto-rescissione
+    - Status='threatened' + happiness >= _HAPPINESS_THRESHOLD_RECOVERY → riconciliazione (torna 'active')
+    """
+    now = datetime.now(timezone.utc)
+    decayed = 0
+    threatened = 0
+    auto_released = 0
+    recovered = 0
+    
+    cursor = db.talent_pre_engagements.find(
+        {"contract_status": {"$in": ["active", "threatened"]}},
+        {"_id": 0}
+    )
+    
+    async for eng in cursor:
+        try:
+            uid = eng.get("user_id")
+            eng_id = eng.get("id")
+            status = eng.get("contract_status", "active")
+            current_h = int(eng.get("happiness_score", 75) or 75)
+            
+            # Calcola last usage
+            usage = eng.get("usage_history", []) or []
+            days_since_use = 9999
+            if usage:
+                try:
+                    last = max(usage, key=lambda x: x.get("used_at", ""))
+                    last_dt = datetime.fromisoformat(str(last.get("used_at", "")).replace("Z", "+00:00"))
+                    days_since_use = max(0, int((now - last_dt).total_seconds() // 86400))
+                except Exception:
+                    days_since_use = 9999
+            
+            # Calcola contract progress
+            try:
+                started = datetime.fromisoformat(str(eng.get("contract_started_at", "")).replace("Z", "+00:00"))
+                expires = datetime.fromisoformat(str(eng.get("contract_expires_at", "")).replace("Z", "+00:00"))
+                total_days = max(1, (expires - started).total_seconds() / 86400)
+                elapsed_days = max(0, (now - started).total_seconds() / 86400)
+                progress_pct = min(100, (elapsed_days / total_days) * 100)
+            except Exception:
+                progress_pct = 0
+            
+            # Decay
+            new_h = current_h
+            if days_since_use >= 14:
+                new_h = max(0, current_h - _DECAY_LONG_INACTIVE)
+            elif days_since_use >= _DECAY_INACTIVE_DAYS:
+                new_h = max(0, current_h - _DECAY_PER_HEARTBEAT)
+            
+            update = {"happiness_score": new_h}
+            
+            # Recovery: in grace period e happiness rimbalzata
+            if status == "threatened" and new_h >= _HAPPINESS_THRESHOLD_RECOVERY:
+                update["contract_status"] = "active"
+                update["grace_period_ends_at"] = None
+                update["threatened_release_at"] = None
+                recovered += 1
+                await _create_notification_safe(
+                    uid, "talent_recovered",
+                    "🤝 Talento riconciliato",
+                    f"{(eng.get('npc_snapshot') or {}).get('name', 'Il tuo talento')} ha cambiato idea: torna nel tuo roster.",
+                    {"engagement_id": eng_id, "npc_id": eng.get("npc_id")}
+                )
+            # Trigger threatened
+            elif status == "active" and new_h < _HAPPINESS_THRESHOLD_THREATENED and progress_pct >= 30:
+                update["contract_status"] = "threatened"
+                update["threatened_release_at"] = _now_iso()
+                update["grace_period_ends_at"] = (now + timedelta(days=_GRACE_PERIOD_DAYS)).isoformat()
+                threatened += 1
+                npc_name = (eng.get("npc_snapshot") or {}).get("name", "Il tuo talento")
+                await _create_notification_safe(
+                    uid, "talent_threatening_release",
+                    "⚠️ Un talento minaccia di andarsene",
+                    f"{npc_name} non è più felice. Hai {_GRACE_PERIOD_DAYS} giorni per fargli fare un film o lo perderai.",
+                    {"engagement_id": eng_id, "npc_id": eng.get("npc_id"), "happiness": new_h, "grace_days": _GRACE_PERIOD_DAYS}
+                )
+            # Auto-rescissione
+            elif status == "threatened":
+                grace_end = eng.get("grace_period_ends_at")
+                if grace_end:
+                    try:
+                        grace_dt = datetime.fromisoformat(str(grace_end).replace("Z", "+00:00"))
+                        if now >= grace_dt:
+                            update["contract_status"] = "auto_released"
+                            update["released_at"] = _now_iso()
+                            auto_released += 1
+                            npc_name = (eng.get("npc_snapshot") or {}).get("name", "Il tuo talento")
+                            await _create_notification_safe(
+                                uid, "talent_auto_released",
+                                "💔 Talento perduto",
+                                f"{npc_name} ha rescisso il contratto. È ora libero sul mercato.",
+                                {"engagement_id": eng_id, "npc_id": eng.get("npc_id")}
+                            )
+                    except Exception:
+                        pass
+            
+            if update != {"happiness_score": current_h}:
+                await db.talent_pre_engagements.update_one(
+                    {"id": eng_id},
+                    {"$set": update}
+                )
+                decayed += 1
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"[TALENT_HAPPINESS] decay fail eng={eng.get('id')}: {e}")
+    
+    return {"decayed": decayed, "threatened_new": threatened, "auto_released": auto_released, "recovered": recovered}
+
+
+async def boost_happiness_on_film_use(user_id: str, cast_members: list, film_id: str, film_title: str, film_quality: float):
+    """Boost happiness per pre-engaged usati in un film appena rilasciato.
+    
+    Quality 0-100 scale.
+    Boost:
+    - quality >= 80 → +18
+    - quality >= 60 → +12
+    - quality >= 40 → +7
+    - quality < 40  → +3
+    """
+    if not cast_members:
+        return 0
+    
+    if film_quality >= 80:
+        boost = 18
+    elif film_quality >= 60:
+        boost = 12
+    elif film_quality >= 40:
+        boost = 7
+    else:
+        boost = 3
+    
+    boosted = 0
+    for member in cast_members:
+        try:
+            if not member.get("is_pre_engaged"):
+                continue
+            eng_id = member.get("pre_engage_id")
+            if not eng_id:
+                continue
+            usage_entry = {
+                "film_id": film_id,
+                "film_title": film_title,
+                "used_at": _now_iso(),
+                "quality": float(film_quality or 0),
+                "role": member.get("character_role") or member.get("cast_role"),
+            }
+            # +boost ma cap a 100
+            await db.talent_pre_engagements.update_one(
+                {"id": eng_id, "user_id": user_id},
+                {
+                    "$inc": {"happiness_score": boost},
+                    "$push": {"usage_history": usage_entry},
+                }
+            )
+            # Cap a 100
+            await db.talent_pre_engagements.update_one(
+                {"id": eng_id, "user_id": user_id, "happiness_score": {"$gt": 100}},
+                {"$set": {"happiness_score": 100}}
+            )
+            boosted += 1
+        except Exception:
+            pass
+    
+    return boosted

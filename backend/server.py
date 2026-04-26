@@ -8022,6 +8022,18 @@ async def startup_event():
         )
     except Exception as _tme:
         print(f"[scheduler] Could not register tv_market closer: {_tme}")
+
+    # Every 6 hours: Talent happiness decay + auto-rescissione (Step 4 Living Talents)
+    try:
+        from routes.talent_market import apply_happiness_decay
+        scheduler.add_job(
+            apply_happiness_decay,
+            IntervalTrigger(hours=6),
+            id='talent_happiness_decay',
+            replace_existing=True,
+        )
+    except Exception as _the:
+        print(f"[scheduler] Could not register talent happiness decay: {_the}")
     
     # Every 20 minutes: Dynamic events for Coming Soon content
     scheduler.add_job(

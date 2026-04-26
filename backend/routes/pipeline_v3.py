@@ -1223,6 +1223,22 @@ async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user))
             days_remaining = max(0, int((exp - datetime.now(timezone.utc)).total_seconds() // 86400))
         except Exception:
             pass
+        # Happiness flags (Step 4)
+        h = int(eng.get('happiness_score', 75) or 75)
+        if h >= 75: emoji = '😊'
+        elif h >= 55: emoji = '🙂'
+        elif h >= 35: emoji = '😐'
+        elif h >= 15: emoji = '😠'
+        else: emoji = '😡'
+        is_threatened = eng.get('contract_status') == 'threatened'
+        grace_days = None
+        if is_threatened and eng.get('grace_period_ends_at'):
+            try:
+                from datetime import datetime, timezone
+                gd = datetime.fromisoformat(str(eng.get('grace_period_ends_at')).replace('Z', '+00:00'))
+                grace_days = max(0, int((gd - datetime.now(timezone.utc)).total_seconds() // 86400))
+            except Exception:
+                pass
         result.append({
             "id": npc_id,
             "name": snap.get("name", "?"),
@@ -1244,6 +1260,11 @@ async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user))
             "pre_engage_id": eng.get("id"),
             "pre_engage_days_remaining": days_remaining,
             "cast_role_intended": eng.get("cast_role_intended"),
+            "happiness_score": h,
+            "happiness_emoji": emoji,
+            "is_threatened": is_threatened,
+            "grace_days_remaining": grace_days,
+            "is_urgent": days_remaining < 7 or is_threatened,
             "source": "pre_engaged",
             "crc": _calc_crc_from_npc(snap),
             "already_cast": npc_id in cast_ids,

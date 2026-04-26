@@ -13,6 +13,7 @@ async def on_film_released(user_id: str, film_doc: dict = None, project: dict = 
     - Medals + challenges
     - Cast skill evolution (small per-film growth based on quality)
     - Star discovery (rare unknown actor → rising star event)
+    - Pre-engaged happiness boost (Step 4 — Living Talent System)
     """
     try:
         from routes.medals_challenges import check_and_award_medals, update_challenge_progress
@@ -26,6 +27,36 @@ async def on_film_released(user_id: str, film_doc: dict = None, project: dict = 
         await _evolve_cast_after_film(user_id, film_doc, project)
     except Exception as e:
         logger.warning(f"[HOOKS] cast evolution error: {e}")
+
+    # Pre-engaged happiness boost
+    try:
+        await _boost_pre_engaged_after_film(user_id, film_doc, project)
+    except Exception as e:
+        logger.warning(f"[HOOKS] pre-engaged boost error: {e}")
+
+
+async def _boost_pre_engaged_after_film(user_id: str, film_doc: dict = None, project: dict = None):
+    """Boost happiness dei pre-engaged usati in questo film + register usage_history."""
+    src = project or film_doc or {}
+    cast = (src.get("cast") or {})
+    members = []
+    for a in (cast.get("actors") or []):
+        members.append(a)
+    if cast.get("director"):
+        members.append(cast["director"])
+    if cast.get("composer"):
+        members.append(cast["composer"])
+    for w in (cast.get("screenwriters") or []):
+        members.append(w)
+    pre_engaged = [m for m in members if m.get("is_pre_engaged")]
+    if not pre_engaged:
+        return
+    quality_raw = src.get("quality_score") or src.get("final_quality") or 5.0
+    film_quality = float(quality_raw) * 10 if float(quality_raw) <= 10 else float(quality_raw)
+    film_id = src.get("id") or src.get("film_id") or ""
+    film_title = src.get("title") or src.get("film_title") or "Untitled"
+    from routes.talent_market import boost_happiness_on_film_use
+    await boost_happiness_on_film_use(user_id, pre_engaged, film_id, film_title, film_quality)
 
 
 async def _evolve_cast_after_film(user_id: str, film_doc: dict = None, project: dict = None):

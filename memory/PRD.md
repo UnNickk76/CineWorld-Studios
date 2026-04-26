@@ -1,3 +1,63 @@
+## 📋 ROADMAP — Feature in attesa: "Pre-Ingaggio NPCs via Talent Scout" (P1, da implementare)
+
+**Concept**: Sistema di pre-ingaggio NPCs collegato all'infrastruttura **Talent Scout**. Il player paga in anticipo un pool di talenti, sbloccandone l'uso a costo $0 nei progetti futuri.
+
+### Struttura
+
+**Nuova sezione Market: "Talenti / Pre-Ingaggio"** con sotto-sezioni:
+- 🎬 Registi
+- ✍️ Sceneggiatori
+- 🎭 Attori (con scelta ruolo: protagonista/antagonista/supporto/cameo)
+- 🎨 Disegnatori (anime)
+- 🎵 Compositori
+
+**Pool**: tutti gli NPC del game (`people` collection).
+
+**Parametri pre-ingaggio**:
+- Costo inferiore vs ingaggio singolo classico (sconto -20/-50% scaled da livello Talent Scout)
+- Durata contratto X giorni (30/60/90/180)
+- Per attori: scelta ruolo specifico al momento del pre-ingaggio
+- Slot massimi pre-ingaggio basati sul livello Talent Scout
+
+### Comportamento nei pipeline
+
+**V3 classica**: pre-ingaggiati visibili nel casting con badge "📜 Pre-ingaggiato", costo $0 (già pagati). Player può sceglierli o ignorarli liberamente.
+
+**LAMPO**: auto-cast pesca automaticamente **almeno 2 pre-ingaggiati** in aggiunta a school+agency → riduce drasticamente costo progetto.
+
+**Sceneggiature Pronte / Agenzia Sceneggiatori**: stesso comportamento auto-include di LAMPO (2+ pre-ingaggiati automatici).
+
+### Schema DB (proposta)
+```python
+talent_pre_engagements:
+- id, user_id, npc_id, role (director/writer/actor/illustrator/composer)
+- cast_role (per attori)
+- contract_started_at, contract_duration_days, contract_expires_at
+- fee_paid, contract_status (active/expired/used)
+- usage_history: [{film_id, used_at}]
+```
+
+### Livelli Talent Scout (proposta tier)
+- Lv 1: 3 slot · sconto -20% · max 30gg
+- Lv 3: 8 slot · sconto -30% · max 60gg
+- Lv 5: 15 slot · sconto -40% · max 90gg
+- Lv 10: 30 slot · sconto -50% · max 180gg
+
+### Endpoint backend previsti
+- `GET /api/market/talents?role=director|writer|actor|illustrator|composer&min_stars=&max_fee=`
+- `POST /api/market/talents/pre-engage/{npc_id}` body `{role, cast_role?, duration_days, offered_fee}`
+- `GET /api/talent-scout/my-roster` → roster pre-ingaggiati attivi del player
+- `POST /api/talent-scout/release/{engagement_id}` → libera prima della scadenza
+- `GET /api/talent-scout/perks` → ritorna slot rimanenti, sconto attuale, max duration in base al livello infra
+
+### Integrazione frontend
+- Nuova tab "TALENTI" nel Market generico (accanto a Film/Serie/Anime/Mercato TV/Free Agents)
+- In `CastPhase.jsx` (V3): mostra pre-ingaggiati con badge speciale (purple/gold) sopra il roster proprio
+- In `routes/lampo.py` `_pick_random_cast`: dopo own_roster (school+agency), pesca anche da pre-engaged → priorità nell'ordine
+
+**STATUS**: in attesa di implementazione, conferma utente al prossimo messaggio.
+
+
 ## Bundle 10 fix (Apr 26, 2026 — sera 2)
 
 ### A. Sistema Rifiuti V3 nei Pipeline (Task P1)

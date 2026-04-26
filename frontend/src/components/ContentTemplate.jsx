@@ -17,6 +17,7 @@ import { LampoLightning } from './LampoLightning';
 import { getPreReleasePressReviews, getPreReleaseAudience } from '../utils/preReleasePhrases';
 import DistributionPopup, { hasDistributionData, getDistributionLabel } from './DistributionPopup';
 import TvMarketModal from './TvMarketModal';
+import TvAiringBadge from './TvAiringBadge';
 import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
@@ -960,6 +961,10 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       {/* 3. TITLE */}
       <div className="ct2-title-row" data-testid="ct-title">
         <h1 className="ct2-title">{film.title}</h1>
+      </div>
+      {/* TV Airing badge — visible only if content is in palinsesto */}
+      <div className="px-4 mt-1 flex items-center">
+        <TvAiringBadge contentId={filmId} />
       </div>
       {/* Production House — clickable */}
       {(film.production_house_name || film.producer_nickname || film.user_id) && (

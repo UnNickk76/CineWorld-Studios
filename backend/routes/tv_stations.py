@@ -1979,6 +1979,67 @@ async def schedule_broadcast(req: ScheduleBroadcastRequest, user: dict = Depends
     }
 
 
+@router.get("/content/{content_id}/tv-airing-info")
+async def get_content_tv_airing_info(content_id: str):
+    """Public: ritorna info palinsesto TV per qualsiasi content_id.
+    Cerca tra tutte le emittenti TV la prima entry che lo contiene
+    (in qualunque stato: scheduled, airing, completed). Usato per il
+    badge "In TV dal {data} su {emittente}".
+    """
+    cursor = db.tv_stations.find(
+        {"$or": [
+            {"contents.tv_series.content_id": content_id},
+            {"contents.anime.content_id": content_id},
+            {"contents.films.content_id": content_id},
+        ]},
+        {"_id": 0, "id": 1, "user_id": 1, "station_name": 1, "name": 1,
+         "style": 1, "branding": 1, "primary_color": 1, "accent_color": 1,
+         "logo_url": 1, "schedule_active": 1, "contents": 1}
+    )
+
+    best = None
+    async for st in cursor:
+        for key in ("films", "tv_series", "anime"):
+            for entry in (st.get("contents", {}) or {}).get(key, []) or []:
+                if entry.get("content_id") != content_id:
+                    continue
+                state = entry.get("broadcast_state", "idle")
+                # First air time: min release_datetime among ep_schedule for series,
+                # otherwise start_datetime / broadcast_started_at.
+                first_air = entry.get("broadcast_started_at") or entry.get("start_datetime")
+                eps_sched = entry.get("ep_schedule") or []
+                if eps_sched:
+                    times = [e.get("release_datetime") for e in eps_sched if e.get("release_datetime")]
+                    if times:
+                        try:
+                            first_air = min(times)
+                        except Exception:
+                            pass
+                # Skip entries that are 'idle' with no scheduling
+                if state in ("idle", "retired") and not first_air:
+                    continue
+                candidate = {
+                    "station_id": st.get("id"),
+                    "station_name": st.get("station_name") or st.get("name") or "Emittente TV",
+                    "owner_user_id": st.get("user_id"),
+                    "style": st.get("style") or st.get("branding") or "default",
+                    "primary_color": st.get("primary_color") or st.get("accent_color"),
+                    "logo_url": st.get("logo_url"),
+                    "broadcast_state": state,
+                    "first_air_at": first_air,
+                    "next_air_at": entry.get("next_air_at"),
+                    "current_episode": entry.get("current_episode", 0),
+                    "total_episodes": entry.get("total_episodes", 0),
+                    "is_in_palinsesto": bool(first_air),
+                }
+                # Prefer entries with a real first_air_at; among those, the earliest
+                if best is None:
+                    best = candidate
+                elif (candidate["first_air_at"] or "") < (best.get("first_air_at") or "9999"):
+                    best = candidate
+    return {"info": best}
+
+
 @router.get("/tv-stations/{station_id}/broadcast/{content_id}")
 async def get_broadcast_detail(station_id: str, content_id: str, user: dict = Depends(get_current_user)):
     """Get detailed broadcast status for a series including episode list."""

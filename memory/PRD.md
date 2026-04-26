@@ -1,3 +1,52 @@
+## Bundle 8 fix (Apr 26, 2026 — pomeriggio)
+
+### A. Badge "In TV dal {data ora} su {emittente}" (Task B richiesto)
+- **Backend**: nuovo endpoint `GET /api/content/{content_id}/tv-airing-info` in `routes/tv_stations.py`. Cerca tra TUTTE le emittenti TV la prima entry che contiene `content_id` (in films/tv_series/anime), ritorna:
+  - `station_id`, `station_name`, `owner_user_id`
+  - `style`, `primary_color`, `logo_url` (per branding/glow)
+  - `broadcast_state` (idle/scheduled/airing/completed/retired), `first_air_at`, `next_air_at`
+  - `current_episode`, `total_episodes`, `is_in_palinsesto`
+  - **Logica `first_air_at`**: prefer `min(ep_schedule.release_datetime)` per serie episodi; fallback `broadcast_started_at` o `start_datetime`. Skip entries 'idle'/'retired' senza scheduling.
+- **Frontend**: nuovo componente `TvAiringBadge.jsx`:
+  - Mostra "In TV dal {26 apr 2026, 21:00} su AnacapitoFlix" (Italiano) con glow animato
+  - Mostra "IN ONDA · {station}" se `broadcast_state === 'airing'` con icona Radio pulsante
+  - **Style presets** preconfigurati per: netflix, disney, paramount, prime, apple, sky, rai, dazn, tim, default — ogni preset ha colore, font e glow RGB. Il backend ritorna `style` e il frontend applica il preset corrispondente.
+  - Nascosto se contenuto non è in palinsesto (`is_in_palinsesto=false`).
+- **Mounted in**:
+  - `ContentTemplate.jsx` (sotto il titolo, sopra "una produzione X")
+  - `ProssimamenteDetailModal.jsx` (sopra le 4 stat boxes, modalità compatta)
+- Test backend OK: serie airing su AnacapitoFlix → first_air_at='2026-04-10T21:00', state='airing', is_in_palinsesto=true.
+
+### B. Task FUTURO — Stili Emittenti TV (memorizzato)
+**Quando si compra un'emittente TV**, fare scegliere stile/font/colori con preset:
+- **NetfleX-style**: rosso #E50914, font Bebas Neue
+- **Disnext+**: blu #0066CC, font Inter
+- **Paramount+ → Topmount+**: blu acceso #0064FF
+- **PrimeFlix**: ciano #00A8E1
+- **AppleVue**: bianco/grigio, font SF Pro Display
+- **SkyView**: blu #0072FF
+- **RaiPlay → ItaliaPlay**: blu #0046AD
+- **Dazz!** (sport-style): giallo #F8FF13
+- **TimVision → ItalVision**: blu #0046AD
+- Player sceglie nome (NON quello reale per copyright) + stile. Lo stile influenza:
+  - Logo/font del badge "In TV dal..."
+  - Branding nel modal palinsesto e mercato TV
+  - Banner home dell'emittente
+- I preset CSS/glow sono già pronti in `TvAiringBadge.STYLE_PRESETS` — il prossimo step è solo aggiungere selettore nel form di acquisto/edit emittente TV.
+
+### C. Task A (P1 in coda) — Sistema Contratti Attori
+NON ancora implementato in questa sessione. Da fare al prossimo messaggio:
+- Contratti attori 30/90/180gg con loyalty +5% rinnovo
+- Hot Sheet Free Agents giornaliero
+- Prestige tier contratto
+- Emoji ⚡⏳ visibilità training
+- Sempre conveniente vs ingaggio singolo V3/LAMPO
+- Free Agents → nuova sezione "Attori" nel Market
+- Sistema rifiuti V3 collegato a `routes/cast.py`
+
+Files: `backend/routes/tv_stations.py`, `frontend/src/components/TvAiringBadge.jsx` (NEW), `frontend/src/components/ContentTemplate.jsx`, `frontend/src/components/ProssimamenteDetailModal.jsx`.
+
+
 ## Bundle 7 fix (Apr 26, 2026 — late morning)
 
 ### 1. LAMPO Autosave Bozza Form (richiesta utente)

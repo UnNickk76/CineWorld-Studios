@@ -1,4 +1,285 @@
-## 📋 ROADMAP — Feature in attesa: "Pre-Ingaggio NPCs via Talent Scout / Agenzie" (P1, da implementare) — VERSIONE 2 UNIFICATA
+## 📋 ROADMAP — Feature in attesa: "Sistema Talenti Vivente" (P1, da implementare) — VERSIONE 3 FINALE UNIFICATA
+
+> ✦ Sistema completo "NPCs vivi": pre-ingaggio + rescissione + happiness + furto cross-player ✦
+
+### 🎯 Concept Generale
+Tutti gli NPCs (attori posseduti, pre-ingaggiati, scuola) sono **entità vive** con happiness, aspettative, comportamento autonomo. Possono lasciare il player, essere "rubati" da altri, accettare/rifiutare rinnovi. Ogni infrastruttura (Agenzia / Talent Scout / Scuola) ha un livello che scala visibilità+slot+sconti.
+
+---
+
+### 🏗️ MARKET (3 sezioni nuove)
+
+**1. Talenti / Pre-Ingaggio** — sotto-sezioni per ruolo:
+- 🎬 Registi · ✍️ Sceneggiatori · 🎭 Attori · 🎨 Disegnatori · 🎵 Compositori
+- Pool NPCs visibili **scala col livello infra**: Lv 1 → 50 NPC, Lv 10 → 2000+
+- Numero ingaggiabili per genere → scala col livello
+- Per attori: scelta **ruolo specifico** all'ingaggio (protagonista / antagonista / supporto / cameo)
+- Costi inferiori vs ingaggio singolo (-20% Lv 1 → -50% Lv 10)
+- Durata 30/60/90/180gg
+
+**2. NPC Sotto Contratto** (visibile a TUTTI i player) — pubblicità del roster altrui:
+- Mostra: nome NPC, owner attuale, durata, **happiness emoji** (😊🙂😐😠), **flag lampeggiante** se NPC ha avvisato che vuole rescindere
+- Altri player possono offrire **acquisto anticipato (furto)**:
+  - Successo proporzionale a happiness (più NPC è infelice, più facile "rubarlo")
+  - **NPC NON cambia immediatamente proprietario**: il trasferimento avviene solo a fine contratto col precedente owner (scadenza / rescissione / liberazione)
+  - Owner attuale riceve % offerta come "rimborso" (e ha tempo di tenere felice l'NPC per evitare di perderlo)
+  - Sistema di counter-offerta: owner attuale può rilanciare per blindare il NPC
+
+**3. Free Agents** (già implementata) — NPCs liberati che cercano nuovi ingaggi.
+
+---
+
+### 🎮 INTEGRAZIONE PIPELINE
+
+**V3 Classica**: pre-ingaggiati visibili nel casting con **badge "📜 Pre-Ingaggiato"** (gold/purple), costo $0.
+
+**LAMPO**: auto-cast pesca **almeno 2 pre-ingaggiati** in aggiunta a school+agency.
+
+**Sceneggiature Pronte / Agenzia Sceneggiatori**: stesso comportamento auto-include.
+
+---
+
+### 🔄 SISTEMA RESCISSIONE (esteso a TUTTI i tipi: agency_actors + pre-engaged + students post-graduation)
+
+**A) Trigger NPC vuole rescindere** (calcolato ogni heartbeat):
+- Happiness < 30 + contratto > 30% durata → 30% probabilità
+- Happiness < 15 + contratto > 50% durata → 60% probabilità
+- Happiness < 5 → 90% probabilità
+
+**B) Notifica 3 giorni prima della rescissione**:
+- NPC manda messaggio in stile: *"Caro Anacapito, sto pensando di rescindere il contratto. Se nei prossimi 3 giorni mi farai fare un film/serie/anime/sequel, potrei ripensarci."*
+- Card NPC nella **propria agenzia** comincia a **lampeggiare** (animazione `pulse` con bordo ambra/rosso)
+- Card NPC nel **market pubblico "NPC Sotto Contratto"** lampeggia anche lì (vulnerabilità segnalata agli altri player)
+
+**C) Periodo di grazia (3 giorni)**:
+- Se nei 3 giorni il player ingaggia l'NPC in un nuovo progetto → **happiness +25** + cancella la rescissione + NPC "ripensaci" message
+- Se non lo usa → rescissione automatica al giorno 3:
+  - Player riceve rimborso parziale: `fee_paid × giorni_rimanenti / durata_totale × 1.2` (cioè un piccolo bonus +20% del proporzionale per "scuse del NPC")
+  - NPC torna nel market come Free Agent
+  - Notifica: *"Tony Stark ha lasciato la tua agenzia: 'Mi tieni in panchina, vado dove possa lavorare'"*
+
+**D) Rescissione manuale dal player** (release):
+- Già esistente per agency_actors via `release-actor` → estendere anche a pre-engagements
+- Player riceve 0% rimborso (è una scelta sua)
+
+---
+
+### 🪄 SISTEMA "FURTO" CROSS-PLAYER
+
+**Step 1 — Offerta acquisto anticipato**:
+- Player B vede NPC nel market pubblico → clicca "Pre-acquista"
+- Sceglie offerta (range 80% - 200% della residua fee del contratto attuale)
+- L'offerta è valida per N giorni (es. 7gg)
+
+**Step 2 — Fase di counter-offerta**:
+- Player A (owner attuale) riceve notifica + opzioni:
+  - **Accetta**: incassa subito, NPC passa a B alla fine contratto
+  - **Counter-bid**: rilancia proponendo un fee ridotto al NPC per "blindarlo" (rinnovo immediato + happiness boost)
+  - **Ignora**: l'offerta scade
+- NPC stesso vota in base a happiness:
+  - happiness ≥ 70: rifiuta automaticamente l'offerta (è felice)
+  - happiness < 30: accetta automaticamente
+  - 30-70: il player A può influenzare
+
+**Step 3 — Trasferimento**:
+- NPC NON cambia owner immediatamente
+- Resta col player A fino a fine contratto/rescissione/liberazione
+- Player A può continuare ad usarlo (bonus: ogni film fatto durante questo "lame duck period" aumenta happiness e può cancellare il furto se NPC cambia idea)
+- Alla scadenza: NPC migra automaticamente a player B con contratto base 30gg
+
+---
+
+### 👤 SEZIONE AGENZIA (player view)
+
+**Layout**: 3 sub-tabs principali con sub-filtri per tipo cast:
+1. **🎓 Scuola** (casting_school_students) — già implementato
+2. **💼 Propri** (agency_actors classici)
+3. **📜 Pre-Ingaggio dal Market** (talent_pre_engagements)
+
+Ogni tab con filtri per **tipo cast** (registi/sceneggiatori/attori/disegnatori/compositori).
+
+**Per ogni NPC mostra**:
+- Tipo contratto + durata + giorni rimanenti (countdown colorato)
+- **Livello contentezza** (😊 ≥75 / 🙂 50-74 / 😐 30-49 / 😠 <30)
+- **Animazione lampeggiante** se ha avvisato di voler rescindere
+- Numero film/progetti fatti durante il contratto
+- Ruoli effettivamente ricoperti (per attori) vs ruolo intended
+- **Loyalty score** cumulativo (% bonus CWSv)
+- Bottoni: **Rinnova / Libera / Cambia Ruolo Atteso**
+- **🎁 Regalia** (idea bonus): spendi denaro extra per +happiness immediato
+- **⚡ "Pacifica"** (per NPCs in periodo di grazia 3gg): suggerisce film veloce LAMPO
+
+---
+
+### 💾 SCHEMA DB
+
+```python
+# Esiste già `agency_actors` → estendere con campi happiness
+agency_actors:
+- ... (già esistenti)
+- happiness_score: 0-100 (computed each heartbeat)
+- contract_started_at, contract_duration_days, contract_expires_at  (già aggiunti nel Bundle 9)
+- usage_history: [{film_id, role_used, cwsv, used_at}]
+- usage_by_role: {protagonist: N, ...}
+- threatened_release_at: ISO  # quando NPC ha avvisato di voler rescindere
+- grace_period_ends_at: ISO   # +3 giorni
+- pending_buyout_offer: {from_user_id, amount, made_at, expires_at, status}
+- listed_for_purchase: bool   # True se in scadenza o threatened
+
+# Nuova collection per pre-ingaggi
+talent_pre_engagements:
+- id, user_id, npc_id, role
+- cast_role_intended (per attori)
+- contract_started_at, contract_duration_days, contract_expires_at
+- fee_paid, contract_status: active/renewed/expired/released_by_npc/sold_to_other_player/threatened
+- happiness_score, threatened_release_at, grace_period_ends_at
+- usage_history, usage_by_role
+- pending_buyout_offer
+- renewals_count, renegotiations_count
+```
+
+---
+
+### 🎚️ LIVELLI INFRA (proposta)
+
+| Livello | Slot | Pool NPC | Sconto | Max durata |
+|---------|------|----------|--------|------------|
+| 1 | 3 | 50 | -20% | 30gg |
+| 3 | 8 | 200 | -30% | 60gg |
+| 5 | 15 | 500 | -40% | 90gg |
+| 10 | 30 | 2000+ | -50% | 180gg |
+
+Stesso schema applicato a infra: Talent Scout (attori) / Agenzia Scout Sceneggiatori / Agenzia Scout Registi / Agenzia Scout Compositori / Agenzia Scout Disegnatori. Player può investire selettivamente.
+
+---
+
+### 🌐 ENDPOINT BACKEND
+
+```
+# Pre-ingaggio
+GET  /api/market/talents?role=&min_stars=&max_fee=&page=
+POST /api/market/talents/pre-engage/{npc_id}
+
+# Market sotto contratto
+GET  /api/market/contracted-npcs                              # public
+POST /api/market/contracted-npcs/{eng_id}/offer-buyout
+POST /api/market/contracted-npcs/{eng_id}/counter-offer        # owner attuale rilancia
+
+# Roster proprio
+GET  /api/talent-scout/my-roster?tab=school|agency|pre_engaged&role=
+POST /api/talent-scout/renew/{eng_id}
+POST /api/talent-scout/release/{eng_id}
+POST /api/talent-scout/gift/{eng_id}                           # +happiness regalia
+POST /api/talent-scout/pacify/{eng_id}                         # cancella threatened se NPC è usato in N gg
+GET  /api/talent-scout/threatened                              # lista NPCs in periodo di grazia
+GET  /api/talent-scout/perks                                   # slot rimanenti per infra
+```
+
+---
+
+### 🧠 ALGORITMI CRITICI
+
+**Happiness Score**:
+```python
+def compute_happiness(npc, expected_role=None):
+    base = 75
+    # Frequenza utilizzo (peer-comparison stesso tipo cast)
+    expected_uses = (duration_days / 30) * 1.2
+    actual_uses = len(usage_history)
+    ratio = actual_uses / max(1, expected_uses)
+    if ratio < 0.3: base -= 35
+    elif ratio < 0.6: base -= 15
+    elif ratio > 1.5: base += 10
+    
+    # Per attori: corrispondenza ruolo
+    if role == 'actor' and expected_role:
+        used_in_expected = usage_by_role.get(expected_role, 0)
+        if expected_role in ('protagonist', 'co_protagonist') and used_in_expected == 0:
+            base -= 25
+        elif expected_role == 'cameo' and usage_by_role.get('protagonist', 0) > 0:
+            base += 15
+    
+    # Qualità film
+    avg_cwsv = mean([h['cwsv'] for h in usage_history]) if usage_history else 0
+    if avg_cwsv >= 75: base += 10
+    elif avg_cwsv < 40: base -= 10
+    
+    # Loyalty effect (NPCs fedeli sono più tolleranti)
+    base += loyalty_score * 0.3
+    
+    return max(0, min(100, base))
+```
+
+**Auto-rescissione check** (heartbeat):
+```python
+if happiness < 5 and elapsed_pct > 0: prob = 0.90
+elif happiness < 15 and elapsed_pct > 0.5: prob = 0.60
+elif happiness < 30 and elapsed_pct > 0.3: prob = 0.30
+else: prob = 0.0
+
+if random() < prob_per_day and not threatened:
+    npc.threatened_release_at = now()
+    npc.grace_period_ends_at = now() + 3.days
+    npc.listed_for_purchase = True
+    notify_player_and_market(npc)
+```
+
+---
+
+### 💡 MIEI CONSIGLI EXTRA per migliorare
+
+1. **🎤 Manager Personale dello studio** — un NPC "agente" persistente che parla al player con messaggi nello studio: "Capo, Tony Stark si lamenta perché non lo fai recitare." Crea atmosfera narrativa.
+
+2. **🏆 Iconic Status** — dopo 3 rinnovi consecutivi senza rinegoziazione, NPC diventa "Iconic Talent" del tuo studio: appare nei crediti con il logo, +20% chance accettazione contratti futuri di tutti gli NPCs. È un sigillo di prestigio dello studio.
+
+3. **🌟 Sponsorship / Reputazione studio** — studi che producono CWSv alta media (≥75) attirano automaticamente +30% NPCs nel market, con sconti aggiuntivi. La reputazione attira talenti.
+
+4. **🎭 Affinità di genere** — ogni NPC ha 1-2 generi preferiti (già esiste `strong_genres`). Usarlo nel suo genere preferito → +happiness x2.
+
+5. **📰 Recensioni post-contratto pubbliche** — quando un NPC esce da un player, lascia una review (+/-) visibile a tutti. Influenza happiness di partenza dei prossimi contratti con quel player. Crea persistente reputazione dello studio.
+
+6. **🔥 Mood Swings stagionali** — eventi (festività, vincita Oscar dello studio, scandali, etc.) modificano l'happiness di tutti gli NPCs ±10/15 punti. Aggiunge dinamismo.
+
+7. **🎟️ Esclusive di ruolo (premium)** — pago un premium fee per BLOCCARE un NPC SOLO su un ruolo (es. "solo antagonista nei miei film"). NPC è felice di essere specializzato. Player ha consistency nei propri film.
+
+8. **🪙 Sistema d'asta** — per NPCs top-tier (legendary, fame ≥90), invece di pre-engagement diretto: asta tra player con bid pubblico per X giorni, vince il più alto. Crea evento competitivo.
+
+9. **💌 Diario dell'NPC** — ogni NPC ha un piccolo diario interno dove "scrive" eventi: "Ho amato fare il villain in The Dark Knight (CWSv 85)" o "Mi annoio, voglio cambiare aria". Visibile cliccando il NPC. Engagement narrativo.
+
+10. **🎬 Auto-suggerimento "Salva il NPC"** — quando NPC entra in periodo di grazia, una notifica con bottone diretto "Crea LAMPO veloce con Tony" che pre-popola il form. Reduce friction.
+
+---
+
+### 🛠️ ROADMAP IMPLEMENTATIVA (proposta in fasi)
+
+**Fase 1 — MVP Pre-Engagement (1-2 task)**:
+- DB schema + endpoint base + UI Market sezione Talenti
+- Integrazione pipeline V3 (badge "Pre-Ingaggiato")
+- Auto-include LAMPO (2+ pre-engaged)
+
+**Fase 2 — Happiness System**:
+- Algoritmo happiness + heartbeat task
+- Notifiche 3-giorni grazie
+- UI happiness emoji + lampeggiante in agenzia
+
+**Fase 3 — Rescissione**:
+- Auto-rescissione + rimborso parziale
+- Estensione anche ad agency_actors classici
+- Free agents migration
+
+**Fase 4 — Furto cross-player**:
+- Market pubblico "NPC Sotto Contratto"
+- Sistema offerte + counter-offerte
+- Trasferimento delayed a fine contratto
+
+**Fase 5 — Polish**:
+- Manager Personale UI
+- Iconic Status badge
+- Mie idee bonus (asta, diario, recensioni, mood swings, etc.)
+
+**STATUS**: in progettazione, attendo conferma utente per partire con Fase 1.
+
+
 
 > ✦ Feature corposa con economia + relazione + market dinamico ✦
 

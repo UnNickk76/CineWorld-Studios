@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Film, ChevronLeft, Save, X, Tv, Sparkles, Star, Trash2, RotateCcw } from 'lucide-react';
 import { StepperBar as FilmStepperBar, PhaseWrapper, ProgressCircle, STEP_STYLES, GENRE_LABELS, SUBGENRE_MAP, LOCATION_TAGS } from './V3Shared';
 import { Check, TrendingUp, Users, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket } from 'lucide-react';
@@ -1464,6 +1464,7 @@ const StepFinale = ({ project, onConfirm, loading, seriesType }) => {
    ═══════════════════════════════════════════════════ */
 export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState([]);
   const [lampoProjects, setLampoProjects] = useState([]);
   const [activeLampoProject, setActiveLampoProject] = useState(null);
@@ -1505,6 +1506,34 @@ export default function PipelineSeriesV3({ seriesType = 'tv_series' }) {
   }, []);
 
   useEffect(() => { loadProjects(); loadLampoDrafts(); }, [loadProjects, loadLampoDrafts]);
+
+  // Auto-resume from query params: ?p=<id> opens the V3 project, ?lampo=<id> opens the LAMPO modal.
+  const autoResumeRef = useRef(false);
+  useEffect(() => {
+    if (autoResumeRef.current) return;
+    const pid = searchParams.get('p');
+    const lid = searchParams.get('lampo');
+    if (!pid && !lid) return;
+    autoResumeRef.current = true;
+    (async () => {
+      try {
+        if (pid) {
+          const d = await sapi(`/projects/${pid}`);
+          if (d) setSelected(d);
+        } else if (lid) {
+          const token = localStorage.getItem('cineworld_token');
+          const res = await fetch(`${API}/api/lampo/mine`, { headers: { Authorization: `Bearer ${token}` } });
+          const data = await res.json().catch(() => ({}));
+          const draft = (data?.projects || []).find(p => p.id === lid);
+          if (draft) {
+            setActiveLampoProject(draft);
+            setShowLampoModal(true);
+          }
+        }
+      } catch (_) { /* ignore */ }
+      setSearchParams({}, { replace: true });
+    })();
+  }, [searchParams, setSearchParams]);
 
   const currentStep = selected?.pipeline_state || 'idea';
   const stepIndex = SERIES_STEPS.findIndex(s => s.id === currentStep);

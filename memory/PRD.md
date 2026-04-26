@@ -1,3 +1,32 @@
+## Fix MyDraftsWidget — clic ora apre la pipeline corretta (Apr 26, 2026 — sera 6)
+
+### Problema
+Cliccando su una bozza in `/le-mie-bozze` (LAMPO Film, V3 film/serie/anime, ecc.) l'utente veniva rimandato alla dashboard invece di riprendere il progetto.
+
+### Root cause
+`MyDraftsWidget.pipelineRouteFor` puntava a route inesistenti (`/lampo/{id}`, `/pipeline/{id}`, `/series-pipeline/{id}`, `/sequel/{id}`, `/purchased-screenplays/{id}`) che cadevano nel fallback default → dashboard.
+
+### Fix
+1. `frontend/src/components/MyDraftsWidget.jsx` — `pipelineRouteFor` ora mappa alle route esistenti:
+   - LAMPO film → `/create-film?lampo=ID`
+   - LAMPO series → `/create-series?lampo=ID`
+   - LAMPO anime → `/create-anime?lampo=ID`
+   - V3 film → `/create-film?p=ID`
+   - V3 series → `/create-series?p=ID`
+   - V3 anime → `/create-anime?p=ID`
+   - V3 sequel → `/create-sequel?p=ID`
+   - Sceneggiatura comprata → `/emerging-screenplays?p=ID`
+2. `frontend/src/pages/PipelineV3.jsx` — aggiunto handler `?lampo=ID` (fetch `/api/lampo/mine`, trova draft, apre `LampoModal` con `existingProject`).
+3. `frontend/src/components/v3/PipelineSeriesV3.jsx` — aggiunto handler universale `?p=ID` e `?lampo=ID` (sia per Serie TV che Anime, perché entrambe condividono il componente).
+
+### Test
+Verificato via screenshot: click su draft "Test Economy" → naviga a `/create-film?p=...` e apre la pipeline V3 nello step IDEA con titolo, genere e pretrama precaricati. La query param viene poi pulita per evitare ri-trigger al refresh.
+
+Files: `MyDraftsWidget.jsx`, `PipelineV3.jsx`, `v3/PipelineSeriesV3.jsx`.
+
+---
+
+
 ## Admin Popup — Bottone "Riporta in bozza" aggiunto (Apr 26, 2026 — sera 5)
 
 Su feedback utente: nel popup Admin > Gestione Film mancava il bottone "Riporta in bozza".

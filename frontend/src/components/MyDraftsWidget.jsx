@@ -40,11 +40,17 @@ const STATE_LABELS = {
 };
 
 function pipelineRouteFor(item) {
-  if (item.is_lampo) return `/lampo/${item.id}`;
-  if (item.is_purchased) return `/purchased-screenplays/${item.id}`;
-  if (item.collection === 'series_projects_v3') return `/series-pipeline/${item.id}`;
-  if (item.collection === 'sequel_projects') return `/sequel/${item.id}`;
-  return `/pipeline/${item.id}`;
+  const id = item.id;
+  if (item.is_lampo) {
+    if (item.content_type === 'lampo_series') return `/create-series?lampo=${id}`;
+    if (item.content_type === 'lampo_anime') return `/create-anime?lampo=${id}`;
+    return `/create-film?lampo=${id}`;
+  }
+  if (item.is_purchased) return `/emerging-screenplays?p=${id}`;
+  if (item.content_type === 'series') return `/create-series?p=${id}`;
+  if (item.content_type === 'anime') return `/create-anime?p=${id}`;
+  if (item.content_type === 'sequel') return `/create-sequel?p=${id}`;
+  return `/create-film?p=${id}`;
 }
 
 export default function MyDraftsWidget({ compact = false }) {

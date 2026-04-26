@@ -94,6 +94,25 @@ export default function PipelineV3() {
     })();
   }, [searchParams, selected, setSearchParams]);
 
+  // Auto-open LAMPO modal when ?lampo=<id> is passed (used by MyDraftsWidget to resume LAMPO drafts).
+  const autoLampoRef = useRef(false);
+  useEffect(() => {
+    const lid = searchParams.get('lampo');
+    if (!lid || autoLampoRef.current) return;
+    autoLampoRef.current = true;
+    (async () => {
+      try {
+        const r = await v3api('/lampo/mine');
+        const draft = (r?.projects || []).find(p => p.id === lid);
+        if (draft) {
+          setLampoExisting(draft);
+          setShowLampoModal(true);
+          setSearchParams({}, { replace: true });
+        }
+      } catch (_) { /* ignore */ }
+    })();
+  }, [searchParams, setSearchParams]);
+
   const currentStep = selected?.pipeline_state || 'idea';
   const stepIndex = V3_STEPS.findIndex(s => s.id === currentStep);
 

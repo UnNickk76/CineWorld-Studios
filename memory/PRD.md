@@ -1,3 +1,21 @@
+## Step C COMPLETATO — Admin Avatar Dashboard (Apr 26, 2026 — sera 3)
+
+### Frontend integration
+- `AdminAvatarsTab.jsx` (già esistente) ora **importato** in `AdminPage.jsx` e renderizzato come tab "Gestione Avatar" (icon `ImageIcon`).
+- Nuova entry in `ADMIN_TABS`: `{ id: 'avatars', label: 'Gestione Avatar', icon: ImageIcon }`.
+- Render condizionale `{activeTab === 'avatars' && isAdmin && <AdminAvatarsTab api={api} />}`.
+
+### Funzionamento verificato
+- Audit live (Player 72/72, Case 72, NPC 28.752 con 3.500 senza avatar).
+- Breakdown per tipo: actor 2826/2826 ✓, director 2881/2881 ✓, screenwriter 2865/2865 ✓, composer 2929/2929 ✓.
+- Pulsanti "Applica mancanti" (rosa) + "Rigenera TUTTI" (ambra) + scope filter (Tutti/actor/director/screenwriter/composer/illustrator).
+- Backend già in `routes/admin_avatars.py`: `/api/admin/avatars/audit`, `/apply-missing`, `/regenerate-all` (admin-only).
+
+Files: `frontend/src/pages/AdminPage.jsx` (3 edits: import, ADMIN_TABS entry, render).
+
+---
+
+
 ## 📋 ROADMAP — Feature in attesa: "Sistema Talenti Vivente" (P1, da implementare) — VERSIONE 3 FINALE UNIFICATA
 
 > ✦ Sistema completo "NPCs vivi": pre-ingaggio + rescissione + happiness + furto cross-player ✦

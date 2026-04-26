@@ -11,6 +11,7 @@ import TrailerPlayerModal from '../components/TrailerPlayerModal';
 import { PlayerBadge } from '../components/PlayerBadge';
 import AdminFilmRecovery from '../components/AdminFilmRecovery';
 import AdminStatusEditor from '../components/AdminStatusEditor';
+import AdminAvatarsTab from '../components/AdminAvatarsTab';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
@@ -29,6 +30,7 @@ const ADMIN_TABS = [
   { id: 'promo-video', label: 'Promo Video', icon: Video },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
   { id: 'recovery', label: 'Anti-Limbo', icon: AlertTriangle },
+  { id: 'avatars', label: 'Gestione Avatar', icon: ImageIcon },
   { id: 'reset', label: 'Reset Gioco', icon: Trash2 },
 ];
 
@@ -3345,6 +3347,7 @@ export default function AdminPage() {
         {activeTab === 'ai-providers' && isAdmin && <AIProvidersTab api={api} />}
         {activeTab === 'promo-video' && isAdmin && <PromoVideoTab api={api} />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}
+        {activeTab === 'avatars' && isAdmin && <AdminAvatarsTab api={api} />}
         {activeTab === 'reset' && isAdmin && <ResetGamePanel api={api} />}
         {activeTab === 'migration' && isAdmin && <MigrationTab api={api} />}
         {activeTab === 'tutorial' && isAdmin && <TutorialManagerTab api={api} />}

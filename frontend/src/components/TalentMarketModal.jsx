@@ -43,7 +43,70 @@ function StarRow({ count }) {
   );
 }
 
-function NpcCard({ npc, role, onPreEngage, busy, accentClass }) {
+function SkillsPopup({ npc, onClose }) {
+  const skills = npc?.skills || {};
+  const sorted = Object.entries(skills).sort(([, a], [, b]) => b - a);
+  return (
+    <div className="fixed inset-0 z-[125] bg-black/70 flex items-end sm:items-center justify-center p-3"
+      onClick={onClose} data-testid="skills-popup">
+      <div className="bg-[#111113] border border-white/10 rounded-2xl max-w-md w-full p-4 space-y-3 max-h-[80vh] overflow-hidden flex flex-col"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <img src={npc.avatar_url || '/avatar-placeholder.png'}
+              onError={(e) => { e.currentTarget.src = '/avatar-placeholder.png'; }}
+              className="w-9 h-9 rounded-full bg-gray-800 flex-shrink-0" alt="" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate">{npc.name}</p>
+              <div className="flex items-center gap-1.5">
+                <StarRow count={npc.stars} />
+                {typeof npc.fame_score === 'number' && (
+                  <span className="text-[10px] text-amber-300">Fama {Math.round(npc.fame_score)}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+
+        {sorted.length === 0 ? (
+          <p className="text-xs text-gray-500 text-center py-6">Nessuna skill disponibile.</p>
+        ) : (
+          <div className="space-y-1.5 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
+            {sorted.map(([k, v]) => {
+              const pct = Math.min(100, Math.max(0, parseInt(v) || 0));
+              const color = pct >= 90 ? 'from-yellow-400 to-amber-400' :
+                            pct >= 70 ? 'from-emerald-400 to-green-500' :
+                            pct >= 40 ? 'from-blue-400 to-sky-500' :
+                            'from-gray-500 to-gray-600';
+              const textColor = pct >= 90 ? 'text-yellow-300' :
+                                pct >= 70 ? 'text-emerald-300' :
+                                pct >= 40 ? 'text-blue-300' :
+                                'text-gray-400';
+              return (
+                <div key={k} data-testid={`skill-row-${k}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-300 capitalize">{k.replace(/_/g, ' ')}</span>
+                    <span className={`text-[10px] font-bold ${textColor}`}>{pct}</span>
+                  </div>
+                  <div className="h-1 bg-black/40 rounded-full overflow-hidden mt-0.5">
+                    <div className={`h-full bg-gradient-to-r ${color} transition-all`}
+                      style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <p className="text-[9px] text-gray-600 italic flex-shrink-0">
+          {npc.nationality || '—'}{npc.age ? ` • ${npc.age} anni` : ''}{npc.gender ? ` • ${npc.gender}` : ''}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function NpcCard({ npc, role, onPreEngage, onShowSkills, busy, accentClass }) {
   const skills = npc.skills || {};
   const top3 = Object.entries(skills).sort(([, a], [, b]) => b - a).slice(0, 3);
   return (
@@ -51,15 +114,22 @@ function NpcCard({ npc, role, onPreEngage, busy, accentClass }) {
       data-testid={`npc-card-${npc.id}`}>
       <CardContent className="p-2.5">
         <div className="flex items-start gap-2.5">
-          <img
-            src={npc.avatar_url || '/avatar-placeholder.png'}
-            alt={npc.name}
-            onError={(e) => { e.currentTarget.src = '/avatar-placeholder.png'; }}
-            className="w-10 h-10 rounded-full bg-gray-800 object-cover flex-shrink-0"
-          />
+          <button onClick={() => onShowSkills(npc)} className="flex-shrink-0"
+            data-testid={`avatar-${npc.id}`} title="Vedi skill">
+            <img
+              src={npc.avatar_url || '/avatar-placeholder.png'}
+              alt={npc.name}
+              onError={(e) => { e.currentTarget.src = '/avatar-placeholder.png'; }}
+              className="w-10 h-10 rounded-full bg-gray-800 object-cover hover:ring-2 hover:ring-yellow-500/40 transition"
+            />
+          </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-xs sm:text-sm font-semibold text-white truncate">{npc.name}</span>
+              <button onClick={() => onShowSkills(npc)}
+                className="text-xs sm:text-sm font-semibold text-white truncate hover:text-yellow-300 underline decoration-dotted underline-offset-2 text-left"
+                data-testid={`name-${npc.id}`} title="Vedi skill">
+                {npc.name}
+              </button>
               <StarRow count={npc.stars} />
             </div>
             <p className="text-[10px] text-gray-500 mt-0.5">
@@ -281,7 +351,7 @@ function PreEngageDialog({ npc, role, perks, onConfirm, onCancel, submitting }) 
   );
 }
 
-function RosterCard({ eng, busy, onRelease, onOpenDiary }) {
+function RosterCard({ eng, busy, onRelease, onOpenDiary, onShowSkills }) {
   const snap = eng.npc_snapshot || {};
   const isThreat = eng.contract_status === 'threatened';
   const dr = eng.days_remaining ?? 0;
@@ -294,10 +364,13 @@ function RosterCard({ eng, busy, onRelease, onOpenDiary }) {
     }`} data-testid={`roster-card-${eng.id}`}>
       <CardContent className="p-2.5">
         <div className="flex items-start gap-2.5">
-          <img
-            src={snap.avatar_url || '/avatar-placeholder.png'}
-            onError={(e) => { e.currentTarget.src = '/avatar-placeholder.png'; }}
-            className="w-10 h-10 rounded-full bg-gray-800 object-cover flex-shrink-0" alt="" />
+          <button onClick={() => onShowSkills?.({ ...snap, ...eng, name: snap.name, skills: snap.skills || eng.skills })}
+            className="flex-shrink-0" title="Vedi skill" data-testid={`roster-avatar-${eng.id}`}>
+            <img
+              src={snap.avatar_url || '/avatar-placeholder.png'}
+              onError={(e) => { e.currentTarget.src = '/avatar-placeholder.png'; }}
+              className="w-10 h-10 rounded-full bg-gray-800 object-cover hover:ring-2 hover:ring-yellow-500/40 transition" alt="" />
+          </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs sm:text-sm font-semibold text-white truncate">{snap.name}</span>
@@ -492,6 +565,7 @@ export default function TalentMarketModal({ open, onClose }) {
   const [showOnlyUnhappy, setShowOnlyUnhappy] = useState(true);
   const [pendingBuyout, setPendingBuyout] = useState(null);
   const [diaryFor, setDiaryFor] = useState(null); // {eng_id, name}
+  const [skillsNpc, setSkillsNpc] = useState(null); // npc obj per popup skill
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [pendingPreEngage, setPendingPreEngage] = useState(null); // {npc, role}
@@ -648,7 +722,8 @@ export default function TalentMarketModal({ open, onClose }) {
               <NpcCard key={npc.id} npc={npc} role={role}
                 accentClass={tabConfig?.accent || 'border-white/10'}
                 busy={busyId === npc.id}
-                onPreEngage={(n) => startPreEngage(n, role)} />
+                onPreEngage={(n) => startPreEngage(n, role)}
+                onShowSkills={(n) => setSkillsNpc(n)} />
             ))}
           </div>
         )}
@@ -790,7 +865,8 @@ export default function TalentMarketModal({ open, onClose }) {
                   {roster.map(r => (
                     <RosterCard key={r.id} eng={r} busy={busyId === r.id}
                       onRelease={releaseEngagement}
-                      onOpenDiary={() => setDiaryFor({ eng_id: r.id, name: r.npc_snapshot?.name || 'Talento' })} />
+                      onOpenDiary={() => setDiaryFor({ eng_id: r.id, name: r.npc_snapshot?.name || 'Talento' })}
+                      onShowSkills={(n) => setSkillsNpc(n)} />
                   ))}
                 </div>
               )}
@@ -863,6 +939,11 @@ export default function TalentMarketModal({ open, onClose }) {
             api={api}
             onClose={() => setDiaryFor(null)}
           />
+        )}
+
+        {/* Skills popup */}
+        {skillsNpc && (
+          <SkillsPopup npc={skillsNpc} onClose={() => setSkillsNpc(null)} />
         )}
       </DialogContent>
     </Dialog>

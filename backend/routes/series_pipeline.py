@@ -1341,14 +1341,28 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
         quality_result['score'] = min(98, quality_result['score'] + guest_star_bonus)
         quality_result['breakdown']['guest_star_bonus'] = round(guest_star_bonus, 1)
     
-    # Generate episodes
+    # Generate episodes (con mini_plot template auto-popolato)
+    episode_templates = [
+        "I protagonisti affrontano una svolta inaspettata.",
+        "Un segreto del passato viene a galla.",
+        "Nuove alleanze, vecchi rancori.",
+        "Una scelta che cambierà tutto.",
+        "Un incontro decisivo scuote il gruppo.",
+        "Tra verità e inganno, qualcuno paga il prezzo.",
+        "L'equilibrio si spezza in modo irreversibile.",
+        "Vecchie ferite si riaprono al momento sbagliato.",
+        "Una rivelazione cambia il volto della storia.",
+        "Lo scontro finale prende forma.",
+    ]
     episodes = []
     for i in range(1, series['num_episodes'] + 1):
         ep_quality_var = random.gauss(0, 3)
+        # Fallback mini_plot template (sara' sostituito da AI in futuro)
+        mini_plot = f"Episodio {i}: {random.choice(episode_templates)}"
         ep = {
             'number': i,
             'title': f"Episodio {i}",
-            'mini_plot': '',
+            'mini_plot': mini_plot,
             'quality_score': round(max(10, min(98, quality_result['score'] + ep_quality_var)), 1),
             'audience': 0,
             'ad_revenue': 0,

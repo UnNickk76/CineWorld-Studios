@@ -1,3 +1,35 @@
+## Fix 3-in-1 dashboard TV (Apr 27, 2026 — sera 13)
+
+### Foto 1: Badge "Film TV" sulle locandine
+`components/ComingSoonSection.jsx`: il badge sopra il titolo ora distingue:
+- "Film" (giallo) per film cinematografici
+- "Film TV" (rosa) per film con `is_tv_movie=true`
+- Anime/Serie/Remaster invariati
+Modificato sia il `typeLabel` per Card layout che per Compact layout (2 punti del file).
+
+### Foto 2: "IN ARRIVO SU TV" non mostra piu' serie gia' airing
+`pages/Dashboard.jsx ProssimamenteV3Section`: la sezione mergeava `coming_soon` + `airing`. Ora include SOLO `coming_soon`. Le serie/anime gia' in onda devono apparire in "Ultimi Aggiornamenti Serie TV / Anime", non qui. Correzione 1 riga.
+
+### Foto 3: Mini-trame episodi da rilascio
+**Backend `routes/series_pipeline.py`**: la generazione episodi al release ora popola `mini_plot` con un template aleatorio (10 frasi a rotazione per varieta'), invece di lasciarlo `''`. I nuovi rilasci avranno mini-trama leggibile dal primo airing.
+
+**Backfill produzione** `routes/admin_recovery.py`:
+- Nuovo endpoint `POST /api/admin/recovery/backfill-mini-plots` (admin-only).
+- Itera su tutte le `tv_series` esistenti, trova episodi con `mini_plot` vuoto, e popola con template.
+- Risposta: `{success, series_fixed, episodes_updated}`.
+
+L'utente in produzione potra' chiamare questo endpoint UNA VOLTA dopo il deploy per sistemare le serie esistenti come Kudakodu e The Concept.
+
+### Test verificato via screenshot
+- Dashboard senza serie airing in "IN ARRIVO SU TV" (mostra "Nessun contenuto in arrivo") ✅
+- Endpoint `/admin/recovery/backfill-mini-plots` risponde 200 con counter ✅
+- Nuove serie create useranno il template auto-popolato ✅
+
+Files: `components/ComingSoonSection.jsx`, `pages/Dashboard.jsx`, `routes/series_pipeline.py`, `routes/admin_recovery.py`.
+
+---
+
+
 ## Fix IDEA Phase locked per Film TV (Apr 27, 2026 — sera 12)
 
 ### Bug

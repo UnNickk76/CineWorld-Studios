@@ -97,7 +97,9 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
   useEffect(() => {
     api.get('/pipeline-series-v3/prossimamente').then(r => setData(r.data || {})).catch(() => {});
   }, [api]);
-  const rawItems = [...(data.coming_soon || []), ...(data.airing || [])];
+  // Solo "in arrivo" — esclude le serie/anime che sono gia' iniziate ad andare in onda
+  // (quelle vanno mostrate in "Ultimi Aggiornamenti Serie TV").
+  const rawItems = [...(data.coming_soon || [])];
   const items = sortItems(rawItems, sortValue);
   return (
     <div className="mb-4 rounded-xl" data-testid="prossimamente-v3">

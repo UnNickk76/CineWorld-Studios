@@ -8,6 +8,45 @@ import logging
 
 router = APIRouter(prefix="/api/admin/recovery", tags=["admin-recovery"])
 
+
+# ════════════════════════════════════════════════════════════════════
+# Episode mini-plot backfill (richiesto in produzione)
+# ════════════════════════════════════════════════════════════════════
+EPISODE_TEMPLATES = [
+    "I protagonisti affrontano una svolta inaspettata.",
+    "Un segreto del passato viene a galla.",
+    "Nuove alleanze, vecchi rancori.",
+    "Una scelta che cambiera' tutto.",
+    "Un incontro decisivo scuote il gruppo.",
+    "Tra verita' e inganno, qualcuno paga il prezzo.",
+    "L'equilibrio si spezza in modo irreversibile.",
+    "Vecchie ferite si riaprono al momento sbagliato.",
+    "Una rivelazione cambia il volto della storia.",
+    "Lo scontro finale prende forma.",
+]
+
+
+@router.post("/backfill-mini-plots")
+async def backfill_mini_plots(user: dict = Depends(get_current_user)):
+    """Popola mini_plot vuoti su tutti gli episodi di tutte le serie/anime."""
+    if user.get("role") != "ADMIN":
+        raise HTTPException(403, "Solo ADMIN")
+    fixed = 0
+    total_eps = 0
+    async for s in db.tv_series.find({"episodes": {"$exists": True}}, {"_id": 0, "id": 1, "episodes": 1, "title": 1}):
+        eps = s.get("episodes") or []
+        changed = False
+        for i, ep in enumerate(eps):
+            if not (ep.get("mini_plot") or "").strip():
+                ep["mini_plot"] = f"Episodio {ep.get('number', i + 1)}: {random.choice(EPISODE_TEMPLATES)}"
+                changed = True
+                total_eps += 1
+        if changed:
+            await db.tv_series.update_one({"id": s["id"]}, {"$set": {"episodes": eps}})
+            fixed += 1
+    return {"success": True, "series_fixed": fixed, "episodes_updated": total_eps}
+
+
 DEFAULT_POSTER = "/posters/ai/placeholder_recovery.png"
 
 PLACEHOLDER_TEXTS = [

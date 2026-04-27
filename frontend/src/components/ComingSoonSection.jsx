@@ -155,8 +155,8 @@ function ComingSoonThumb({ item, onClick }) {
   const poster = posterSrc(item.poster_url);
   const isRemastering = item.is_remastering;
   const TypeIcon = item.content_type === 'anime' ? Sparkles : item.content_type === 'tv_series' ? Tv : Film;
-  const typeLabel = isRemastering ? 'Remaster' : item.content_type === 'anime' ? 'Anime' : item.content_type === 'tv_series' ? 'Serie' : 'Film';
-  const typeColor = isRemastering ? 'text-amber-400' : item.content_type === 'anime' ? 'text-pink-400' : item.content_type === 'tv_series' ? 'text-blue-400' : 'text-yellow-400';
+  const typeLabel = isRemastering ? 'Remaster' : item.content_type === 'anime' ? 'Anime' : item.content_type === 'tv_series' ? 'Serie' : (item.is_tv_movie ? 'Film TV' : 'Film');
+  const typeColor = isRemastering ? 'text-amber-400' : item.content_type === 'anime' ? 'text-pink-400' : item.content_type === 'tv_series' ? 'text-blue-400' : (item.is_tv_movie ? 'text-rose-400' : 'text-yellow-400');
 
   // Urgency calculation
   const diff = item.scheduled_release_at ? new Date(item.scheduled_release_at) - new Date() : Infinity;
@@ -289,8 +289,8 @@ function ComingSoonDetail({ item, api, onRefresh, pvpStatus, onClose }) {
   const poster = posterSrc(item.poster_url);
   const isRemastering = item.is_remastering;
   const TypeIcon = item.content_type === 'anime' ? Sparkles : item.content_type === 'tv_series' ? Tv : Film;
-  const typeLabel = isRemastering ? 'In Aggiornamento' : item.content_type === 'anime' ? 'Anime' : item.content_type === 'tv_series' ? 'Serie TV' : 'Film';
-  const typeColor = isRemastering ? 'text-amber-400 bg-amber-500/10' : item.content_type === 'anime' ? 'text-pink-400 bg-pink-500/10' : item.content_type === 'tv_series' ? 'text-blue-400 bg-blue-500/10' : 'text-yellow-400 bg-yellow-500/10';
+  const typeLabel = isRemastering ? 'In Aggiornamento' : item.content_type === 'anime' ? 'Anime' : item.content_type === 'tv_series' ? 'Serie TV' : (item.is_tv_movie ? 'Film TV' : 'Film');
+  const typeColor = isRemastering ? 'text-amber-400 bg-amber-500/10' : item.content_type === 'anime' ? 'text-pink-400 bg-pink-500/10' : item.content_type === 'tv_series' ? 'text-blue-400 bg-blue-500/10' : (item.is_tv_movie ? 'text-rose-400 bg-rose-500/10' : 'text-yellow-400 bg-yellow-500/10');
 
   const invDiv = pvpStatus?.divisions?.investigative;
   const opsDiv = pvpStatus?.divisions?.operative;

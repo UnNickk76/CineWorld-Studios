@@ -94,6 +94,7 @@ class CreateTvMovieRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=120)
     genre: str = Field(..., min_length=1, max_length=60)
     subgenre: Optional[str] = None
+    subgenres: Optional[list] = None
     preplot: str = Field(..., min_length=1, max_length=2000)
     target_station_id: str = Field(..., min_length=1)
 
@@ -168,6 +169,7 @@ async def create_tv_movie(req: CreateTvMovieRequest, user: dict = Depends(get_cu
         "title": req.title.strip(),
         "genre": req.genre.strip(),
         "subgenre": (req.subgenre or "").strip() or None,
+        "subgenres": (req.subgenres or [])[:3],
         "preplot": req.preplot.strip(),
         "pipeline_state": "idea",
         "pipeline_ui_step": 0,

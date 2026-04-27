@@ -1,3 +1,33 @@
+## Fix Form Creazione FILM TV (Apr 27, 2026 — sera 11)
+
+### Modifiche su feedback utente
+1. **Banner "PIPELINE TV — VANTAGGI" rimosso** (era ridondante).
+2. **Style label "netflix" sotto il nome TV rimosso** → ora mostra `Italy · preferisce thriller, crime, drama` (paese + generi preferiti = info utile per il giocatore).
+3. **Genere "Erotico" aggiunto** sia in V3 classica che TV: `V3Shared.GENRES` + `GENRE_LABELS` + `SUBGENRE_MAP.erotic` (20 sottogeneri: sensuale, seduzione, passionale, tabù, triangolo, vintage retrò, psicologico, noir erotico, ecc.).
+4. **Selettore sottogeneri (max 3)** nel form TV: chip selezionate con X removable + grid scroll-able di opzioni filtrate. Cap a 3 con toast "Massimo 3 sottogeneri". Reset su cambio genere.
+5. **Hint AI** aggiunto in fondo al form: "Locandina, sceneggiatura e trailer AI (3 opzioni) saranno generati nei passi successivi della pipeline V3".
+
+### Backend
+`tv_movies.py`: `CreateTvMovieRequest` accetta ora anche `subgenres: Optional[list]` (max 3 troncato server-side). Salvato in `film_projects.subgenres`.
+
+### Test verificato via screenshot
+- Genere Erotico selezionato → 20 sottogeneri visibili ✅
+- 3 selezionati (sensuale, seduzione, passionale) ✅
+- Tentativo 4° → toast "Massimo 3 sottogeneri" + counter resta a 3 ✅
+- TV destinazione mostra "Italy · preferisce thriller, crime, drama" ✅
+- Hint AI visibile ✅
+- Banner rosa eliminato ✅
+
+### Risposta all'utente sulla pipeline AI
+La generazione AI di **locandina (da pretrama)**, **sceneggiatura** e **trailer (con 3 opzioni)** è gia' presente nella pipeline V3 standard che si apre dopo la creazione:
+- **Locandina + Sceneggiatura AI**: nello step IDEA (`IdeaPhase.jsx`, `generate-poster` + `generate-screenplay`).
+- **Trailer AI con 3 opzioni**: nello step FINAL CUT (`TrailerGeneratorCard.jsx`).
+
+Files: `pages/CreateTvMoviePage.jsx`, `components/v3/V3Shared.jsx`, `routes/tv_movies.py`.
+
+---
+
+
 ## FILM PER LA TV — FASE 2 + FASE 3 COMPLETATE (Apr 26, 2026 — sera 10)
 
 ### FASE 2 — Bonus Features

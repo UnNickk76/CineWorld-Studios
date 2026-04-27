@@ -26,8 +26,8 @@ export const STEP_STYLES = {
   emerald: { active: 'border-emerald-500 bg-emerald-500/15 text-emerald-400', line: 'bg-emerald-600', text: 'text-emerald-400' },
 };
 
-export const GENRES = ['action','comedy','drama','horror','sci_fi','romance','thriller','animation','documentary','fantasy','adventure','musical','western','biographical','mystery','war','crime','noir','historical'];
-export const GENRE_LABELS = { action:'Azione', comedy:'Commedia', drama:'Dramma', horror:'Horror', sci_fi:'Fantascienza', romance:'Romantico', thriller:'Thriller', animation:'Animazione', documentary:'Documentario', fantasy:'Fantasy', adventure:'Avventura', musical:'Musical', western:'Western', biographical:'Biografico', mystery:'Giallo', war:'Guerra', crime:'Crime', noir:'Noir', historical:'Storico' };
+export const GENRES = ['action','comedy','drama','horror','sci_fi','romance','thriller','animation','documentary','fantasy','adventure','musical','western','biographical','mystery','war','crime','noir','historical','erotic'];
+export const GENRE_LABELS = { action:'Azione', comedy:'Commedia', drama:'Dramma', horror:'Horror', sci_fi:'Fantascienza', romance:'Romantico', thriller:'Thriller', animation:'Animazione', documentary:'Documentario', fantasy:'Fantasy', adventure:'Avventura', musical:'Musical', western:'Western', biographical:'Biografico', mystery:'Giallo', war:'Guerra', crime:'Crime', noir:'Noir', historical:'Storico', erotic:'Erotico' };
 export const SUBGENRE_MAP = {
   action:['militare','spy','vendetta','arti marziali','heist','survival','inseguimento','guerriglia','vigilante','cacciatore di taglie','mercenario','rivolta','apocalittico','arena','pirateria','corpo a corpo','anti-terrorismo','fuga','sabotaggio','assedio'],
   comedy:['slapstick','romantica','nera','satirica','demenziale','teen','familiare','parodia','buddy','workplace','mockumentary','stoner','improvvisata','grottesca','commedia degli equivoci','fish out of water','screwball','farsesca','british humor','comicità involontaria'],
@@ -48,6 +48,7 @@ export const SUBGENRE_MAP = {
   crime:['gangster','heist','detective','mafioso','narcos','rapina','contrabbando','corruzione','sicario','truffa','riciclaggio','testimone','fuga','cartello','strada','white collar','cyber crime','banda','prigione','informatore'],
   noir:['classico','neo-noir','tech-noir','sunshine noir','nordic noir','tropical noir','rural noir','mediterranean noir','amnesiac noir','femme fatale','detective corrotto','pioggia','notturno','jazz noir','hitchcockiano','kafkiano','lynchiano','ermetico','onirico','esistenziale'],
   historical:['guerra','imperi','medioevo','rinascimento','antica roma','antico egitto','rivoluzione francese','epoca vittoriana','belle époque','coloniale','samurai','vichinghi','pirateria storica','conquistadores','ottomano','mongolo','dinastia cinese','maya e aztechi','età del bronzo','guerra fredda'],
+  erotic:['sensuale','seduzione','passionale','tabù','triangolo','vintage retrò','psicologico','noir erotico','storico','epoca','art house','transgressivo','ossessione','feticismo','romanticismo dark','intrigo','potere','infedeltà','iniziazione','liberazione'],
 };
 
 export const LOCATION_TAGS = ['Urban','Suburban','Rurale','Costiero','Montano','Deserto','Tropicale','Artico','Storico','Futuristico','Sotterraneo','Spaziale'];

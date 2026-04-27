@@ -11,7 +11,7 @@ import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import {
   Radio, Tv, Sparkles, Film, Plus, ChevronRight, ChevronLeft,
-  Loader2, DollarSign, Eye, Globe, Menu as MenuIcon, Check, Edit2
+  Loader2, DollarSign, Eye, Globe, Menu as MenuIcon, Check, Edit2, Star
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -577,7 +577,18 @@ function FilmDetailPopup({ film, onClose }) {
         <div className="p-3 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             {(film.genre || film.genre_name) && <Badge className="text-[9px] bg-white/10 text-gray-300">{film.genre || film.genre_name}</Badge>}
-            {film.quality_score > 0 && <span className="text-[10px] font-bold text-yellow-400">{film.quality_score}/100</span>}
+            {film.quality_score > 0 && (() => {
+              // Allinea con il resto dell'app: stella + voto x.x (scala 0-10)
+              const raw = Number(film.quality_score) || 0;
+              const score10 = raw > 10 ? raw / 10 : raw;
+              const color = score10 >= 8 ? '#f0c040' : score10 >= 6 ? '#4ade80' : score10 >= 4 ? '#facc15' : '#f87171';
+              return (
+                <span className="flex items-center gap-1 text-[10px] font-bold" style={{ color }}>
+                  <Star className="w-3 h-3" fill={color} color={color} />
+                  {score10.toFixed(1)}
+                </span>
+              );
+            })()}
           </div>
           {film.description && <p className="text-[10px] text-gray-400 line-clamp-3">{film.description}</p>}
         </div>

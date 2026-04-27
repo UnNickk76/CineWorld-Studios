@@ -402,6 +402,26 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
   const isOwner = film?.user_id === user?.id;
   const isLive = film?.status === 'in_theaters';
 
+  // === Film TV state ===
+  const isTvMovie = !!(film?.is_tv_movie);
+  const tvAirIso = film?.tv_air_datetime || null;
+  const tvAirDate = tvAirIso ? new Date(tvAirIso) : null;
+  const tvIsAiringNow = isTvMovie && tvAirDate && tvAirDate.getTime() <= Date.now() && (film?.status === 'in_tv_programming' || film?.status === 'completed');
+  const tvIsScheduled = isTvMovie && tvAirDate && tvAirDate.getTime() > Date.now();
+  const tvStationName = film?.target_station_name || 'TV';
+  const fmtTvDate = (d) => {
+    if (!d) return '';
+    try {
+      const day = String(d.getDate()).padStart(2, '0');
+      const mesi = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+      const mese = mesi[d.getMonth()];
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mm = String(d.getMinutes()).padStart(2,'0');
+      return `${day} ${mese} ${hh}:${mm}`;
+    } catch { return ''; }
+  };
+  const tvDateLabel = fmtTvDate(tvAirDate);
+
   const reviews = isFilmReleased(film) ? generateReviews(film.quality_score, film.popularity_score || film.hype_score) : [];
   const productionBuzz = !isFilmReleased(film) ? getProductionBuzz(film) : [];
   const showReviews = isFilmReleased(film);
@@ -423,8 +443,16 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
       </button>
 
       {/* 1. STATUS BAR */}
-      <div className={`ct2-status-bar ${isLive ? 'ct2-status-cinema' : 'ct2-status-catalogo'}`} data-testid="ct-status-bar">
-        <span className="ct2-status-label">{isLive ? 'Al Cinema' : 'Fuori Sala'}</span>
+      <div className={`ct2-status-bar ${
+        tvIsAiringNow ? 'ct2-status-tv-airing' :
+        tvIsScheduled ? 'ct2-status-tv-scheduled' :
+        isLive ? 'ct2-status-cinema' : 'ct2-status-catalogo'
+      }`} data-testid="ct-status-bar">
+        <span className={`ct2-status-label ${(tvIsAiringNow || tvIsScheduled) ? 'tv-glow' : ''}`}>
+          {tvIsAiringNow ? 'ORA IN ONDA' :
+           tvIsScheduled ? 'A BREVE IN ONDA' :
+           isLive ? 'Al Cinema' : 'Fuori Sala'}
+        </span>
       </div>
 
       {/* 2. POSTER + INFO BOX */}
@@ -491,10 +519,25 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
 
       {/* IN SALA BAR — CLICKABLE → opens cinema popup */}
       <div
-        onClick={() => setShowCinemaPopup(true)}
-        style={{ border: '2px solid #00ffff', background: 'rgba(0,255,255,0.08)', padding: '10px', marginTop: '8px', marginLeft: '10px', marginRight: '10px', textAlign: 'center', fontWeight: 'bold', color: '#00ffff', borderRadius: '8px', fontFamily: "'Bebas Neue', sans-serif", fontSize: '14px', letterSpacing: '1px', cursor: 'pointer', transition: 'background 0.2s' }}
+        onClick={() => !isTvMovie && setShowCinemaPopup(true)}
+        style={{
+          border: `2px solid ${tvIsAiringNow ? '#34d399' : tvIsScheduled ? '#a78bfa' : '#00ffff'}`,
+          background: tvIsAiringNow ? 'rgba(52,211,153,0.10)' : tvIsScheduled ? 'rgba(167,139,250,0.10)' : 'rgba(0,255,255,0.08)',
+          padding: '10px', marginTop: '8px', marginLeft: '10px', marginRight: '10px',
+          textAlign: 'center', fontWeight: 'bold',
+          color: tvIsAiringNow ? '#34d399' : tvIsScheduled ? '#a78bfa' : '#00ffff',
+          borderRadius: '8px', fontFamily: "'Bebas Neue', sans-serif",
+          fontSize: '14px', letterSpacing: '1px',
+          cursor: isTvMovie ? 'default' : 'pointer',
+          transition: 'background 0.2s',
+          animation: (tvIsAiringNow || tvIsScheduled) ? 'tv-glow-pulse 2s ease-in-out infinite' : undefined
+        }}
         data-testid="in-sala-bar">
-        {isLive
+        {tvIsAiringNow
+          ? `In onda su ${tvStationName}${tvDateLabel ? ` dal ${tvDateLabel}` : ''}`
+          : tvIsScheduled
+          ? `Prossimamente${tvDateLabel ? ` dal ${tvDateLabel}` : ''} su ${tvStationName}`
+          : isLive
           ? `IN SALA - ${cinemaDays} giorni - ${cinemaRemain} rimanenti`
           : 'FUORI SALA'}
       </div>

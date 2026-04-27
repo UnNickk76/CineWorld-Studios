@@ -286,13 +286,13 @@ INFRA_INFO = {
         "roi": "Attori personali = cast gratis o scontati per TUTTI i tuoi film futuri.",
     },
     "talent_scout_actors": {
-        "title": "Talent Scout Attori",
-        "short": "Ti procura automaticamente attori NPC di qualità crescente.",
+        "title": "Agenzia Talent Scout",
+        "short": "Agenzia unica che recluta attori, registi, compositori e disegnatori NPC.",
         "what_it_does": [
-            "Fornisce proposte quotidiane di attori free-agent",
-            "Filtra per stelle, genere, nazionalità",
-            "Livello = qualità media dei talenti proposti",
-            "Sblocca contratti esclusivi con attori top"
+            "Sblocca tutti e 4 i ruoli nel Mercato Talenti: attori, registi, compositori, disegnatori",
+            "La quota visibile per ogni ruolo è ridistribuita in base al livello",
+            "Sblocca pre-ingaggi e contratti esclusivi cross-ruolo",
+            "Sceneggiatori restano sull'infrastruttura dedicata"
         ],
         "unlocks_by_level": [
             {"level": 3, "label": "Proposte ★1-3 • 3 al giorno"},

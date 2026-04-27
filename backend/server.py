@@ -8351,6 +8351,14 @@ async def startup_event():
     import asyncio
     asyncio.create_task(seed_city_tastes_if_needed())
     asyncio.create_task(migrate_theater_films())
+    # Seed anime_director (300) e anime_illustrator (2000) se mancanti — idempotente
+    async def _seed_anime_crew_safe():
+        try:
+            from scripts.seed_anime_crew import main as _seed_anime_main
+            await _seed_anime_main()
+        except Exception as e:
+            logging.warning(f"[startup] seed_anime_crew failed: {e}")
+    asyncio.create_task(_seed_anime_crew_safe())
 
 async def fix_decimal_skills_in_db():
     """Fix any existing cast members that have decimal skill values."""

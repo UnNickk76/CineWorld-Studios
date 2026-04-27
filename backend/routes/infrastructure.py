@@ -243,7 +243,7 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
     # Block duplicate purchase for unique infrastructure types
     unique_types = ['cinema_school', 'production_studio', 'studio_serie_tv', 'studio_anime', 'talent_scout_actors', 'talent_scout_screenwriters', 'pvp_investigative', 'pvp_operative', 'pvp_legal']
     if request.type in unique_types and existing > 0:
-        names = {'cinema_school': 'Scuola di Recitazione', 'production_studio': 'Studio di Produzione', 'studio_serie_tv': 'Studio Serie TV', 'studio_anime': 'Studio Anime', 'talent_scout_actors': 'Talent Scout Attori', 'talent_scout_screenwriters': 'Talent Scout Sceneggiatori', 'pvp_investigative': 'Divisione Investigativa', 'pvp_operative': 'Divisione Operativa', 'pvp_legal': 'Divisione Legale'}
+        names = {'cinema_school': 'Scuola di Recitazione', 'production_studio': 'Studio di Produzione', 'studio_serie_tv': 'Studio Serie TV', 'studio_anime': 'Studio Anime', 'talent_scout_actors': 'Agenzia Talent Scout', 'talent_scout_screenwriters': 'Talent Scout Sceneggiatori', 'pvp_investigative': 'Divisione Investigativa', 'pvp_operative': 'Divisione Operativa', 'pvp_legal': 'Divisione Legale'}
         raise HTTPException(status_code=400, detail=f"Possiedi già una {names.get(request.type, request.type)}! Puoi averne solo una.")
     
     # Exponential scaling for emittente_tv (multiple purchases allowed)

@@ -492,6 +492,52 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
       {/* 3. TITLE */}
       <div className="ct2-title-row" data-testid="ct-title">
         <h1 className="ct2-title" data-testid="film-title">{film.title}</h1>
+        {(() => {
+          // Badge celeste "In TV dal X.X.XXXX su -emittente-"
+          // Cerca prima i diritti TV venduti via Mercato, poi Film TV / target station diretto
+          const startIso = film.tv_rights_start_at || film.tv_rights_end_at || film.tv_air_datetime;
+          const stationName = film.tv_rights_station_name || film.target_station_name;
+          const isPendingCinema = film.tv_rights_pending_cinema || (film.status === 'in_theaters' && film.tv_rights_buyer_station_id);
+          if (!stationName) return null;
+          const fmtDate = (iso) => {
+            try {
+              const d = new Date(iso);
+              return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            } catch { return ''; }
+          };
+          const dateLabel = startIso ? fmtDate(startIso) : '';
+          return (
+            <span
+              className="ct-tv-broadcast-badge"
+              data-testid="film-tv-broadcast-badge"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                marginLeft: 8,
+                padding: '3px 10px',
+                borderRadius: 999,
+                border: '1px solid rgba(34, 211, 238, 0.5)',
+                background: 'linear-gradient(90deg, rgba(34,211,238,0.12), rgba(8,145,178,0.10))',
+                color: '#67e8f9',
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 11,
+                letterSpacing: 1,
+                textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
+                boxShadow: '0 0 8px rgba(34,211,238,0.18)',
+                verticalAlign: 'middle',
+              }}
+              title={isPendingCinema ? `Prossimamente in TV su ${stationName}` : `In TV su ${stationName}`}
+            >
+              <Tv size={12} />
+              {isPendingCinema ? 'Prossimamente in TV' : 'In TV'}
+              {dateLabel && <> · {isPendingCinema ? 'dal' : 'dal'} {dateLabel}</>}
+              <span style={{ opacity: 0.8 }}>su</span>
+              <span style={{ fontWeight: 800 }}>{stationName}</span>
+            </span>
+          );
+        })()}
       </div>
       {/* Production House */}
       {(film.producer?.production_house_name || film.producer?.nickname) && (

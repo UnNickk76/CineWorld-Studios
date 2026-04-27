@@ -570,6 +570,34 @@ async def get_released_film_detail(film_id: str, user: dict = Depends(get_curren
     )
     film["producer"] = producer or {}
 
+    # === TV BROADCAST INFO ===
+    # Risolve il nome della stazione TV per:
+    #  1) Film TV/TV Movie (target_station_id)
+    #  2) Diritti TV venduti via Mercato (tv_rights_buyer_station_id)
+    try:
+        sids = []
+        if film.get("target_station_id"):
+            sids.append(film["target_station_id"])
+        if film.get("tv_rights_buyer_station_id"):
+            sids.append(film["tv_rights_buyer_station_id"])
+        if sids:
+            stmap = {}
+            async for st in db.tv_stations.find(
+                {"id": {"$in": list(set(sids))}},
+                {"_id": 0, "id": 1, "name": 1, "custom_name": 1, "station_name": 1, "logo_url": 1}
+            ):
+                stmap[st["id"]] = st
+            if film.get("target_station_id") and film["target_station_id"] in stmap:
+                st = stmap[film["target_station_id"]]
+                film["target_station_name"] = st.get("custom_name") or st.get("station_name") or st.get("name") or "TV"
+                film["target_station_logo"] = st.get("logo_url") or ""
+            if film.get("tv_rights_buyer_station_id") and film["tv_rights_buyer_station_id"] in stmap:
+                st = stmap[film["tv_rights_buyer_station_id"]]
+                film["tv_rights_station_name"] = st.get("custom_name") or st.get("station_name") or st.get("name") or "TV"
+                film["tv_rights_station_logo"] = st.get("logo_url") or ""
+    except Exception:
+        pass
+
     # Calculate days in theater
     theater_start = film.get("theater_start") or film.get("released_at") or film.get("created_at")
     now = datetime.now(timezone.utc)

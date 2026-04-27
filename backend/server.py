@@ -8017,11 +8017,18 @@ async def startup_event():
 
     # Every 10 minutes: Auto-close expired TV market contracts
     try:
-        from routes.tv_market import auto_close_expired_contracts
+        from routes.tv_market import auto_close_expired_contracts, auto_activate_pending_cinema_contracts
         scheduler.add_job(
             auto_close_expired_contracts,
             IntervalTrigger(minutes=10),
             id='tv_market_close_expired',
+            replace_existing=True,
+        )
+        # Every 5 minutes: attiva i contratti pending_cinema quando il film esce dal cinema
+        scheduler.add_job(
+            auto_activate_pending_cinema_contracts,
+            IntervalTrigger(minutes=5),
+            id='tv_market_activate_pending_cinema',
             replace_existing=True,
         )
     except Exception as _tme:
@@ -8359,6 +8366,60 @@ async def startup_event():
         except Exception as e:
             logging.warning(f"[startup] seed_anime_crew failed: {e}")
     asyncio.create_task(_seed_anime_crew_safe())
+
+    # One-shot: riallinea contratti TV active firmati su film ancora al cinema
+    async def _migrate_pending_cinema_contracts():
+        try:
+            from datetime import timedelta as _td
+            fixed = 0
+            async for c in db.tv_market_contracts.find({"status": "active", "content_collection": "films"}, {"_id": 0}):
+                film = await db.films.find_one({"id": c["content_id"]}, {"_id": 0, "status": 1, "released_at": 1, "cinema_duration_days": 1})
+                if not film:
+                    continue
+                if (film.get("status") or "").lower() not in ("in_theaters", "premiere"):
+                    continue
+                rel = film.get("released_at")
+                if not rel:
+                    continue
+                try:
+                    rel_dt = datetime.fromisoformat(rel.replace("Z", "+00:00")) if isinstance(rel, str) else rel
+                    if rel_dt.tzinfo is None:
+                        rel_dt = rel_dt.replace(tzinfo=timezone.utc)
+                except Exception:
+                    continue
+                days = int(film.get("cinema_duration_days") or 21)
+                cinema_end = rel_dt + _td(days=days)
+                if cinema_end <= datetime.now(timezone.utc):
+                    continue
+                new_end = cinema_end + _td(days=int(c.get("duration_days") or 7))
+                await db.tv_market_contracts.update_one(
+                    {"id": c["id"]},
+                    {"$set": {
+                        "status": "pending_cinema",
+                        "start_at": cinema_end.isoformat(),
+                        "end_at": new_end.isoformat(),
+                        "deferred_from_cinema": True,
+                        "cinema_end_planned_at": cinema_end.isoformat(),
+                    }}
+                )
+                await db.films.update_one(
+                    {"id": c["content_id"]},
+                    {"$set": {
+                        "tv_rights_start_at": cinema_end.isoformat(),
+                        "tv_rights_end_at": new_end.isoformat(),
+                        "tv_rights_pending_cinema": True,
+                    }}
+                )
+                await db.tv_stations.update_one(
+                    {"id": c["station_id"]},
+                    {"$pull": {"contents.films": {"contract_id": c["id"]}}}
+                )
+                fixed += 1
+            if fixed:
+                logging.info(f"[startup] Riallineati {fixed} contratti TV pending_cinema su film al cinema")
+        except Exception as e:
+            logging.warning(f"[startup] migrate_pending_cinema failed: {e}")
+    asyncio.create_task(_migrate_pending_cinema_contracts())
 
 async def fix_decimal_skills_in_db():
     """Fix any existing cast members that have decimal skill values."""

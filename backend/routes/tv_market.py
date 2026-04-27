@@ -92,8 +92,48 @@ async def _load_content(content_collection: str, content_id: str) -> Optional[di
         {"_id": 0, "id": 1, "title": 1, "user_id": 1, "poster_url": 1, "type": 1,
          "is_lampo": 1, "status": 1, "quality_score": 1, "cwsv": 1, "cwsv_display": 1,
          "likes_count": 1, "virtual_likes": 1, "total_revenue": 1, "released_at": 1,
-         "created_at": 1, "genre": 1, "genre_name": 1, "num_episodes": 1}
+         "created_at": 1, "genre": 1, "genre_name": 1, "num_episodes": 1,
+         # Cinema period (per differimento contratti TV)
+         "premiere_date": 1, "premiere_at": 1, "cinema_release_date": 1,
+         "cinema_end_at": 1, "cinema_end_date": 1, "withdrawn_at": 1,
+         "cinema_duration_days": 1}
     )
+
+
+def _cinema_end_datetime(content: dict) -> Optional[datetime]:
+    """Restituisce il datetime in cui il film esce dal cinema, o None se già fuori/non al cinema."""
+    if not content:
+        return None
+    # Solo i film hanno periodo cinema. Le serie TV escono direttamente in TV.
+    coll_marker = content.get("type")
+    if coll_marker and coll_marker not in ("film", None):
+        # Serie TV/anime non hanno periodo cinema
+        return None
+    status = (content.get("status") or "").lower()
+    if status not in ("in_theaters", "premiere"):
+        # Se non è al cinema il contratto può partire subito
+        return None
+    # Cerca cinema_end_at esplicito
+    end_iso = content.get("cinema_end_at") or content.get("cinema_end_date")
+    if end_iso:
+        try:
+            return datetime.fromisoformat(end_iso.replace("Z", "+00:00"))
+        except Exception:
+            pass
+    # Calcola da release_date + duration_days
+    rel = content.get("released_at") or content.get("cinema_release_date") or content.get("premiere_at") or content.get("premiere_date")
+    if not rel:
+        return None
+    try:
+        rel_dt = datetime.fromisoformat(rel.replace("Z", "+00:00")) if isinstance(rel, str) else rel
+        if rel_dt.tzinfo is None:
+            rel_dt = rel_dt.replace(tzinfo=timezone.utc)
+        days = int(content.get("cinema_duration_days") or 21)
+        end_dt = rel_dt + timedelta(days=days)
+        # Solo se in futuro
+        return end_dt if end_dt > datetime.now(timezone.utc) else None
+    except Exception:
+        return None
 
 
 def compute_suggested_price(content: dict) -> dict:
@@ -173,9 +213,9 @@ async def _user_owns_station(user_id: str, station_id: str) -> bool:
 
 
 async def _has_active_full_contract(content_id: str) -> Optional[dict]:
-    """Ritorna il contratto FULL attivo per quel contenuto, se presente."""
+    """Ritorna il contratto FULL attivo (o pending_cinema) per quel contenuto, se presente."""
     return await db.tv_market_contracts.find_one(
-        {"content_id": content_id, "mode": "full", "status": "active"},
+        {"content_id": content_id, "mode": "full", "status": {"$in": ["active", "pending_cinema"]}},
         {"_id": 0}
     )
 
@@ -437,6 +477,37 @@ async def make_spontaneous_offer(content_id: str, req: SpontaneousOfferReq, user
     return {"success": True, "offer": offer}
 
 
+async def _enrich_with_content_titles(docs: list) -> list:
+    """Aggiunge `content_title`, `content_poster_url` ai documenti (offerte/contratti)
+    facendo lookup su films/tv_series in batch."""
+    if not docs:
+        return docs
+    by_coll = {"films": [], "tv_series": []}
+    for d in docs:
+        coll = d.get("content_collection")
+        cid = d.get("content_id")
+        if coll in by_coll and cid:
+            by_coll[coll].append(cid)
+    titles = {}  # (coll, id) -> {title, poster}
+    for coll, ids in by_coll.items():
+        if not ids:
+            continue
+        async for doc in db[coll].find(
+            {"id": {"$in": list(set(ids))}},
+            {"_id": 0, "id": 1, "title": 1, "poster_url": 1, "type": 1}
+        ):
+            titles[(coll, doc["id"])] = {
+                "title": doc.get("title") or "",
+                "poster_url": doc.get("poster_url") or "",
+                "type": doc.get("type"),
+            }
+    for d in docs:
+        info = titles.get((d.get("content_collection"), d.get("content_id"))) or {}
+        d["content_title"] = info.get("title") or d.get("content_title") or ""
+        d["content_poster_url"] = info.get("poster_url") or ""
+    return docs
+
+
 @router.get("/incoming-offers")
 async def my_incoming_offers(user: dict = Depends(get_current_user)):
     """Offerte ricevute dall'owner (per propri listings)."""
@@ -461,6 +532,7 @@ async def my_incoming_offers(user: dict = Depends(get_current_user)):
         d["buyer_house"] = b.get("production_house_name")
         st = stations_map.get(d.get("station_id"), {})
         d["station_name"] = st.get("custom_name") or st.get("name") or "TV"
+    await _enrich_with_content_titles(docs)
     return {"offers": docs}
 
 
@@ -471,6 +543,7 @@ async def my_outgoing_offers(user: dict = Depends(get_current_user)):
         {"buyer_user_id": user["id"]},
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
+    await _enrich_with_content_titles(docs)
     return {"offers": docs}
 
 
@@ -546,7 +619,16 @@ async def _execute_payment_and_contract(offer: dict, accepted_terms: dict) -> di
 
     # Contratto
     now = datetime.now(timezone.utc)
-    end = now + timedelta(days=days)
+
+    # Se il contenuto è ancora al cinema, il contratto NON parte subito.
+    # start_at = data fine cinema, end_at = start_at + days, status = 'pending_cinema'.
+    content_for_cinema = await _load_content(offer["content_collection"], offer["content_id"])
+    cinema_end = _cinema_end_datetime(content_for_cinema) if content_for_cinema else None
+    deferred = bool(cinema_end and cinema_end > now)
+    start_dt = cinema_end if deferred else now
+    end = start_dt + timedelta(days=days)
+    contract_status = "pending_cinema" if deferred else "active"
+
     contract = {
         "id": str(uuid.uuid4()),
         "offer_id": offer["id"],
@@ -562,9 +644,11 @@ async def _execute_payment_and_contract(offer: dict, accepted_terms: dict) -> di
         "credits_paid": credits,
         "owner_payout": owner_payout,
         "duration_days": days,
-        "start_at": now.isoformat(),
+        "start_at": start_dt.isoformat(),
         "end_at": end.isoformat(),
-        "status": "active",
+        "status": contract_status,
+        "deferred_from_cinema": deferred,
+        "cinema_end_planned_at": cinema_end.isoformat() if cinema_end else None,
         "created_at": _now_iso(),
     }
     await db.tv_market_contracts.insert_one(dict(contract))
@@ -590,41 +674,45 @@ async def _execute_payment_and_contract(offer: dict, accepted_terms: dict) -> di
             "tv_rights_buyer_user_id": offer["buyer_user_id"],
             "tv_rights_buyer_station_id": offer["station_id"],
             "tv_rights_mode": mode,
+            "tv_rights_start_at": start_dt.isoformat(),
             "tv_rights_end_at": end.isoformat(),
+            "tv_rights_pending_cinema": deferred,
         }}
     )
 
     # ⚙️ Auto-aggiunge il contenuto al palinsesto della stazione del buyer.
-    # Bypass dei controlli di ownership: il buyer ha legittimamente acquisito i diritti.
-    try:
-        ct = (offer.get("content_type") or "").lower()
-        # Map content_type → key dentro tv_stations.contents
-        if offer["content_collection"] == "films":
-            key = "films"
-        elif ct == "anime":
-            key = "anime"
-        else:
-            key = "tv_series"
-        entry = {
-            "content_id": offer["content_id"],
-            "added_at": _now_iso(),
-            "via_tv_market": True,
-            "contract_id": contract["id"],
-        }
-        # Idempotente: aggiungi solo se non già presente
-        station = await db.tv_stations.find_one(
-            {"id": offer["station_id"]},
-            {"_id": 0, "contents": 1}
-        )
-        if station:
-            existing_ids = {c.get("content_id") for c in (station.get("contents", {}) or {}).get(key, [])}
-            if offer["content_id"] not in existing_ids:
-                await db.tv_stations.update_one(
-                    {"id": offer["station_id"]},
-                    {"$push": {f"contents.{key}": entry}, "$set": {"updated_at": _now_iso()}}
-                )
-    except Exception as _se:
-        logger.warning(f"Auto-schedule on contract sign failed: {_se}")
+    # Per contratti differiti (film ancora al cinema) NON aggiungiamo subito:
+    # lo scheduler `auto_activate_pending_cinema_contracts` lo farà alla fine del cinema.
+    if not deferred:
+        try:
+            ct = (offer.get("content_type") or "").lower()
+            # Map content_type → key dentro tv_stations.contents
+            if offer["content_collection"] == "films":
+                key = "films"
+            elif ct == "anime":
+                key = "anime"
+            else:
+                key = "tv_series"
+            entry = {
+                "content_id": offer["content_id"],
+                "added_at": _now_iso(),
+                "via_tv_market": True,
+                "contract_id": contract["id"],
+            }
+            # Idempotente: aggiungi solo se non già presente
+            station = await db.tv_stations.find_one(
+                {"id": offer["station_id"]},
+                {"_id": 0, "contents": 1}
+            )
+            if station:
+                existing_ids = {c.get("content_id") for c in (station.get("contents", {}) or {}).get(key, [])}
+                if offer["content_id"] not in existing_ids:
+                    await db.tv_stations.update_one(
+                        {"id": offer["station_id"]},
+                        {"$push": {f"contents.{key}": entry}, "$set": {"updated_at": _now_iso()}}
+                    )
+        except Exception as _se:
+            logger.warning(f"Auto-schedule on contract sign failed: {_se}")
 
     return contract
 
@@ -780,6 +868,7 @@ async def my_contracts(user: dict = Depends(get_current_user)):
         {"$or": [{"owner_user_id": user["id"]}, {"buyer_user_id": user["id"]}]},
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
+    await _enrich_with_content_titles(docs)
     return {"contracts": docs}
 
 
@@ -840,3 +929,89 @@ async def auto_close_expired_contracts():
             )
         except Exception as e:
             logger.exception(f"auto_close contract failed for {c.get('id')}: {e}")
+
+
+async def auto_activate_pending_cinema_contracts():
+    """Hook scheduler: i contratti `pending_cinema` diventano `active` quando il film
+    esce dal cinema (`status` non più in_theaters/premiere). Aggiunge il contenuto al
+    palinsesto della stazione del buyer e notifica owner+buyer."""
+    now = datetime.now(timezone.utc)
+    cursor = db.tv_market_contracts.find({"status": "pending_cinema"}, {"_id": 0})
+    async for c in cursor:
+        try:
+            # Verifica: il film è uscito dal cinema?
+            film = await db[c["content_collection"]].find_one(
+                {"id": c["content_id"]},
+                {"_id": 0, "id": 1, "status": 1, "title": 1}
+            )
+            if not film:
+                continue
+            status = (film.get("status") or "").lower()
+            if status in ("in_theaters", "premiere"):
+                # Ancora al cinema, skip
+                continue
+            # Riallinea start_at/end_at: il contratto parte ORA, end = now + duration_days
+            new_start = now
+            new_end = new_start + timedelta(days=int(c.get("duration_days") or 7))
+            await db.tv_market_contracts.update_one(
+                {"id": c["id"]},
+                {"$set": {
+                    "status": "active",
+                    "start_at": new_start.isoformat(),
+                    "end_at": new_end.isoformat(),
+                    "activated_at": now.isoformat(),
+                }}
+            )
+            # Aggiorna metadati sul content
+            await db[c["content_collection"]].update_one(
+                {"id": c["content_id"]},
+                {"$set": {
+                    "tv_rights_start_at": new_start.isoformat(),
+                    "tv_rights_end_at": new_end.isoformat(),
+                    "tv_rights_pending_cinema": False,
+                }}
+            )
+            # Aggiunge al palinsesto della stazione buyer
+            try:
+                ct = (c.get("content_type") or "").lower()
+                if c["content_collection"] == "films":
+                    key = "films"
+                elif ct == "anime":
+                    key = "anime"
+                else:
+                    key = "tv_series"
+                entry = {
+                    "content_id": c["content_id"],
+                    "added_at": _now_iso(),
+                    "via_tv_market": True,
+                    "contract_id": c["id"],
+                }
+                station = await db.tv_stations.find_one(
+                    {"id": c["station_id"]},
+                    {"_id": 0, "contents": 1}
+                )
+                if station:
+                    existing_ids = {x.get("content_id") for x in (station.get("contents", {}) or {}).get(key, [])}
+                    if c["content_id"] not in existing_ids:
+                        await db.tv_stations.update_one(
+                            {"id": c["station_id"]},
+                            {"$push": {f"contents.{key}": entry}, "$set": {"updated_at": _now_iso()}}
+                        )
+            except Exception as _se:
+                logger.warning(f"pending_cinema activation palinsesto failed: {_se}")
+            # Notifiche
+            title = film.get("title") or "Contenuto"
+            await _push_notif(
+                c["buyer_user_id"], "tv_market_contract_activated",
+                "Contratto TV attivato",
+                f"'{title}' è uscito dal cinema. Il contratto è ora attivo per {c.get('duration_days')} giorni.",
+                {"contract_id": c["id"]}
+            )
+            await _push_notif(
+                c["owner_user_id"], "tv_market_contract_activated",
+                "Contratto TV partito",
+                f"'{title}' è uscito dal cinema. Il contratto TV firmato in precedenza è ora in corso.",
+                {"contract_id": c["id"]}
+            )
+        except Exception as e:
+            logger.exception(f"auto_activate pending_cinema failed for {c.get('id')}: {e}")

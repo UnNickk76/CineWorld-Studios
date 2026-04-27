@@ -55,7 +55,7 @@ export default function TvMarketDashboardWidget() {
   // Counters
   const pendingIncoming = useMemo(() => incoming.filter(o => o.status === 'pending').length, [incoming]);
   const counteredAwaitingMe = useMemo(() => outgoing.filter(o => o.status === 'countered_by_owner_pending_buyer').length, [outgoing]);
-  const activeContracts = useMemo(() => contracts.filter(c => c.status === 'active'), [contracts]);
+  const activeContracts = useMemo(() => contracts.filter(c => c.status === 'active' || c.status === 'pending_cinema'), [contracts]);
   const completedContracts = useMemo(() => contracts.filter(c => c.status === 'completed'), [contracts]);
 
   const totalAlerts = pendingIncoming + counteredAwaitingMe;
@@ -232,8 +232,8 @@ const IncomingOfferRow = ({ offer, onAccept, onReject, acting }) => {
     <div className={`p-2 rounded-lg border ${isPending ? 'bg-amber-500/5 border-amber-500/30' : 'bg-white/[0.02] border-white/5'}`} data-testid={`tv-market-incoming-${offer.id}`}>
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-bold text-white truncate">{offer.buyer_house || offer.buyer_nickname || 'Buyer'}</div>
-          <div className="text-[9px] text-white/50 truncate">📺 {offer.station_name} · {new Date(offer.created_at).toLocaleDateString('it-IT')}</div>
+          <div className="text-[11px] font-bold text-white truncate">{offer.content_title || offer.buyer_house || offer.buyer_nickname || 'Buyer'}</div>
+          <div className="text-[9px] text-white/50 truncate">📺 {offer.buyer_house || offer.buyer_nickname || 'Buyer'} · {offer.station_name} · {new Date(offer.created_at).toLocaleDateString('it-IT')}</div>
         </div>
         <StatusPill status={offer.status} />
       </div>
@@ -264,7 +264,7 @@ const OutgoingOfferRow = ({ offer, onAccept, acting }) => {
     <div className={`p-2 rounded-lg border ${isCountered ? 'bg-cyan-500/5 border-cyan-500/30' : 'bg-white/[0.02] border-white/5'}`} data-testid={`tv-market-outgoing-${offer.id}`}>
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-bold text-white truncate">📦 Listing #{offer.listing_id?.slice(0, 8)}</div>
+          <div className="text-[11px] font-bold text-white truncate">{offer.content_title || `📦 Listing #${offer.listing_id?.slice(0, 8)}`}</div>
           <div className="text-[9px] text-white/50 truncate">{new Date(offer.created_at).toLocaleDateString('it-IT')}</div>
         </div>
         <StatusPill status={offer.status} />
@@ -290,12 +290,17 @@ const OutgoingOfferRow = ({ offer, onAccept, acting }) => {
 const ContractRow = ({ contract, historic }) => {
   const days = daysUntil(contract.end_at);
   const dangerSoon = !historic && days !== null && days <= 3;
+  const isPending = contract.status === 'pending_cinema';
+  const startDays = isPending ? daysUntil(contract.start_at) : null;
   return (
-    <div className={`p-2 rounded-lg border ${historic ? 'bg-white/[0.02] border-white/5 opacity-80' : (dangerSoon ? 'bg-rose-500/5 border-rose-500/30' : (contract.mode === 'full' ? 'bg-amber-500/5 border-amber-500/30' : 'bg-cyan-500/5 border-cyan-500/30'))}`} data-testid={`tv-market-contract-${contract.id}`}>
+    <div className={`p-2 rounded-lg border ${historic ? 'bg-white/[0.02] border-white/5 opacity-80' : (isPending ? 'bg-violet-500/5 border-violet-500/30' : (dangerSoon ? 'bg-rose-500/5 border-rose-500/30' : (contract.mode === 'full' ? 'bg-amber-500/5 border-amber-500/30' : 'bg-cyan-500/5 border-cyan-500/30')))}`} data-testid={`tv-market-contract-${contract.id}`}>
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-bold text-white truncate">Contratto #{contract.id?.slice(0, 8)}</div>
-          <div className="text-[9px] text-white/50 truncate">{contract.content_collection} · {contract.content_type}</div>
+          <div className="text-[11px] font-bold text-white truncate">{contract.content_title || `Contratto #${contract.id?.slice(0, 8)}`}</div>
+          <div className="text-[9px] text-white/50 truncate flex items-center gap-1">
+            <span>{contract.content_type === 'film' || contract.content_collection === 'films' ? 'Film' : (contract.content_type === 'anime' ? 'Anime' : 'Serie TV')}</span>
+            {isPending && <span className="text-violet-300 font-bold">· In attesa fine cinema</span>}
+          </div>
         </div>
         <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${contract.mode === 'full' ? 'bg-amber-500 text-black' : 'bg-cyan-500 text-black'}`}>
           {contract.mode === 'full' ? '100%' : '50%'}
@@ -304,7 +309,10 @@ const ContractRow = ({ contract, historic }) => {
       <div className="grid grid-cols-3 gap-1 mt-1.5 text-[10px]">
         <Tiny label="Pagato" value={fmtMoney(contract.money_paid)} />
         <Tiny label="Durata" value={`${contract.duration_days}gg`} />
-        <Tiny label={historic ? 'Concluso' : (dangerSoon ? 'Scade tra' : 'Resta')} value={historic ? new Date(contract.end_at).toLocaleDateString('it-IT') : (days !== null ? `${days}gg` : '—')} alert={dangerSoon} />
+        <Tiny
+          label={isPending ? 'Parte tra' : (historic ? 'Concluso' : (dangerSoon ? 'Scade tra' : 'Resta'))}
+          value={isPending ? (startDays !== null ? `${startDays}gg` : '—') : (historic ? new Date(contract.end_at).toLocaleDateString('it-IT') : (days !== null ? `${days}gg` : '—'))}
+          alert={dangerSoon} />
       </div>
     </div>
   );

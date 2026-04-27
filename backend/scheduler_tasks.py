@@ -1587,6 +1587,73 @@ def _budget_multiplier(budget_tier: str) -> float:
 
 
 # ═══════════════════════════════════════════════════════════════
+# PROSSIMAMENTE HYPE DRIFT — Hype variabile durante il ciclo pipeline
+# (da quando il progetto e' "Prossimamente" fino al rilascio)
+# ═══════════════════════════════════════════════════════════════
+async def process_prossimamente_hype_drift():
+    """
+    Ogni 15 min: fluttua leggermente l'hype_score dei progetti V3 in fase pre-release
+    (idea/hype/cast/prep/ciak/finalcut/marketing) con poster già generato.
+
+    - Drift base: -1 .. +2 per tick (curva orientata leggermente positiva durante hype/marketing)
+    - Bonus durante step 'hype': +0.5 .. +2.5 (cresce di piu')
+    - Bonus durante step 'marketing': +0.3 .. +2.0
+    - Decay durante step 'idea' senza poster: -0.5 .. 0
+    - Surge casuale (5% chance): +5 .. +12 (es. trailer leak, gossip)
+    - Slump casuale (3% chance): -3 .. -6 (es. cast scandal)
+    - Cap: hype rimane in [0, 100]. La 'baseline' iniziale e' preservata.
+    """
+    try:
+        active_states = ['idea', 'hype', 'cast', 'prep', 'ciak', 'finalcut', 'marketing']
+        # Solo progetti in pipeline V3 con poster (visibili in Prossimamente)
+        # E solo film_projects o series_projects_v3 (non lampo)
+        for coll_name in ('film_projects', 'series_projects_v3'):
+            coll = scheduler_db[coll_name]
+            cursor = coll.find(
+                {'pipeline_version': 3, 'pipeline_state': {'$in': active_states},
+                 'poster_url': {'$nin': [None, '']}, 'status': {'$ne': 'released'}},
+                {'_id': 0, 'id': 1, 'pipeline_state': 1, 'hype_score': 1, 'is_tv_movie': 1}
+            )
+            updated = 0
+            async for proj in cursor:
+                state = proj.get('pipeline_state')
+                cur = float(proj.get('hype_score', 0) or 0)
+                # Base drift per state
+                if state == 'hype':
+                    delta = random.uniform(0.5, 2.5)
+                elif state == 'marketing':
+                    delta = random.uniform(0.3, 2.0)
+                elif state == 'idea':
+                    delta = random.uniform(-0.5, 0.3)
+                else:  # cast/prep/ciak/finalcut
+                    delta = random.uniform(-1.0, 2.0)
+                # Random events
+                roll = random.random()
+                if roll < 0.05:
+                    delta += random.uniform(5.0, 12.0)  # surge
+                elif roll < 0.08:
+                    delta -= random.uniform(3.0, 6.0)  # slump
+                # Bonus film TV (incremento +20% — sono prodotti veloci)
+                if proj.get('is_tv_movie'):
+                    delta *= 1.2
+                new_hype = max(0.0, min(100.0, cur + delta))
+                if abs(new_hype - cur) >= 0.5:
+                    await coll.update_one(
+                        {'id': proj['id']},
+                        {'$set': {'hype_score': round(new_hype, 1), 'hype_last_drift_at': datetime.now(timezone.utc).isoformat()}}
+                    )
+                    updated += 1
+            if updated:
+                print(f"[hype-drift] {coll_name}: {updated} progetti aggiornati")
+    except Exception as e:
+        print(f"[hype-drift] error: {e}")
+
+
+def run_prossimamente_hype_drift():
+    asyncio.run(process_prossimamente_hype_drift())
+
+
+# ═══════════════════════════════════════════════════════════════
 # DISTRIBUTION-AWARE GEO PICKER
 # Picks a realistic (city, nation, continent) for each revenue tick
 # based on the film's distribution choices at pipeline V3 time.

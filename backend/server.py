@@ -8059,6 +8059,18 @@ async def startup_event():
         replace_existing=True
     )
 
+    # Every 15 minutes: Hype drift dinamico per progetti in Prossimamente
+    try:
+        from scheduler_tasks import process_prossimamente_hype_drift
+        scheduler.add_job(
+            process_prossimamente_hype_drift,
+            IntervalTrigger(minutes=15),
+            id='prossimamente_hype_drift',
+            replace_existing=True
+        )
+    except Exception as _phd:
+        print(f"[scheduler] Could not register prossimamente_hype_drift: {_phd}")
+
     # Every 30 minutes: La Prima pre-event hype buildup + auto news
     scheduler.add_job(
         process_la_prima_buildup,

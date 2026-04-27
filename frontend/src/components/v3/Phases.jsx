@@ -4,11 +4,18 @@ import { PhaseWrapper, ProgressCircle, v3api } from './V3Shared';
 import { AuthContext } from '../../contexts';
 
 const SPEEDUP_COSTS = { 25: 10, 50: 15, 75: 20, 100: 25 };
+// FASE 2 TV: capped costs per Film TV (-80% scala)
+const SPEEDUP_COSTS_TV = { 25: 1, 50: 3, 75: 4, 100: 5 };
 
 // Cost decreases exponentially inverse based on current progress
 function getSpeedupCost(baseCost, currentProgress) {
   const remaining = (100 - currentProgress) / 100;
   return Math.max(1, Math.ceil(baseCost * remaining));
+}
+
+// Per Film TV usa SPEEDUP_COSTS_TV (cap 5 CP)
+function getSpeedupCostsFor(film) {
+  return film?.is_tv_movie ? SPEEDUP_COSTS_TV : SPEEDUP_COSTS;
 }
 
 // Shared hook: is the current user a guest? (tutorial plays for free)
@@ -177,7 +184,7 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
             <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza (a pagamento)</p>
             <div className="grid grid-cols-2 gap-1.5">
               {[25,50,75,100].map(p => {
-                const cost = getSpeedupCost(SPEEDUP_COSTS[p], hypeProgress);
+                const cost = getSpeedupCost(getSpeedupCostsFor(film)[p], hypeProgress);
                 const remaining = 100 - hypeProgress;
                 const gain = Math.ceil(remaining * (p / 100));
                 return (
@@ -329,7 +336,7 @@ export const CiakPhase = ({ film, onRefresh, toast }) => {
   const daysDone = Math.min(shootDays, Math.floor((progress / 100) * shootDays));
 
   const speedup = async (pct) => {
-    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], progress);
+    const cost = getSpeedupCost(getSpeedupCostsFor(film)[pct], progress);
     setLoading(true);
     try {
       await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'ciak', percentage: pct });
@@ -382,7 +389,7 @@ export const CiakPhase = ({ film, onRefresh, toast }) => {
             <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza Riprese (a pagamento)</p>
             <div className="grid grid-cols-2 gap-1.5">
               {[25,50,75,100].map(p => {
-                const cost = getSpeedupCost(SPEEDUP_COSTS[p], progress);
+                const cost = getSpeedupCost(getSpeedupCostsFor(film)[p], progress);
                 const remH = Math.floor((remainingMs * (p / 100)) / 3600000);
                 const remM = Math.floor(((remainingMs * (p / 100)) % 3600000) / 60000);
                 const saved = remH > 0 ? `-${remH}h${remM}m` : `-${remM}m`;
@@ -588,7 +595,7 @@ export const FinalCutPhase = ({ film, onRefresh, toast }) => {
   };
 
   const speedup = async (pct) => {
-    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], progress);
+    const cost = getSpeedupCost(getSpeedupCostsFor(film)[pct], progress);
     setLoading(true);
     try {
       await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'finalcut', percentage: pct });
@@ -650,7 +657,7 @@ export const FinalCutPhase = ({ film, onRefresh, toast }) => {
                 <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza (a pagamento)</p>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[25,50,75,100].map(p => {
-                    const cost = getSpeedupCost(SPEEDUP_COSTS[p], progress);
+                    const cost = getSpeedupCost(getSpeedupCostsFor(film)[p], progress);
                     const remH = Math.floor((remainingMs * (p / 100)) / 3600000);
                     const remM = Math.floor(((remainingMs * (p / 100)) % 3600000) / 60000);
                     const saved = remH > 0 ? `-${remH}h${remM}m` : `-${remM}m`;

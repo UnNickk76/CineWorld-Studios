@@ -1,3 +1,47 @@
+## 3 fix: Velocizzazioni Film TV + Hype dinamico + AI mini-trame (Apr 27, 2026 — sera 14)
+
+### 1. Velocizzazioni Film TV cap 5 CP (Foto 1)
+**Frontend** `components/v3/Phases.jsx`:
+- Aggiunto `SPEEDUP_COSTS_TV = {25: 1, 50: 3, 75: 4, 100: 5}` (vs `SPEEDUP_COSTS = {25:10, 50:15, 75:20, 100:25}` per V3 classico).
+- Helper `getSpeedupCostsFor(film)` ritorna la tabella corretta in base a `film.is_tv_movie`.
+- 5 occorrenze di `SPEEDUP_COSTS[p]` sostituite con `getSpeedupCostsFor(film)[p]` (Hype, Ciak, FinalCut, La Prima).
+- Costo scala col progresso (gia' presente): a 50% di hype, costo dimezzato, ecc.
+
+**Backend** `utils/calc_speedup.py`:
+- `BASE_COSTS_TV = {25:1, 50:3, 75:4, 100:5}`.
+- `get_speedup_cost(percentage, current_progress, is_tv_movie=False)` ora accetta il flag.
+
+`routes/pipeline_v3.py speedup endpoint`: passa `is_tv_movie=bool(project.get('is_tv_movie'))`.
+
+### 2. Hype dinamico nel periodo Prossimamente (Foto 2)
+**Backend** `scheduler_tasks.py`:
+- Nuova funzione `process_prossimamente_hype_drift()`: ogni 15 min itera su `film_projects` + `series_projects_v3` con poster generato e pipeline_state in [idea, hype, cast, prep, ciak, finalcut, marketing].
+- Drift base per stato:
+  - Step `hype`: +0.5 .. +2.5 (incremento attivo durante hype phase)
+  - Step `marketing`: +0.3 .. +2.0
+  - Step `idea`: -0.5 .. +0.3 (leggero decay)
+  - Altri (cast/prep/ciak/finalcut): -1.0 .. +2.0
+- Eventi casuali:
+  - 5% surge: +5..+12 (es. trailer leak, gossip)
+  - 3% slump: -3..-6 (es. cast scandal)
+- Bonus film TV: drift × 1.2 (sono prodotti veloci con hype piu' viva).
+- Cap [0, 100]. `hype_last_drift_at` salvato per tracking.
+
+**Server** `server.py`: nuovo job `prossimamente_hype_drift` registrato con `IntervalTrigger(minutes=15)`.
+
+### 3. AI mini-trame per nuovi rilasci (richiesta utente)
+**Backend** `routes/series_pipeline.py confirm-release`:
+- Prima della creazione episodi: una singola chiamata `LlmChat` (gpt-4o-mini) genera **tutte** le N mini-trame in batch (max 18 parole l'una).
+- Parsing regex `^N[.):\\-]\\s+text` per estrarre per episodio.
+- Fallback: se LLM fallisce o key assente → templates random (10 frasi).
+- Fallback per episodio se AI non l'ha coperto → template.
+- Latenza accettabile (~3-5s) per release.
+
+Files: `frontend/src/components/v3/Phases.jsx`, `backend/utils/calc_speedup.py`, `backend/routes/pipeline_v3.py`, `backend/scheduler_tasks.py`, `backend/server.py`, `backend/routes/series_pipeline.py`.
+
+---
+
+
 ## Fix 3-in-1 dashboard TV (Apr 27, 2026 — sera 13)
 
 ### Foto 1: Badge "Film TV" sulle locandine

@@ -1341,7 +1341,7 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
         quality_result['score'] = min(98, quality_result['score'] + guest_star_bonus)
         quality_result['breakdown']['guest_star_bonus'] = round(guest_star_bonus, 1)
     
-    # Generate episodes (con mini_plot template auto-popolato)
+    # Generate episodes (con mini_plot AI batch + fallback template)
     episode_templates = [
         "I protagonisti affrontano una svolta inaspettata.",
         "Un segreto del passato viene a galla.",
@@ -1354,11 +1354,48 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
         "Una rivelazione cambia il volto della storia.",
         "Lo scontro finale prende forma.",
     ]
+
+    # FASE: Genera mini-trame AI in batch (un solo prompt per tutti gli episodi)
+    ai_minitrame = {}
+    try:
+        ai_key = os.environ.get('EMERGENT_LLM_KEY', '')
+        if ai_key:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            n_ep = int(series.get('num_episodes', 10))
+            type_label = 'anime' if series.get('type') == 'anime' else 'serie TV'
+            chat = LlmChat(
+                api_key=ai_key,
+                session_id=f"episode-minitrame-{uuid.uuid4()}",
+                system_message="Sei uno sceneggiatore italiano. Genera mini-trame coincise (max 18 parole) per ogni episodio, una per riga, formato 'N. TESTO'."
+            ).with_model("openai", "gpt-4o-mini")
+            prompt = (
+                f"Genera {n_ep} mini-trame per gli episodi di una {type_label} dal titolo '{series.get('title', '')}' "
+                f"di genere '{series.get('genre_name', series.get('genre', ''))}'. "
+                f"Una mini-trama per episodio, max 18 parole l'una, in italiano, focalizzata sui colpi di scena. "
+                f"Formato OBBLIGATORIO: 'N. testo' (es. '1. I protagonisti scoprono il segreto.')"
+            )
+            response = await chat.send_message(UserMessage(text=prompt))
+            for line in (response or "").split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                # Match "N. text" or "N) text"
+                import re as _re
+                m = _re.match(r"^(\d+)[.)\-:]\s*(.+)$", line)
+                if m:
+                    ai_minitrame[int(m.group(1))] = m.group(2).strip()
+    except Exception as _e:
+        logger.warning(f"AI mini-trame batch failed (using fallback): {_e}")
+
     episodes = []
     for i in range(1, series['num_episodes'] + 1):
         ep_quality_var = random.gauss(0, 3)
-        # Fallback mini_plot template (sara' sostituito da AI in futuro)
-        mini_plot = f"Episodio {i}: {random.choice(episode_templates)}"
+        # Preferisci AI; fallback template
+        ai_text = ai_minitrame.get(i)
+        if ai_text:
+            mini_plot = f"Episodio {i}: {ai_text}"
+        else:
+            mini_plot = f"Episodio {i}: {random.choice(episode_templates)}"
         ep = {
             'number': i,
             'title': f"Episodio {i}",

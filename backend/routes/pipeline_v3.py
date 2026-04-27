@@ -2309,7 +2309,7 @@ async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_curren
     if current_progress >= 99.9:
         raise HTTPException(400, "Già al 100%! Non serve velocizzare.")
 
-    cost = get_speedup_cost(req.percentage, current_progress)
+    cost = get_speedup_cost(req.percentage, current_progress, is_tv_movie=bool(project.get("is_tv_movie")))
     balances = await _spend(user["id"], funds=0, cinepass=cost)
 
     update = {

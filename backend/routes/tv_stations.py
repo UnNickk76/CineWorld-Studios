@@ -329,7 +329,9 @@ async def get_station(station_id: str, user: dict = Depends(get_current_user)):
     # Enrich content data
     enriched = {'films': [], 'tv_series': [], 'anime': []}
 
-    film_ids = [c['content_id'] for c in contents.get('films', [])]
+    # Backward-compat: alcuni entry (da TV Movies release) usano `id` invece di `content_id`.
+    film_ids = [c.get('content_id') or c.get('id') for c in contents.get('films', [])]
+    film_ids = [fid for fid in film_ids if fid]
     if film_ids:
         films = await db.films.find(
             {'id': {'$in': film_ids}},
@@ -1571,7 +1573,8 @@ async def _auto_advance_broadcasts(station):
             ct = item['content_type']
             key = 'films' if ct == 'film' else ('anime' if ct == 'anime' else 'tv_series')
             contents = station.get('contents', {'films': [], 'tv_series': [], 'anime': []})
-            existing_ids = [c['content_id'] for c in contents.get(key, [])]
+            existing_ids = [c.get('content_id') or c.get('id') for c in contents.get(key, [])]
+            existing_ids = [eid for eid in existing_ids if eid]
             if item['content_id'] not in existing_ids:
                 entry = {'content_id': item['content_id'], 'added_at': now_str}
                 if ct != 'film':

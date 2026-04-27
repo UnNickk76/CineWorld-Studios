@@ -2861,7 +2861,7 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
             await db.tv_stations.update_one(
                 {"id": project["target_station_id"], "user_id": user["id"]},
                 {"$addToSet": {"contents.films": {
-                    "id": film_doc["id"],
+                    "content_id": film_doc["id"],
                     "added_at": _now(),
                     "via_tv_movie": True,
                     "scheduled_at": project.get("tv_air_datetime"),

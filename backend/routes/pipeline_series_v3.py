@@ -1759,4 +1759,64 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
         if "episodes" in r:
             del r["episodes"]  # Don't send full episodes list
 
-    return {"coming_soon": deduped_projects, "airing": released}
+    # === FILM TV (Film per la TV) ===
+    # Includi sia Film TV in produzione (db.film_projects con is_tv_movie:True)
+    # sia Film TV già rilasciati ma in attesa di andare in onda (db.films con is_tv_movie:True, status in_tv_programming).
+    tv_movie_projects_raw = await db.film_projects.find(
+        {"is_tv_movie": True,
+         "pipeline_state": {"$nin": ["released", "discarded", "deleted"]}},
+        {"_id": 0, "id": 1, "title": 1, "genre": 1, "type": 1,
+         "poster_url": 1, "user_id": 1, "pipeline_state": 1, "created_at": 1,
+         "target_station_name": 1, "tv_air_datetime": 1}
+    ).sort("created_at", -1).to_list(20)
+
+    tv_movie_films_raw = await db.films.find(
+        {"is_tv_movie": True, "status": "in_tv_programming"},
+        {"_id": 0, "id": 1, "title": 1, "genre": 1,
+         "poster_url": 1, "user_id": 1, "released_at": 1, "tv_air_datetime": 1,
+         "target_station_id": 1, "target_station_name": 1, "cwsv_display": 1, "quality_score": 1,
+         "tv_rights_active_contract_id": 1, "tv_rights_buyer_user_id": 1,
+         "tv_rights_buyer_station_id": 1, "tv_rights_mode": 1, "tv_rights_end_at": 1}
+    ).sort("released_at", -1).to_list(20)
+
+    tv_movies_combined = []
+    for p in tv_movie_projects_raw:
+        p["type"] = "tv_movie"
+        p["genre_name"] = p.pop("genre", "")
+        p["is_tv_movie"] = True
+        tv_movies_combined.append(p)
+    for f in tv_movie_films_raw:
+        f["type"] = "tv_movie"
+        f["genre_name"] = f.pop("genre", "")
+        f["is_tv_movie"] = True
+        # Marca come "in attesa di airing" così la dashboard sa che è già rilasciato
+        f["pipeline_state"] = "in_tv_programming"
+        tv_movies_combined.append(f)
+
+    # Enrich producer info
+    for item in tv_movies_combined:
+        uid = item.get("user_id")
+        if uid:
+            u = await db.users.find_one({"id": uid}, {"_id": 0, "nickname": 1, "production_house_name": 1})
+            item["producer"] = u or {}
+
+    # Enrich tv_rights for released tv movies
+    try:
+        rm_station_ids = list({i.get('tv_rights_buyer_station_id') for i in tv_movie_films_raw if i.get('tv_rights_buyer_station_id')})
+        if rm_station_ids:
+            stations_map_m = {}
+            async for st in db.tv_stations.find(
+                {'id': {'$in': rm_station_ids}},
+                {'_id': 0, 'id': 1, 'name': 1, 'custom_name': 1, 'logo_url': 1}
+            ):
+                stations_map_m[st['id']] = st
+            for item in tv_movies_combined:
+                sid = item.get('tv_rights_buyer_station_id')
+                if sid and sid in stations_map_m:
+                    st = stations_map_m[sid]
+                    item['tv_rights_station_name'] = st.get('custom_name') or st.get('name') or 'TV'
+                    item['tv_rights_station_logo'] = st.get('logo_url') or ''
+    except Exception:
+        pass
+
+    return {"coming_soon": deduped_projects + tv_movies_combined, "airing": released}

@@ -310,7 +310,7 @@ async def rerun_tv_movie(film_id: str, user: dict = Depends(get_current_user)):
         await db.tv_stations.update_one(
             {"id": film["target_station_id"], "user_id": user["id"]},
             {"$addToSet": {"contents.films": {
-                "id": film["id"],
+                "content_id": film["id"],
                 "added_at": _now(),
                 "via_tv_movie": True,
                 "rerun_number": new_count,

@@ -123,7 +123,7 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
               {items.map(item => (
                 <button key={item.id}
-                  onClick={() => onItemClick?.(item.id)}
+                  onClick={() => onItemClick?.(item)}
                   data-testid={`prossimamente-v3-item-${item.id}`}
                   className="flex-shrink-0 w-24 rounded-lg overflow-hidden border border-indigo-500/15 bg-black/30 text-left hover:border-indigo-400/40 active:scale-[0.97] transition-all">
                   <div className="aspect-[2/3] bg-gray-800 relative">
@@ -131,6 +131,9 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
                       <div className="w-full h-full flex items-center justify-center">{item.type === 'anime' ? <Sparkles className="w-4 h-4 text-gray-700" /> : <Tv className="w-4 h-4 text-gray-700" />}</div>}
                     {item.aired_count != null && (
                       <div className="absolute bottom-0.5 right-0.5 px-1 py-0.5 rounded bg-black/80 text-[6px] text-indigo-400 font-bold">{item.aired_count}/{item.total_episodes} EP</div>
+                    )}
+                    {(item.type === 'tv_movie' || item.is_tv_movie) && (
+                      <div className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded bg-cyan-500/90 text-[6px] text-black font-black uppercase tracking-wider">Film TV</div>
                     )}
                     {item.pipeline_state && item.pipeline_state !== 'released' && (
                       <div className="status-pulse-glow absolute top-0.5 left-0.5 px-1 py-0.5 rounded-full bg-amber-500/80 text-[5px] text-black font-black uppercase">{item.pipeline_state}</div>
@@ -745,7 +748,14 @@ const Dashboard = () => {
           </div>
 
           {/* 5b. Prossimamente V3 Serie/Anime */}
-          <ProssimamenteV3Section onItemClick={(id) => setProssimamenteDetailId(id)} />
+          <ProssimamenteV3Section onItemClick={(item) => {
+            // I Film TV puntano al modal Film, non al modal Serie
+            if (item?.type === 'tv_movie' || item?.is_tv_movie) {
+              setSelectedFilmId(item.id);
+            } else {
+              setProssimamenteDetailId(item?.id || item);
+            }
+          }} />
 
           {/* 6. Ultimi Aggiornamenti SERIE TV */}
           <div className="mb-4 rounded-xl glow-purple" data-testid="recent-releases-series">

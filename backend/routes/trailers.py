@@ -140,6 +140,7 @@ async def _generate_storyboard(content: dict, tier_cfg: dict) -> List[Dict[str, 
     n = tier_cfg["frames"]
     title = content.get("title", "")
     genre = (content.get("genre") or "").strip()
+    is_anime = (content.get("type") or "").lower() == "anime"
     # V3 usa "preplot" + "screenplay_text", legacy usa "pre_plot" + "script"
     plot = (content.get("preplot") or content.get("pre_plot")
             or content.get("plot") or content.get("synopsis")
@@ -150,17 +151,31 @@ async def _generate_storyboard(content: dict, tier_cfg: dict) -> List[Dict[str, 
     subgenres = content.get("subgenres") or []
     locations = content.get("locations") or []
 
+    if is_anime:
+        opening_phrase = "Anime scene from an original fictional anime series:"
+        ending_phrase = ", 16:9, anime art style, 2D animation, NO photorealism, no text, no logos, no real people, no trademarks."
+        style_hint = (
+            "ATTENZIONE — questo e' un ANIME, NON un film live-action. Tutti i personaggi e gli ambienti devono essere "
+            "disegnati in stile anime/manga (cel-shading, occhi grandi espressivi, linee pulite, colori vivaci, "
+            "background dipinti). VIETATO descrivere persone reali o riprese cinematografiche live-action.\n"
+        )
+    else:
+        opening_phrase = "Cinematic scene from an original fictional movie:"
+        ending_phrase = ", 16:9, film grain, anamorphic lens, no text, no logos, no real people, no trademarks."
+        style_hint = ""
+
     system = (
         "Sei un regista e sceneggiatore di trailer cinematografici. "
         "Produci una sequenza narrativa IN ITALIANO strutturata in 4 atti: "
         "SETUP (protagonista, ambiente), CONFLITTO (tensione, antagonista), CLIMAX (rivelazione, azione), TITLE CARD (solo titolo).\n\n"
+        + style_hint +
         "REGOLE VISIVE VINCOLANTI (violazione = rifiuto del lavoro):\n"
         "1) L'image_prompt deve restare FEDELE SOLO alla pretrama e sceneggiatura fornite dall'utente, non inventare sottotrame non presenti.\n"
         "2) VIETATO nominare persone reali, attori, registi, celebrità (Jack Black, Tom Cruise, Marco Mengoni, ecc.). Usa solo descrizioni generiche: 'un uomo sulla trentina', 'una donna con capelli rossi', 'un anziano con barba'.\n"
         "3) VIETATO citare brand, loghi, marchi (Nike, Ferrari, McDonald's, Coca-Cola, Apple, ecc.) — usa 'sneakers generiche', 'auto sportiva', 'ristorante fast food'.\n"
         "4) VIETATO citare opere esistenti (Star Wars, Harry Potter, Marvel, ecc.) — usa descrizioni di scena.\n"
         "5) VIETATO text, lettere, scritte, sottotitoli DENTRO l'immagine (li aggiungiamo noi).\n"
-        "6) Ogni image_prompt deve iniziare con 'Cinematic scene from an original fictional movie:' e terminare con ', 16:9, film grain, anamorphic lens, no text, no logos, no real people, no trademarks.'\n\n"
+        f"6) Ogni image_prompt deve iniziare con '{opening_phrase}' e terminare con '{ending_phrase}'\n\n"
         "Ogni frame ha una tagline cinematografica (max 40 caratteri, d'impatto, evocativa — NO hashtag, NO emoji, ITALIANO) e un image_prompt visivo in INGLESE. "
         "Rispondi SOLO con JSON valido, niente altro testo."
     )
@@ -172,9 +187,10 @@ async def _generate_storyboard(content: dict, tier_cfg: dict) -> List[Dict[str, 
         f"Pre-trama: {plot or '(non fornita — inventa uno scenario GENERICO coerente con il genere)'}\n"
         f"Sceneggiatura (estratto): {script_excerpt or '(non fornita)'}\n\n"
         f"Produci {n} frame in JSON con schema: "
-        f'{{"frames":[{{"tagline":"...","image_prompt":"Cinematic scene from an original fictional movie: ... , 16:9, film grain, anamorphic lens, no text, no logos, no real people, no trademarks.","mood":"setup|tension|climax|reveal"}}]}} '
-        f"L'ultimo frame DEVE essere title card con tagline = il titolo esatto \"{title}\" e image_prompt = 'Cinematic dark movie title card background, abstract cinematic lighting, no text, 16:9'. "
-        f"NON ripetere la stessa tagline. Varia ritmo e intensità. Usa SOLO elementi presenti nella pretrama/sceneggiatura."
+        f'{{"frames":[{{"tagline":"...","image_prompt":"{opening_phrase} ... {ending_phrase}","mood":"setup|tension|climax|reveal"}}]}} '
+        f"L'ultimo frame DEVE essere title card con tagline = il titolo esatto \"{title}\" e image_prompt = '"
+        + ("Anime title card background, vibrant colors, abstract anime composition, no text, 16:9" if is_anime else "Cinematic dark movie title card background, abstract cinematic lighting, no text, 16:9")
+        + "'. NON ripetere la stessa tagline. Varia ritmo e intensità. Usa SOLO elementi presenti nella pretrama/sceneggiatura."
     )
     try:
         chat = LlmChat(api_key=os.environ["EMERGENT_LLM_KEY"], session_id=f"trailer-{uuid.uuid4()}", system_message=system)
@@ -319,7 +335,7 @@ def _sanitize_image_prompt(prompt: str) -> str:
 
 
 # ─────────────────────── Image generation ───────────────────────
-async def _generate_frame_image(frame: Dict[str, str], genre: str, frame_idx: int = 0) -> Optional[str]:
+async def _generate_frame_image(frame: Dict[str, str], genre: str, frame_idx: int = 0, content_type: Optional[str] = None) -> Optional[str]:
     """Generate a single frame image via image_providers (multi-provider rotation)
     and upload to Object Storage. Returns storage_path or None on failure."""
     try:
@@ -328,16 +344,35 @@ async def _generate_frame_image(frame: Dict[str, str], genre: str, frame_idx: in
         logger.error(f"image_providers unavailable: {e}")
         return None
 
-    genre_style = GENRE_STYLES.get((genre or "").lower().strip(), "cinematic movie still, professional lighting")
+    is_anime = (content_type or "").lower() == "anime"
+    # Per anime: forziamo SEMPRE lo stile anime, indipendentemente dal genre.
+    if is_anime:
+        genre_style = "anime art style, 2D animation, vibrant colors, cel-shading, expressive characters, manga-inspired composition, NOT photorealistic, NO live-action"
+    else:
+        genre_style = GENRE_STYLES.get((genre or "").lower().strip(), "cinematic movie still, professional lighting")
     raw_prompt = frame.get("image_prompt", "") or ""
     clean_prompt = _sanitize_image_prompt(raw_prompt)
-    prompt = (
-        f"{clean_prompt}. "
-        f"Style: {genre_style}. "
-        f"16:9 aspect ratio, cinematic composition, movie trailer quality, film grain, anamorphic lens. "
-        f"STRICT: no text in the image, no letters, no subtitles, no watermarks, no logos, no brands, no trademarks, "
-        f"no real celebrities or well-known public figures — only generic fictional characters."
-    )
+    if is_anime:
+        # Rimuovi keyword cinematografiche live-action e sostituiscile con equivalenti anime
+        clean_prompt = clean_prompt.replace("Cinematic scene from an original fictional movie:", "Anime scene from an original fictional anime series:")
+        clean_prompt = clean_prompt.replace("film grain", "")
+        clean_prompt = clean_prompt.replace("anamorphic lens", "")
+        prompt = (
+            f"{clean_prompt}. "
+            f"Style: {genre_style}. "
+            f"16:9 aspect ratio, anime composition, NO photorealism, NO real human faces, "
+            f"original anime characters only — generic fictional anime characters, "
+            f"NO text in the image, no letters, no subtitles, no watermarks, no logos, no brands, no trademarks, "
+            f"NO real celebrities or well-known public figures."
+        )
+    else:
+        prompt = (
+            f"{clean_prompt}. "
+            f"Style: {genre_style}. "
+            f"16:9 aspect ratio, cinematic composition, movie trailer quality, film grain, anamorphic lens. "
+            f"STRICT: no text in the image, no letters, no subtitles, no watermarks, no logos, no brands, no trademarks, "
+            f"no real celebrities or well-known public figures — only generic fictional characters."
+        )
     try:
         meta = await asyncio.wait_for(generate_image_meta(prompt, "trailer", frame_idx=frame_idx), timeout=60)
         if not meta or not meta.get("bytes"):
@@ -406,6 +441,12 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
         if job.get("status") == "aborted":
             return
         genre = content.get("genre") or ""
+        # Determina content_type per stile coerente (anime → anime art style)
+        ctype = (content.get("type") or "").lower()
+        is_anime_content = (coll == "anime_series") or (ctype == "anime")
+        derived_content_type = "anime" if is_anime_content else (
+            "tv_series" if coll in ("tv_series", "series_projects_v3") else "film"
+        )
 
         # Reuse existing trailer frames if upgrade (idea 5) — BUT skip reuse on regeneration
         is_regen = bool(job.get("is_regenerate"))
@@ -416,7 +457,7 @@ async def _run_trailer_job(content_id: str, tier: str, user_id: str, trailer_mod
             # Upgrade reuse: frame[i] already exists
             if i < len(prev_images) - (1 if prev.get("title_card_storage_path") else 0):
                 return prev_images[i]
-            return await _generate_frame_image(fr, genre, frame_idx=i)
+            return await _generate_frame_image(fr, genre, frame_idx=i, content_type=derived_content_type)
 
         # ─── SEQUENTIAL generation (not parallel) to respect Pollinations anonymous
         # tier rate limit of 1 in-flight request per IP. If a frame fails, fall back

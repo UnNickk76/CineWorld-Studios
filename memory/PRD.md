@@ -1,3 +1,38 @@
+## Fix Trailer Anime — Stile coerente (Apr 27, 2026 — sera 15)
+
+### Problema
+I trailer di anime mostravano scene live-action con persone reali, non coerenti con la locandina anime (es. "Un Pezzo" → trailer con foto di pirati realistici invece che anime).
+
+### Root cause
+`routes/trailers.py`:
+- `_generate_frame_image()` usava SOLO `genre` per scegliere lo stile (`GENRE_STYLES` mappa genre → stile cinematografico).
+- Per un anime con genere "action", lo stile era "high energy, dynamic motion blur, desaturated blockbuster look" → live-action, NON anime.
+- Lo storyboard LLM produceva image_prompt che iniziavano con "Cinematic scene from an original fictional movie:" e finivano con "film grain, anamorphic lens" → forzando la generazione live-action.
+
+### Fix
+1. **`_generate_frame_image(frame, genre, frame_idx, content_type)`**: nuovo parametro `content_type`. Se `content_type=='anime'`, override completo dello stile:
+   - `genre_style = "anime art style, 2D animation, vibrant colors, cel-shading, expressive characters, manga-inspired composition, NOT photorealistic, NO live-action"`
+   - Sostituisce keyword cinematografiche live-action ("Cinematic scene", "film grain", "anamorphic lens") con equivalenti anime.
+   - Aggiunge constraint espliciti: "NO photorealism, NO real human faces, original anime characters only".
+
+2. **Storyboard LLM (`generate_storyboard`)**: nuovo flag `is_anime` derivato da `content.type`. Quando true:
+   - Aggiunge `style_hint` chiaro nel system prompt: "questo e' un ANIME, NON un film live-action. Tutti i personaggi e gli ambienti devono essere disegnati in stile anime/manga".
+   - `opening_phrase` = "Anime scene from an original fictional anime series:"
+   - `ending_phrase` = ", 16:9, anime art style, 2D animation, NO photorealism, no text, no logos, no real people, no trademarks."
+   - Title card prompt cambia in "Anime title card background, vibrant colors, abstract anime composition, no text, 16:9".
+
+3. **Call site**: `derived_content_type` calcolato da `coll == 'anime_series'` o `content.type == 'anime'`. Vale per:
+   - `db.anime_series` (anime LAMPO o legacy)
+   - `db.series_projects_v3` con `type=='anime'`
+
+### Test
+Backend reload OK. Endpoint operativo. Per testare end-to-end serve generare un trailer su un anime in produzione (i 4 progetti V3 in preview sono tv_series, non anime).
+
+Files: `backend/routes/trailers.py`.
+
+---
+
+
 ## 3 fix: Velocizzazioni Film TV + Hype dinamico + AI mini-trame (Apr 27, 2026 — sera 14)
 
 ### 1. Velocizzazioni Film TV cap 5 CP (Foto 1)

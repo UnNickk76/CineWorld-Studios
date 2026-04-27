@@ -495,6 +495,8 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                               <div className="flex items-center gap-1 mt-0.5 text-[7px]">
                                 <span className="text-gray-500">{actor.nationality}</span>
                                 <span className="text-gray-700">•</span>
+                                <span className="text-gray-500">{actor.age || '?'} anni</span>
+                                <span className="text-gray-700">•</span>
                                 <span className="text-emerald-400 font-bold">GRATIS</span>
                               </div>
                               <div className="flex items-center gap-0.5 mt-0.5">
@@ -583,13 +585,25 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                           {npc.is_exclusive && !isExcActor && <span className="text-[5px] px-1 py-0.5 rounded bg-yellow-500/10 text-yellow-500/70 font-bold">Contratto</span>}
                         </div>
                         <p className="text-[7px] text-gray-500">
-                          {npc.nationality} | {npc.cost === 0 ? <span className="text-yellow-400 font-bold">GRATIS</span> : `$${(npc.cost || 0).toLocaleString()}`} | {npc.agency_name}
+                          {npc.nationality} | {npc.age || '?'} anni | {npc.cost === 0 ? <span className="text-yellow-400 font-bold">GRATIS</span> : `$${(npc.cost || 0).toLocaleString()}`} | {npc.agency_name}
                         </p>
                         <div className="flex items-center gap-0.5 mt-0.5">
                           {Array.from({ length: npc.stars || 1 }).map((_, i) => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}
                         </div>
                       </div>
-                      <button onClick={() => !sel && !isFull && selectMember(npc, npc.role_type === 'director' ? 'director' : npc.role_type === 'screenwriter' ? 'screenwriter' : npc.role_type === 'composer' ? 'composer' : 'actor', npc.role_type === 'actor' ? 'generico' : undefined)}
+                      {npc.role_type === 'actor' && (
+                        <select
+                          value={actorRoles[npc.id] || 'generico'}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setActorRoles(prev => ({ ...prev, [npc.id]: e.target.value }))}
+                          disabled={sel || loading || isFull}
+                          className="text-[7px] rounded bg-gray-900 border border-amber-500/30 px-1 py-0.5 text-amber-300 shrink-0"
+                          data-testid={`cast-agency-role-${npc.id}`}
+                        >
+                          {ACTOR_ROLES.map(r => <option key={r} value={r}>{ROLE_DISPLAY[r] || r}</option>)}
+                        </select>
+                      )}
+                      <button onClick={() => !sel && !isFull && selectMember(npc, npc.role_type === 'director' ? 'director' : npc.role_type === 'screenwriter' ? 'screenwriter' : npc.role_type === 'composer' ? 'composer' : 'actor', npc.role_type === 'actor' ? (actorRoles[npc.id] || 'generico') : undefined)}
                         disabled={sel || loading || isFull}
                         className={`text-[7px] px-2 py-1 rounded-lg font-bold shrink-0 ${sel ? 'bg-gray-800 text-gray-600' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20'} disabled:opacity-30`}>
                         {sel ? 'OK' : '+'}

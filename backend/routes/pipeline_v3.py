@@ -1754,13 +1754,21 @@ async def cast_agency_actor_v3(pid: str, data: dict, user: dict = Depends(get_cu
                 'cost_per_film': 50000, 'primary_skills': [],
             }
     elif source == "pre_engaged":
-        # Pre-engaged NPC (gia' bloccato dal player). Carica dallo snapshot in pre_engagements.
-        pe = await db.pre_engagements.find_one(
-            {'npc_id': actor_id, 'user_id': user['id'], 'state': {'$in': ['active', 'threatened']}},
+        # Pre-engaged NPC (gia' bloccato dal player). Carica dallo snapshot in talent_pre_engagements.
+        pe = await db.talent_pre_engagements.find_one(
+            {'npc_id': actor_id, 'user_id': user['id'], 'contract_status': {'$in': ['active', 'threatened']}},
             {'_id': 0}
         )
         if pe:
             snap = pe.get('npc_snapshot') or {}
+            # Enrich from people collection if snapshot is sparse
+            if not snap.get('skills') or not snap.get('age'):
+                try:
+                    full = await db.people.find_one({'id': actor_id}, {'_id': 0})
+                    if full:
+                        snap = {**full, **snap}
+                except Exception:
+                    pass
             actor = {
                 'id': actor_id,
                 'name': snap.get('name') or 'NPC',
@@ -1768,8 +1776,8 @@ async def cast_agency_actor_v3(pid: str, data: dict, user: dict = Depends(get_cu
                 'skills': snap.get('skills', {}),
                 'gender': snap.get('gender', ''),
                 'nationality': snap.get('nationality', ''),
-                'stars': snap.get('stars', 3),
-                'fame_score': snap.get('fame', snap.get('fame_score', 0)),
+                'stars': pe.get('npc_stars', snap.get('stars', 3)),
+                'fame_score': snap.get('fame_score', snap.get('fame', 0)),
                 'fame_category': snap.get('fame_category', 'emerging'),
                 'cost_per_film': 0,  # gratis (gia' pre-pagato)
                 'primary_skills': snap.get('primary_skills', []),

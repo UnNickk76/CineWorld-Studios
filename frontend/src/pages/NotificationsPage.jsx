@@ -151,11 +151,56 @@ const NotificationsPage = () => {
     return '';
   };
 
-  const handleNotifClick = (notif) => {
+  const handleNotifClick = async (notif) => {
     if (!notif.read) markAsRead(notif.id);
     if (notif.type === 'acting_school' && notif.data?.actor_name) {
       setActorPopup(notif.data);
       return;
+    }
+    // ⭐ STAR DISCOVERY → fetch NPC stats e mostra popup con skill
+    if (notif.type === 'star_discovery' && notif.data?.actor_id) {
+      try {
+        const r = await api.get(`/people/${notif.data.actor_id}`);
+        if (r?.data) {
+          setActorPopup({
+            actor_name: r.data.name || notif.data.name,
+            ...r.data,
+            action: 'released',
+            cost_per_film: r.data.cost_per_film || r.data.cost,
+            // skills già presenti dentro r.data
+          });
+          return;
+        }
+      } catch {
+        // fallback: fa cmq vedere quel poco che abbiamo
+        setActorPopup({ actor_name: notif.data.name, ...notif.data });
+        return;
+      }
+    }
+    // 🎬 TV MARKET notifiche → aprono il Cruscotto sul tab giusto
+    const tvMarketTabMap = {
+      tv_market_offer_received:    'incoming',     // owner: offerta ricevuta
+      tv_market_offer_accepted:    'outgoing',     // buyer: la sua offerta è stata accettata
+      tv_market_offer_rejected:    'outgoing',     // buyer: la sua offerta è stata rifiutata
+      tv_market_purchase:          'active',       // buyer: ha acquistato (Buy Now)
+      tv_market_sale:              'active',       // owner: ha venduto (Buy Now)
+      tv_market_contract_signed:   'active',       // owner: contratto firmato
+      tv_market_contract_activated:'active',       // contratto pending_cinema → attivo
+      tv_market_contract_completed:'history',      // contratto concluso
+      tv_market_listing_cancelled: 'incoming',     // listing annullato
+    };
+    if (tvMarketTabMap[notif.type]) {
+      navigate(`/dashboard?widget=tv-market&tab=${tvMarketTabMap[notif.type]}`);
+      return;
+    }
+    // 🏆 PREMI TRAILER / Classifiche
+    if (notif.type === 'trailer_award_weekly' || notif.type === 'trailer_award_daily') {
+      const filmId = notif.data?.film_id || notif.data?.project_id;
+      if (filmId) { navigate(`/film/${filmId}`); return; }
+      navigate('/my-films'); return;
+    }
+    if (notif.type === 'laprima_ranking' || notif.type === 'classifica_ranking') {
+      navigate('/classifiche'); return;
     }
     // Direct link takes priority (PvP notifications set link to /hq)
     const navPath = notif.link || notif.data?.path;
@@ -181,8 +226,13 @@ const NotificationsPage = () => {
       'challenge_welcome': '/challenges',
       'offline_battle_result': '/challenges', 'offline_challenge_result': '/challenges',
       'film_released': '/my-films', 'trailer_ready': '/my-films',
+      'lampo_release': '/my-films',
+      'season_complete': '/my-films',
+      'theater_update': '/my-films',
+      'film_city_impact': '/my-films',
       'festival_nomination': '/festivals', 'festival_award': '/festivals',
       'friend_request': '/friends', 'friend_accepted': '/friends',
+      'new_follower': '/friends',
       'major_invite': '/major',
       'private_message': '/chat', 'private_message_received': '/chat',
       'coming_soon_support': '/create-film', 'coming_soon_boycott': '/create-film',

@@ -36,6 +36,22 @@ export default function TvMarketDashboardWidget() {
   const [tab, setTab] = useState('incoming');
   const [acting, setActing] = useState(null); // {offerId, action}
 
+  // Auto-open dal deep-link delle notifiche: ?widget=tv-market&tab=incoming|outgoing|active|history
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('widget') === 'tv-market') {
+        const t = params.get('tab');
+        if (['incoming', 'outgoing', 'active', 'history'].includes(t)) setTab(t);
+        setOpen(true);
+        // Pulisce l'URL per evitare riaperture in loop dopo refresh
+        const url = new URL(window.location.href);
+        url.searchParams.delete('widget'); url.searchParams.delete('tab');
+        window.history.replaceState({}, '', url.toString());
+      }
+    } catch { /* no-op */ }
+  }, []);
+
   const loadAll = async () => {
     setLoading(true);
     try {

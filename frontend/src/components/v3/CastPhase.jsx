@@ -5,7 +5,7 @@ import { PhaseWrapper, v3api } from './V3Shared';
 const CAST_TABS = [
   { id: 'directors', label: 'Registi', max: 1 },
   { id: 'screenwriters', label: 'Scenegg.', max: 3 },
-  { id: 'actors', label: 'Attori', max: 999 },
+  { id: 'actors', label: 'Attori', max: 999, animationLabel: 'Disegnatori' },
   { id: 'composers', label: 'Compositori', max: 1 },
 ];
 
@@ -229,6 +229,7 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
   const [skillNpc, setSkillNpc] = useState(null);
   const [castSource, setCastSource] = useState('pool'); // 'pool' | 'agency' | 'npc_agencies'
   const cast = film.cast || { director: null, screenwriters: [], actors: [], composer: null };
+  const isAnimation = (film?.genre || '').toLowerCase() === 'animation';
 
   useEffect(() => {
     v3api(`/films/${film.id}/cast-proposals`).then(setProposals).catch(() => {});
@@ -348,7 +349,7 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
             <p className="text-[8px] font-bold text-white">{(cast.screenwriters || []).length}/3</p>
           </div>
           <div className="p-1.5 rounded-lg bg-gray-800/30 border border-gray-700/30 text-center">
-            <p className="text-[7px] text-gray-500">Attori</p>
+            <p className="text-[7px] text-gray-500">{isAnimation ? 'Disegn.' : 'Attori'}</p>
             <p className="text-[8px] font-bold text-white">{(cast.actors || []).length}</p>
           </div>
           <div className="p-1.5 rounded-lg bg-gray-800/30 border border-gray-700/30 text-center">
@@ -416,10 +417,10 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                 <button key={t.id} onClick={() => setTab(t.id)}
                   className={`flex-1 py-1.5 rounded-lg text-[8px] font-bold border ${
                     tab === t.id ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'border-gray-800 text-gray-500'
-                  }`}>{t.label}</button>
+                  }`}>{(isAnimation && t.animationLabel) ? t.animationLabel : t.label}</button>
               ))}
             </div>
-            <p className="text-[7px] text-gray-500">{currentTab?.label} disponibili ({tabItems.length}) {isFull && <span className="text-amber-400">\u2014 Slot pieno</span>}</p>
+            <p className="text-[7px] text-gray-500">{(isAnimation && currentTab?.animationLabel) ? currentTab.animationLabel : currentTab?.label} disponibili ({tabItems.length}) {isFull && <span className="text-amber-400">\u2014 Slot pieno</span>}</p>
             <div className="space-y-1.5 max-h-64 overflow-y-auto">
               {tabItems.map(npc => {
                 const sel = selectedIds.has(npc.id);

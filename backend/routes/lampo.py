@@ -96,7 +96,7 @@ def _cwsv_for_studio_level(level: int, budget_tier: str) -> float:
     return round(max(1.0, min(9.8, score)), 1)
 
 
-async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5, budget_tier: str = "mid", cwsv: float = 5.0) -> dict:
+async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5, budget_tier: str = "mid", cwsv: float = 5.0, genre: str = "") -> dict:
     """Random NPC cast selection, filtered by player level (reuses level-gating logic).
 
     Arricchisce ogni membro con: gender_label, age, role_label, character_role (solo attori),
@@ -109,9 +109,12 @@ async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5, 
     else: max_stars = 5
 
     is_anime = content_type == "anime"
-    director_type = "anime_director" if is_anime else "director"
-    actor_type = "anime_illustrator" if is_anime else "actor"
-    actor_label_it = "Disegnatore" if is_anime else "Attore"
+    # Animation: anche film/tv_series con genere "animation" usano disegnatori e regista anime
+    is_animation_film = (genre or "").lower() == "animation" and not is_anime
+    use_illustrators = is_anime or is_animation_film
+    director_type = "anime_director" if use_illustrators else "director"
+    actor_type = "anime_illustrator" if use_illustrators else "actor"
+    actor_label_it = "Disegnatore" if use_illustrators else "Attore"
 
     # Probabilità ridotta che UN membro sia "guest star" (livello > progetto+3)
     # Eventro RARISSIMO: ~3% che capiti almeno un guest in tutto il cast
@@ -532,7 +535,8 @@ async def _worker_generate(pid: str):
 
         cast = await _pick_random_cast(
             proj["content_type"], studio_level, num_actors=5,
-            budget_tier=proj.get("budget_tier", "mid"), cwsv=cwsv
+            budget_tier=proj.get("budget_tier", "mid"), cwsv=cwsv,
+            genre=proj.get("genre", "")
         )
 
         # LAMPO auto-include: sostituisci fino a 2 attori NPC con attori
@@ -596,8 +600,8 @@ async def _worker_generate(pid: str):
                         "stars": ow.get("stars", 2),
                         "gender": ow.get("gender", ""),
                         "gender_label": "M" if str(ow.get("gender", "")).lower().startswith("m") else "F",
-                        "role_type": "actor" if proj["content_type"] != "anime" else "anime_illustrator",
-                        "role_label": "Attore" if proj["content_type"] != "anime" else "Disegnatore",
+                        "role_type": "anime_illustrator" if (proj["content_type"] == "anime" or (proj.get("genre") or "").lower() == "animation") else "actor",
+                        "role_label": "Disegnatore" if (proj["content_type"] == "anime" or (proj.get("genre") or "").lower() == "animation") else "Attore",
                         "skills": ow.get("skills", {}),
                         "fame_score": ow.get("fame_score", 30),
                         "score": 65 + (ow.get("stars", 2) * 4),
@@ -629,8 +633,8 @@ async def _worker_generate(pid: str):
                             "stars": ow.get("stars", 2),
                             "gender": ow.get("gender", ""),
                             "gender_label": "M" if str(ow.get("gender", "")).lower().startswith("m") else "F",
-                            "role_type": "actor" if proj["content_type"] != "anime" else "anime_illustrator",
-                            "role_label": "Attore" if proj["content_type"] != "anime" else "Disegnatore",
+                            "role_type": "anime_illustrator" if (proj["content_type"] == "anime" or (proj.get("genre") or "").lower() == "animation") else "actor",
+                            "role_label": "Disegnatore" if (proj["content_type"] == "anime" or (proj.get("genre") or "").lower() == "animation") else "Attore",
                             "skills": ow.get("skills", {}),
                             "fame_score": ow.get("fame_score", 30),
                             "score": 60 + (ow.get("stars", 2) * 4),

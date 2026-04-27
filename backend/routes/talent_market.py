@@ -34,11 +34,23 @@ router = APIRouter(prefix="/api", tags=["talent_market"])
 # ─── COSTANTI ──────────────────────────────────────────────────────
 
 ROLE_INFRA_MAP = {
+    # Una sola infra "Talent Scout Attori" sblocca attori, registi, compositori e disegnatori.
+    # Le quantità per ruolo sono ridistribuite via _role_share. Sceneggiatori restano sull'infra dedicata.
     "actor":        ["talent_scout_actors", "casting_agency", "agenzia_attori"],
-    "director":     ["talent_scout_directors", "scout_directors", "agenzia_registi"],
+    "director":     ["talent_scout_actors", "talent_scout_directors", "scout_directors", "agenzia_registi"],
     "screenwriter": ["talent_scout_screenwriters", "scout_screenwriters", "agenzia_sceneggiatori"],
-    "composer":     ["talent_scout_composers", "scout_composers", "agenzia_compositori"],
-    "illustrator":  ["talent_scout_illustrators", "scout_illustrators", "agenzia_disegnatori"],
+    "composer":     ["talent_scout_actors", "talent_scout_composers", "scout_composers", "agenzia_compositori"],
+    "illustrator":  ["talent_scout_actors", "talent_scout_illustrators", "scout_illustrators", "agenzia_disegnatori"],
+}
+
+# Quando l'infra Talent Scout Attori è condivisa tra più ruoli, la visibilità totale viene
+# ridistribuita per share. Sceneggiatori hanno l'infra dedicata (share = 1.0).
+ROLE_SHARE = {
+    "actor":        0.30,
+    "director":     0.25,
+    "composer":     0.20,
+    "illustrator":  0.25,
+    "screenwriter": 1.00,
 }
 
 
@@ -52,6 +64,34 @@ def _visibility_for_level(level: int) -> dict:
         2: max(0, 50 + L * 5),               # Lv1=55, Lv15=125
         1: max(0, 100 + L * 10),             # Lv1=100, Lv15=250
     }
+
+
+def _visibility_for_role_level(role: str, level: int) -> dict:
+    """Visibilità per ruolo: applica la share quando l'infra è condivisa.
+    Garantisce comunque almeno 1 unità per le stelle alte se level>=1."""
+    base = _visibility_for_level(level)
+    share = ROLE_SHARE.get(role, 1.0)
+    out = {}
+    for stars, total in base.items():
+        v = int(round(total * share))
+        # Per stelle alte (3+) forza un minimo di 1 se l'infra esiste
+        if level >= 1 and stars >= 3 and total > 0 and v < 1:
+            v = 1
+        out[stars] = max(0, v)
+    return out
+
+
+def _hireable_for_role_level(role: str, level: int) -> dict:
+    """Hireable cap per ruolo: applica la share."""
+    base = _hireable_for_level(level)
+    share = ROLE_SHARE.get(role, 1.0)
+    out = {}
+    for stars, total in base.items():
+        v = int(round(total * share))
+        if level >= 1 and stars >= 3 and total > 0 and v < 1:
+            v = 1
+        out[stars] = max(0, v)
+    return out
 
 
 def _hireable_for_level(level: int) -> dict:
@@ -168,8 +208,8 @@ async def get_talent_scout_perks(user: dict = Depends(get_current_user)):
         })
         out[role] = {
             "level": lvl,
-            "visibility": _visibility_for_level(lvl),
-            "hireable_max": _hireable_for_level(lvl),
+            "visibility": _visibility_for_role_level(role, lvl),
+            "hireable_max": _hireable_for_role_level(role, lvl),
             "slot_total": slot_total,
             "slot_used": used,
             "slot_free": max(0, slot_total - used),
@@ -191,7 +231,7 @@ async def list_market_talents(
     determinata da `_visibility_for_level`.
     """
     lvl = await _get_player_infra_level(user["id"], role)
-    visibility = _visibility_for_level(lvl)
+    visibility = _visibility_for_role_level(role, lvl)
     discount = _discount_for_level(lvl)
 
     # Mappa ruolo → query su collection people
@@ -271,7 +311,7 @@ async def pre_engage_npc(npc_id: str, req: PreEngageReq, user: dict = Depends(ge
 
     # Hireable per stelle (cap "puoi avere max X NPCs di stelle Y")
     stars = _stars_from_npc(npc)
-    hireable_caps = _hireable_for_level(lvl)
+    hireable_caps = _hireable_for_role_level(req.role, lvl)
     if hireable_caps.get(stars, 0) <= 0:
         raise HTTPException(400, f"Il tuo livello non permette di ingaggiare NPCs da {stars}★")
     used_for_stars = await db.talent_pre_engagements.count_documents({

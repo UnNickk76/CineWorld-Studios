@@ -1033,10 +1033,15 @@ async def get_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
     proposals = {"directors": [], "screenwriters": [], "actors": [], "composers": []}
     role_counts = {'director': 10, 'screenwriter': 10, 'actor': 30, 'composer': 8}
 
+    # === ANIMATION: at posto degli "actor" usa "anime_illustrator" (disegnatori) ===
+    is_animation = (genre or '').lower() == 'animation'
+
     for role_type, target_count in role_counts.items():
+        # Per progetti di animazione, gli "attori" sono in realtà disegnatori
+        query_type = 'anime_illustrator' if (is_animation and role_type == 'actor') else role_type
         sample_size = target_count * 8  # Larger pool for level-gating filters
         cursor = db.people.aggregate([
-            {'$match': {'type': role_type}},
+            {'$match': {'type': query_type}},
             {'$sample': {'size': sample_size}},
             {'$project': {'_id': 0}},
         ])
@@ -1377,7 +1382,9 @@ async def get_npc_agency_proposals(pid: str, user: dict = Depends(get_current_us
         for role_type in ['actor', 'director', 'screenwriter', 'composer']:
             count = (3 if role_type == 'actor' else 1) * multiplier
             sample_size = count * 3
-            match_filter = {'type': role_type}
+            # Animation: gli "actor" sono disegnatori
+            query_type = 'anime_illustrator' if (genre.lower() == 'animation' and role_type == 'actor') else role_type
+            match_filter = {'type': query_type}
             if min_stars > 0:
                 match_filter['stars'] = {'$gte': min_stars}
             cursor = db.people.aggregate([

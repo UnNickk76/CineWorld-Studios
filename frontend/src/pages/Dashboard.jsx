@@ -549,10 +549,7 @@ const Dashboard = () => {
           {/* 1.5 Evento Ri-Cinema */}
           <RiCinemaShowcase api={api} navigate={navigate} />
 
-          {/* 1.7 Trailer da non perdere (Cinematico+PRO trending) */}
-          <FeaturedTrailersStrip />
-
-          {/* 1.75 Ultimi Trailer (fresh from AI, all tiers) */}
+          {/* 1.75 Ultimi Trailer (fresh from AI, all tiers) — sostituisce 'Trailer da non perdere' (ridondante) */}
           <UltimiTrailerStrip limit={12} />
 
           {/* 1.8 Best Highlights — Top trailer post-lancio */}

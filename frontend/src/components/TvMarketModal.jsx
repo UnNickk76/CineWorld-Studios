@@ -48,6 +48,9 @@ export default function TvMarketModal({ open, onClose, content }) {
   const [offerDuration, setOfferDuration] = useState(7);
   const [offerStation, setOfferStation] = useState('');
   const [offerMessage, setOfferMessage] = useState('');
+  // Programmazione TV: 'cinema_end' (a scadenza cinema) | 'asap' (subito) | 'date' (data custom)
+  const [offerSchedule, setOfferSchedule] = useState('cinema_end');
+  const [offerScheduleDate, setOfferScheduleDate] = useState('');
 
   const isOwner = !!content && content.user_id === user?.id;
   const collection = useMemo(() => {
@@ -160,6 +163,10 @@ export default function TvMarketModal({ open, onClose, content }) {
     if (!offerStation) return toast.error('Seleziona una tua stazione TV');
     setLoading(true);
     try {
+      const scheduleExtra = {
+        schedule_mode: offerSchedule, // 'cinema_end' | 'date'
+        ...(offerSchedule === 'date' && offerScheduleDate ? { schedule_date: offerScheduleDate } : {}),
+      };
       if (listing?.id) {
         // Standard offer on an open listing
         await api.post(`/tv-market/listings/${listing.id}/offer`, {
@@ -169,6 +176,7 @@ export default function TvMarketModal({ open, onClose, content }) {
           mode_proposed: offerMode,
           duration_days_proposed: Math.max(1, parseInt(offerDuration || 7)),
           message: offerMessage,
+          ...scheduleExtra,
         });
       } else {
         // Spontaneous offer (no listing): direct to owner
@@ -181,6 +189,7 @@ export default function TvMarketModal({ open, onClose, content }) {
           mode_proposed: offerMode,
           duration_days_proposed: Math.max(1, parseInt(offerDuration || 7)),
           message: offerMessage,
+          ...scheduleExtra,
         });
       }
       toast.success('Offerta inviata!');
@@ -513,9 +522,60 @@ const OfferForm = ({ listing, suggestion, myStations, offerStation, setOfferStat
         <select value={offerStation} onChange={e => setOfferStation(e.target.value)} data-testid="tv-market-offer-station"
           className="w-full mt-1 h-9 rounded bg-black/40 border border-white/10 text-[11px] px-2 text-white">
           {myStations.map(s => (
-            <option key={s.id} value={s.id}>{s.custom_name || s.name || 'TV'}</option>
+            <option key={s.id} value={s.id}>{s.custom_name || s.station_name || s.name || 'TV'}</option>
           ))}
         </select>
+      </div>
+
+      {/* Quando andrà in TV */}
+      <div className="rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-2 space-y-1.5" data-testid="tv-market-offer-schedule">
+        <label className="text-[9px] uppercase font-bold text-cyan-300">Quando andrà in TV</label>
+        {(() => {
+          const stillInCinema = ['in_theaters', 'premiere'].includes((content?.status || '').toLowerCase());
+          return (
+            <>
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  onClick={() => setOfferSchedule('cinema_end')}
+                  data-testid="schedule-cinema-end"
+                  className={`py-1.5 rounded text-[9px] font-bold ${offerSchedule === 'cinema_end' ? 'bg-cyan-500 text-black' : 'bg-white/5 text-white/60'}`}>
+                  A scadenza cinema
+                </button>
+                {!stillInCinema ? (
+                  <button
+                    onClick={() => setOfferSchedule('date')}
+                    data-testid="schedule-date"
+                    className={`py-1.5 rounded text-[9px] font-bold ${offerSchedule === 'date' ? 'bg-cyan-500 text-black' : 'bg-white/5 text-white/60'}`}>
+                    Data specifica
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    title="Disponibile solo se il film NON è più al cinema"
+                    className="py-1.5 rounded text-[9px] font-bold bg-white/5 text-white/30 cursor-not-allowed">
+                    Data specifica
+                  </button>
+                )}
+              </div>
+              {offerSchedule === 'date' && (
+                <input
+                  type="date"
+                  value={offerScheduleDate}
+                  onChange={e => setOfferScheduleDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  data-testid="schedule-date-input"
+                  className="w-full h-8 rounded bg-black/40 border border-white/10 text-[10px] px-2 text-white" />
+              )}
+              <p className="text-[7px] text-white/50">
+                {stillInCinema
+                  ? '🎬 Il film è ancora al cinema: il contratto partirà a fine periodo cinema.'
+                  : (offerSchedule === 'cinema_end'
+                      ? 'Il contratto partirà subito (il film non è più al cinema).'
+                      : 'Imposta la data esatta in cui il film andrà nel tuo palinsesto.')}
+              </p>
+            </>
+          );
+        })()}
       </div>
 
       <div>

@@ -176,8 +176,8 @@ export default function FilmActionsSheet() {
       const r = await api.post('/tv-stations/transfer-from-cinema', {
         film_id: film.id,
         station_id: station.id,
-        mode: 'prossimamente',
-        delay_hours: hours,
+        mode: hours === 'cinema_end' ? 'cinema_end' : 'prossimamente',
+        delay_hours: hours === 'cinema_end' ? null : hours,
       });
       toast.success(r.data?.message || 'Programmato in TV!');
       if (refreshUser) refreshUser();
@@ -590,13 +590,26 @@ function StationTransferOptions({ station, onBack, delayHours, setDelayHours, on
             </button>
           ))}
         </div>
+        {/* "A scadenza periodo cinema" — opzione naturale */}
+        <button
+          onClick={() => setDelayHours('cinema_end')}
+          className={`w-full py-1.5 rounded-md text-[10px] font-bold transition-all
+            ${delayHours === 'cinema_end' ? 'bg-cyan-400 text-black shadow-[0_0_10px_rgba(80,200,255,0.55)]' : 'bg-white/5 text-cyan-200 border border-cyan-500/30 hover:border-cyan-400/60'}`}
+          data-testid="la-mia-tv-delay-cinema-end"
+        >
+          🎬 A scadenza periodo cinema
+        </button>
         <button
           onClick={onTransferScheduled}
           disabled={loadingNow || loadingSched}
           className="w-full py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-white text-[11px] font-bold active:scale-[0.98] transition-all disabled:opacity-60"
           data-testid="la-mia-tv-transfer-scheduled"
         >
-          {loadingSched ? <Loader2 className="w-4 h-4 animate-spin inline-block" /> : <>Programma tra {delayHours < 48 ? `${delayHours}h` : `${delayHours / 24}g`}</>}
+          {loadingSched
+            ? <Loader2 className="w-4 h-4 animate-spin inline-block" />
+            : (delayHours === 'cinema_end'
+                ? <>Programma a fine cinema</>
+                : <>Programma tra {delayHours < 48 ? `${delayHours}h` : `${delayHours / 24}g`}</>)}
         </button>
       </div>
 

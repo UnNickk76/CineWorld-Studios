@@ -1095,7 +1095,7 @@ async def remove_upcoming(req: RemoveContentRequest, user: dict = Depends(get_cu
 class CinemaToTVRequest(BaseModel):
     film_id: str
     station_id: str
-    mode: str  # 'subito' (immediate) | 'prossimamente' (scheduled)
+    mode: str  # 'subito' | 'prossimamente' | 'cinema_end'
     delay_hours: Optional[int] = 24  # only for 'prossimamente'
 
 
@@ -1216,15 +1216,34 @@ async def transfer_film_from_cinema(req: CinemaToTVRequest, user: dict = Depends
             "trend_at_transfer": trend,
         }
 
-    elif req.mode == 'prossimamente':
-        delay = int(req.delay_hours or 24)
-        if delay < 6 or delay > 168:
-            raise HTTPException(400, "Delay fuori intervallo (6h - 168h)")
+    elif req.mode in ('prossimamente', 'cinema_end'):
         upcoming = station.get('upcoming_content', []) or []
         if any(u.get('content_id') == req.film_id for u in upcoming):
             raise HTTPException(400, "Questo film e' gia' nei Prossimamente della stazione")
 
-        scheduled_at = now + timedelta(hours=delay)
+        if req.mode == 'cinema_end':
+            # Calcola fine periodo cinema
+            rel = film.get('released_at') or film.get('cinema_release_date')
+            if not rel:
+                raise HTTPException(400, "Il film non ha una data di uscita al cinema valida")
+            try:
+                rel_dt = datetime.fromisoformat(rel.replace('Z', '+00:00')) if isinstance(rel, str) else rel
+                if rel_dt.tzinfo is None:
+                    rel_dt = rel_dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                raise HTTPException(400, "Data uscita cinema non valida")
+            cin_days = int(film.get('cinema_duration_days') or 21)
+            scheduled_at = rel_dt + timedelta(days=cin_days)
+            if scheduled_at <= now:
+                # Cinema gia' finito → tratta come 'subito'
+                scheduled_at = now + timedelta(hours=1)
+            delay = max(1, int((scheduled_at - now).total_seconds() // 3600))
+        else:
+            delay = int(req.delay_hours or 24)
+            if delay < 6 or delay > 168:
+                raise HTTPException(400, "Delay fuori intervallo (6h - 168h)")
+            scheduled_at = now + timedelta(hours=delay)
+
         entry = {
             'id': str(uuid.uuid4()),
             'content_id': req.film_id,
@@ -1236,6 +1255,7 @@ async def transfer_film_from_cinema(req: CinemaToTVRequest, user: dict = Depends
             'added_at': now.isoformat(),
             'scheduled_air_at': scheduled_at.isoformat(),
             'delay_hours': delay,
+            'cinema_end_scheduled': req.mode == 'cinema_end',
             'schedule_config': None,
             'frozen': False,
             'from_cinema': True,

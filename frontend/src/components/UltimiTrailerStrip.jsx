@@ -85,7 +85,11 @@ export default function UltimiTrailerStrip({ limit = 10 }) {
                   <span className="absolute top-0.5 left-0.5 px-1 py-0 rounded-full bg-amber-500/80 text-[5px] font-black text-black">🏆</span>
                 )}
                 {!!it.tstar && (
-                  <span className="absolute bottom-6 right-0.5 px-1 py-0 rounded-full bg-black/60 border border-yellow-400/40 text-[5px] font-bold text-yellow-300">T{Math.round(it.tstar)}</span>
+                  <span
+                    className="absolute bottom-6 right-0.5 px-1 py-0 rounded-full bg-black/70 border border-yellow-400/40 text-[5px] font-bold text-yellow-300"
+                    title={`TStar ${Math.round(it.tstar)} · punteggio qualità trailer`}>
+                    ★{Math.round(it.tstar)}
+                  </span>
                 )}
                 <div className="absolute bottom-0.5 left-0.5 right-0.5">
                   <p className="text-[6px] font-bold text-white truncate">{it.title}</p>

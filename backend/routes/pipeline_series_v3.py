@@ -1756,7 +1756,7 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
             bid = item.get('tv_rights_buyer_user_id')
             if sid and sid in stations_map:
                 st = stations_map[sid]
-                item['tv_rights_station_name'] = st.get('custom_name') or st.get('name') or 'TV'
+                item['tv_rights_station_name'] = st.get('custom_name') or st.get('station_name') or st.get('name') or 'TV'
                 item['tv_rights_station_logo'] = st.get('logo_url') or ''
             if bid and bid in buyers_map:
                 b = buyers_map[bid]
@@ -1828,7 +1828,7 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
                 sid = item.get('tv_rights_buyer_station_id')
                 if sid and sid in stations_map_m:
                     st = stations_map_m[sid]
-                    item['tv_rights_station_name'] = st.get('custom_name') or st.get('name') or 'TV'
+                    item['tv_rights_station_name'] = st.get('custom_name') or st.get('station_name') or st.get('name') or 'TV'
                     item['tv_rights_station_logo'] = st.get('logo_url') or ''
     except Exception:
         pass

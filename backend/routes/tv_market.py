@@ -57,6 +57,9 @@ class MakeOfferReq(BaseModel):
     mode_proposed: Literal["full", "split"]
     duration_days_proposed: int = Field(ge=1, le=180)
     message: Optional[str] = None
+    # Programmazione TV: 'cinema_end' (default) o 'date' con data esatta
+    schedule_mode: Optional[Literal["cinema_end", "asap", "date"]] = "cinema_end"
+    schedule_date: Optional[str] = None  # YYYY-MM-DD
 
 
 class SpontaneousOfferReq(BaseModel):
@@ -68,6 +71,8 @@ class SpontaneousOfferReq(BaseModel):
     mode_proposed: Literal["full", "split"]
     duration_days_proposed: int = Field(ge=1, le=180)
     message: Optional[str] = None
+    schedule_mode: Optional[Literal["cinema_end", "asap", "date"]] = "cinema_end"
+    schedule_date: Optional[str] = None
 
 
 class CounterOfferReq(BaseModel):
@@ -386,6 +391,8 @@ async def make_offer(listing_id: str, req: MakeOfferReq, user: dict = Depends(ge
         "duration_days_proposed": int(req.duration_days_proposed),
         "message": (req.message or "")[:300],
         "status": "pending",
+        "schedule_mode": req.schedule_mode or "cinema_end",
+        "schedule_date": req.schedule_date,
         "created_at": _now_iso(),
         "updated_at": _now_iso(),
         # Counter-offer history
@@ -460,6 +467,8 @@ async def make_spontaneous_offer(content_id: str, req: SpontaneousOfferReq, user
         "duration_days_proposed": int(req.duration_days_proposed),
         "message": (req.message or "")[:300],
         "status": "pending",
+        "schedule_mode": req.schedule_mode or "cinema_end",
+        "schedule_date": req.schedule_date,
         "created_at": _now_iso(),
         "updated_at": _now_iso(),
         "history": [],
@@ -531,7 +540,7 @@ async def my_incoming_offers(user: dict = Depends(get_current_user)):
         d["buyer_nickname"] = b.get("nickname")
         d["buyer_house"] = b.get("production_house_name")
         st = stations_map.get(d.get("station_id"), {})
-        d["station_name"] = st.get("custom_name") or st.get("name") or "TV"
+        d["station_name"] = st.get("custom_name") or st.get("station_name") or st.get("name") or "TV"
     await _enrich_with_content_titles(docs)
     return {"offers": docs}
 
@@ -620,12 +629,31 @@ async def _execute_payment_and_contract(offer: dict, accepted_terms: dict) -> di
     # Contratto
     now = datetime.now(timezone.utc)
 
-    # Se il contenuto è ancora al cinema, il contratto NON parte subito.
-    # start_at = data fine cinema, end_at = start_at + days, status = 'pending_cinema'.
+    # Programmazione: priorità all'opzione del buyer (schedule_mode), fallback al comportamento legacy
+    schedule_mode = (offer.get("schedule_mode") or "cinema_end").lower()
+    schedule_date_iso = offer.get("schedule_date")
+
     content_for_cinema = await _load_content(offer["content_collection"], offer["content_id"])
     cinema_end = _cinema_end_datetime(content_for_cinema) if content_for_cinema else None
-    deferred = bool(cinema_end and cinema_end > now)
-    start_dt = cinema_end if deferred else now
+    still_in_cinema = bool(cinema_end and cinema_end > now)
+
+    if schedule_mode == "date" and schedule_date_iso and not still_in_cinema:
+        # Data esatta scelta dal buyer (solo se il film non è più al cinema)
+        try:
+            d = datetime.fromisoformat(schedule_date_iso) if "T" in schedule_date_iso else datetime.strptime(schedule_date_iso, "%Y-%m-%d")
+            d = d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d
+            start_dt = max(d, now)
+        except Exception:
+            start_dt = now
+        deferred = start_dt > now
+    elif still_in_cinema:
+        # Film ancora al cinema → contratto pending_cinema fino a fine cinema
+        start_dt = cinema_end
+        deferred = True
+    else:
+        start_dt = now
+        deferred = False
+
     end = start_dt + timedelta(days=days)
     contract_status = "pending_cinema" if deferred else "active"
 
@@ -647,8 +675,10 @@ async def _execute_payment_and_contract(offer: dict, accepted_terms: dict) -> di
         "start_at": start_dt.isoformat(),
         "end_at": end.isoformat(),
         "status": contract_status,
-        "deferred_from_cinema": deferred,
+        "deferred_from_cinema": deferred and bool(cinema_end and cinema_end > now),
         "cinema_end_planned_at": cinema_end.isoformat() if cinema_end else None,
+        "schedule_mode": schedule_mode,
+        "schedule_date": schedule_date_iso,
         "created_at": _now_iso(),
     }
     await db.tv_market_contracts.insert_one(dict(contract))
@@ -857,7 +887,7 @@ async def get_active_contracts(content_id: str, user: dict = Depends(get_current
             stations_map[s["id"]] = s
     for c in contracts:
         st = stations_map.get(c.get("station_id"), {})
-        c["station_name"] = st.get("custom_name") or st.get("name") or "TV"
+        c["station_name"] = st.get("custom_name") or st.get("station_name") or st.get("name") or "TV"
     return {"contracts": contracts}
 
 

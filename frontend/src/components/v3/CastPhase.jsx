@@ -501,8 +501,20 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                                 {Array.from({ length: actor.stars || 1 }).map((_, i) => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}
                               </div>
                             </div>
-                            <button onClick={() => !isFull && castAgencyActor(actor, 'actor', actorRoles[actor.id] || 'generico')} disabled={loading || isFull}
-                              className={`text-[7px] px-2 py-1 rounded-lg font-bold shrink-0 border ${group.btnCls} disabled:opacity-30`} data-testid={`cast-own-${actor.id}`}>+</button>
+                            <div className="flex flex-col gap-1 shrink-0">
+                              <select
+                                value={actorRoles[actor.id] || 'generico'}
+                                onChange={(e) => setActorRoles(prev => ({ ...prev, [actor.id]: e.target.value }))}
+                                disabled={loading || isFull}
+                                className={`text-[7px] px-1 py-0.5 rounded border ${group.btnCls} disabled:opacity-30 cursor-pointer`}
+                                data-testid={`cast-own-role-${actor.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {ACTOR_ROLES.map(r => <option key={r} value={r}>{ROLE_DISPLAY[r] || r}</option>)}
+                              </select>
+                              <button onClick={() => !isFull && castAgencyActor(actor, 'actor', actorRoles[actor.id] || 'generico')} disabled={loading || isFull}
+                                className={`text-[7px] px-2 py-1 rounded-lg font-bold border ${group.btnCls} disabled:opacity-30`} data-testid={`cast-own-${actor.id}`}>+</button>
+                            </div>
                           </div>
                         ))}
                       </div>

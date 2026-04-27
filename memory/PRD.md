@@ -1,3 +1,43 @@
+## Fix Cast Step — Ruolo + CRc + Pre-ingaggiati (Apr 27, 2026 — sera 16)
+
+### Problemi segnalati
+1. **Mia Agenzia (viola)**: ingaggio funzionante ma niente selezione ruolo → tutto "generico".
+2. **Scuola di Recitazione (verde)**: 2 stelle ma CRc=0 visualizzato, niente ruolo, "generico".
+3. **Pre-ingaggiati (giallo, Mikhail Solovyov)**: niente ruolo + "Errore API" all'ingaggio.
+
+### Fix
+
+**Backend `routes/pipeline_v3.py`**:
+
+1. `_calc_crc_from_npc()` → fallback per NPC senza skills granulari (studenti scuola, agency basic): formula `stars * 8 + min(fame, 100) * 0.2` invece di ritornare 0.
+
+2. `cast-agency-actor` endpoint → aggiunto branch `source == "pre_engaged"`:
+   - Cerca in `db.pre_engagements` (state in active/threatened) per quel NPC.
+   - Costruisce actor object da `npc_snapshot` con `cost_per_film: 0`, `is_pre_engaged: True`, skills/stars/fame da snapshot.
+   - Se non trova → 404 normale.
+
+**Frontend `components/v3/CastPhase.jsx`**:
+
+3. Per ogni attore "own roster" (agency / scuola / pre-ingaggiati) aggiunta una **`<select>` ruolo** sopra il bottone "+":
+   - Lista popolata da `ACTOR_ROLES` (lead/coprotagonist/supporting/extra/cameo + generico).
+   - Visualizzazione localizzata via `ROLE_DISPLAY`.
+   - Scelta salvata in `actorRoles[actor.id]` (state esistente, gia' usato dal mercato).
+   - Bottone "+" passa il ruolo scelto a `castAgencyActor()` invece di forzare 'generico'.
+   - `data-testid="cast-own-role-{actor.id}"` per testing.
+
+### Test
+- Lint frontend ✅, lint backend ✅
+- Backend riavviato OK
+- Pagina cast accessibile via `/create-film?p={id}` step CAST
+
+### Note
+La sub-tab role (Registi/Scenegg./Attori/Compositori) e' la seconda riga di tabs all'interno della source tab (Mercato/Mia Agenzia/Agenzie). Per vedere il selettore ruolo nel testing, prima clicca "La Mia Agenzia" poi clicca "Attori" nel sub-tab inferiore.
+
+Files: `backend/routes/pipeline_v3.py`, `frontend/src/components/v3/CastPhase.jsx`.
+
+---
+
+
 ## Fix Trailer Anime — Stile coerente (Apr 27, 2026 — sera 15)
 
 ### Problema

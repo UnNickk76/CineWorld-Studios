@@ -148,11 +148,13 @@ def _step_index(state: str) -> int:
 def _calc_crc_from_npc(npc: dict) -> int:
     """Calculate CRc (Cast Rank CineWorld) 0-100."""
     skills = npc.get('skills', {})
-    if not skills:
-        return 0
-    avg_skill = sum(skills.values()) / len(skills)
     fame = npc.get('fame_score', npc.get('fame', 0)) or 0
     stars = npc.get('stars', 1) or 1
+    if not skills:
+        # Fallback per studenti scuola / agency senza skills granulari:
+        # stima basata su stelle + fama. 5 stelle = 40 base, +20 max da fame.
+        return max(0, min(100, round(stars * 8 + min(fame, 100) * 0.2)))
+    avg_skill = sum(skills.values()) / len(skills)
     crc = avg_skill * 0.6 + min(fame, 100) * 0.2 + stars * 4
     return max(0, min(100, round(crc)))
 
@@ -1750,6 +1752,28 @@ async def cast_agency_actor_v3(pid: str, data: dict, user: dict = Depends(get_cu
                 'nationality': student.get('nationality', ''), 'stars': 2,
                 'fame_score': 20, 'fame_category': 'emerging',
                 'cost_per_film': 50000, 'primary_skills': [],
+            }
+    elif source == "pre_engaged":
+        # Pre-engaged NPC (gia' bloccato dal player). Carica dallo snapshot in pre_engagements.
+        pe = await db.pre_engagements.find_one(
+            {'npc_id': actor_id, 'user_id': user['id'], 'state': {'$in': ['active', 'threatened']}},
+            {'_id': 0}
+        )
+        if pe:
+            snap = pe.get('npc_snapshot') or {}
+            actor = {
+                'id': actor_id,
+                'name': snap.get('name') or 'NPC',
+                'age': snap.get('age'),
+                'skills': snap.get('skills', {}),
+                'gender': snap.get('gender', ''),
+                'nationality': snap.get('nationality', ''),
+                'stars': snap.get('stars', 3),
+                'fame_score': snap.get('fame', snap.get('fame_score', 0)),
+                'fame_category': snap.get('fame_category', 'emerging'),
+                'cost_per_film': 0,  # gratis (gia' pre-pagato)
+                'primary_skills': snap.get('primary_skills', []),
+                'is_pre_engaged': True,
             }
     else:
         actor = await db.agency_actors.find_one(

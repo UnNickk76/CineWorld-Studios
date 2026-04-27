@@ -3,7 +3,7 @@
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime, timezone, timedelta
 import uuid
 import logging
@@ -117,6 +117,7 @@ class CreateRequest(BaseModel):
     series_type: str = "tv_series"  # tv_series | anime
     num_episodes: int = 10
     preplot: str = ""
+    vm_rating: Optional[Literal["vm14", "vm16", "vm18"]] = None
 
 class IdeaSaveRequest(BaseModel):
     title: str
@@ -130,6 +131,7 @@ class IdeaSaveRequest(BaseModel):
     series_format: Optional[str] = None
     episode_duration_min: Optional[int] = None
     equipment_level: Optional[str] = None
+    vm_rating: Optional[Literal["vm14", "vm16", "vm18"]] = None
 
 class AdvanceRequest(BaseModel):
     next_state: str
@@ -184,6 +186,7 @@ async def create_project(req: CreateRequest, user: dict = Depends(get_current_us
         "subgenre": None,
         "subgenres": [],
         "preplot": req.preplot,
+        "vm_rating": req.vm_rating or ("vm16" if (req.genre or "").lower() == "erotic" else ("vm14" if (req.genre or "").lower() == "horror" else None)),
         "num_episodes": num_ep,
         "season_number": 1,
         "locations": [],
@@ -248,13 +251,22 @@ async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_cur
 
     num_ep = max(ep_range[0], min(ep_range[1], req.num_episodes))
 
+    # Content filter + auto VM
+    from utils.content_filter import censor_text
+    title_safe = censor_text((req.title or "").strip())
+    preplot_safe = censor_text((req.preplot or "").strip())
+    genre_l = (req.genre or "").lower()
+    auto_vm = "vm16" if genre_l == "erotic" else ("vm14" if genre_l == "horror" else None)
+    vm_rating = req.vm_rating or auto_vm
+
     return await _update_project(pid, user["id"], {
-        "title": req.title,
+        "title": title_safe,
         "genre": req.genre,
         "genre_name": genre_info.get("name_it", req.genre),
         "subgenre": req.subgenre,
         "subgenres": req.subgenres or [],
-        "preplot": req.preplot,
+        "preplot": preplot_safe,
+        "vm_rating": vm_rating,
         "num_episodes": num_ep,
         "locations": req.locations or [],
         **({"series_format": req.series_format} if req.series_format else {}),
@@ -1194,6 +1206,7 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "genre": project.get("genre"),
         "genre_name": project.get("genre_name"),
         "subgenres": project.get("subgenres", []),
+        "vm_rating": project.get("vm_rating"),
         "preplot": project.get("preplot"),
         "poster_url": project.get("poster_url", ""),
         "screenplay_text": project.get("screenplay_text", ""),
@@ -1679,7 +1692,7 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
          "pipeline_state": {"$nin": ["released", "discarded", "deleted"]}},
         {"_id": 0, "id": 1, "title": 1, "genre": 1, "genre_name": 1, "type": 1,
          "poster_url": 1, "num_episodes": 1, "season_number": 1, "user_id": 1,
-         "pipeline_state": 1, "created_at": 1}
+         "pipeline_state": 1, "created_at": 1, "vm_rating": 1}
     ).sort("created_at", -1).to_list(20)
 
     # Also get released series marked prossimamente that haven't started airing
@@ -1692,7 +1705,7 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
          "poster_url": 1, "num_episodes": 1, "season_number": 1, "user_id": 1,
          "cwsv_display": 1, "quality_score": 1, "released_at": 1, "episodes": 1,
          "is_lampo": 1, "scheduled_release_at": 1, "status": 1, "source_project_id": 1,
-         "target_tv_station_id": 1, "pipeline_version": 1,
+         "target_tv_station_id": 1, "pipeline_version": 1, "vm_rating": 1,
          "tv_rights_active_contract_id": 1, "tv_rights_buyer_user_id": 1,
          "tv_rights_buyer_station_id": 1, "tv_rights_mode": 1, "tv_rights_end_at": 1}
     ).sort("released_at", -1).to_list(20)
@@ -1767,7 +1780,7 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
          "pipeline_state": {"$nin": ["released", "discarded", "deleted"]}},
         {"_id": 0, "id": 1, "title": 1, "genre": 1, "type": 1,
          "poster_url": 1, "user_id": 1, "pipeline_state": 1, "created_at": 1,
-         "target_station_name": 1, "tv_air_datetime": 1}
+         "target_station_name": 1, "tv_air_datetime": 1, "vm_rating": 1}
     ).sort("created_at", -1).to_list(20)
 
     tv_movie_films_raw = await db.films.find(
@@ -1775,6 +1788,7 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
         {"_id": 0, "id": 1, "title": 1, "genre": 1,
          "poster_url": 1, "user_id": 1, "released_at": 1, "tv_air_datetime": 1,
          "target_station_id": 1, "target_station_name": 1, "cwsv_display": 1, "quality_score": 1,
+         "vm_rating": 1,
          "tv_rights_active_contract_id": 1, "tv_rights_buyer_user_id": 1,
          "tv_rights_buyer_station_id": 1, "tv_rights_mode": 1, "tv_rights_end_at": 1}
     ).sort("released_at", -1).to_list(20)

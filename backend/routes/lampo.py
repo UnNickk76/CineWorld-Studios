@@ -72,6 +72,7 @@ class StartLampoRequest(BaseModel):
     budget_tier: BudgetTier = "mid"
     num_episodes: Optional[int] = 10  # serie/anime only
     target_tv_station_id: Optional[str] = None  # serie/anime only — manda alla mia TV
+    vm_rating: Optional[Literal["vm14", "vm16", "vm18"]] = None
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -262,6 +263,7 @@ async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay
             "genre": proj["genre"],
             "subgenre": proj.get("subgenre"),
             "subgenres": subgenres,
+            "vm_rating": proj.get("vm_rating"),
             "preplot": proj["preplot"],
             "screenplay": screenplay_text or "",
             "synopsis": screenplay_text or proj.get("preplot", ""),
@@ -307,6 +309,7 @@ async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay
         "genre": proj["genre"],
         "genre_name": proj["genre"],
         "subgenres": subgenres,
+        "vm_rating": proj.get("vm_rating"),
         "preplot": proj["preplot"],
         "screenplay": screenplay_text or "",
         "synopsis": screenplay_text or proj.get("preplot", ""),
@@ -794,15 +797,23 @@ async def start_lampo(req: StartLampoRequest, user: dict = Depends(get_current_u
 
     pid = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
+    # Content filter + auto VM
+    from utils.content_filter import censor_text
+    title_safe = censor_text(req.title.strip())
+    preplot_safe = censor_text(req.preplot.strip())
+    genre_l = (req.genre or "").lower()
+    auto_vm = "vm16" if genre_l == "erotic" else ("vm14" if genre_l == "horror" else None)
+    vm_rating = req.vm_rating or auto_vm
     doc = {
         "id": pid,
         "user_id": user["id"],
         "mode": "lampo",
         "content_type": req.content_type,
-        "title": req.title.strip(),
+        "title": title_safe,
         "genre": req.genre,
         "subgenre": req.subgenre,
-        "preplot": req.preplot.strip(),
+        "preplot": preplot_safe,
+        "vm_rating": vm_rating,
         "budget_tier": req.budget_tier,
         "base_cost": base_cost,
         "paid_cost": scaled_cost,

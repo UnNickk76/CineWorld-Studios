@@ -14,6 +14,7 @@ import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { ProducerBadge } from '../components/ProducerBadge';
 import { LampoLightning } from '../components/LampoLightning';
 import TvRightsBadge from '../components/TvRightsBadge';
+import VmRatingBadge from '../components/VmRatingBadge';
 import TvMarketModal from '../components/TvMarketModal';
 import TvMarketDashboardWidget from '../components/TvMarketDashboardWidget';
 import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from '../components/SectionSortMenu';
@@ -146,6 +147,11 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
                       size="xs"
                     />
                     <LampoLightning item={item} variant="bottom-left" size="xs" />
+                    {item.vm_rating && (
+                      <div className="absolute top-4 left-0.5 z-20">
+                        <VmRatingBadge rating={item.vm_rating} size="xs" />
+                      </div>
+                    )}
                     {item.tv_rights_active_contract_id && item.tv_rights_station_name && (
                       <span className="absolute bottom-1 right-1 z-10 px-1 py-0.5 rounded text-[6px] font-black uppercase bg-cyan-400 text-black border border-cyan-300/50 shadow flex items-center gap-0.5 max-w-[80%] truncate">
                         📺 {item.tv_rights_station_name}

@@ -7,6 +7,7 @@ import { AuthContext } from '../../contexts';
 import { toast } from 'sonner';
 import ProducerProfileModal from '../ProducerProfileModal';
 import TrailerGeneratorCard from '../TrailerGeneratorCard';
+import VmRatingBadge from '../VmRatingBadge';
 import '../../styles/content-template.css';
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
@@ -457,7 +458,12 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
 
       {/* 2. POSTER + INFO BOX */}
       <div className="ct2-top-block" data-testid="ct-top-block">
-        <div className="ct2-poster" data-testid="ct-poster">
+        <div className="ct2-poster" data-testid="ct-poster" style={{ position: 'relative' }}>
+          {film.vm_rating && (
+            <div style={{ position: 'absolute', top: 6, left: 6, zIndex: 10 }}>
+              <VmRatingBadge rating={film.vm_rating} size="sm" />
+            </div>
+          )}
           {posterSrc(film.poster_url) ? (
             <img src={posterSrc(film.poster_url)} alt={film.title} onError={(e) => { e.target.style.display = 'none'; }} />
           ) : (

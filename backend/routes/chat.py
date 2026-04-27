@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from database import db
 from auth_utils import get_current_user
 from game_state import online_users, CHAT_BOTS
+from utils.content_filter import censor_text
 import uuid
 import os
 import random
@@ -158,11 +159,13 @@ async def send_message(msg_data: ChatMessageCreate, user: dict = Depends(get_cur
     from server import sio
     from social_system import create_notification
 
+    # Filtro contenuti: bestemmie hard, parolacce e sex soft
+    safe_content = censor_text(msg_data.content)
     message = {
         'id': str(uuid.uuid4()),
         'room_id': msg_data.room_id,
         'sender_id': user['id'],
-        'content': msg_data.content,
+        'content': safe_content,
         'message_type': msg_data.message_type,
         'image_url': msg_data.image_url,
         'created_at': datetime.now(timezone.utc).isoformat()

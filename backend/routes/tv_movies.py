@@ -97,6 +97,7 @@ class CreateTvMovieRequest(BaseModel):
     subgenres: Optional[list] = None
     preplot: str = Field(..., min_length=1, max_length=2000)
     target_station_id: str = Field(..., min_length=1)
+    vm_rating: Optional[Literal["vm14", "vm16", "vm18"]] = None
 
 
 class ScheduleAiringRequest(BaseModel):
@@ -161,16 +162,25 @@ async def create_tv_movie(req: CreateTvMovieRequest, user: dict = Depends(get_cu
     preferred = STYLE_PREFERRED_GENRES.get(style, [])
     genre_match = (req.genre or "").lower().strip() in preferred
 
+    # Content filter + auto VM
+    from utils.content_filter import censor_text
+    title_safe = censor_text(req.title.strip())
+    preplot_safe = censor_text(req.preplot.strip())
+    genre_l = (req.genre or "").lower().strip()
+    auto_vm = "vm16" if genre_l == "erotic" else ("vm14" if genre_l == "horror" else None)
+    vm_rating = req.vm_rating or auto_vm
+
     doc = {
         "id": pid,
         "user_id": user["id"],
         "pipeline_version": 3,
         "type": "film",
-        "title": req.title.strip(),
+        "title": title_safe,
         "genre": req.genre.strip(),
         "subgenre": (req.subgenre or "").strip() or None,
         "subgenres": (req.subgenres or [])[:3],
-        "preplot": req.preplot.strip(),
+        "preplot": preplot_safe,
+        "vm_rating": vm_rating,
         "pipeline_state": "idea",
         "pipeline_ui_step": 0,
         # === FLAGS TV MOVIE ===
@@ -228,6 +238,13 @@ async def schedule_airing(pid: str, req: ScheduleAiringRequest, user: dict = Dep
         raise HTTPException(400, "La data deve essere futura")
     if req.time_slot not in TIME_SLOTS:
         raise HTTPException(400, "Slot orario non valido")
+
+    # VM rating gating: VM16/VM18 SOLO in slot "late" (notte). VM14 escluso da "morning".
+    vm = project.get("vm_rating")
+    if vm in ("vm16", "vm18") and req.time_slot != "late":
+        raise HTTPException(400, f"Contenuti {vm.upper()} possono essere trasmessi SOLO nello slot 'late' (notte) per legge.")
+    if vm == "vm14" and req.time_slot == "morning":
+        raise HTTPException(400, "Contenuti VM14 non possono essere trasmessi nello slot 'morning' (mattina, fascia famiglia).")
 
     # FASE 2: maratona detection — se 3+ film TV programmati nello stesso giorno sulla stessa TV
     day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -303,7 +320,9 @@ async def rerun_tv_movie(film_id: str, user: dict = Depends(get_current_user)):
     new_count = count + 1
     decay_factor = REPLAY_VIEWER_DECAY ** new_count
     base_viewers = int(film.get("total_viewers") or film.get("opening_day_spectators") or 0)
-    expected_viewers = int(base_viewers * decay_factor)
+    # VM rating riduce pubblico target
+    vm_mod = {None: 1.0, '': 1.0, 'vm14': 0.90, 'vm16': 0.80, 'vm18': 0.65}.get(film.get('vm_rating'), 1.0)
+    expected_viewers = int(base_viewers * decay_factor * vm_mod)
 
     # Pubblica nuovamente nel palinsesto della TV
     if film.get("target_station_id"):

@@ -11051,6 +11051,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# === PIPELINE V1 / V2: SOLA LETTURA ===
+# Le pipeline legacy (V1: /api/film-pipeline, /api/series-pipeline, /api/sequel-pipeline
+# e V2: /api/pipeline-v2) sono dismesse. Solo GET/HEAD/OPTIONS sono permessi (per
+# retro-compatibilita' visualizzazione progetti esistenti). Qualsiasi mutazione viene
+# bloccata con 410 Gone.
+_LEGACY_READONLY_PREFIXES = (
+    "/api/pipeline-v2/",
+    "/api/film-pipeline/",
+    "/api/series-pipeline/",
+    "/api/sequel-pipeline/",
+)
+_WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+@app.middleware("http")
+async def legacy_pipeline_readonly_guard(request, call_next):
+    if request.method in _WRITE_METHODS:
+        path = request.url.path or ""
+        if any(path.startswith(p) for p in _LEGACY_READONLY_PREFIXES):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=410,
+                content={
+                    "detail": "Pipeline dismessa (sola lettura). Usa la Pipeline V3 / LAMPO per nuove produzioni.",
+                    "deprecated_endpoint": True,
+                }
+            )
+    return await call_next(request)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'

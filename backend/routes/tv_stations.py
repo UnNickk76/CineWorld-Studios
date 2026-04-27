@@ -1488,25 +1488,34 @@ async def calculate_tv_station_revenues():
         )
 
 
+def _vm_audience_modifier(vm_rating):
+    """VM rating riduce il pubblico raggiungibile (esclusi minori).
+    null = 1.0 (pieno), vm14 = 0.90 (-10%), vm16 = 0.80 (-20%), vm18 = 0.65 (-35%).
+    Effetto reale su viewers e revenue TV/cinema."""
+    return {None: 1.0, '': 1.0, 'vm14': 0.90, 'vm16': 0.80, 'vm18': 0.65}.get(vm_rating, 1.0)
+
+
 def _calc_share_and_revenue(station, enriched):
     """Calculate current share and revenue estimates for display."""
     contents = station.get('contents', {})
     total_content = len(contents.get('films', [])) + len(contents.get('tv_series', [])) + len(contents.get('anime', []))
-    
+
     all_items = enriched.get('films', []) + enriched.get('tv_series', []) + enriched.get('anime', [])
     avg_quality = sum(i.get('quality_score', 50) for i in all_items) / max(1, len(all_items))
-    
+    # Audience VM modifier medio (ponderato sui contenuti)
+    vm_mod = sum(_vm_audience_modifier(i.get('vm_rating')) for i in all_items) / max(1, len(all_items)) if all_items else 1.0
+
     ad_seconds = station.get('ad_seconds', 30)
     share_base = (avg_quality / 100) * 20
     ad_penalty = ad_seconds * SHARE_PENALTY_PER_AD_SECOND * 0.1
     volume_bonus = min(5, total_content * 0.5)
-    estimated_share = max(0.5, min(30, share_base - ad_penalty + volume_bonus))
-    
-    viewers_per_content = int(BASE_HOURLY_VIEWERS * (avg_quality / 50))
+    estimated_share = max(0.5, min(30, (share_base - ad_penalty + volume_bonus) * vm_mod))
+
+    viewers_per_content = int(BASE_HOURLY_VIEWERS * (avg_quality / 50) * vm_mod)
     total_viewers = viewers_per_content * total_content
     ad_mult = 1.0 + (ad_seconds / 60)
     estimated_hourly = min(int((total_viewers / 1000) * AD_REVENUE_PER_1K * ad_mult), 50000)
-    
+
     return {
         'estimated_share': round(estimated_share, 1),
         'estimated_hourly_revenue': estimated_hourly,
@@ -1515,6 +1524,7 @@ def _calc_share_and_revenue(station, enriched):
         'avg_quality': round(avg_quality, 1),
         'total_content': total_content,
         'ad_seconds': ad_seconds,
+        'vm_audience_modifier': round(vm_mod, 2),
     }
 
 

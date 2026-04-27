@@ -331,6 +331,7 @@ class IdeaSaveRequest(BaseModel):
     subgenres: Optional[List[str]] = None
     locations: Optional[List[str]] = None
     budget_tier: Optional[str] = None  # micro, low, mid, big, blockbuster, mega
+    vm_rating: Optional[Literal["vm14", "vm16", "vm18"]] = None  # null = visione libera
 
 
 class PromptRequest(BaseModel):
@@ -462,13 +463,27 @@ async def get_cwsv_full(pid: str, user: dict = Depends(get_current_user)):
 
 @router.post("/films/{pid}/save-idea")
 async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_current_user)):
+    from utils.content_filter import censor_text
+    title_safe = censor_text(req.title.strip())
+    preplot_safe = censor_text(req.preplot.strip())
+
+    # Auto VM rating: erotic -> vm16 default, horror -> vm14 default; user override accepted
+    genre_l = (req.genre or "").lower().strip()
+    auto_vm = None
+    if genre_l == "erotic":
+        auto_vm = "vm16"
+    elif genre_l == "horror":
+        auto_vm = "vm14"
+    vm_rating = req.vm_rating or auto_vm
+
     update_data = {
-        "title": req.title.strip(),
+        "title": title_safe,
         "genre": req.genre.strip(),
         "subgenre": (req.subgenre or "").strip() or None,
-        "preplot": req.preplot.strip(),
+        "preplot": preplot_safe,
         "subgenres": req.subgenres or [],
         "locations": req.locations or [],
+        "vm_rating": vm_rating,
         "status": "pipeline_active",
     }
     # Budget tier (only for new films, validated)
@@ -935,6 +950,11 @@ async def generate_screenplay(pid: str, req: PromptRequest, user: dict = Depends
             f"La storia prende forma dalla pretrama:\n{prompt[:500]}\n\n"
             f"[Sceneggiatura generata come bozza - AI non disponibile]"
         )
+
+    # Censura screenplay e prompt (anche generati AI)
+    from utils.content_filter import censor_text
+    screenplay_text = censor_text(screenplay_text)
+    prompt = censor_text(prompt)
 
     project = await _update_project(pid, user["id"], {
         "screenplay_source": req.source,
@@ -2773,6 +2793,7 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "genre": project.get("genre"),
         "subgenre": project.get("subgenre"),
         "subgenres": project.get("subgenres", []),
+        "vm_rating": project.get("vm_rating"),
         "preplot": project.get("preplot"),
         "poster_url": project.get("poster_url", ""),
         "screenplay_text": project.get("screenplay_text", ""),

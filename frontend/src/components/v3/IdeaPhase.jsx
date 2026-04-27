@@ -50,6 +50,10 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
   const [preplot, setPreplot] = useState(film.preplot || '');
   const [locations, setLocations] = useState(film.locations || []);
   const [budgetTier, setBudgetTier] = useState(film.budget_tier || 'mid');
+  const [vmRating, setVmRating] = useState(film.vm_rating || (
+    (film.genre || '').toLowerCase() === 'erotic' ? 'vm16' :
+    (film.genre || '').toLowerCase() === 'horror' ? 'vm14' : null
+  ));
   const [posterPrompt, setPosterPrompt] = useState('');
   const [showPromptInput, setShowPromptInput] = useState(false);
   const [manualScreenplay, setManualScreenplay] = useState('');
@@ -102,6 +106,15 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
   const subgenreOptions = useMemo(() => SUBGENRE_MAP[genre] || [], [genre]);
   const mark = () => onDirty?.();
 
+  // Auto VM rating quando il genere cambia (override possibile manuale)
+  useEffect(() => {
+    if (vmRating) return;  // gia' impostato dal player
+    const g = (genre || '').toLowerCase();
+    if (g === 'erotic') setVmRating('vm16');
+    else if (g === 'horror') setVmRating('vm14');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genre]);
+
   // Phase 0 validation
   const phase0Valid = title.trim().length >= 2 && genre && subgenres.length >= 1 && preplot.trim().length >= 50;
 
@@ -109,7 +122,7 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
   const confirmPhase0 = async () => {
     setLoading('phase0');
     try {
-      await v3api(`/films/${film.id}/save-idea`, 'POST', { title, genre, subgenre: subgenres.join(', '), preplot, subgenres, locations, budget_tier: budgetTier });
+      await v3api(`/films/${film.id}/save-idea`, 'POST', { title, genre, subgenre: subgenres.join(', '), preplot, subgenres, locations, budget_tier: budgetTier, vm_rating: vmRating });
       await onRefresh();
       setSubPhase(1);
       toast?.('Idea salvata!');
@@ -242,6 +255,36 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
             rows={4} placeholder="Descrivi la trama del tuo film (min 50 caratteri)..."
             disabled={subPhase > 0}
             className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-[10px] text-white placeholder-gray-600 disabled:opacity-50" data-testid="preplot-input" />
+          <p className="text-[7px] text-amber-500/70 mt-1">⚠ Parolacce e linguaggio esplicito vengono automaticamente censurati. Le bestemmie sono vietate.</p>
+        </div>
+
+        {/* VM Rating selector */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[8px] text-gray-500 uppercase font-bold">Classificazione (Visione)</span>
+            {vmRating && <span className="text-[8px] font-bold text-red-400">{vmRating.toUpperCase()}</span>}
+          </div>
+          <div className="grid grid-cols-4 gap-1" data-testid="vm-rating-selector">
+            {[
+              { v: null,   label: 'Tutti', color: 'border-gray-700 text-gray-400' },
+              { v: 'vm14', label: 'VM 14', color: 'border-yellow-600/50 text-yellow-300' },
+              { v: 'vm16', label: 'VM 16', color: 'border-orange-600/60 text-orange-300' },
+              { v: 'vm18', label: 'VM 18', color: 'border-red-600/70 text-red-300' },
+            ].map(opt => (
+              <button key={String(opt.v)}
+                onClick={() => { setVmRating(opt.v); mark(); }}
+                disabled={subPhase > 0}
+                data-testid={`vm-rating-${opt.v || 'free'}`}
+                className={`text-[8px] py-1.5 rounded-lg border font-bold transition disabled:opacity-50 ${vmRating === opt.v ? `${opt.color} bg-white/5` : 'border-gray-800 text-gray-600'}`}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[7px] text-gray-500 mt-1">
+            {(genre || '').toLowerCase() === 'erotic' && 'Genere erotico → minimo VM16. '}
+            {(genre || '').toLowerCase() === 'horror' && 'Genere horror → consigliato VM14+. '}
+            La classificazione influenza pubblico, distribuzione TV e fasce orarie.
+          </p>
         </div>
 
         <div>

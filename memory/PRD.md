@@ -1,3 +1,31 @@
+## Fix IDEA Phase locked per Film TV (Apr 27, 2026 — sera 12)
+
+### Bug
+Nei Film TV, dopo la creazione, l'utente entrava nello step IDEA della pipeline V3 ma trovava **Location di Ripresa** e **Budget Produzione** già lockati (subPhase=1 invece di 0).
+
+### Root cause
+`IdeaPhase.jsx` calcolava `hasSavedIdea` solo su `genre + preplot + subgenres`. Siccome al create del film TV salviamo gia' subgenres nel form, `hasSavedIdea=true` e `initialPhase=1` → tutti i campi disabilitati anche se locations e budget non erano ancora stati scelti.
+
+### Fix
+`components/v3/IdeaPhase.jsx`: ampliato il check `hasSavedIdea` per richiedere ANCHE `locations.length > 0` e `budget_tier`. In questo modo l'utente puo' editare locations/budget finche' non li sceglie + salva (`save-idea`). Vale sia per V3 classico che TV movies (compatible con saved films esistenti).
+
+```diff
+- const hasSavedIdea = !!(film.genre && film.preplot && film.preplot.length >= 50 && (film.subgenres?.length > 0 || film.subgenre));
++ const hasSavedIdea = !!(
++   film.genre && film.preplot && film.preplot.length >= 50 &&
++   (film.subgenres?.length > 0 || film.subgenre) &&
++   (film.locations?.length > 0) &&
++   film.budget_tier
++ );
+```
+
+Verificato via screenshot: locations (Hollywood/Cinecitta/Pinewood/Babelsberg/Warner Bros) e tutti i 6 budget tier (Micro/Low/Mid/Big/Blockbuster/Mega) ora cliccabili nel TV movie "Notte di Stelle TV".
+
+Files: `components/v3/IdeaPhase.jsx`.
+
+---
+
+
 ## Fix Form Creazione FILM TV (Apr 27, 2026 — sera 11)
 
 ### Modifiche su feedback utente

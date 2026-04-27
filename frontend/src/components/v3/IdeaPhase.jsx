@@ -26,8 +26,15 @@ const MAX_LOCATIONS = 5;
 export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false }) => {
   const { user, api } = useContext(AuthContext) || {};
   const isGuest = !!user?.is_guest;
-  // Determine which sub-phase we're in based on saved data
-  const hasSavedIdea = !!(film.genre && film.preplot && film.preplot.length >= 50 && (film.subgenres?.length > 0 || film.subgenre));
+  // Determine which sub-phase we're in based on saved data.
+  // NOTE: il film e' "idea-saved" SOLO quando ha tutti i campi base + locations + budget_tier
+  // (altrimenti l'utente non puo' modificare location/budget se sono ancora vuoti).
+  const hasSavedIdea = !!(
+    film.genre && film.preplot && film.preplot.length >= 50 &&
+    (film.subgenres?.length > 0 || film.subgenre) &&
+    (film.locations?.length > 0) &&
+    film.budget_tier
+  );
   const hasPoster = !!film.poster_url;
   const hasScreenplay = !!(film.screenplay_text && film.screenplay_text.length > 50);
 

@@ -2685,7 +2685,7 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
     # Calculate fame change
     current_fame = user.get('fame', 50)
     fame_change = calculate_fame_change(quality_score, final_opening_revenue, current_fame)
-    new_fame = max(0, min(100, current_fame + fame_change))
+    new_fame = max(0, min(500, current_fame + fame_change))
     
     # Update user: deduct costs, add revenue, update stats
     new_funds = user['funds'] - distribution_cost + final_opening_revenue
@@ -8563,10 +8563,10 @@ async def recalculate_player_fame(user: dict = Depends(get_current_user)):
         quality = film.get('quality_score', 50)
         revenue = film.get('opening_day_revenue', 0)
         fame_change = calculate_fame_change(quality, revenue, fame)
-        fame = max(0, min(100, fame + fame_change))
+        fame = max(0, min(500, fame + fame_change))
     
     # Ensure minimum fame based on career
-    min_fame = min(100, 10 + len(completed_films) * 0.3)
+    min_fame = min(500, 10 + len(completed_films) * 0.3)
     fame = int(max(min_fame, fame))
     
     await db.users.update_one({'id': user['id']}, {'$set': {'fame': fame}})
@@ -8638,7 +8638,7 @@ async def get_player_fame(user: dict = Depends(get_current_user)):
     return {
         'fame': fame,
         'tier': tier,
-        'next_tier': get_fame_tier(min(fame + 20, 100)) if fame < 90 else None
+        'next_tier': get_fame_tier(min(fame + 50, 500)) if fame < 480 else None
     }
 
 # Infrastructure & Marketplace routes moved to routes/infrastructure.py

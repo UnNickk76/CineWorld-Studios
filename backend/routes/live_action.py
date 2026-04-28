@@ -58,7 +58,12 @@ def _parse_dt(raw):
 async def _check_unlock_requirements(user: dict) -> dict:
     """Verifica i requisiti player per sbloccare la funzione live action."""
     uid = user["id"]
-    level = int(user.get("level", 0) or 0)
+    # Il level salvato in user.level è stale (non aggiornato dallo scheduler).
+    # Usiamo il valore reale calcolato dall'XP totale, come fa /player/level-info.
+    from game_systems import get_level_from_xp
+    total_xp = int(user.get("total_xp", 0) or 0)
+    level_info = get_level_from_xp(total_xp)
+    level = int(level_info.get("level", 0) or 0)
     fame = int(user.get("fame", 0) or 0)
 
     studio_anime = await db.infrastructure.find_one({"owner_id": uid, "type": "studio_anime"}, {"_id": 0, "level": 1})

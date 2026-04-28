@@ -1,3 +1,69 @@
+## Fix Live Action Level + Fame v2 (0-500) — Apr 28, 2026 (notte)
+
+### Richieste utente
+1. **Bug Live Action**: requisito "Lv Player ≥ 10" mostra "Attuale: 1" anche se profilo dice **Lv 14/16**
+2. **Fame troppo facile**: a 100 punti già "Leggenda" → rallentare crescita 5-10x e portare Leggenda a fama 500. Aggiungere più tier intermedi.
+
+### Diagnosi bug Live Action
+- DB `user.level` è **stale** (non viene aggiornato quando l'utente sale di livello)
+- Il valore reale viene calcolato da `get_level_from_xp(total_xp)` → endpoint `/player/level-info` ritorna correttamente Lv 16
+- `live_action.py::_check_unlock_requirements` leggeva direttamente `user.get('level', 0)` → vedeva 1
+- Stesso problema in `velion.py::analyze_player_state`
+
+### Fix
+**Backend `routes/live_action.py`** + **`routes/velion.py`**:
+- Importano `game_systems.get_level_from_xp` e calcolano il livello reale da `total_xp`
+- `try/except` di sicurezza con fallback al valore stored
+
+**Backend `game_systems.py`** — Sistema Fame v2:
+- `calculate_fame_change()` riscritta con crescita molto più lenta:
+  - Quality 90+: +3 (era +15)
+  - Quality 80+: +1.5 (era +8)
+  - Quality 70+: +0.5 (era +3)
+  - Quality 50-69: ±0.4 (era ±2)
+  - Quality 30-49: −1 (era −5)
+  - Quality <30: −2 (era −10)
+  - Revenue bonus: 0.05 per $1M (era 0.5) — 10× più lento
+  - Diminishing returns spostati a 200/300/400 (× 0.85, 0.7, 0.5)
+- `get_fame_tier()` espansa a **9 tier** (era 6) con scala 0-500:
+  - 0-25 Sconosciuto (rev × 0.80)
+  - 25-75 Emergente (rev × 0.90)
+  - 75-150 Noto (rev × 1.00, +1 unlock)
+  - 150-225 Famoso (rev × 1.10, +2)
+  - 225-300 Stella (rev × 1.20, +3)
+  - 300-380 Idolo (rev × 1.30, +4)
+  - 380-450 Maestro (rev × 1.40, +5)
+  - 450-499 Icona (rev × 1.45, +6)
+  - **500+ Leggenda (rev × 1.50, +8)** ← traguardo serio
+
+**Aggiornamento clamp `min(100, fame)` → `min(500, fame)`** in:
+- `server.py:2688` (max(0, min(500, ...)))
+- `server.py:8566` (recalculate_player_fame loop)
+- `server.py:8569` (min_fame post-recalc)
+- `server.py:8641` (next_tier preview, soglia portata da 90 a 480, step da +20 a +50)
+- `routes/film_pipeline.py:4113`
+- `routes/films.py:940`
+
+### Test
+- Lint Python ✅ (errori preesistenti non miei)
+- `GET /live-action/unlock-status` → `player_level: 16` (era 1) ✅
+- `GET /player/level-info` con fame=15 → tier `Sconosciuto (0-25)` ✅
+
+### File modificati
+- `/app/backend/routes/live_action.py` (level via get_level_from_xp)
+- `/app/backend/routes/velion.py` (level via get_level_from_xp)
+- `/app/backend/game_systems.py` (calculate_fame_change + get_fame_tier rifatti)
+- `/app/backend/server.py` (3 clamp 100 → 500, next_tier preview)
+- `/app/backend/routes/film_pipeline.py` (clamp 100 → 500)
+- `/app/backend/routes/films.py` (clamp 100 → 500)
+
+### Note di game design
+- I valori fama esistenti dei player (es. 15 dell'utente) **non vengono migrati**: rimangono nel range 0-500 ma corrispondono al nuovo tier (es. 15 = "Sconosciuto"). Nessun reset traumatico, semplicemente più strada da fare verso "Leggenda".
+- Requisito Live Action `fame >= 100` rimane (ora corrisponde al tier "Noto"): leggermente più impegnativo ma raggiungibile dopo qualche film di qualità.
+
+---
+
+
 ## Velion AI Advisor — Estensione Quota v2 + Live Action + Feature v2 (Apr 28, 2026 — sera 5)
 
 ### Richiesta utente

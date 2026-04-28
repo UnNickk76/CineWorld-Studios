@@ -501,7 +501,12 @@ PRIORITY_ORDER = {
 async def analyze_player_state(user: dict, page: str = None) -> dict:
     uid = user['id']
     now = datetime.now(timezone.utc)
-    user_level = user.get('level', 1)
+    # Use REAL computed level from total_xp (user.level is stale)
+    try:
+        from game_systems import get_level_from_xp
+        user_level = int(get_level_from_xp(int(user.get('total_xp', 0) or 0)).get('level', 0) or 0)
+    except Exception:
+        user_level = user.get('level', 1)
     user_funds = user.get('funds', 0)
 
     import asyncio

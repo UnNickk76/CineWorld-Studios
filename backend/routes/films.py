@@ -937,7 +937,7 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
 
     current_fame = user.get('fame', 50)
     fame_change = calculate_fame_change(quality_score, final_opening_revenue, current_fame)
-    new_fame = max(0, min(100, current_fame + fame_change))
+    new_fame = max(0, min(500, current_fame + fame_change))
 
     new_funds = user['funds'] - distribution_cost + final_opening_revenue
     new_xp = user.get('total_xp', 0) + xp_gained

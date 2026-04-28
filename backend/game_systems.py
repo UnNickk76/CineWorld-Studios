@@ -342,43 +342,54 @@ def check_minigame_cooldown(play_history: List[dict], game_id: str) -> dict:
 # ==================== FAME SYSTEM ====================
 
 def calculate_fame_change(film_quality: float, film_revenue: float, current_fame: float) -> float:
-    """Calculate fame change based on film performance."""
+    """Calculate fame change based on film performance.
+    Updated Apr 2026: scala 0-500, crescita ~5x più lenta della v1 per dare valore
+    al raggiungimento dei tier alti (Leggenda a fama 500).
+    """
     # Base fame change from quality
     if film_quality >= 90:
-        base_change = 15 + random.uniform(0, 10)
+        base_change = 3 + random.uniform(0, 2)        # +3..+5  (era +15..+25)
     elif film_quality >= 80:
-        base_change = 8 + random.uniform(0, 5)
+        base_change = 1.5 + random.uniform(0, 1)      # +1.5..+2.5
     elif film_quality >= 70:
-        base_change = 3 + random.uniform(0, 3)
+        base_change = 0.5 + random.uniform(0, 0.5)    # +0.5..+1
     elif film_quality >= 50:
-        base_change = random.uniform(-2, 2)
+        base_change = random.uniform(-0.4, 0.4)
     elif film_quality >= 30:
-        base_change = -5 + random.uniform(-3, 0)
+        base_change = -1 + random.uniform(-0.5, 0)
     else:
-        base_change = -10 + random.uniform(-5, 0)
-    
-    # Revenue bonus (per $1M)
-    revenue_bonus = (film_revenue / 1000000) * 0.5
-    
-    # Diminishing returns at high fame
-    if current_fame > 80:
+        base_change = -2 + random.uniform(-1, 0)
+
+    # Revenue bonus per $1M, ridotto 10x rispetto a v1
+    revenue_bonus = (film_revenue / 1000000) * 0.05
+
+    # Diminishing returns scalati alla nuova scala
+    if current_fame > 400:
         base_change *= 0.5
-    elif current_fame > 60:
-        base_change *= 0.75
-    
+    elif current_fame > 300:
+        base_change *= 0.7
+    elif current_fame > 200:
+        base_change *= 0.85
+
     return round(base_change + revenue_bonus, 2)
 
+
 def get_fame_tier(fame: float) -> dict:
-    """Get fame tier and benefits."""
+    """Get fame tier and benefits.
+    Updated Apr 2026: scala 0-500 con 9 tier, Leggenda solo a 500.
+    """
     tiers = [
-        {'min': 0, 'max': 20, 'name': 'Unknown', 'name_it': 'Sconosciuto', 'revenue_multiplier': 0.8, 'unlock_bonus': 0},
-        {'min': 20, 'max': 40, 'name': 'Emerging', 'name_it': 'Emergente', 'revenue_multiplier': 0.9, 'unlock_bonus': 0},
-        {'min': 40, 'max': 60, 'name': 'Notable', 'name_it': 'Noto', 'revenue_multiplier': 1.0, 'unlock_bonus': 1},
-        {'min': 60, 'max': 75, 'name': 'Famous', 'name_it': 'Famoso', 'revenue_multiplier': 1.15, 'unlock_bonus': 2},
-        {'min': 75, 'max': 90, 'name': 'Star', 'name_it': 'Stella', 'revenue_multiplier': 1.3, 'unlock_bonus': 3},
-        {'min': 90, 'max': 100, 'name': 'Legend', 'name_it': 'Leggenda', 'revenue_multiplier': 1.5, 'unlock_bonus': 5},
+        {'min': 0,   'max': 25,  'name': 'Unknown',   'name_it': 'Sconosciuto', 'revenue_multiplier': 0.80, 'unlock_bonus': 0},
+        {'min': 25,  'max': 75,  'name': 'Emerging',  'name_it': 'Emergente',   'revenue_multiplier': 0.90, 'unlock_bonus': 0},
+        {'min': 75,  'max': 150, 'name': 'Notable',   'name_it': 'Noto',        'revenue_multiplier': 1.00, 'unlock_bonus': 1},
+        {'min': 150, 'max': 225, 'name': 'Famous',    'name_it': 'Famoso',      'revenue_multiplier': 1.10, 'unlock_bonus': 2},
+        {'min': 225, 'max': 300, 'name': 'Star',      'name_it': 'Stella',      'revenue_multiplier': 1.20, 'unlock_bonus': 3},
+        {'min': 300, 'max': 380, 'name': 'Idol',      'name_it': 'Idolo',       'revenue_multiplier': 1.30, 'unlock_bonus': 4},
+        {'min': 380, 'max': 450, 'name': 'Master',    'name_it': 'Maestro',     'revenue_multiplier': 1.40, 'unlock_bonus': 5},
+        {'min': 450, 'max': 500, 'name': 'Icon',      'name_it': 'Icona',       'revenue_multiplier': 1.45, 'unlock_bonus': 6},
+        {'min': 500, 'max': 99999, 'name': 'Legend',  'name_it': 'Leggenda',    'revenue_multiplier': 1.50, 'unlock_bonus': 8},
     ]
-    
+
     for tier in tiers:
         if tier['min'] <= fame < tier['max']:
             return tier

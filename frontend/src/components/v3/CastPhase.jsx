@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Star, Zap, X, Lock, Unlock, GraduationCap, Briefcase } from 'lucide-react';
 import { PhaseWrapper, v3api } from './V3Shared';
+import { CharacterChangeAlert } from '../saga/CharacterChangeAlert';
 
 const CAST_TABS = [
   { id: 'directors', label: 'Registi', max: 1 },
@@ -331,6 +332,16 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
     <PhaseWrapper title="Il Cast" subtitle="Assembla la tua squadra" icon={Users} color="cyan">
       <div className="space-y-3">
         {skillNpc && <SkillsModal npc={skillNpc} onClose={() => setSkillNpc(null)} />}
+
+        {/* SAGA: Alert nuovi/rimossi personaggi tra capitoli */}
+        {film.saga_id && film.saga_chapter_number > 1 && (
+          (film.saga_chars_added?.length > 0 || film.saga_chars_removed?.length > 0) && (
+            <CharacterChangeAlert
+              added={(film.characters || []).filter(c => (film.saga_chars_added || []).includes(c.name))}
+              removed={film.saga_chars_removed || []}
+            />
+          )
+        )}
 
         {/* Auto Cast */}
         <button onClick={autoCast} disabled={loading}

@@ -2692,6 +2692,11 @@ async def velion_optimize(pid: str, user: dict = Depends(get_current_user)):
 @router.post("/films/{pid}/confirm-release")
 async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     from utils.calc_production_cost import calculate_production_cost
+    from utils.saga_release_hook import (
+        check_saga_release_gate, attach_saga_metadata,
+        apply_fan_base_hype_modifier, post_release_update_saga,
+        apply_chapter_cost_discount,
+    )
     project = await _get_project(pid, user["id"])
 
     if project.get("pipeline_state") == "released":
@@ -2701,6 +2706,11 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
             "status": "released",
             "quality_score": project.get("quality_score"),
         }
+
+    # ─── SAGA: gate rilascio (cap. precedente fuori sala) ───
+    saga_ok, saga_reason = await check_saga_release_gate(project, user["id"])
+    if not saga_ok:
+        raise HTTPException(400, saga_reason)
 
     # If premiere: cannot release until La Prima 24h window has fully elapsed.
     if project.get("release_type") == "premiere":
@@ -2772,6 +2782,8 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     # Note: we pass base cost to _spend; scaling is applied INSIDE _spend to avoid double-scaling
     try:
         cost = calculate_production_cost(project)  # base cost, no user_doc
+        # SAGA: capitolo >= 2 → 70% costo
+        cost = apply_chapter_cost_discount(cost, project)
         total_funds = cost.get("total_funds", 0)
         total_cp = cost.get("total_cp", 0)
     except Exception:
@@ -2908,6 +2920,33 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
 
     result = await db.films.insert_one(film_doc)
 
+    # ─── SAGA: applica metadati + fan-base modifier all'opening day ───
+    try:
+        attach_saga_metadata(film_doc, project)
+        if project.get("saga_id"):
+            await db.films.update_one(
+                {"id": film_doc["id"]},
+                {"$set": {
+                    "saga_id": film_doc.get("saga_id"),
+                    "saga_chapter_number": film_doc.get("saga_chapter_number"),
+                    "saga_subtitle": film_doc.get("saga_subtitle", ""),
+                    "is_saga_chapter": True,
+                    "is_saga_first": film_doc.get("is_saga_first", False),
+                    "saga_cliffhanger": film_doc.get("saga_cliffhanger", False),
+                }}
+            )
+            new_open = await apply_fan_base_hype_modifier(film_doc, project)
+            await db.films.update_one(
+                {"id": film_doc["id"]},
+                {"$set": {
+                    "opening_day_revenue": new_open,
+                    "saga_fan_base_modifier": film_doc.get("saga_fan_base_modifier"),
+                    "saga_prev_cwsv": film_doc.get("saga_prev_cwsv"),
+                }}
+            )
+    except Exception:
+        pass
+
     # === FASE 2: TV MOVIE — apply slot share + maratona modifiers to opening day ===
     if is_tv_movie:
         try:
@@ -2960,6 +2999,14 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     except Exception:
         pass
 
+    # ─── SAGA: aggiorna stato saga + bonus trilogia ───
+    saga_bonuses = {"trilogy_bonus": 0, "saga_concluded": False}
+    if project.get("saga_id"):
+        try:
+            saga_bonuses = await post_release_update_saga(film_doc, project, user["id"])
+        except Exception:
+            pass
+
     # Award XP + fame for release
     try:
         from utils.xp_fame import award_milestone
@@ -3000,6 +3047,7 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "quality_score": quality_score,
         "cwsv_display": cwsv_display,
         "project": project,
+        "saga_bonuses": saga_bonuses,
     }
 
 

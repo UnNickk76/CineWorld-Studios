@@ -95,32 +95,50 @@ async def _get_studio_level(db, user_id: str, studio_type: str) -> int:
 
 async def _count_active_projects(db, user_id: str, studio_type: str, mode: Mode = "classic") -> int:
     """Conta i progetti ATTIVI (non released/discarded) creati dopo QUOTA_V2_RESET_AT.
-    I progetti pre-fix sono esclusi (correzione bug conteggio Apr 28, 2026)."""
+    I progetti pre-fix sono esclusi (correzione bug conteggio Apr 28, 2026).
+
+    SAGA: tutti i capitoli appartenenti alla stessa saga contano come 1 SOLO slot.
+    Progetti senza saga_id contano 1 ciascuno.
+    """
     cutoff_iso = QUOTA_V2_RESET_AT.isoformat()
     if mode == "lampo":
         content_type = _STUDIO_TO_CONTENT[studio_type]
-        return await db.lampo_projects.count_documents({
+        match = {
             "user_id": user_id,
             "content_type": content_type,
             "released": {"$ne": True},
             "status": {"$nin": ["discarded", "error"]},
             "created_at": {"$gte": cutoff_iso},
-        })
-    if studio_type == "production_studio":
-        return await db.film_projects.count_documents({
+        }
+        coll = db.lampo_projects
+    elif studio_type == "production_studio":
+        match = {
             "user_id": user_id,
             "pipeline_state": {"$nin": ["released", "discarded", "deleted"]},
             "mode": {"$ne": "lampo"},
             "created_at": {"$gte": cutoff_iso},
-        })
-    content_type = "anime" if studio_type == "studio_anime" else "tv_series"
-    return await db.series_projects_v3.count_documents({
-        "user_id": user_id,
-        "type": content_type,
-        "pipeline_state": {"$nin": ["released", "discarded", "deleted"]},
-        "mode": {"$ne": "lampo"},
-        "created_at": {"$gte": cutoff_iso},
-    })
+        }
+        coll = db.film_projects
+    else:
+        content_type = "anime" if studio_type == "studio_anime" else "tv_series"
+        match = {
+            "user_id": user_id,
+            "type": content_type,
+            "pipeline_state": {"$nin": ["released", "discarded", "deleted"]},
+            "mode": {"$ne": "lampo"},
+            "created_at": {"$gte": cutoff_iso},
+        }
+        coll = db.series_projects_v3
+
+    # Aggregation: raggruppa per saga_id (capitoli della stessa saga = 1 slot)
+    pipeline = [
+        {"$match": match},
+        {"$group": {"_id": {"$ifNull": ["$saga_id", "$id"]}, "count": {"$sum": 1}}},
+    ]
+    n = 0
+    async for _ in coll.aggregate(pipeline):
+        n += 1
+    return n
 
 
 async def _count_daily_creations(db, user_id: str, studio_type: str, mode: Mode = "classic") -> tuple[int, Optional[datetime]]:

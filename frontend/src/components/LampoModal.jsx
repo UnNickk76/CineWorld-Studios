@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import CiakIntroOverlay from './CiakIntroOverlay';
 import LampoReleaseOverlay from './LampoReleaseOverlay';
+import { SagaCheckbox } from './saga/SagaCheckbox';
 
 const GENRES = {
   film: [
@@ -555,6 +556,16 @@ function LampoResult({ project, onReleased, onClose, api }) {
   const [releasing, setReleasing] = useState(false);
   const [timing, setTiming] = useState('immediate'); // immediate|6h|12h|18h|1d|2d|4d|6d|8d
   const [dayTime, setDayTime] = useState('20:00');   // HH:mm for "days" options
+
+  // ─── SAGA: Film a Capitoli (solo film/animation, no serie/anime) ───
+  const sagaAlreadyChapter = !!project.saga_id;
+  const lampoKind = (project.content_type === 'film' || project.content_type === 'animation')
+    ? project.content_type
+    : null;
+  const canShowSagaCheckbox = !!lampoKind && !sagaAlreadyChapter;
+  const [sagaEnabled, setSagaEnabled] = useState(false);
+  const [sagaChapters, setSagaChapters] = useState(3);
+  const [sagaCliffhanger, setSagaCliffhanger] = useState(false);
   // ⚡ Predicted theater days (computed locally, mirror del backend per dare anteprima)
   const predictedTheaterDays = useMemo(() => {
     if (project.content_type !== 'film') return null;
@@ -607,6 +618,21 @@ function LampoResult({ project, onReleased, onClose, api }) {
   const handleRelease = async () => {
     setReleasing(true);
     try {
+      // ─── SAGA: avvia la saga PRIMA del rilascio se attivata ───
+      if (canShowSagaCheckbox && sagaEnabled) {
+        try {
+          await api.post(`/sagas/start`, {
+            project_id: project.id,
+            pipeline: 'lampo',
+            total_planned_chapters: sagaChapters,
+            chapter1_subtitle: '',
+            cliffhanger: sagaCliffhanger,
+          });
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('[saga.start] LAMPO error', e);
+        }
+      }
       const body = computeReleaseAt();
       const res = await api.post(`/lampo/${project.id}/release`, body);
       toast.success(res.data.message || 'Rilasciato!');
@@ -837,6 +863,28 @@ function LampoResult({ project, onReleased, onClose, api }) {
              : '📅 Pianifica uscita'}
         </Button>
       </div>
+
+      {/* ─── SAGA: Film a Capitoli (sotto i bottoni release) ─── */}
+      {canShowSagaCheckbox && (
+        <div className="mt-3">
+          <SagaCheckbox
+            enabled={sagaEnabled}
+            onToggle={setSagaEnabled}
+            totalChapters={sagaChapters}
+            onTotalChange={setSagaChapters}
+            cliffhanger={sagaCliffhanger}
+            onCliffhangerChange={setSagaCliffhanger}
+            contentKind={lampoKind}
+            disabled={releasing}
+          />
+        </div>
+      )}
+      {sagaAlreadyChapter && (
+        <div className="mt-3 p-2.5 rounded-xl bg-amber-950/30 border border-amber-700/40 text-[10px] text-amber-200 flex items-center gap-2" data-testid="lampo-saga-chapter-info">
+          📚 Capitolo <strong>{project.saga_chapter_number}</strong> della saga.
+        </div>
+      )}
+
       <p className="text-[9px] text-slate-500 text-center mt-2 italic">
         Il progetto resta salvato finché non lo rilasci o scarti — puoi chiudere e tornare.
       </p>

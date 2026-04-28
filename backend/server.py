@@ -87,6 +87,7 @@ from routes.pipeline_v3 import router as pipeline_v3_router
 from routes.characters import router as characters_router
 from routes.live_action import router as live_action_router
 from routes.live_action_market import router as live_action_market_router
+from routes.sagas import router as sagas_router
 from routes.series_pipeline import router as series_pipeline_router
 from routes.pipeline_series_v3 import router as pipeline_series_v3_router
 from routes.admin_recovery import router as admin_recovery_router
@@ -7977,6 +7978,88 @@ async def startup_event():
         id='expire_la_contracts',
         replace_existing=True
     )
+
+    # Every hour: SAGA pre-end advisor (5 days before chapter 3 exits theaters)
+    async def saga_advisor_check():
+        try:
+            from utils import saga_logic as SL
+            from routes.notification_helper import push_notification
+            now = datetime.now(timezone.utc)
+            cursor = db.sagas.find(
+                {"status": "active", "saga_advisor_sent": {"$ne": True}},
+                {"_id": 0, "id": 1, "user_id": 1, "title": 1, "released_count": 1, "total_planned_chapters": 1},
+            )
+            async for s in cursor:
+                if int(s.get("released_count", 0)) < 3:
+                    continue
+                # Trova il cap 3
+                chap3 = await db.films.find_one(
+                    {"saga_id": s["id"], "saga_chapter_number": 3, "user_id": s["user_id"]},
+                    {"_id": 0, "theater_start": 1, "released_at": 1, "theater_days": 1,
+                     "quality_score": 1, "total_revenue": 1, "title": 1},
+                )
+                if not chap3:
+                    continue
+                start_raw = chap3.get("theater_start") or chap3.get("released_at")
+                if not start_raw:
+                    continue
+                try:
+                    start = datetime.fromisoformat(str(start_raw).replace("Z", "+00:00"))
+                    if start.tzinfo is None:
+                        start = start.replace(tzinfo=timezone.utc)
+                except Exception:
+                    continue
+                days = int(chap3.get("theater_days") or 21)
+                end = start + timedelta(days=days)
+                delta = (end - now).total_seconds()
+                if 0 < delta < 5 * 86400:  # 5 giorni
+                    # Fetch chap1
+                    chap1 = await db.films.find_one(
+                        {"saga_id": s["id"], "saga_chapter_number": 1, "user_id": s["user_id"]},
+                        {"_id": 0, "quality_score": 1, "total_revenue": 1},
+                    )
+                    chapters_data = [
+                        {"chapter_number": 1, "cwsv": float((chap1 or {}).get("quality_score") or 0),
+                         "total_revenue": float((chap1 or {}).get("total_revenue") or 0)},
+                        {"chapter_number": 3, "cwsv": float(chap3.get("quality_score") or 0),
+                         "total_revenue": float(chap3.get("total_revenue") or 0)},
+                    ]
+                    advise_stop, msg = SL.should_advise_stop_saga(s, chapters_data)
+                    can_extend = SL.can_extend_beyond_planned(s, chapters_data)
+                    if advise_stop or can_extend:
+                        body = msg if msg else (
+                            f"🌟 La saga «{s.get('title')}» sta andando alla grande! "
+                            f"Puoi anche superare il numero di capitoli pianificato."
+                        )
+                        try:
+                            await push_notification(
+                                s["user_id"],
+                                title=f"📚 Saga «{s.get('title')}» — Aggiornamento",
+                                body=body,
+                                category="saga",
+                                url="/sagas",
+                            )
+                        except Exception:
+                            pass
+                        await db.sagas.update_one(
+                            {"id": s["id"]},
+                            {"$set": {
+                                "saga_advisor_sent": True,
+                                "saga_advise_stop": advise_stop,
+                                "saga_advise_message": msg if advise_stop else "",
+                                "can_continue_beyond": bool(can_extend),
+                                "updated_at": now.isoformat(),
+                            }}
+                        )
+        except Exception as e:
+            logger.warning(f"saga_advisor_check failed: {e}")
+
+    scheduler.add_job(
+        saga_advisor_check,
+        IntervalTrigger(hours=1),
+        id='saga_advisor_check',
+        replace_existing=True
+    )
     
     # Every hour: Update TV station revenues
     from routes.tv_stations import calculate_tv_station_revenues
@@ -10864,6 +10947,7 @@ app.include_router(pipeline_v3_router)
 app.include_router(characters_router)
 app.include_router(live_action_router)
 app.include_router(live_action_market_router)
+app.include_router(sagas_router)
 app.include_router(series_pipeline_router, prefix="/api")
 app.include_router(pipeline_series_v3_router)
 app.include_router(sequel_pipeline_router, prefix="/api")

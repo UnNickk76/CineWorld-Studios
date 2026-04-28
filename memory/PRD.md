@@ -1,3 +1,79 @@
+## Film a Capitoli (Saghe Pianificate) — Sistema completo (Apr 28, 2026 — pomeriggio)
+
+### Richiesta utente
+Aggiungere checkbox "Film a Capitoli" all'ultimo step prima del rilascio (V3, LAMPO, sceneggiatura) per Film e Animazione. Il player sceglie 2-15 capitoli pianificati. I capitoli successivi escono solo dopo il termine cinema del precedente, max 3 attivi contemporaneamente. AI genera pretrama coerente, evolve cast con alert nuovi/rimossi personaggi. Pipeline V3 pre-compilata sui capitoli successivi (locandina/pretrama/trailer/cast). Soglia stop combinata (CWSv<5 AND incassi<60% cap.1) consigliata da Velion AI a 5gg dall'uscita cap.3.
+
+### Decisioni utente confermate
+- 1b: Naming "Inception Capitolo 2: Il Risveglio"
+- 2b: Saga = 1 slot quota studio (capitoli successivi non bloccano altri progetti)
+- 3b: Capitoli successivi 70% costo (riuso asset)
+- 4: Genere bloccato, regista può cambiare con alert
+- 5c: Soglia stop combinata (CWSv + incassi)
+- 6: Primo capitolo da sezione Film, successivi da nuova sezione "Saghe"
+- Tutti e 12 i miglioramenti approvati
+- Penalità fama se abbandono < 50% capitoli pianificati
+- Bonus continuation se molto successo dopo cap.3
+- Hype/Ciak/LaPrima/Uscita regolari ma sempre dopo termine cinema precedente
+
+### Implementazione
+
+**Backend (file univoci):**
+- `/app/backend/utils/saga_logic.py` — costanti + utilities (validazione, costi, fan-base modifier, threshold stop, abandon penalty)
+- `/app/backend/utils/saga_ai.py` — generate_next_chapter_pretrama (LlmChat) + evolve_saga_characters
+- `/app/backend/utils/saga_release_hook.py` — gate rilascio + metadata + fan-base hype + post-release update saga + chapter discount
+- `/app/backend/routes/sagas.py` — router `/api/sagas` con 7 endpoint:
+  - `POST /start` — crea saga al cap.1
+  - `GET /list` — tutte le saghe del player con stats
+  - `GET /check-saga-quota-impact` — info quota
+  - `GET /{saga_id}` — dettaglio + advise/can_extend
+  - `POST /create-next-chapter` — pre-compila V3 con AI
+  - `GET /{saga_id}/release-gate/{project_id}` — verifica ok rilascio
+  - `POST /conclude` — chiudi/abbandona (con penalità)
+- Patches `pipeline_v3.py` confirm-release: gate + chapter discount + metadata + fan-base + post-release
+- Patches `lampo.py` release: gate + metadata + fan-base + post-release (entrambi i rami immediate/scheduled)
+- Patches `lampo.finalize_scheduled_lampo_releases` per saga quando lo scheduler finalizza
+- Patches `studio_quota.py` aggregation $group per saga_id (saga = 1 slot)
+- Patches `server.py` scheduler `saga_advisor_check` ogni ora (5gg pre-uscita cap.3)
+- Patches `velion.py` nuova categoria 'sagas' con 8 tip contestuali
+
+**Frontend (file univoci modulari):**
+- `/app/frontend/src/components/saga/SagaCheckbox.jsx` — checkbox + slider 2-15 + cliffhanger toggle
+- `/app/frontend/src/components/saga/SagaBadge.jsx` — badge "Cap N/M" con icona BookOpen + sparkle cliffhanger
+- `/app/frontend/src/components/saga/CharacterChangeAlert.jsx` — alert added/removed personaggi
+- `/app/frontend/src/pages/MySagasPage.jsx` — pagina dedicata con grid saghe + dialog detail con timeline capitoli + modale crea/conclude
+- Patches `Phases.jsx` StepFinale: SagaCheckbox + handleConfirm wrapper che chiama /api/sagas/start prima di confirm-release
+- Patches `LampoModal.jsx` LampoResult: SagaCheckbox + sagaEnabled wrap su handleRelease
+- Patches `CastPhase.jsx`: CharacterChangeAlert se saga_chapter > 1 con saga_chars_added/removed
+- Patches `Dashboard.jsx` (3 punti) e `ContentTemplate.jsx`: SagaBadge nei poster
+- App.js: nuova route `/my-sagas` e `/saghe` mappati a MySagasPage; menu rapido punta a `/my-sagas`
+
+### Nuove collezioni Mongo
+- `sagas`: id, user_id, title, genre, kind, total_planned_chapters, current_chapter_count, released_count, status, parent_pretrama, ai_pretramas_history, characters_history, trilogy_bonus_awarded, can_continue_beyond, tv_bundle_available
+- Campi nuovi su `films`/`film_projects`/`lampo_projects`: saga_id, saga_chapter_number, saga_subtitle, is_saga_chapter, is_saga_first, saga_cliffhanger, saga_inherited_pretrama, saga_chars_added/removed, saga_cost_multiplier, saga_total_planned_chapters (su films), saga_fan_base_modifier, saga_prev_cwsv
+
+### Test eseguiti
+- Lint Python ✅, Lint JS ✅
+- Backend riavviato: scheduler `saga_advisor_check` registrato
+- E2E API: login → crea progetto V3 → /api/sagas/start (5 capitoli, cliffhanger=true) → /api/sagas/list → /api/sagas/{id} → /api/sagas/conclude (abandoned, fame_penalty=25 per 0/5)
+- Velion tips category=sagas restituisce i nuovi 8 tip
+- Cleanup test data e ripristino fama
+
+### Idee implementate (12/12)
+1. ✅ Saga ID & Pagina dedicata (/my-sagas + dialog detail con timeline)
+2. ✅ Effetto Fan Base (+10-25% hype prossimo capitolo basato su CWSv prev)
+3. ✅ Effetto Delusione (-15% hype se CWSv prev < 4.0)
+4. ✅ Cliffhanger flag (+5% hype next chapter)
+5. ✅ Trilogia bonus (+20 fama + tv_bundle_available al 3° rilascio)
+6. ✅ Continuity opzionale (riuso poster/trailer base)
+7. ✅ Badge SagaBadge nei feed (Dashboard + ContentTemplate)
+8. ✅ TV Rights bundle saga (flag tv_bundle_available)
+9. ✅ PvP Live Action saga (i capitoli sono normali film vendibili nel marketplace)
+10. ✅ Esclusione dall'infrastruttura Sequel (i capitoli non consumano slot Sequel)
+11. ✅ Alert proattivi Velion AI (saga_advisor_check ogni ora + tip contestuali)
+12. ✅ Saga Stats nella pagina detail (CWSv medio, incassi totali, progresso)
+
+---
+
 ## Marketplace Diritti Live Action — PvP completo (Apr 28, 2026 — late night)
 
 ### Richiesta utente

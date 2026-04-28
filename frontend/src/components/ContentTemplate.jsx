@@ -14,6 +14,7 @@ import PStarBanner from './PStarBanner';
 import CineConfirm from './v3/CineConfirm';
 import { Trash2 } from 'lucide-react';
 import { LampoLightning } from './LampoLightning';
+import { SagaBadge } from './saga/SagaBadge';
 import { getPreReleasePressReviews, getPreReleaseAudience } from '../utils/preReleasePhrases';
 import DistributionPopup, { hasDistributionData, getDistributionLabel } from './DistributionPopup';
 import TvMarketModal from './TvMarketModal';
@@ -878,6 +879,7 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
             <SystemLikeBadge count={likes.poster?.system_count || 0} variant="chip" />
           </div>
           <LampoLightning item={film} variant="bottom-left" size="md" />
+          <SagaBadge chapterNumber={film.saga_chapter_number} totalChapters={film.saga_total_planned_chapters} cliffhanger={film.saga_cliffhanger} size="md" position="top-left" />
         </div>
         <div className="ct2-short-plot" data-testid="ct-short-plot">
           <div className="ct2-info-title">{film.title}</div>

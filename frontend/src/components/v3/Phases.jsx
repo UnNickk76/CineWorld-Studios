@@ -3,6 +3,7 @@ import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, F
 import { PhaseWrapper, ProgressCircle, v3api } from './V3Shared';
 import { AuthContext } from '../../contexts';
 import CharactersPanel from '../CharactersPanel';
+import { SagaCheckbox } from '../saga/SagaCheckbox';
 
 const SPEEDUP_COSTS = { 25: 10, 50: 15, 75: 20, 100: 25 };
 // FASE 2 TV: capped costs per Film TV (-80% scala)
@@ -1471,6 +1472,19 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
   const [velionResult, setVelionResult] = useState(null);
   const [applying, setApplying] = useState(false);
 
+  // ─── SAGA: stato per "Film a Capitoli" ─────────────────────
+  const sagaAlreadyChapter = !!film.saga_id; // capitolo successivo (saga già attiva)
+  const sagaIsFirst = !!film.is_saga_first;
+  const canShowSagaCheckbox = !film.is_tv_movie && !film.is_sequel
+    && !sagaAlreadyChapter
+    && (film.kind === 'animation' || film.kind === 'film' || !film.kind);
+
+  const [sagaEnabled, setSagaEnabled] = useState(false);
+  const [sagaChapters, setSagaChapters] = useState(3);
+  const [sagaCliffhanger, setSagaCliffhanger] = useState(false);
+  const [sagaSubtitle, setSagaSubtitle] = useState('');
+  const [startingSaga, setStartingSaga] = useState(false);
+
   useEffect(() => {
     v3api(`/films/${film.id}/production-cost`).then(setCost).catch(() => {});
     v3api(`/films/${film.id}/savings-options`).then(d => setSavingsOptions(d.options || [])).catch(() => {});
@@ -1529,6 +1543,34 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
     return h >= 24 ? `${Math.floor(h / 24)}g ${h % 24}h ${m}m` : `${h}h ${m}m`;
   };
   const releaseBlocked = !!laPrimaBlock;
+
+  // ─── SAGA: handler che avvia la saga prima del rilascio se attivata ───
+  const handleConfirm = async () => {
+    if (canShowSagaCheckbox && sagaEnabled) {
+      try {
+        setStartingSaga(true);
+        const API = process.env.REACT_APP_BACKEND_URL;
+        const token = localStorage.getItem('cineworld_token');
+        await fetch(`${API}/api/sagas/start`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: film.id,
+            pipeline: 'v3',
+            total_planned_chapters: sagaChapters,
+            chapter1_subtitle: sagaSubtitle,
+            cliffhanger: sagaCliffhanger,
+          }),
+        });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[saga.start] error', e);
+      } finally {
+        setStartingSaga(false);
+      }
+    }
+    onConfirm?.();
+  };
 
   return (
     <PhaseWrapper title="STEP FINALE" subtitle="Riepilogo e conferma uscita" icon={Ticket} color="emerald">
@@ -1626,10 +1668,31 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
           </div>
         )}
 
+        {/* SAGA: Film a Capitoli (solo per Film/Animazione, non TV/Sequel/già-saga) */}
+        {canShowSagaCheckbox && (
+          <SagaCheckbox
+            enabled={sagaEnabled}
+            onToggle={setSagaEnabled}
+            totalChapters={sagaChapters}
+            onTotalChange={setSagaChapters}
+            cliffhanger={sagaCliffhanger}
+            onCliffhangerChange={setSagaCliffhanger}
+            contentKind={film.kind || 'film'}
+            disabled={loading || startingSaga}
+          />
+        )}
+        {sagaAlreadyChapter && (
+          <div className="p-2.5 rounded-xl bg-amber-950/30 border border-amber-700/40 text-[10px] text-amber-200 flex items-center gap-2" data-testid="saga-chapter-info">
+            <Award className="w-3.5 h-3.5" />
+            Capitolo <strong>{film.saga_chapter_number}</strong> della saga.
+            {sagaIsFirst ? ' (Primo capitolo)' : ' (Capitolo successivo)'}
+          </div>
+        )}
+
         {/* Confirm Button with cost */}
-        <button onClick={onConfirm} disabled={loading || releaseBlocked}
+        <button onClick={handleConfirm} disabled={loading || releaseBlocked || startingSaga}
           className="w-full text-sm py-3 rounded-xl bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 font-bold disabled:opacity-30 disabled:cursor-not-allowed" data-testid="confirm-release-btn">
-          {loading ? '...' : releaseBlocked ? `Bloccato: La Prima ${laPrimaBlock.state === 'live' ? 'in corso' : 'in attesa'}` : (
+          {(loading || startingSaga) ? '...' : releaseBlocked ? `Bloccato: La Prima ${laPrimaBlock.state === 'live' ? 'in corso' : 'in attesa'}` : (
             isGuest ? (
               <span className="flex items-center justify-center gap-2">
                 <s className="text-emerald-300/40 font-normal">${totalFunds.toLocaleString()} + {totalCp}CP</s>

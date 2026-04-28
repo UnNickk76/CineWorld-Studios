@@ -117,6 +117,7 @@ const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage'));
 const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
 const SagasSeriesPage = React.lazy(() => import('./pages/SagasSeriesPage'));
+const MySagasPage = React.lazy(() => import('./pages/MySagasPage'));
 const PlayerContentPage = React.lazy(() => import('./pages/PlayerContentPage'));
 const PasswordRecoveryPage = React.lazy(() => import('./pages/PasswordRecoveryPage'));
 const NicknameRecoveryPage = React.lazy(() => import('./pages/NicknameRecoveryPage'));
@@ -472,7 +473,7 @@ const MobileBottomNav = () => {
     { icon: Building, label: 'Infrastrutture', path: '/infrastructure' },
     { icon: Target, label: 'Arena', path: '/pvp-arena' },
     { icon: Coins, label: 'Contest', path: '/games' },
-    { icon: BookOpen, label: 'Saghe', path: '/sagas' },
+    { icon: BookOpen, label: 'Saghe', path: '/my-sagas' },
     { icon: Star, label: 'Stelle', path: '/stars' },
     { icon: User, label: 'Profilo', path: '/profile' },
   ];
@@ -2252,6 +2253,8 @@ function App() {
                 <Route path="/system-notes" element={<ProtectedRoute><SystemNotesPage /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
                 <Route path="/sagas" element={<ProtectedRoute><SagasSeriesPage /></ProtectedRoute>} />
+                <Route path="/my-sagas" element={<ProtectedRoute><MySagasPage /></ProtectedRoute>} />
+                <Route path="/saghe" element={<ProtectedRoute><MySagasPage /></ProtectedRoute>} />
                 <Route path="/festivals" element={<ProtectedRoute><FestivalsPage /></ProtectedRoute>} />
                 <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
                 <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />

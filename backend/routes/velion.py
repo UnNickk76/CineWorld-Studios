@@ -258,6 +258,16 @@ VELION_TIPS = {
         'Sapevi che il Drive-In ha posti unici per sala? Perfetto per debutti di nicchia.',
         'Sapevi che il Multisala produce piu rendita per metro quadrato? Ideale per le grandi citta.',
     ],
+    'sagas': [
+        'Sapevi che puoi creare film a capitoli pianificati (2-15)? Marca "Saga" all\'ultimo step prima del rilascio.',
+        'Le saghe hanno costi ridotti del 30% sui capitoli successivi (riuso asset).',
+        'Una saga occupa UN solo slot studio quota: i capitoli successivi non bloccano altri progetti.',
+        'I fan dei capitoli precedenti aumentano l\'hype del successivo: un buon CWSv ti fa partire forte.',
+        'Cliffhanger finale = +5% hype al capitolo successivo. Lascia il pubblico col fiato sospeso.',
+        'Trilogia completata: bonus fama +20 e sblocco vendita TV bundle al prezzo premium.',
+        'Saga abbandonata sotto il 50% dei capitoli pianificati: rischi di perdere fama. Pianifica con cura.',
+        'Dopo il cap. 3: se va alla grande, sblocchi capitoli oltre il pianificato. Se va male, Velion ti consiglia di fermarti.',
+    ],
 }
 
 

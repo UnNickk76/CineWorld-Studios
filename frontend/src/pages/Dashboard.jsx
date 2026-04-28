@@ -13,6 +13,7 @@ import UltimiTrailerStrip from '../components/UltimiTrailerStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { ProducerBadge } from '../components/ProducerBadge';
 import { LampoLightning } from '../components/LampoLightning';
+import { SagaBadge } from '../components/saga/SagaBadge';
 import TvRightsBadge from '../components/TvRightsBadge';
 import VmRatingBadge from '../components/VmRatingBadge';
 import TvMarketModal from '../components/TvMarketModal';
@@ -147,6 +148,7 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
                       size="xs"
                     />
                     <LampoLightning item={item} variant="bottom-left" size="xs" />
+                    <SagaBadge chapterNumber={item.saga_chapter_number} totalChapters={item.saga_total_planned_chapters} cliffhanger={item.saga_cliffhanger} size="xs" position="top-left" />
                     {item.vm_rating && (
                       <div className="absolute top-4 left-0.5 z-20">
                         <VmRatingBadge rating={item.vm_rating} size="xs" />
@@ -728,6 +730,7 @@ const Dashboard = () => {
                             size="xs"
                           />
                           <LampoLightning item={film} variant="bottom-left" size="xs" />
+                          <SagaBadge chapterNumber={film.saga_chapter_number} totalChapters={film.saga_total_planned_chapters} cliffhanger={film.saga_cliffhanger} size="xs" position="top-left" />
                           <TvRightsBadge item={film} onClick={(it) => setRightsModalContent({ ...it, type: 'film' })} position="bottom-right" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{film.title}</p>

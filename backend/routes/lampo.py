@@ -965,6 +965,17 @@ async def release_lampo(
     if proj.get("released"):
         raise HTTPException(400, "Già rilasciato")
 
+    # ─── SAGA: gate rilascio (cap. precedente fuori sala) ───
+    try:
+        from utils.saga_release_hook import check_saga_release_gate
+        ok_saga, reason_saga = await check_saga_release_gate(proj, user["id"])
+        if not ok_saga:
+            raise HTTPException(400, reason_saga)
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
     now_dt = datetime.now(timezone.utc)
     now = now_dt.isoformat()
     ct = proj["content_type"]
@@ -1060,6 +1071,13 @@ async def release_lampo(
                 "release_cities": (proj.get("distribution_plan") or {}).get("cities", []),
                 "worldwide": bool((proj.get("distribution_plan") or {}).get("mondo", False)),
                 "release_event": None,
+                # SAGA flags (pre-inserted so scheduler can finalize correctly)
+                "saga_id": proj.get("saga_id"),
+                "saga_chapter_number": proj.get("saga_chapter_number"),
+                "saga_subtitle": proj.get("saga_subtitle", ""),
+                "is_saga_chapter": bool(proj.get("saga_id")),
+                "is_saga_first": bool(proj.get("is_saga_first")),
+                "saga_cliffhanger": bool(proj.get("saga_cliffhanger")),
             }
             film_id = await _upsert_lampo_film(film_doc)
             await db.lampo_projects.update_one(
@@ -1143,9 +1161,46 @@ async def release_lampo(
             {"id": pid},
             {"$set": {"released": True, "released_film_id": film_id, "release_event": release_event, "updated_at": now}}
         )
+
+        # ─── SAGA: propaga metadati + fan-base + post-release update ───
+        saga_bonuses = {"trilogy_bonus": 0, "saga_concluded": False}
+        if proj.get("saga_id"):
+            try:
+                from utils.saga_release_hook import (
+                    attach_saga_metadata, apply_fan_base_hype_modifier, post_release_update_saga,
+                )
+                attach_saga_metadata(film_doc, proj)
+                await db.films.update_one(
+                    {"id": film_id},
+                    {"$set": {
+                        "saga_id": film_doc.get("saga_id"),
+                        "saga_chapter_number": film_doc.get("saga_chapter_number"),
+                        "saga_subtitle": film_doc.get("saga_subtitle", ""),
+                        "is_saga_chapter": True,
+                        "is_saga_first": film_doc.get("is_saga_first", False),
+                        "saga_cliffhanger": film_doc.get("saga_cliffhanger", False),
+                    }}
+                )
+                # Per LAMPO immediate: opening_day_revenue è in cwsv-driven, ma non sempre presente; calcoliamo se manca
+                film_doc["user_id"] = user["id"]
+                new_open = await apply_fan_base_hype_modifier(film_doc, proj)
+                if film_doc.get("saga_fan_base_modifier"):
+                    await db.films.update_one(
+                        {"id": film_id},
+                        {"$set": {
+                            "opening_day_revenue": new_open,
+                            "saga_fan_base_modifier": film_doc.get("saga_fan_base_modifier"),
+                            "saga_prev_cwsv": film_doc.get("saga_prev_cwsv"),
+                        }}
+                    )
+                film_doc["id"] = film_id
+                saga_bonuses = await post_release_update_saga(film_doc, proj, user["id"])
+            except Exception:
+                pass
+
         ev_label = (release_event or {}).get("name", "")
         msg = f"'{proj['title']}' è al cinema!" + (f" Evento: {ev_label}" if ev_label else "")
-        return {"success": True, "type": "film", "released_id": film_id, "scheduled": False, "theater_days": theater_days, "message": msg, "release_event": release_event, "xp_gained": xp_event_bonus + int((proj.get('cwsv') or 5) * 10)}
+        return {"success": True, "type": "film", "released_id": film_id, "scheduled": False, "theater_days": theater_days, "message": msg, "release_event": release_event, "xp_gained": xp_event_bonus + int((proj.get('cwsv') or 5) * 10), "saga_bonuses": saga_bonuses}
 
     # ───────────────── tv_series / anime ─────────────────
     target_station_id = proj.get("target_tv_station_id")
@@ -1322,6 +1377,32 @@ async def finalize_scheduled_lampo_releases():
                     "theater_weeks": theater_weeks_fix,
                 }, "$inc": {"virtual_likes": initial_likes}}
             )
+
+            # ─── SAGA: post-release update se questo film è capitolo di una saga ───
+            if film.get("saga_id"):
+                try:
+                    from utils.saga_release_hook import apply_fan_base_hype_modifier, post_release_update_saga
+                    proj_stub = {
+                        "saga_id": film["saga_id"],
+                        "saga_chapter_number": film.get("saga_chapter_number"),
+                        "saga_subtitle": film.get("saga_subtitle", ""),
+                        "is_saga_first": film.get("is_saga_first", False),
+                        "saga_cliffhanger": film.get("saga_cliffhanger", False),
+                        "user_id": film["user_id"],
+                    }
+                    new_open = await apply_fan_base_hype_modifier(film, proj_stub)
+                    if film.get("saga_fan_base_modifier"):
+                        await db.films.update_one(
+                            {"id": film["id"]},
+                            {"$set": {
+                                "opening_day_revenue": new_open,
+                                "saga_fan_base_modifier": film.get("saga_fan_base_modifier"),
+                                "saga_prev_cwsv": film.get("saga_prev_cwsv"),
+                            }}
+                        )
+                    await post_release_update_saga(film, proj_stub, film["user_id"])
+                except Exception as _e_saga:
+                    pass
             base_xp = int((film.get("cwsv") or 5) * 10)
             total_xp = base_xp + xp_event_bonus
             await db.users.update_one(

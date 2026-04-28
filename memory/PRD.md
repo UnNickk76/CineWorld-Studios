@@ -1,3 +1,34 @@
+## Fix UX Quota Studio V3 — Modale errore + Badge quota visibile (Apr 28, 2026)
+
+### Problema
+Utente segnala "errore HTTP 400" creando film V3 su Edge/Safari mentre Chrome funziona.
+
+### Diagnosi
+NON è bug browser. Backend ritorna correttamente: *"Limite progetti classici raggiunto (7/1). Completa un progetto o potenzia lo studio al livello superiore."* L'utente ha **7 progetti V3 attivi** (idea/hype/distribution) con Studio Lv 1 → max 1 parallelo. Su Chrome probabilmente cliccava il bottone **LAMPO** (quota separata 0/1, libero) e su Safari/Edge il bottone **V3 classico** (saturo). Il toast 3s nascondeva il messaggio reale.
+
+### Fix
+**Backend `routes/pipeline_v3.py`**:
+- Nuovo endpoint `GET /api/pipeline-v3/quota-info?studio_type=production_studio&mode=classic|lampo` → ritorna `parallel_used`, `max_parallel`, `cooldown_active`, `level`, `unlimited`. Permette al frontend di mostrare la capacità prima del click.
+
+**Frontend `pages/PipelineV3.jsx`**:
+- `loadQuota()` chiamato all'avvio + dopo create/discard. Carica entrambe le modalità in parallelo.
+- Nuovo banner **Quota Strip** sopra la griglia progetti: 2 chip (V3 Classico / ⚡ LAMPO) con `used/max`, livello studio, e colore rosso se limite raggiunto / cooldown attivo.
+- Nuovo **modale di errore quota** (`AlertTriangle` rosso, full-screen overlay) sostituisce il toast volatile quando `e.status === 400` e msg contiene "limite/cooldown/studio". Pulsanti "Potenzia Studio" (→ /infrastructure) e "Chiudi". Suggerimento di scartare progetti aperti.
+- Reload quota anche dopo `discard()` per riflettere subito gli slot liberati.
+
+### Test
+- Lint JS ✅
+- `curl /api/pipeline-v3/quota-info?mode=classic` → `{"parallel_used":7,"max_parallel":1,"level":1,...}` ✅
+- `curl /api/pipeline-v3/quota-info?mode=lampo` → `{"parallel_used":0,"max_parallel":1,...}` ✅
+- Screenshot board V3 → banner "V3 CLASSICO 7/1" rosso + "⚡ LAMPO 0/1" verde visibili ✅
+
+### File modificati
+- `/app/backend/routes/pipeline_v3.py` (+19 righe: endpoint `quota-info`)
+- `/app/frontend/src/pages/PipelineV3.jsx` (+~85 righe: state, loadQuota, errorModalEl, renderQuotaBadge, integrazione board/project view)
+
+---
+
+
 ## Fix Cast Step — Ruolo + CRc + Pre-ingaggiati (Apr 27, 2026 — sera 16)
 
 ### Problemi segnalati

@@ -386,6 +386,22 @@ async def list_projects(user: dict = Depends(get_current_user)):
     return {"items": items}
 
 
+@router.get("/quota-info")
+async def get_quota_info(
+    studio_type: str = "production_studio",
+    mode: str = "classic",
+    user: dict = Depends(get_current_user),
+):
+    """Return current quota state for the studio so UI can pre-display capacity
+    BEFORE the user attempts to create a project."""
+    from utils.studio_quota import get_studio_quota_info
+    if studio_type not in ("production_studio", "studio_serie_tv", "studio_anime"):
+        raise HTTPException(400, "studio_type non valido")
+    if mode not in ("classic", "lampo"):
+        raise HTTPException(400, "mode non valido")
+    return await get_studio_quota_info(db, user["id"], studio_type, mode=mode)
+
+
 @router.post("/films/create")
 async def create_project(req: CreateProjectRequest, user: dict = Depends(get_current_user)):
     # Studio quota gating (production_studio — default Lv 1 per tutti)

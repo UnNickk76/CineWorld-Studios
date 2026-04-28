@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Film, ChevronLeft, Save, X, Eye } from 'lucide-react';
+import { Plus, Film, ChevronLeft, Save, X, Eye, AlertTriangle } from 'lucide-react';
 import CinematicReleaseOverlay from '../components/CinematicReleaseOverlay';
 import { FilmRollAnimation, CrowdRushAnimation, MontageRollAnimation, LaPrimaAnimation } from '../components/v3/PipelineAnimations';
 import { V3_STEPS, StepperBar, GENRE_LABELS, v3api } from '../components/v3/V3Shared';
@@ -36,6 +36,11 @@ export default function PipelineV3() {
   const [wowAnimation, setWowAnimation] = useState(null); // 'film_roll' | 'crowd_rush' | 'montage_roll' | 'la_prima' | null
   const pendingAdvanceRef = useRef(null);
 
+  // Quota state (production_studio)
+  const [quotaInfo, setQuotaInfo] = useState(null);       // classic
+  const [quotaLampoInfo, setQuotaLampoInfo] = useState(null);
+  const [errorModal, setErrorModal] = useState(null);     // { title, message }
+
   // Tick every 5s for real-time checks (CIAK timer)
   useEffect(() => {
     const t = setInterval(() => setClockTick(c => c + 1), 5000);
@@ -55,6 +60,17 @@ export default function PipelineV3() {
     } catch { setLampoDrafts([]); }
   }, []);
 
+  const loadQuota = useCallback(async () => {
+    try {
+      const [c, l] = await Promise.all([
+        v3api('/quota-info?studio_type=production_studio&mode=classic'),
+        v3api('/quota-info?studio_type=production_studio&mode=lampo'),
+      ]);
+      setQuotaInfo(c);
+      setQuotaLampoInfo(l);
+    } catch {}
+  }, []);
+
   const refreshSelected = useCallback(async () => {
     if (!selected?.id) return null;
     try { const d = await v3api(`/films/${selected.id}`); setSelected(d); setDirty(false); return d; } catch { return null; }
@@ -70,7 +86,7 @@ export default function PipelineV3() {
     } catch (e) { showToast(e.message, 'error'); }
   }, []);
 
-  useEffect(() => { loadProjects(); }, [loadProjects]);
+  useEffect(() => { loadProjects(); loadQuota(); }, [loadProjects, loadQuota]);
   useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); } }, [toast]);
   useEffect(() => { return () => { if (progressRef.current) clearInterval(progressRef.current); }; }, []);
 
@@ -139,10 +155,16 @@ export default function PipelineV3() {
     setLoading(true);
     try {
       const res = await v3api('/films/create', 'POST', { title: 'Nuovo Film', genre: 'comedy', preplot: '' });
-      setSelected(res.project); setDirty(false); await loadProjects(); showToast('Progetto V3 creato!');
+      setSelected(res.project); setDirty(false); await loadProjects(); await loadQuota(); showToast('Progetto V3 creato!');
     } catch (e) {
-      const msg = e?.response?.data?.detail || e?.message || 'Errore';
-      showToast(msg, 'error');
+      const msg = e?.message || 'Errore';
+      // Quota / cooldown / level errors → modale chiara invece di toast volatile
+      if (e?.status === 400 && (/limite progetti|cooldown|studio/i.test(msg))) {
+        setErrorModal({ title: 'Quota studio raggiunta', message: msg });
+        await loadQuota();
+      } else {
+        showToast(msg, 'error');
+      }
     }
     setLoading(false);
   };
@@ -241,7 +263,7 @@ export default function PipelineV3() {
   const discard = async () => {
     if (!selected?.id) return;
     setLoading(true);
-    try { await v3api(`/films/${selected.id}/discard`, 'POST'); setSelected(null); await loadProjects(); showToast('Film scartato'); }
+    try { await v3api(`/films/${selected.id}/discard`, 'POST'); setSelected(null); await loadProjects(); await loadQuota(); showToast('Film scartato'); }
     catch (e) { showToast(e.message, 'error'); }
     setLoading(false);
   };
@@ -336,6 +358,73 @@ export default function PipelineV3() {
     }`} onClick={() => setToast(null)}>{toast.msg}<button className="absolute top-1.5 right-2"><X className="w-3 h-3 text-gray-500" /></button></div>
   ) : null;
 
+  // ═══ ERROR MODAL (quota / cooldown) ═══
+  const errorModalEl = errorModal ? (
+    <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="quota-error-modal">
+      <div className="w-full max-w-sm rounded-2xl border border-red-500/40 bg-gradient-to-br from-red-950/70 to-gray-900/95 shadow-2xl p-5">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5 text-red-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-red-200">{errorModal.title}</h3>
+            <p className="text-[10px] text-gray-400 mt-0.5">Impossibile avviare un nuovo progetto adesso.</p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-200 leading-relaxed bg-black/40 rounded-lg p-3 border border-red-500/20">
+          {errorModal.message}
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button onClick={() => { setErrorModal(null); navigate('/infrastructure'); }}
+            className="px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold active:scale-95 transition-all"
+            data-testid="quota-modal-upgrade-btn">
+            Potenzia Studio
+          </button>
+          <button onClick={() => setErrorModal(null)}
+            className="px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 text-[11px] font-bold active:scale-95 transition-all"
+            data-testid="quota-modal-close-btn">
+            Chiudi
+          </button>
+        </div>
+        <p className="text-[9px] text-gray-500 mt-3 text-center">
+          Suggerimento: scarta o completa i progetti aperti per liberare slot.
+        </p>
+      </div>
+    </div>
+  ) : null;
+
+  // ═══ QUOTA BADGE (board view) ═══
+  const renderQuotaBadge = () => {
+    const fmtQ = (info, label) => {
+      if (!info) return null;
+      const used = info.parallel_used ?? 0;
+      const max = info.max_parallel;
+      const unlimited = info.unlimited;
+      const full = !unlimited && max != null && used >= max;
+      const cdActive = info.cooldown_active;
+      return (
+        <div className={`flex-1 px-2 py-1.5 rounded-lg border text-[9px] ${
+          full || cdActive ? 'border-red-500/40 bg-red-500/10 text-red-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+        }`} data-testid={`quota-badge-${label.toLowerCase()}`}>
+          <div className="flex items-center justify-between gap-1">
+            <span className="font-bold uppercase tracking-wider">{label}</span>
+            <span className="font-mono">{unlimited ? `${used}/∞` : `${used}/${max}`}</span>
+          </div>
+          <div className="text-[8px] opacity-80 mt-0.5">
+            Studio Lv {info.level || 0}{cdActive ? ' • cooldown' : full ? ' • limite raggiunto' : ''}
+          </div>
+        </div>
+      );
+    };
+    if (!quotaInfo && !quotaLampoInfo) return null;
+    return (
+      <div className="flex gap-2 mb-3" data-testid="quota-board-strip">
+        {fmtQ(quotaInfo, 'V3 Classico')}
+        {fmtQ(quotaLampoInfo, '⚡ LAMPO')}
+      </div>
+    );
+  };
+
   // ═══ BOARD VIEW ═══
   if (!selected) {
     // Studio logo fallback per locandine mancanti (proprio + altri produttori)
@@ -344,8 +433,10 @@ export default function PipelineV3() {
     return (
       <div className="min-h-screen bg-black text-white pb-28" data-testid="v3-board">
         {toastEl}
+        {errorModalEl}
         <div className="px-3 pt-24">
           <p className="text-[10px] text-gray-500 mb-3">Inizia un nuovo film o continua quelli in lavorazione</p>
+          {renderQuotaBadge()}
           <div className="grid grid-cols-3 gap-2">
             <button onClick={() => { setLampoExisting(null); setShowLampoModal(true); }} disabled={loading}
               className="aspect-[2/3] rounded-xl border-2 border-dashed border-gray-700 hover:border-emerald-500/50 bg-gray-900/30 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
@@ -458,6 +549,7 @@ export default function PipelineV3() {
   return (
     <div className="min-h-screen bg-black text-white pb-28" style={{ overscrollBehavior: 'none' }}>
       {toastEl}
+      {errorModalEl}
       <div className="pt-20">
         {/* Header */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800/50">

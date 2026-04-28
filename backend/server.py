@@ -88,6 +88,7 @@ from routes.characters import router as characters_router
 from routes.live_action import router as live_action_router
 from routes.live_action_market import router as live_action_market_router
 from routes.sagas import router as sagas_router
+from routes.cinema_stats import router as cinema_stats_router
 from routes.series_pipeline import router as series_pipeline_router
 from routes.pipeline_series_v3 import router as pipeline_series_v3_router
 from routes.admin_recovery import router as admin_recovery_router
@@ -10948,6 +10949,7 @@ app.include_router(characters_router)
 app.include_router(live_action_router)
 app.include_router(live_action_market_router)
 app.include_router(sagas_router)
+app.include_router(cinema_stats_router)
 app.include_router(series_pipeline_router, prefix="/api")
 app.include_router(pipeline_series_v3_router)
 app.include_router(sequel_pipeline_router, prefix="/api")

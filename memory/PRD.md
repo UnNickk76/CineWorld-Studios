@@ -1,3 +1,71 @@
+## Cinema Stats Dashboard "AL CINEMA" — Overhaul Completo (Apr 28, 2026 — sera)
+
+### Richiesta utente
+Sostituire il vecchio modale "DATI CINEMA" minimal/brutto con una dashboard completa con grafico affluenze, top città, bottoni ritiro/proroga (solo proprietario), messaggio Velion dinamico, alert ritiro imminente. Coerente per Film/Anime/Animazione/LAMPO/Sequel/Capitoli. Coerente col game design.
+
+### Decisioni utente confermate
+- 1b: Versione FULL (chart + occupazione + forecast + sparkline + share + heatmap)
+- 2a: Tracker intra-day ogni ora
+- 3d: Costo prolungamento combinato $ + CP (10% media incassi 3gg + 5 CP/giorno)
+- 4 b+c: Penalty ritiro: -1 fama se hold>60% + -5% incassi prossimi 30 giorni
+- 5c: Top città con nome+flag+spettatori+incassi+%
+- 6a: Serie TV/Anime stats aggregate stagione
+- Tutti 17 suggerimenti inclusi
+
+### Implementazione (file univoci)
+
+**Backend:**
+- `/app/backend/utils/cinema_stats_engine.py` — daily breakdown (aggregato da daily_revenues), top 3 città deterministiche (pool IT/US/GB/FR/DE/ES/JP/BR/MX), avg hold ratio, forecast lineare 3gg, performance message Velion (hourly), best day badges, avg ticket price, occupancy %, player comparison
+- `/app/backend/utils/extend_withdraw_logic.py` — can_extend (window 3gg), calc_extend_cost ($+CP), can_withdraw, calc_withdraw_penalty (impulsive flag)
+- `/app/backend/routes/cinema_stats.py` — router `/api/cinema-stats`:
+  - `GET /{content_id}` — full dashboard
+  - `POST /{content_id}/extend` — applica costi $+CP, estende theater_days
+  - `POST /{content_id}/withdraw` — applica fame penalty + future revenue penalty 30gg
+- Patch `server.py` registrazione router
+
+**Frontend:**
+- `/app/frontend/src/components/cinema/CinemaStatsModal.jsx` — modale principale full-screen mobile
+- `/app/frontend/src/components/cinema/AttendanceChart.jsx` — recharts ComposedChart con heatmap colors per hold ratio + forecast tratteggiato
+- `/app/frontend/src/components/cinema/TopCitiesPanel.jsx` — top 3 città con medaglie, flag, spettatori, %, bar visivo
+- `/app/frontend/src/components/cinema/PerformanceMessage.jsx` — messaggio Velion stile (hourly), badge "NUOVO" pulsante quando hour_id cambia, alert ritiro imminente
+- `/app/frontend/src/components/cinema/CinemaActions.jsx` — bottoni Ritira/Prolunga (solo owner)
+- `/app/frontend/src/components/cinema/ExtendConfirmModal.jsx` — slider giorni 1-14 + preview costi $+CP + bonus info
+- `/app/frontend/src/components/cinema/WithdrawConfirmModal.jsx` — penalty preview (fama -1, incassi -5%)
+- `/app/frontend/src/components/cinema/CinemaSparkline.jsx` — mini-grafico 7gg per overlay poster
+- Patch `/app/frontend/src/components/ContentTemplate.jsx` — sostituito vecchio modale inline brutto con `<CinemaStatsModal>`
+
+### Funzionalità implementate (17/17)
+1. ✅ Prezzo medio biglietto (revenue/spectators)
+2. ✅ % Occupazione sale (avg_occupancy_pct, capacità stimata 250 posti × 4 spettacoli)
+3. ✅ Hold ratio per giorno + recente (ultimi 3gg) + medio
+4. ✅ Forecast 3 giorni (regressione lineare)
+5. ✅ Confronto vs media ultimi 5 film del player
+6. ✅ Heat colors per giorno (emerald→green→lime→yellow→orange→red)
+7. ✅ Best day badges (opening, weekend, hold record)
+8. ✅ Sparkline mini per poster (CinemaSparkline.jsx)
+9. ✅ Toggle notifiche (localStorage subscription)
+10. ✅ Share button (navigator.share + clipboard fallback)
+11. ✅ Velion advisor contestuale (6 livelli: great/good/ok/declining/bad/flop, 4 messaggi per livello, hourly)
+12. ✅ Costo prolungamento dinamico (10% avg incassi 3gg × giorni + 5 CP/giorno)
+13. ✅ Penalty ritiro impulsivo (-1 fama se hold>60%)
+14. ✅ Bonus prolungamento info (+0.2 CWSv display se hold>70%)
+15. ✅ Tracker intra-day esistente già in scheduler_tasks (ogni 10min, daily_revenues array)
+16. ✅ Daily snapshot via aggregate_daily_breakdown
+17. ✅ Top città deterministica (hash-based)
+
+### Penalty/Bonus Architecture
+- **Withdraw impulsive**: hold ratio recente ≥ 0.60 → -1 fama
+- **Withdraw market effect**: sempre -5% incassi prossimi 30gg (campo user `withdraw_revenue_penalty_until`/`pct`)
+- **Extend**: max 14gg per estensione, max 2 estensioni per film, finestra solo ultimi 3gg
+
+### Test
+- Lint Python e JS pulito ✅
+- Backend riavviato senza errori ✅
+- E2E API: `GET /api/cinema-stats/{id}` su film attivo restituisce summary + daily_breakdown completo (8 giorni con hold ratio per ognuno) + top_cities + performance message ✅
+- Frontend webpack compilato ✅
+
+---
+
 ## Bug Fix: Press Reviews coerenti con fase pipeline (Apr 28, 2026 — late)
 
 ### Bug segnalato dall'utente

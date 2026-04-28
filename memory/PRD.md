@@ -1,3 +1,68 @@
+## Marketplace Diritti Live Action — PvP completo (Apr 28, 2026 — late night)
+
+### Richiesta utente
+Mercato dei diritti di adattamento live-action tra player con: ricerca opere altrui, offerte libere entro range, spartizione ricavi negoziabile, contropropose, contratti con scadenza, listing attivi, royalty post-uscita, rating reciproci, leaderboard licensors, esclusività, e producer-stats. Tutte le 10 idee di miglioramento approvate.
+
+### Implementazione
+
+**Backend (file univoci come richiesto)**:
+- `/app/backend/utils/la_pricing.py` — pricing engine: `calc_base_price`, `adjust_for_split`, `adjust_for_exclusivity`, `offer_range`, `validate_offer`, `quote_breakdown`
+  - Range offerta: 70%-140% del base aggiustato
+  - Spartizione: 50%-80% buyer (max 80, min 50)
+  - Royalty: 2%-5%
+  - Non-esclusivo = ×0.6
+  - Contratto scadenza: 30 giorni
+- `/app/backend/routes/live_action_market.py` — router `/api/live-action-market` con 14 endpoints:
+  - `GET /marketplace` — opere licenziabili di altri player
+  - `GET /quote` — anteprima prezzi
+  - `POST /offers` — invio offerta (validato)
+  - `GET /offers/inbox|sent`
+  - `POST /offers/{id}/accept|reject|counter`
+  - `POST /listings` + `DELETE /listings/{id}` + `GET /listings|/listings/mine`
+  - `GET /contracts/pending`
+  - `GET /producer-stats/{user_id}` — affidabilità producer
+  - `POST /ratings` + `GET /ratings/producer/{user_id}` — feedback post-uscita
+  - `GET /leaderboard/licensors` — top venditori
+- `/app/backend/routes/live_action.py` — esteso `create_live_action`:
+  - Accetta `contract_id`: se presente, autorizza origine di altro player
+  - Non marca `live_action_id` se contratto non-esclusivo (incrementa `non_exclusive_la_count`)
+  - Aggiorna contract `status="in_production"` con `project_id`
+- `/app/backend/server.py` — scheduler `expire_la_contracts` ogni 30 min: chiude contratti scaduti (>30gg), libera origine esclusiva, notifica entrambi.
+
+**Frontend (componenti modulari)**:
+- `/app/frontend/src/pages/CreateLiveActionPage.jsx` — riscritta con 3 tab + MineTab interno
+- `/app/frontend/src/components/live_action/LiveActionTabs.jsx` — header tab navigation con badge counts
+- `/app/frontend/src/components/live_action/MarketplaceTab.jsx` — Marketplace con sub-tab (Esplora/Ricevute/Inviate), accept/reject/counter
+- `/app/frontend/src/components/live_action/NegotiateModal.jsx` — modale negoziazione: slider buyer/seller %, switch esclusivo, slider royalty, slider prezzo entro range, auto-quote dal backend ad ogni cambio
+- `/app/frontend/src/components/live_action/QueueTab.jsx` — contratti acquistati in coda, countdown 30gg con warning <7gg, avvio produzione (Pipeline V3 / LAMPO)
+
+**Idee implementate (10/10)**:
+1. ✅ Listing attivi (proattivo)
+2. ✅ Scadenza contratto 30gg con scheduler
+3. ✅ Esclusività on/off (-40% non-esclusivo)
+4. ✅ Royalty continua 2-5% memorizzata sul contratto
+5. ✅ Contropropose con history
+6. ✅ Rating post-uscita 1-5★ + commento (la_ratings)
+7. ✅ Producer stats (CWSv medio, n. LA, % successo, velocità)
+8. ✅ Leaderboard licensors (top venditori)
+9. ✅ Whitelist generi opzionale (`allowed_genres` su listing)
+10. (Notifica smart Velion da aggiungere in seguito)
+
+### Nuove collezioni Mongo
+- `la_rights_listings`
+- `la_rights_offers` (con `history` per controproposte)
+- `la_rights_contracts` (con `expires_at` 30gg)
+- `la_ratings`
+
+### Test
+- Lint Python ✅, Lint JS ✅
+- `GET /live-action-market/marketplace` → 0 items (corretto, nessun altro player ha anime+15gg)
+- `GET /producer-stats/{me}` → 0 LA prodotti (corretto)
+- Screenshot `/create-live-action` → 3 tab visibili, requisiti rendering corretto, Velion bubble overlay attivo ✅
+
+---
+
+
 ## Fix Live Action Level + Fame v2 (0-500) — Apr 28, 2026 (notte)
 
 ### Richieste utente

@@ -86,6 +86,7 @@ from routes.pipeline_v2 import router as pipeline_v2_router
 from routes.pipeline_v3 import router as pipeline_v3_router
 from routes.characters import router as characters_router
 from routes.live_action import router as live_action_router
+from routes.live_action_market import router as live_action_market_router
 from routes.series_pipeline import router as series_pipeline_router
 from routes.pipeline_series_v3 import router as pipeline_series_v3_router
 from routes.admin_recovery import router as admin_recovery_router
@@ -7939,6 +7940,43 @@ async def startup_event():
         id='update_cinema_revenue',
         replace_existing=True
     )
+
+    # Every 30 minutes: Expire LA rights contracts after 30 days
+    async def expire_la_contracts():
+        try:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            expired = await db.la_rights_contracts.find(
+                {"status": "pending_production", "expires_at": {"$lt": now_iso}},
+                {"_id": 0, "id": 1, "owner_id": 1, "buyer_id": 1, "origin_id": 1, "origin_kind": 1, "origin_title": 1, "exclusive": 1},
+            ).to_list(200)
+            for c in expired:
+                await db.la_rights_contracts.update_one({"id": c["id"]}, {"$set": {"status": "expired"}})
+                # Sblocca l'origine se era esclusiva
+                if c.get("exclusive"):
+                    coll = db.films if c["origin_kind"] == "animation" else db.tv_series
+                    await coll.update_one({"id": c["origin_id"]}, {"$set": {"live_action_id": None}})
+                # Notifiche
+                for uid, kind, msg in (
+                    (c["buyer_id"], "la_contract_expired",
+                     f"Contratto {c['origin_title']} SCADUTO: i diritti tornano al proprietario"),
+                    (c["owner_id"], "la_contract_returned",
+                     f"I diritti di {c['origin_title']} sono tornati a te (contratto scaduto)"),
+                ):
+                    await db.notifications.insert_one({
+                        "id": str(uuid.uuid4()), "user_id": uid, "type": kind,
+                        "title": "Contratto LA scaduto", "message": msg,
+                        "url": "/live-action-market", "read": False,
+                        "created_at": now_iso,
+                    })
+        except Exception as e:
+            logger.warning(f"expire_la_contracts failed: {e}")
+
+    scheduler.add_job(
+        expire_la_contracts,
+        IntervalTrigger(minutes=30),
+        id='expire_la_contracts',
+        replace_existing=True
+    )
     
     # Every hour: Update TV station revenues
     from routes.tv_stations import calculate_tv_station_revenues
@@ -10825,6 +10863,7 @@ app.include_router(pipeline_v2_router)
 app.include_router(pipeline_v3_router)
 app.include_router(characters_router)
 app.include_router(live_action_router)
+app.include_router(live_action_market_router)
 app.include_router(series_pipeline_router, prefix="/api")
 app.include_router(pipeline_series_v3_router)
 app.include_router(sequel_pipeline_router, prefix="/api")

@@ -190,21 +190,25 @@ class CreateLiveActionRequest(BaseModel):
     title: Optional[str] = None
     subgenre: Optional[str] = None  # solo se origine non aveva subgenre
     mode: str = Field("classic", description="'classic' or 'lampo'")
+    contract_id: Optional[str] = Field(None, description="ID contratto se origine appartiene ad altro player")
 
 
-async def _load_origin(origin_id: str, origin_kind: str, user_id: str) -> dict:
+async def _load_origin(origin_id: str, origin_kind: str, user_id: str, contract: Optional[dict] = None) -> dict:
+    """Carica l'origine. Se c'è un contract, autorizza anche se l'origine è di altro player."""
     if origin_kind == "animation":
-        doc = await db.films.find_one(
-            {"id": origin_id, "user_id": user_id},
-            {"_id": 0},
-        )
+        coll = db.films
     elif origin_kind == "anime":
-        doc = await db.tv_series.find_one(
-            {"id": origin_id, "user_id": user_id, "type": "anime"},
-            {"_id": 0},
-        )
+        coll = db.tv_series
     else:
         raise HTTPException(400, "origin_kind non valido")
+
+    if contract:
+        doc = await coll.find_one({"id": origin_id}, {"_id": 0})
+    else:
+        query = {"id": origin_id, "user_id": user_id}
+        if origin_kind == "anime":
+            query["type"] = "anime"
+        doc = await coll.find_one(query, {"_id": 0})
     if not doc:
         raise HTTPException(404, "Opera origine non trovata o non di tua proprietà")
     return doc
@@ -255,9 +259,27 @@ async def create_live_action(req: CreateLiveActionRequest, user: dict = Depends(
             missing.append(f"Studio Anime o Production Studio Lv {REQ_STUDIO_LEVEL}")
         raise HTTPException(400, "Live Action bloccato: " + ", ".join(missing))
 
-    # 2. Origine valida
-    origin = await _load_origin(req.origin_id, req.origin_kind, user["id"])
-    if origin.get("live_action_id"):
+    # 1b. Contract origin (se origine è di altro player)
+    contract = None
+    if req.contract_id:
+        contract = await db.la_rights_contracts.find_one(
+            {"id": req.contract_id, "buyer_id": user["id"], "status": "pending_production"},
+            {"_id": 0},
+        )
+        if not contract:
+            raise HTTPException(404, "Contratto non trovato o già usato")
+        if contract["origin_id"] != req.origin_id or contract["origin_kind"] != req.origin_kind:
+            raise HTTPException(400, "Contratto non corrisponde all'opera origine")
+        # Scadenza
+        exp = _parse_dt(contract.get("expires_at"))
+        if exp and exp < _now_utc():
+            raise HTTPException(400, "Contratto scaduto. I diritti sono tornati al proprietario.")
+
+    # 2. Origine valida (autorizza anche di altri player se contract presente)
+    origin = await _load_origin(req.origin_id, req.origin_kind, user["id"], contract=contract)
+    if not contract and origin.get("user_id") != user["id"]:
+        raise HTTPException(403, "Senza un contratto, puoi adattare solo le tue opere")
+    if not contract and origin.get("live_action_id"):
         raise HTTPException(400, "Hai già prodotto un live-action di quest'opera")
 
     rd = _parse_dt(origin.get("released_at") or origin.get("premiere_date"))
@@ -327,9 +349,12 @@ async def create_live_action(req: CreateLiveActionRequest, user: dict = Depends(
             "id": origin["id"],
             "kind": req.origin_kind,
             "title": origin.get("title", ""),
+            "owner_id": origin.get("user_id"),
+            "from_other_player": bool(contract),
             "cwsv": float(origin.get("cwsv_score") or origin.get("quality_score") or 5.0),
             "spectators": int(origin.get("spectators") or origin.get("total_viewers") or 0),
         },
+        "live_action_contract_id": (contract or {}).get("id"),
         "mode": mode,
         "status": "pipeline_active",
         "created_at": _now_utc(),
@@ -338,15 +363,24 @@ async def create_live_action(req: CreateLiveActionRequest, user: dict = Depends(
     await db.film_projects.insert_one(doc)
     doc.pop("_id", None)
 
-    # 7. Marca l'origine come "ha già un live-action"
-    if req.origin_kind == "anime":
-        await db.tv_series.update_one({"id": origin["id"]}, {"$set": {"live_action_id": pid}})
-    else:
-        await db.films.update_one({"id": origin["id"]}, {"$set": {"live_action_id": pid}})
+    # 7. Marca l'origine come "ha già un live-action" SOLO se contratto esclusivo o origine propria
+    if not contract or contract.get("exclusive"):
+        if req.origin_kind == "anime":
+            await db.tv_series.update_one({"id": origin["id"]}, {"$set": {"live_action_id": pid}})
+        else:
+            await db.films.update_one({"id": origin["id"]}, {"$set": {"live_action_id": pid}})
+
+    # 8. Marca contratto come "in_production" e collega project
+    if contract:
+        await db.la_rights_contracts.update_one(
+            {"id": contract["id"]},
+            {"$set": {"status": "in_production", "project_id": pid}},
+        )
 
     return {
         "success": True,
         "project": doc,
         "hype_bonus": hype_bonus,
         "characters_count": len(new_chars),
+        "from_contract": bool(contract),
     }

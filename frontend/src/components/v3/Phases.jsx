@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check, Coins, Trash2, AlertTriangle, Handshake } from 'lucide-react';
+import { toast } from 'sonner';
 import { PhaseWrapper, ProgressCircle, v3api } from './V3Shared';
 import { AuthContext } from '../../contexts';
 import CharactersPanel from '../CharactersPanel';
@@ -1551,7 +1552,7 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
         setStartingSaga(true);
         const API = process.env.REACT_APP_BACKEND_URL;
         const token = localStorage.getItem('cineworld_token');
-        await fetch(`${API}/api/sagas/start`, {
+        const r = await fetch(`${API}/api/sagas/start`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1562,7 +1563,16 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
             cliffhanger: sagaCliffhanger,
           }),
         });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          toast.error(err?.detail || 'Impossibile avviare la saga. Continuo senza.');
+          // eslint-disable-next-line no-console
+          console.warn('[saga.start] failed', r.status, err);
+        } else {
+          toast.success(`Saga avviata: ${sagaChapters} capitoli pianificati! Trovala in "Saghe".`);
+        }
       } catch (e) {
+        toast.error('Errore di rete avviando la saga.');
         // eslint-disable-next-line no-console
         console.warn('[saga.start] error', e);
       } finally {

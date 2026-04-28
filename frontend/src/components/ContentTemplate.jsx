@@ -1030,6 +1030,37 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
             >
               <Tv size={10} /> Mercato TV
             </button>
+            {/* ═══ AZIONI PROPRIETARIO: Saga / Sequel / Live Action ═══ */}
+            {isOwner && film?.saga_id && (
+              <button
+                onClick={(e) => { e.stopPropagation(); navigate(`/saghe?saga_id=${film.saga_id}`); }}
+                data-testid="ct-saga-btn"
+                className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white active:scale-95 transition-all touch-manipulation flex items-center gap-1 shadow-[0_0_8px_rgba(167,139,250,0.4)]"
+                aria-label="Saghe e Capitoli"
+              >
+                <BookOpen size={10} /> Saga · Cap.{film?.saga_chapter_number || 1}
+              </button>
+            )}
+            {isOwner && !isSeries && !isAnime && (film?.kind || 'film') === 'film' && (
+              <button
+                onClick={(e) => { e.stopPropagation(); navigate(`/create-sequel?from=${film.id}`); }}
+                data-testid="ct-create-sequel-btn"
+                className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white active:scale-95 transition-all touch-manipulation flex items-center gap-1 shadow-[0_0_8px_rgba(249,115,22,0.35)]"
+                aria-label="Crea Sequel"
+              >
+                <Film size={10} /> Crea Sequel
+              </button>
+            )}
+            {isOwner && (isSeries || isAnime || (film?.kind === 'animation' || film?.genre === 'animation')) && (
+              <button
+                onClick={(e) => { e.stopPropagation(); navigate(`/create-live-action?from=${film.id}`); }}
+                data-testid="ct-create-live-action-btn"
+                className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white active:scale-95 transition-all touch-manipulation flex items-center gap-1 shadow-[0_0_8px_rgba(236,72,153,0.35)]"
+                aria-label="Crea Live Action"
+              >
+                <Clapperboard size={10} /> Live Action
+              </button>
+            )}
           </div>
         </div>
       )}

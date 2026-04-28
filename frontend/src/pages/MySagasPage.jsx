@@ -7,7 +7,7 @@
 //  • Modale per creare il prossimo capitolo (con subtitle)
 
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
@@ -49,6 +49,8 @@ const fmtMoney = (v) => `$${Math.round(Number(v || 0)).toLocaleString('it-IT')}`
 const MySagasPage = () => {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sagaIdParam = searchParams.get('saga_id');
   const [sagas, setSagas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeSagaId, setActiveSagaId] = useState(null);
@@ -61,7 +63,7 @@ const MySagasPage = () => {
   const fetchSagas = useCallback(async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cineworld_token');
       const res = await axios.get(`${API}/api/sagas/list`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -75,7 +77,7 @@ const MySagasPage = () => {
 
   const fetchSagaDetail = useCallback(async (sagaId) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cineworld_token');
       const res = await axios.get(`${API}/api/sagas/${sagaId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -89,6 +91,13 @@ const MySagasPage = () => {
     fetchSagas();
   }, [fetchSagas]);
 
+  // Apri automaticamente la saga indicata via ?saga_id=
+  useEffect(() => {
+    if (!sagaIdParam || sagas.length === 0) return;
+    const found = sagas.find(s => s.id === sagaIdParam);
+    if (found) setActiveSagaId(sagaIdParam);
+  }, [sagaIdParam, sagas]);
+
   useEffect(() => {
     if (activeSagaId) fetchSagaDetail(activeSagaId);
     else setActiveSagaDetail(null);
@@ -101,7 +110,7 @@ const MySagasPage = () => {
     }
     try {
       setCreatingChapter(true);
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cineworld_token');
       const res = await axios.post(`${API}/api/sagas/create-next-chapter`, {
         saga_id: activeSagaId,
         subtitle: newSubtitle.trim(),
@@ -125,7 +134,7 @@ const MySagasPage = () => {
 
   const handleConcludeSaga = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('cineworld_token');
       const res = await axios.post(`${API}/api/sagas/conclude`, {
         saga_id: activeSagaId, confirm: true,
       }, {

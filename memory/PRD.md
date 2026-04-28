@@ -1,3 +1,30 @@
+## FASE: Sezione Saghe e Capitoli + Azioni Film/Serie (Apr 28, 2026)
+
+**Problema riportato dall'utente**: 
+- Aveva creato un film flaggando "Film a Capitoli" (6 capitoli) ma non trovava nessuna sezione per gestirlo.
+- Saghe non erano accessibili dal menu Produci.
+- Mancavano azioni rapide (Crea Sequel, Crea Live Action) sulle locandine.
+
+**Bug critico individuato e risolto**: 
+- `MySagasPage` (`/saghe`) usava `localStorage.getItem('token')` invece della chiave corretta `cineworld_token`. Risultato: la chiamata `/api/sagas/list` falliva sempre con "Impossibile caricare le saghe".
+
+**Modifiche**:
+1. **Menu Produci** (`App.js`): nuovo bottone "Saghe" (icona Library, viola) → `/saghe`
+2. **ContentTemplate.jsx — Azioni proprietario** sulle locandine (riga ~1040+):
+   - `Saga · Cap.X` (viola/fucsia) → `/saghe?saga_id=...` — visibile se `film.saga_id`
+   - `Crea Sequel` (arancione/rosso) → `/create-sequel?from=...` — solo per Film (non serie/anime/animazioni)
+   - `Crea Live Action` (rosa/rosé) → `/create-live-action?from=...` — solo per serie TV/anime/animazioni
+3. **MySagasPage**: 
+   - Token key fix (`cineworld_token`)
+   - Supporto `?saga_id=` per aprire automaticamente la modale dettaglio della saga
+4. **Feedback flow saga**: `Phases.jsx` (V3) e `LampoModal.jsx` ora mostrano toast esplicito di successo/errore quando si avvia una saga via `/api/sagas/start`. Prima l'errore era silenzioso (solo `console.warn`).
+
+**Verifiche eseguite**:
+- Curl `/api/sagas/start` con progetto reale → 200 OK + saga creata correttamente.
+- Curl `/api/sagas/list` con token autenticato → ritorna saghe.
+- Screenshot `/saghe` → carica senza errore, mostra le saghe del player con stats.
+
+
 ## FASE 1+2+3: Cinema Stats Bug Fix + LaPrima + Toggle + CineBoard Unificata + Location Overhaul (Apr 28, 2026 — late evening)
 
 ### FASE 1: Bug fix critici Cinema Stats + LaPrima Banner

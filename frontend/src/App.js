@@ -15,7 +15,7 @@ import {
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
   Palette, Briefcase, Rocket,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, RadioTower, Disc, Video, Loader2
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, RadioTower, Disc, Video, Loader2, Library
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -1442,6 +1442,7 @@ const TopNavbar = () => {
                 { icon: Camera, label: 'Live Action', path: '/create-live-action', color: 'bg-pink-500/15 border-pink-500/30 text-pink-400', count: 0 },
                 { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', count: prodCounts.series },
                 { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400', count: prodCounts.anime },
+                { icon: Library, label: 'Saghe', path: '/saghe', color: 'bg-violet-500/15 border-violet-500/30 text-violet-400', count: 0 },
                 { icon: BookOpen, label: 'Sceneggiature', path: '/emerging-screenplays', color: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400', count: 0 },
                 { icon: Users, label: 'Agenzia', path: '/agenzia', color: 'bg-purple-500/15 border-purple-500/30 text-purple-400', count: 0 },
                 { icon: Clock, label: 'Bozze', path: '/le-mie-bozze', color: 'bg-amber-500/15 border-amber-500/30 text-amber-400', count: 0 },

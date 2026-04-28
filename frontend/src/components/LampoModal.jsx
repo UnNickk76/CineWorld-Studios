@@ -628,7 +628,10 @@ function LampoResult({ project, onReleased, onClose, api }) {
             chapter1_subtitle: '',
             cliffhanger: sagaCliffhanger,
           });
+          toast.success(`Saga avviata: ${sagaChapters} capitoli pianificati! Trovala in "Saghe".`);
         } catch (e) {
+          const detail = e?.response?.data?.detail || 'Impossibile avviare la saga. Continuo senza.';
+          toast.error(detail);
           // eslint-disable-next-line no-console
           console.warn('[saga.start] LAMPO error', e);
         }

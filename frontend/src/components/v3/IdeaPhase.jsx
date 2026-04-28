@@ -4,6 +4,7 @@ import { PhaseWrapper, GENRES, GENRE_LABELS, SUBGENRE_MAP, ProgressCircle, v3api
 import { AuthContext } from '../../contexts';
 import TrailerGeneratorCard from '../TrailerGeneratorCard';
 import CineConfirm from './CineConfirm';
+import { LocationCoherenceBar } from './LocationCoherenceBar';
 
 /*
   Flusso sequenziale:
@@ -21,7 +22,7 @@ const LOC_CAT_META = {
   historical:{ label: 'Storici',       icon: Landmark,  color: 'text-purple-400',  border: 'border-purple-500/30',  bg: 'bg-purple-500/10' },
 };
 
-const MAX_LOCATIONS = 5;
+const MAX_LOCATIONS = 999; // No hard limit — coerenza valutata da AI/sweet spot
 
 export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false }) => {
   const { user, api } = useContext(AuthContext) || {};
@@ -291,7 +292,7 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[8px] text-gray-500 uppercase font-bold">Location di Ripresa</span>
             <span className={`text-[8px] ${locations.length > 0 ? 'text-cyan-400' : 'text-gray-600'}`}>
-              {locations.length}/{MAX_LOCATIONS}
+              {locations.length} selezionate
             </span>
           </div>
 
@@ -351,10 +352,13 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
               .map(l => {
                 const selected = locations.includes(l.name);
                 const meta = LOC_CAT_META[l.category] || LOC_CAT_META.studios;
-                const atLimit = locations.length >= MAX_LOCATIONS && !selected;
+                // Costo crescente: 6+ → +60%, 11+ → +140%, 16+ → +250%
+                const idxIfSelected = selected ? locations.indexOf(l.name) : locations.length;
+                const costMult = idxIfSelected < 5 ? 1.0 : idxIfSelected < 10 ? 1.6 : idxIfSelected < 15 ? 2.4 : 3.5;
+                const adjCost = Math.round((l.cost_per_day * costMult) / 1000);
                 return (
-                  <button key={l.name} onClick={() => subPhase === 0 && !atLimit && toggleLoc(l.name)}
-                    disabled={subPhase > 0 || atLimit}
+                  <button key={l.name} onClick={() => subPhase === 0 && toggleLoc(l.name)}
+                    disabled={subPhase > 0}
                     className={`w-full flex items-center justify-between p-1.5 rounded-lg border transition-all disabled:opacity-40 ${
                       selected ? `${meta.bg} ${meta.border}` : 'border-gray-800 hover:border-gray-700 bg-gray-900/20'
                     }`}
@@ -366,7 +370,11 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
                         <span className="text-[8px] text-emerald-400 font-black">GRATIS</span>
                       </span>
                     ) : (
-                      <span className="shrink-0 ml-2 text-[8px] text-gray-400">${(l.cost_per_day / 1000).toFixed(0)}K<span className="text-gray-600">/g</span></span>
+                      <span className="shrink-0 ml-2 text-[8px] text-gray-400">
+                        ${adjCost}K
+                        <span className="text-gray-600">/g</span>
+                        {costMult > 1 && <span className="text-amber-400 ml-0.5">×{costMult}</span>}
+                      </span>
                     )}
                   </button>
                 );
@@ -387,6 +395,17 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
                   )}
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* Coherence Bar — sweet spot + AI advice */}
+          {(genre || locations.length > 0) && (
+            <div className="mt-2">
+              <LocationCoherenceBar
+                genre={genre}
+                preplot={preplot}
+                locations={locations}
+              />
             </div>
           )}
         </div>

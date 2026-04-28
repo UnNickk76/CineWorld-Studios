@@ -133,10 +133,9 @@ def _all_cities() -> list[dict]:
 def compute_top_cities(film: dict, total_revenue: int, total_spectators: int) -> list[dict]:
     """
     Top 3 città deterministicamente derivate dal contenuto.
-    Usa film.cities (lista distribuzione) se presente, altrimenti pool globale.
-    Ritorna [{name, flag, spectators, revenue, pct_of_total}, ...]
+    Disponibili a partire da G1 (purché ci siano dati da daily_breakdown o total_revenue).
     """
-    if total_revenue <= 0 or total_spectators <= 0:
+    if total_revenue <= 0 and total_spectators <= 0:
         return []
 
     # Pool: se il film ha cities specifiche, usale; altrimenti globale

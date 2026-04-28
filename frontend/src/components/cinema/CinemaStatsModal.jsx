@@ -23,6 +23,7 @@ import { AttendanceChart } from './AttendanceChart';
 import { TopCitiesPanel } from './TopCitiesPanel';
 import { PerformanceMessage } from './PerformanceMessage';
 import { CinemaActions } from './CinemaActions';
+import { LaPrimaBanner } from './LaPrimaBanner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -33,6 +34,9 @@ export const CinemaStatsModal = ({ contentId, onClose }) => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [chartMode, setChartMode] = useState(() => {
+    try { return localStorage.getItem('cinema_chart_mode') || 'live'; } catch { return 'live'; }
+  });
   const [notifSubscribed, setNotifSubscribed] = useState(() => {
     try { return localStorage.getItem(`cinema_notif:${contentId}`) === '1'; } catch { return false; }
   });
@@ -215,9 +219,48 @@ export const CinemaStatsModal = ({ contentId, onClose }) => {
 
                 {/* GRAFICO AFFLUENZE */}
                 <Section title="📊 Andamento giornaliero">
+                  {/* Toggle modalità chart */}
+                  <div className="flex items-center justify-end gap-1 mb-1">
+                    <button
+                      onClick={() => {
+                        setChartMode('live');
+                        try { localStorage.setItem('cinema_chart_mode', 'live'); } catch { /* noop */ }
+                      }}
+                      className={`text-[9px] font-bold px-2 py-1 rounded-full transition ${
+                        chartMode === 'live'
+                          ? 'bg-cyan-500/30 text-cyan-200 ring-1 ring-cyan-500/50'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                      data-testid="chart-mode-live"
+                    >
+                      Live (passati + oggi)
+                    </button>
+                    <button
+                      onClick={() => {
+                        setChartMode('full');
+                        try { localStorage.setItem('cinema_chart_mode', 'full'); } catch { /* noop */ }
+                      }}
+                      className={`text-[9px] font-bold px-2 py-1 rounded-full transition ${
+                        chartMode === 'full'
+                          ? 'bg-cyan-500/30 text-cyan-200 ring-1 ring-cyan-500/50'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                      data-testid="chart-mode-full"
+                    >
+                      Tutta la programmazione
+                    </button>
+                  </div>
+                  {/* LaPrima banner sopra il chart */}
+                  {stats.laprima && (
+                    <div className="mb-2">
+                      <LaPrimaBanner laprima={stats.laprima} />
+                    </div>
+                  )}
                   <AttendanceChart
                     daily={stats.daily_breakdown || []}
                     forecast={stats.forecast || []}
+                    totalDays={stats.summary.theater_days}
+                    mode={chartMode}
                     height={200}
                   />
                 </Section>

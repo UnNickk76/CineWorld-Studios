@@ -1,3 +1,67 @@
+## FASE 1+2+3: Cinema Stats Bug Fix + LaPrima + Toggle + CineBoard Unificata + Location Overhaul (Apr 28, 2026 — late evening)
+
+### FASE 1: Bug fix critici Cinema Stats + LaPrima Banner
+
+**Bug fix backend** (`/app/backend/routes/cinema_stats.py`):
+- **Totali $0/0**: ora se `total_revenue=0` ma `daily_breakdown` ha dati, deriva i totali aggregando il breakdown
+- **Top città**: rimossa condizione `total_revenue > 0`, ora disponibili da G1 con qualsiasi dato
+- **LaPrima data**: nuovo blocco nel response con city/date/time/score/attendance/VIP/media coverage/critic approval/boost G1
+
+**LaPrima Banner**:
+- `/app/frontend/src/components/cinema/LaPrimaBanner.jsx` — banner prima del chart con icona crown 🥇, click → modale dettagli serata (10 stats + bar critic + boost G1)
+- Integrato in `CinemaStatsModal` sopra il grafico
+
+**Toggle Modalità Grafico**:
+- `AttendanceChart` ora supporta `mode="live"` (passati+oggi, mobile-friendly) e `mode="full"` (tutti i giorni programmati con vuoti)
+- Toggle pill nel modale, persiste in localStorage
+
+### FASE 2: CineBoard Classifica Unificata + Trailer
+
+**Backend** (`/app/backend/routes/cineboard_unified.py`):
+- `GET /api/cineboard-unified/global` — classifica unificata tutti contenuti (film/series/anime/animation/lampo/saga_chapter)
+  - Filtri: content_type, sort (revenue/spectators/cwsv/hold/hype), period (daily/weekly/monthly/alltime)
+  - Calcolo automatico hold ratio da `daily_revenues`
+- `GET /api/cineboard-unified/trailers` — classifica trailer (views + likes×5 + hype×100)
+
+**Frontend** (`/app/frontend/src/components/cineboard/`):
+- `UnifiedRankingPanel.jsx` — pannello con filtri tipo/sort/period + lista con medaglie 🥇🥈🥉 + click → CinemaStatsModal
+- `TrailerRankingPanel.jsx` — pannello trailer con player video integrato
+
+**CineBoard.jsx**:
+- Nuovi 2 tab: "Globale" (Trophy) e "Trailer" (Play). Tabs ora 6 totali con label compact mobile
+
+### FASE 3: Location Overhaul
+
+**Backend** (`/app/backend/utils/location_coherence.py` + `routes/location_coherence.py`):
+- **GENRE_SWEET_SPOT** dictionary: 21 generi con range ottimale (drama 1-4, action 5-12, war 8-16, epic 10-20, etc)
+- **Costo crescente non lineare**: 1-5×1.0, 6-10×1.6, 11-15×2.4, 16+×3.5
+- **Coherence quick** (no AI): score 0-100 basato su sweet spot
+- **AI coherence deep** (LlmChat + Emergent LLM Key): valuta vs pretrama, ritorna score + 3-5 suggested locations + 0-3 warnings location fuori posto
+- **CWSv modifier conservativo**: max +0.5 (perfect match), min -0.4 (gravely incoherent)
+- Endpoint: `GET /sweet-spot?genre=`, `POST /coherence-check`, `GET /cost-info`
+
+**Frontend** (`/app/frontend/src/components/v3/LocationCoherenceBar.jsx`):
+- Barra visiva 0-100 con colori (rosso/arancio/giallo/verde)
+- Mostra sweet spot per genere + advice testuale
+- Bottone "Analisi AI profonda" → trigger AI score + suggerimenti + warnings
+- Badge "PERFETTA" se score≥90 + sweet spot match
+- Mostra impatto CWSv (+0.X / -0.X)
+
+**IdeaPhase.jsx**:
+- `MAX_LOCATIONS = 999` (rimosso limite hard 5)
+- Costo per ogni location mostra moltiplicatore visibile (×1.6, ×2.4, ×3.5)
+- LocationCoherenceBar sempre visibile sotto la lista
+
+### Test
+- Lint Python e JS pulito ✅
+- Backend: total_revenue ora $57,387 e top cities count 3 (prima 0) ✅
+- /api/cineboard-unified/global ritorna 7 items con kind+ranking ✅
+- /api/locations/coherence-check (drama 3 locations) → score 100/100, perfect=true ✅
+- /api/locations/sweet-spot?genre=war → 8-16 ✅
+- Frontend webpack compilato ✅
+
+---
+
 ## Cinema Stats Dashboard "AL CINEMA" — Overhaul Completo (Apr 28, 2026 — sera)
 
 ### Richiesta utente

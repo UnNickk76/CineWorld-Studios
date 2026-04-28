@@ -49,17 +49,43 @@ const CustomTooltip = ({ active, payload }) => {
   );
 };
 
-export const AttendanceChart = ({ daily = [], forecast = [], height = 220 }) => {
-  // Combina daily + forecast
-  const combined = [
-    ...daily.map(d => ({ ...d, _color: heatColor(d.hold_ratio) })),
-    ...forecast.map(f => ({
-      ...f,
-      revenue: f.projected_revenue,
-      spectators: f.projected_spectators,
-      _color: '#fbbf2440',
-    })),
-  ];
+export const AttendanceChart = ({ daily = [], forecast = [], totalDays = 0, mode = 'live', height = 220 }) => {
+  // mode 'live' = solo passati+oggi (mobile-friendly)
+  // mode 'full' = tutti i giorni programmati con vuoti per i futuri
+  let combined;
+  if (mode === 'full' && totalDays > 0) {
+    // Costruisci array completo da G1 a G{totalDays}
+    const dayMap = {};
+    daily.forEach(d => { dayMap[d.day_index] = { ...d, _color: heatColor(d.hold_ratio) }; });
+    forecast.forEach(f => { dayMap[f.day_index] = { ...f, revenue: f.projected_revenue, spectators: f.projected_spectators, _color: '#fbbf2440' }; });
+    combined = [];
+    for (let i = 0; i < totalDays; i++) {
+      if (dayMap[i]) {
+        combined.push(dayMap[i]);
+      } else {
+        combined.push({
+          day_index: i,
+          day_label: `G${i + 1}`,
+          revenue: 0,
+          spectators: 0,
+          hold_ratio: null,
+          is_today: false,
+          is_future: true,
+          _color: '#27272a',
+        });
+      }
+    }
+  } else {
+    combined = [
+      ...daily.map(d => ({ ...d, _color: heatColor(d.hold_ratio) })),
+      ...forecast.map(f => ({
+        ...f,
+        revenue: f.projected_revenue,
+        spectators: f.projected_spectators,
+        _color: '#fbbf2440',
+      })),
+    ];
+  }
 
   if (combined.length === 0) {
     return (

@@ -80,8 +80,36 @@ async def get_cinema_stats(content_id: str, user: dict = Depends(get_current_use
     daily_breakdown = aggregate_daily_breakdown(content)
     total_revenue = int(content.get("total_revenue") or 0)
     total_spectators = int(content.get("total_spectators") or 0)
+
+    # ── BUG FIX: se total_revenue/spectators sono 0 ma daily_breakdown ha dati,
+    # ── deriva i totali aggregando il breakdown (utile per film appena rilasciati)
+    if total_revenue <= 0 and daily_breakdown:
+        total_revenue = sum(int(d.get("revenue") or 0) for d in daily_breakdown)
     if total_spectators <= 0 and total_revenue > 0:
         total_spectators = int(total_revenue / AVG_TICKET_PRICE)
+
+    # ── LAPRIMA data: se il film ha avuto una "La Prima" prima del cinema
+    laprima_data = None
+    premiere = content.get("premiere") or content.get("la_prima") or {}
+    if premiere and (premiere.get("city") or premiere.get("scheduled_at") or premiere.get("done")):
+        # Ricava un "voto" della LaPrima dal CWSv del film (proxy se non esiste valutazione dedicata)
+        score = float(content.get("la_prima_score") or content.get("quality_score") or 5.0)
+        # Attendance LaPrima stimata: ~5K-15K spettatori VIP per blockbuster (proxy)
+        la_attendance = int(premiere.get("attendance") or (1200 + score * 800))
+        la_revenue = int(premiere.get("revenue") or (la_attendance * AVG_TICKET_PRICE * 1.5))
+        laprima_data = {
+            "city": premiere.get("city") or "Roma",
+            "date": premiere.get("scheduled_at") or premiere.get("date") or content.get("released_at"),
+            "time": premiere.get("time") or "20:30",
+            "score": round(score, 1),
+            "attendance": la_attendance,
+            "revenue": la_revenue,
+            "vip_attendance": int(la_attendance * 0.15),  # 15% VIP
+            "media_coverage": "alta" if score >= 7.0 else "media" if score >= 5.0 else "bassa",
+            "critic_approval_pct": min(100, max(0, int(score * 11))),
+            "boost_applied_to_g1": round((score - 5.0) * 0.05, 2),  # +/- 5% per ogni punto sopra/sotto 5.0
+            "outcome_label": "Trionfo" if score >= 8.0 else "Successo" if score >= 6.5 else "Discreta" if score >= 5.0 else "Tiepida" if score >= 3.5 else "Flop",
+        }
 
     # Top 3 città
     top_cities = compute_top_cities(content, total_revenue, total_spectators)
@@ -166,6 +194,7 @@ async def get_cinema_stats(content_id: str, user: dict = Depends(get_current_use
         "avg_hold_ratio": avg_hold,
         "recent_hold_ratio": recent_hold,
         "comparison": comparison,
+        "laprima": laprima_data,
         "actions": {
             "extend": extend_info,
             "withdraw": withdraw_info,

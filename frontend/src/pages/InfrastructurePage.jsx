@@ -750,36 +750,82 @@ const InfrastructurePage = () => {
                   
                   {upgradeInfo.current_level < upgradeInfo.max_level && (
                     <>
-                      {/* Benefits preview */}
-                      <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
-                        {upgradeInfo.benefits?.screens_added > 0 && (
-                          <div className="p-1.5 bg-cyan-500/10 rounded border border-cyan-500/20">
-                            <p className="text-gray-400">Sale</p>
-                            <p className="text-cyan-400 font-bold">+{upgradeInfo.benefits.screens_added}</p>
+                      {/* Benefits preview — varia per categoria (cinema vs studio) */}
+                      {upgradeInfo.benefits?.category === 'cinema' ? (
+                        <>
+                          <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                            {upgradeInfo.benefits?.screens_added > 0 && (
+                              <div className="p-1.5 bg-cyan-500/10 rounded border border-cyan-500/20">
+                                <p className="text-gray-400">Sale</p>
+                                <p className="text-cyan-400 font-bold">+{upgradeInfo.benefits.screens_added}</p>
+                              </div>
+                            )}
+                            {upgradeInfo.benefits?.seats_added > 0 && (
+                              <div className="p-1.5 bg-green-500/10 rounded border border-green-500/20">
+                                <p className="text-gray-400">Posti/Sala</p>
+                                <p className="text-green-400 font-bold">+{upgradeInfo.benefits.seats_added}</p>
+                              </div>
+                            )}
+                            <div className="p-1.5 bg-yellow-500/10 rounded border border-yellow-500/20">
+                              <p className="text-gray-400">Revenue</p>
+                              <p className="text-yellow-400 font-bold">x{upgradeInfo.benefits?.next?.revenue_multiplier}</p>
+                            </div>
                           </div>
-                        )}
-                        {upgradeInfo.benefits?.seats_added > 0 && (
-                          <div className="p-1.5 bg-green-500/10 rounded border border-green-500/20">
-                            <p className="text-gray-400">Posti/Sala</p>
-                            <p className="text-green-400 font-bold">+{upgradeInfo.benefits.seats_added}</p>
-                          </div>
-                        )}
-                        <div className="p-1.5 bg-yellow-500/10 rounded border border-yellow-500/20">
-                          <p className="text-gray-400">Revenue</p>
-                          <p className="text-yellow-400 font-bold">x{upgradeInfo.benefits?.next?.revenue_multiplier}</p>
-                        </div>
-                      </div>
-                      
-                      {/* New products */}
-                      {upgradeInfo.benefits?.new_products?.length > 0 && (
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className="text-[10px] text-gray-400">Nuovi prodotti:</span>
-                          {upgradeInfo.benefits.new_products.map(p => (
-                            <Badge key={p.id} className="bg-green-500/20 text-green-400 text-[10px]">
-                              {p.name} (${p.base_price})
-                            </Badge>
-                          ))}
-                        </div>
+
+                          {/* New products — solo cinema */}
+                          {upgradeInfo.benefits?.new_products?.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-[10px] text-gray-400">Nuovi prodotti:</span>
+                              {upgradeInfo.benefits.new_products.map(p => (
+                                <Badge key={p.id} className="bg-green-500/20 text-green-400 text-[10px]">
+                                  {p.name} (${p.base_price})
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {/* STUDIO/SCOUT/PVP — perks testuali per livello */}
+                          {upgradeInfo.benefits?.current?.unlocked_perks?.length > 0 && (
+                            <div className="p-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5">
+                              <p className="text-[9px] text-emerald-300 font-bold uppercase tracking-wider mb-1.5">
+                                ✓ Funzioni attive (Lv {upgradeInfo.current_level})
+                              </p>
+                              <ul className="space-y-0.5">
+                                {upgradeInfo.benefits.current.unlocked_perks.map((p, i) => (
+                                  <li key={i} className="text-[10px] text-gray-200 flex gap-1.5"><span className="text-emerald-400">•</span><span>{p}</span></li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {upgradeInfo.benefits?.new_perks?.length > 0 && (
+                            <div className="p-2 rounded-lg border border-purple-500/30 bg-purple-500/5">
+                              <p className="text-[9px] text-purple-300 font-bold uppercase tracking-wider mb-1.5">
+                                ★ Sblocchi a Lv {upgradeInfo.next_level}
+                              </p>
+                              <ul className="space-y-0.5">
+                                {upgradeInfo.benefits.new_perks.map((p, i) => (
+                                  <li key={i} className="text-[10px] text-purple-200 flex gap-1.5"><span className="text-purple-400">★</span><span>{p}</span></li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {upgradeInfo.benefits?.next_milestone_level && upgradeInfo.benefits?.next_milestone_perks?.length > 0 && (
+                            <div className="p-2 rounded-lg border border-amber-500/20 bg-amber-500/5">
+                              <p className="text-[9px] text-amber-300 font-bold uppercase tracking-wider mb-1">
+                                Prossima milestone — Lv {upgradeInfo.benefits.next_milestone_level}
+                              </p>
+                              <ul className="space-y-0.5">
+                                {upgradeInfo.benefits.next_milestone_perks.map((p, i) => (
+                                  <li key={i} className="text-[10px] text-amber-200/80 flex gap-1.5"><span className="text-amber-400">→</span><span>{p}</span></li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </>
                       )}
                       
                       {/* Cost and requirements */}

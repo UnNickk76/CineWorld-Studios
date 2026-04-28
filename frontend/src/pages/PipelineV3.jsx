@@ -41,9 +41,9 @@ export default function PipelineV3() {
   const [quotaLampoInfo, setQuotaLampoInfo] = useState(null);
   const [errorModal, setErrorModal] = useState(null);     // { title, message }
 
-  // Tick every 5s for real-time checks (CIAK timer)
+  // Tick ogni 1s: alimenta i countdown del cooldown e i timer CIAK
   useEffect(() => {
-    const t = setInterval(() => setClockTick(c => c + 1), 5000);
+    const t = setInterval(() => setClockTick(c => c + 1), 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -394,6 +394,22 @@ export default function PipelineV3() {
   ) : null;
 
   // ═══ QUOTA BADGE (board view) ═══
+  // helper per mostrare il countdown del cooldown
+  const formatCountdown = (isoStr) => {
+    if (!isoStr) return null;
+    const target = new Date(isoStr).getTime();
+    const now = Date.now();
+    let diff = Math.max(0, target - now);
+    const d = Math.floor(diff / 86400000); diff -= d * 86400000;
+    const h = Math.floor(diff / 3600000);  diff -= h * 3600000;
+    const m = Math.floor(diff / 60000);    diff -= m * 60000;
+    const s = Math.floor(diff / 1000);
+    if (d > 0) return `${d}g ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
+
   const renderQuotaBadge = () => {
     const fmtQ = (info, label) => {
       if (!info) return null;
@@ -402,6 +418,7 @@ export default function PipelineV3() {
       const unlimited = info.unlimited;
       const full = !unlimited && max != null && used >= max;
       const cdActive = info.cooldown_active;
+      const countdown = cdActive ? formatCountdown(info.cooldown_expires_at) : null;
       return (
         <div className={`flex-1 px-2 py-1.5 rounded-lg border text-[9px] ${
           full || cdActive ? 'border-red-500/40 bg-red-500/10 text-red-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
@@ -411,8 +428,13 @@ export default function PipelineV3() {
             <span className="font-mono">{unlimited ? `${used}/∞` : `${used}/${max}`}</span>
           </div>
           <div className="text-[8px] opacity-80 mt-0.5">
-            Studio Lv {info.level || 0}{cdActive ? ' • cooldown' : full ? ' • limite raggiunto' : ''}
+            Studio Lv {info.level || 0}{full && !cdActive ? ' • limite raggiunto' : ''}
           </div>
+          {cdActive && countdown && (
+            <div className="text-[8px] mt-0.5 text-red-300 font-mono">
+              ⏱️ Disponibile tra {countdown}
+            </div>
+          )}
         </div>
       );
     };

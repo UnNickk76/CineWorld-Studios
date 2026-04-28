@@ -1,3 +1,60 @@
+## Fix Infrastrutture non-cinema + Cooldown Timer (Apr 28, 2026 — sera 3)
+
+### Problemi segnalati dall'utente
+1. **Production Studio (e tutti gli studi/scout/PvP/centri commerciali/parchi)** mostravano "Posti/Sala +25" e "Nuovi prodotti: Premium 3D ($8)" nell'upgrade popup — concetti che valgono solo per i cinema reali.
+2. Le infrastrutture non-cinema dovrebbero invece mostrare **cosa sbloccano per ogni livello** (es. quote progetti, slot TV, cooldown, agenzie, indagini PvP, ecc.) e cosa **sbloccheranno alla prossima milestone**.
+3. Per i progetti bloccati dal cooldown: serve un **timer countdown** che indichi quando si potrà creare un nuovo progetto.
+
+### Diagnosi
+- `calculate_upgrade_benefits()` calcolava `seats_per_screen += 25` e includeva `INFRA_PRODUCTS` (cibi/bevande) anche per `production_studio`/`studio_anime`/`studio_serie_tv`/`cinema_school`/`emittente_tv`/`talent_scout_*`/`pvp_*`, dove `screens=0` e `revenue_multiplier=0`. Il frontend mostrava ciecamente `seats_added` e `new_products` indipendentemente dal tipo.
+- Mancava completamente una mappa di "perks per livello" per le infra non-cinema → l'utente non sapeva cosa stava sbloccando upgradando.
+
+### Fix
+
+**Backend `routes/infrastructure.py`**:
+- Nuova mappa **`INFRA_LEVEL_PERKS`** con i benefici testuali per livello per tutti i tipi non-cinema:
+  - `production_studio` Lv 1→200: progetti paralleli, cooldown, sblocco Live Action a Lv 5
+  - `studio_serie_tv`/`studio_anime`: stessa progressione di quote
+  - `cinema_school`: studenti in formazione, velocità training
+  - `talent_scout_actors`: candidati/settimana, sblocco disegnatori a Lv 3
+  - `talent_scout_screenwriters`: sceneggiature pronte
+  - `emittente_tv`: slot palinsesto, prime time, diritti TV market
+  - `pvp_investigative`/`pvp_operative`/`pvp_legal`: indagini/contro-attacchi/cause legali
+- Helper `_is_cinema_type()`: True se `screens > 0` o `revenue_multiplier > 0`. Categoria di routing.
+- Helper `_collect_perks_up_to(infra_type_id, level)` e `_next_unlock_for(infra_type_id, level)`
+- `calculate_upgrade_benefits()` rifattorizzata in 2 rami:
+  - **cinema**: `category='cinema'`, ritorna `screens_added`, `seats_added`, `new_products` (come prima)
+  - **studio/scout/pvp**: `category='studio'`, ritorna `unlocked_perks` (correnti), `new_perks` (sbloccati al prossimo livello), `next_milestone_level` + `next_milestone_perks`
+- `all_products_next` ora viene calcolato **solo per cinema** (vuoto per studi)
+
+**Frontend `pages/InfrastructurePage.jsx`**:
+- Sezione benefici upgrade renderizza condizionalmente:
+  - `category==='cinema'` → griglia 3 col (Sale/Posti/Revenue) + badge nuovi prodotti
+  - `category==='studio'` → 3 box stratificati:
+    - "✓ Funzioni attive (Lv X)" — perks correnti (verde)
+    - "★ Sblocchi a Lv Y" — nuovi perks immediati (viola)
+    - "Prossima milestone — Lv Z" — perks futuri (ambra)
+
+**Frontend `pages/PipelineV3.jsx`** (cooldown timer):
+- Nuovo helper `formatCountdown(isoStr)` → "2g 5h 12m" / "23m 14s" / "8s"
+- Banner quota mostra `⏱️ Disponibile tra Xs` quando `cooldown_active=true`, leggendo `cooldown_expires_at` dall'endpoint `/quota-info`
+- `clockTick` portato da 5s a **1s** per countdown fluido
+
+### Test
+- Lint Python: 7 errori preesistenti non miei (F811/F821 in cinema_school) — i miei file sono puliti ✅
+- Lint JS ✅
+- `GET /api/infrastructure/<production_studio>/upgrade-info` → `category=studio, all_products=0, unlocked_perks=[3 perks], next_milestone_level=3, next_milestone_perks=['2 progetti classici paralleli']` ✅
+- `GET /api/infrastructure/<cinema>/upgrade-info` → `category=cinema, all_products=5, screens_added=2, seats_added=25, new_products=['Nachos']` ✅
+- Screenshot pagina infrastrutture: tab Cinema/Studi/Commerciale/Agenzie/Strategico/Speciale visibili ✅
+
+### File modificati
+- `/app/backend/routes/infrastructure.py` (+~110 righe: `INFRA_LEVEL_PERKS`, helper, `calculate_upgrade_benefits` rifatto, `all_products_next` solo cinema)
+- `/app/frontend/src/pages/InfrastructurePage.jsx` (+~70 righe: rendering condizionale category)
+- `/app/frontend/src/pages/PipelineV3.jsx` (+~20 righe: `formatCountdown`, clockTick 1s)
+
+---
+
+
 ## Cast Suggerito AI + Auto-Completa Cast (Apr 28, 2026 — sera 2)
 
 ### Richiesta utente

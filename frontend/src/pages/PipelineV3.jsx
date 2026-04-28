@@ -413,26 +413,48 @@ export default function PipelineV3() {
   const renderQuotaBadge = () => {
     const fmtQ = (info, label) => {
       if (!info) return null;
-      const used = info.parallel_used ?? 0;
-      const max = info.max_parallel;
+      const pUsed = info.parallel_used ?? 0;
+      const pMax = info.max_parallel;
+      const dUsed = info.daily_used ?? 0;
+      const dMax = info.max_daily;
       const unlimited = info.unlimited;
-      const full = !unlimited && max != null && used >= max;
-      const cdActive = info.cooldown_active;
-      const countdown = cdActive ? formatCountdown(info.cooldown_expires_at) : null;
+      const parallelFull = info.parallel_full;
+      const dailyFull = info.daily_full;
+      const showDual = info.show_dual_quota;
+      const blocked = parallelFull || dailyFull;
+      const dailyCountdown = dailyFull ? formatCountdown(info.daily_window_resets_at) : null;
+
       return (
         <div className={`flex-1 px-2 py-1.5 rounded-lg border text-[9px] ${
-          full || cdActive ? 'border-red-500/40 bg-red-500/10 text-red-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+          blocked ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
         }`} data-testid={`quota-badge-${label.toLowerCase()}`}>
           <div className="flex items-center justify-between gap-1">
             <span className="font-bold uppercase tracking-wider">{label}</span>
-            <span className="font-mono">{unlimited ? `${used}/∞` : `${used}/${max}`}</span>
+            <span className="text-[8px] text-gray-400">Lv {info.level || 0}</span>
           </div>
-          <div className="text-[8px] opacity-80 mt-0.5">
-            Studio Lv {info.level || 0}{full && !cdActive ? ' • limite raggiunto' : ''}
+          {/* Riga TOTALI */}
+          <div className={`flex items-center justify-between mt-1 ${parallelFull ? 'text-red-300' : ''}`}>
+            <span className="opacity-80">Totali aperti</span>
+            <span className="font-mono font-bold">{unlimited ? `${pUsed}/∞` : `${pUsed}/${pMax}`}</span>
           </div>
-          {cdActive && countdown && (
-            <div className="text-[8px] mt-0.5 text-red-300 font-mono">
-              ⏱️ Disponibile tra {countdown}
+          {/* Riga GIORNALIERI — solo quando ha senso (max_parallel > 1) */}
+          {showDual && (
+            <>
+              <div className={`flex items-center justify-between ${dailyFull ? 'text-red-300' : ''}`}>
+                <span className="opacity-80">Oggi (24h)</span>
+                <span className="font-mono font-bold">{dMax == null ? `${dUsed}/∞` : `${dUsed}/${dMax}`}</span>
+              </div>
+              {dailyFull && dailyCountdown && (
+                <div className="text-[8px] mt-0.5 text-red-300 font-mono">
+                  ⏱️ Slot tra {dailyCountdown}
+                </div>
+              )}
+            </>
+          )}
+          {parallelFull && !dailyFull && (
+            <div className="text-[8px] mt-0.5 text-red-300">
+              ⚠️ Completa o scarta un progetto
             </div>
           )}
         </div>

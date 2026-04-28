@@ -1,3 +1,124 @@
+## Velion AI Advisor — Estensione Quota v2 + Live Action + Feature v2 (Apr 28, 2026 — sera 5)
+
+### Richiesta utente
+Verificare il funzionamento di Velion (assistente AI con consigli contestuali) e aggiungere:
+- Avvisi su nuove feature (Live Action, doppia quota, personaggi AI)
+- "Sai che se costruisci/upgradi X infrastruttura puoi fare Y?" (didascalico)
+- Quando l'utente entra in pagina di creazione e la quota è satura → suggerimento mirato con redirect
+- Tutto **non invasivo** (uno ogni X ore in game)
+
+### Implementazione
+
+**Backend `routes/velion.py`** (~120 righe):
+
+1. **TRIGGER_VARIANTS** estesi con nuovi tipi di messaggio:
+   - `quota_parallel_full`: "Hai raggiunto il limite di progetti aperti. Completane uno o potenzia lo studio..."
+   - `quota_daily_full`: "Hai già creato il massimo di progetti per oggi. Riprova più tardi o potenzia lo studio..."
+   - `live_action_close`: "Sei vicino a sbloccare il Live Action..."
+   - `live_action_ready`: "Hai sbloccato il Live Action. Trasforma i tuoi anime e film d'animazione..."
+   - `characters_unused`, `cast_auto_hint`, `tv_market_hint`
+
+2. **VELION_TIPS** nuova categoria `features_v2` con 14 "Sapevi che...":
+   - "Sapevi che a Studio Anime Lv 5 + Player Lv 10 + Fama 100 sblocchi il Live Action?"
+   - "Sapevi che a Production Studio Lv 6 hai 10 progetti V3 aperti e 3 al giorno?"
+   - "Sapevi che il Cast Suggerito AI propone attori coerenti per età e ruolo?"
+   - "Sapevi che il Mercato Diritti TV vende i tuoi film alle emittenti dopo il cinema?"
+   - ecc.
+
+3. **PAGE_SUGGESTIONS** nuove pagine:
+   - `/pipeline-v3` (base + by_level 1/5/10)
+   - `/create-live-action` (con requisiti chiari)
+   - `/notifications`
+
+4. **PRIORITY_ORDER** ridefinito: `quota_full = 0` (priorità massima) > `stuck_film = 1` > altri.
+
+5. **`analyze_player_state`** estesa con 2 nuovi controlli:
+   - **Quota awareness**: se `page` è di produzione (`/pipeline-v3`, `/create-film`, `/create-series`, `/create-anime`, `/create-sequel`, `/create-live-action`), legge `get_studio_quota_info(classic+lampo)`. Se *almeno uno* dei due è saturo → trigger `quota_full` con `action='/infrastructure'` e `meta` completo (used/max/reset_at).
+   - **Live Action awareness**: legge livelli `studio_anime`, `production_studio`, `user.fame`. Se requisiti soddisfatti + ha origine → `live_action_ready`. Se manca esattamente 1 requisito + ha origine → `live_action_close`.
+
+6. Bug fix: `quality_score` poteva essere `None` causando `TypeError` su `q > 0`. Ora con default `or 0`.
+
+**Frontend `components/VelionOverlay.jsx`**:
+- `HIGH_PRIORITY_TYPES` esteso con `quota_full`, `live_action_ready`, `live_action_close`
+- `BUBBLE_COOLDOWN` portato da 10 min → **30 min** (meno invasivo, come richiesto)
+- Nuovo parametro `forceImportant` in `fetchTriggers`: bypassa cooldown quando si entra in una pagina di creazione → l'advisor `quota_full` appare immediatamente al cambio pagina
+- Effect "page change" ora chiama `fetchTriggers(true)` se la nuova pagina è di produzione
+
+**Frontend `components/VelionPanel.jsx`**:
+- Tips ora mix di `general` (2) + `features_v2` (2), shuffled → l'utente vede i "sapevi che…" sulle nuove feature
+
+### Test (backend reale)
+- Lint Python ✅ (4 errori bare except preesistenti non miei), Lint JS ✅
+- `GET /velion/player-status?page=/pipeline-v3` con daily quota satura → `advisor: quota_full → "Hai già creato il massimo di progetti per oggi..."`, `action: /infrastructure` ✅
+- `GET /velion/player-status?page=/create-live-action` → `page_hint: "Per sbloccare il Live Action: Studio Anime/Production Lv 5, Player Lv 10, Fama 100."` ✅
+- `GET /velion/tips?category=features_v2&count=3` → 3 tips random "Sapevi che..." ✅
+
+### File modificati
+- `/app/backend/routes/velion.py` (+~110 righe: variants, tips, pages, trigger logic, bug fix)
+- `/app/frontend/src/components/VelionOverlay.jsx` (priority types, BUBBLE_COOLDOWN 30min, forceImportant)
+- `/app/frontend/src/components/VelionPanel.jsx` (mix tips)
+
+---
+
+
+## Quota v2 Doppia (Parallel + Daily) + Pre-fix exclusion (Apr 28, 2026 — sera 4)
+
+### Richieste utente
+1. Cooldown countdown attivo anche per LAMPO
+2. Quote troppo basse: a Lv 7 solo 3 progetti V3 → aumentare ma con doppio limite (totale + giornaliero)
+3. Mostrare entrambi i limiti `Totali X/X` + `Giornalieri X/XG` con countdown reset 24h
+4. **Escludere i progetti pre-fix dal conteggio** (l'utente aveva 7 progetti pre-bug e quota satura)
+
+### Implementazione
+
+**Backend `utils/studio_quota.py` — RIFATTO**:
+- Costante `QUOTA_V2_RESET_AT = 2026-04-28T07:00:00Z` → tutti i progetti `created_at` precedenti **non vengono più conteggiati**
+- Nuova `_QUOTA_TABLE` molto più generosa con coppia `(parallel, daily)`:
+  ```
+  Lv 0-2:   3 / 1
+  Lv 3-5:   5 / 2
+  Lv 6-8:  10 / 3   ← era 3 fisso
+  Lv 9-14: 15 / 5
+  Lv 15-24: 25 / 8
+  Lv 25-49: 40 / 15
+  Lv 50-99: 60 / 30
+  Lv 100-199: 100 / 50
+  Lv 200+: illimitato
+  ```
+- LAMPO `_LAMPO_QUOTA_TABLE` analoga, daily più rilassato (perk veloce)
+- `_count_active_projects()` filtra `created_at >= QUOTA_V2_RESET_AT.isoformat()` (Mongo store as ISO string)
+- Nuova `_count_daily_creations()` → conta progetti creati nelle ultime 24h, ritorna anche `oldest_in_window` (per calcolare quando uno slot daily si libera = oldest+24h)
+- `get_studio_quota_info()` ora restituisce: `parallel_used/max_parallel/parallel_full`, `daily_used/max_daily/daily_full/daily_window_resets_at`, `show_dual_quota` (true se max_parallel>1)
+- `check_studio_quota()` blocca su parallel OR daily, messaggi distinti
+- **Eliminato il cooldown post-release classic**: sostituito dal daily limit (più chiaro)
+
+**Frontend `pages/PipelineV3.jsx`**:
+- `renderQuotaBadge` mostra ora 2 righe nel chip:
+  - "Totali aperti X/Y" (rosso se parallel_full)
+  - "Oggi (24h) X/Y" (rosso se daily_full) — solo se `show_dual_quota=true`
+  - Sotto, countdown live `⏱️ Slot tra Xs` quando daily_full
+  - Avviso "⚠️ Completa o scarta un progetto" quando parallel_full ma daily libero
+- Mostrato sia per V3 Classico che per ⚡ LAMPO
+- Countdown alimentato da `clockTick` ogni 1s
+
+**Backend `routes/infrastructure.py`**:
+- `INFRA_LEVEL_PERKS` aggiornata per riflettere la nuova tabella quote (es. Lv 6 = "10 classici totali, 3 al giorno") — niente più "Cooldown 3 giorni"
+
+### Test (backend reale)
+- Lint Python ✅, Lint JS ✅
+- User Lv 1: parallel 0/3, daily 0/1 ✅ (i 7 progetti pre-fix sono ESCLUSI)
+- Dopo 1 creazione: parallel 1/3, daily 1/1 → daily FULL, blocco ✅
+- Dopo 3 creazioni forzate: parallel 3/3 + daily 3/1 → entrambe FULL, `daily_window_resets_at: 2026-04-29T08:00:33Z` ✅
+- 4° tentativo bloccato con: *"Limite progetti classici aperti raggiunto (3/3). Completa o scarta un progetto, oppure potenzia lo studio."* ✅
+
+### File modificati
+- `/app/backend/utils/studio_quota.py` (riscrittura completa quota logic ~120 righe)
+- `/app/backend/routes/infrastructure.py` (perks aggiornati a nuova tabella)
+- `/app/frontend/src/pages/PipelineV3.jsx` (badge quota a 2 righe)
+
+---
+
+
 ## Fix Infrastrutture non-cinema + Cooldown Timer (Apr 28, 2026 — sera 3)
 
 ### Problemi segnalati dall'utente

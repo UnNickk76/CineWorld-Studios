@@ -166,6 +166,37 @@ TRIGGER_VARIANTS = {
         'Il cinema non dorme. E nemmeno le opportunita.',
         'Bentornato nel gioco. Hai lavoro da fare.',
     ],
+    'quota_parallel_full': [
+        'Hai raggiunto il limite di progetti aperti. Completane uno o potenzia lo studio per aprirne di piu.',
+        'Lo studio e saturo. Chiudi un progetto in corso o sali di livello per piu slot.',
+        'Tutti i tuoi slot produzione sono occupati. Un upgrade allo studio sblocchera piu progetti paralleli.',
+    ],
+    'quota_daily_full': [
+        'Hai gia creato il massimo di progetti per oggi. Riprova tra qualche ora oppure potenzia lo studio per piu produzioni giornaliere.',
+        'Quota giornaliera esaurita. Ti aspetta una pausa creativa o un upgrade dello studio.',
+        'Oggi hai prodotto al massimo. Lo studio piu alto regala piu creazioni quotidiane.',
+    ],
+    'live_action_close': [
+        'Sei vicino a sbloccare il Live Action. Pochi requisiti ti separano dall\'adattamento dei tuoi anime.',
+        'Live Action all\'orizzonte: pochi step e potrai trasformare animazione e anime in film.',
+        'Il Live Action e a un passo. Potenzia gli studi e fai crescere il tuo player.',
+    ],
+    'live_action_ready': [
+        'Hai sbloccato il Live Action. Trasforma i tuoi anime e film d\'animazione in opere live.',
+        'I tuoi anime e film d\'animazione possono diventare live-action: un nuovo flusso di hype ti aspetta.',
+    ],
+    'characters_unused': [
+        'Sapevi che l\'AI puo generare i personaggi del tuo film? Risparmierai tempo nel cast.',
+        'Genera i personaggi con un click: l\'AI propone nomi, eta e ruoli coerenti con la trama.',
+    ],
+    'cast_auto_hint': [
+        'Per il cast, prova "Suggerisci Cast AI" o "Completa Cast Auto": l\'AI sceglie attori coerenti per eta e ruolo.',
+        'Cast troppo lungo da assemblare? L\'AI propone gli attori migliori in pochi secondi.',
+    ],
+    'tv_market_hint': [
+        'I tuoi film escono dal cinema? Vendi i diritti TV: contratti automatici e ricavi extra.',
+        'Il Mercato Diritti TV monetizza i tuoi film anche dopo il cinema.',
+    ],
 }
 
 
@@ -210,6 +241,22 @@ VELION_TIPS = {
         'Le azioni legali sono costose ma devastanti. Usale con saggezza.',
         'La difesa e importante quanto l\'attacco nel PvP.',
         'Un boicottaggio al momento giusto puo distruggere un Coming Soon.',
+    ],
+    'features_v2': [
+        'Sapevi che a Studio Anime Lv 5 + Player Lv 10 + Fama 100 sblocchi il Live Action? Trasformi i tuoi anime in film.',
+        'Sapevi che la pipeline V3 ti permette anche LAMPO? Crea film completi in pochi minuti con l\'AI.',
+        'Sapevi che il Mercato Diritti TV vende i tuoi film alle emittenti dopo il cinema? Ricavi extra automatici.',
+        'Sapevi che ogni Studio ha una quota Totale + una Giornaliera? Potenziandolo aumenti entrambi i limiti.',
+        'Sapevi che il Talent Scout di livello 3 sblocca i disegnatori per anime e animazioni?',
+        'Sapevi che alle Emittenti TV Lv 3 sblocchi la fascia oraria prime time?',
+        'Sapevi che a Production Studio Lv 6 hai 10 progetti V3 aperti e 3 al giorno?',
+        'Sapevi che il Cast Suggerito AI propone attori coerenti per eta e ruolo? Click su "Suggerisci Cast AI".',
+        'Sapevi che puoi completare il cast con un click? "Completa Cast Auto" assegna tutti i personaggi.',
+        'Sapevi che i film d\'animazione e anime hanno una lista personaggi generata dall\'AI a fine riepilogo?',
+        'Sapevi che le serie TV hanno i personaggi pre-cast? L\'AI te li genera prima della scelta degli attori.',
+        'Sapevi che la Scuola Cinema riduce i costi di casting? Investi a lungo termine.',
+        'Sapevi che il Drive-In ha posti unici per sala? Perfetto per debutti di nicchia.',
+        'Sapevi che il Multisala produce piu rendita per metro quadrato? Ideale per le grandi citta.',
     ],
 }
 
@@ -314,6 +361,33 @@ PAGE_SUGGESTIONS = {
             'L\'Anime e un mercato in crescita. Chi entra prima, domina.',
         ],
     },
+    '/pipeline-v3': {
+        'base': [
+            'La Pipeline V3 e il cuore della produzione moderna. Pianifica con cura ogni fase.',
+            'Qui ogni progetto vive e respira. Tieni d\'occhio i tuoi slot Totali e Giornalieri.',
+        ],
+        'by_level': {
+            1: 'Inizia con un progetto V3 alla volta. Quando lo studio sale, sbloccherai piu slot.',
+            5: 'Considera l\'opzione LAMPO: produzione veloce per testare nuovi generi.',
+            10: 'Sblocca il Live Action di un anime: hype gia carico e fanbase pronta.',
+        }
+    },
+    '/create-live-action': {
+        'base': [
+            'Il Live Action e un\'opera derivata: hype iniziale alto se l\'origine ha funzionato.',
+            'Adatta i tuoi anime e film d\'animazione. Personaggi pre-popolati, cast da assegnare.',
+        ],
+        'by_level': {
+            1: 'Per sbloccare il Live Action: Studio Anime/Production Lv 5, Player Lv 10, Fama 100.',
+            10: 'Hai i requisiti? Ricorda: l\'origine deve essere uscita da almeno 15 giorni reali.',
+        }
+    },
+    '/notifications': {
+        'base': [
+            'Le notifiche raccontano la tua storia. Non perderti niente.',
+            'Ogni notifica e cliccabile e ti porta dove serve.',
+        ],
+    },
 }
 
 
@@ -407,13 +481,16 @@ async def get_ai_response(user_text: str, player_context: str) -> str:
 
 # Priority levels (lower number = higher priority)
 PRIORITY_ORDER = {
+    'quota_full': 0,             # blocco di creazione → priorità massima quando in /pipeline-v3
     'stuck_film': 1,
     'countdown_imminent': 2,
     'countdown': 3,
     'revenue': 4,
     'no_films': 5,
     'infrastructure_upgrade': 6,
+    'live_action_ready': 6,      # nuova feature pronta da provare
     'pvp_event': 7,
+    'live_action_close': 8,      # vicino allo sblocco
     'social_hint': 8,
     'low_quality': 9,
     'idle': 10,
@@ -532,6 +609,99 @@ async def analyze_player_state(user: dict, page: str = None) -> dict:
             '_sort': PRIORITY_ORDER['infrastructure_upgrade']
         })
 
+    # --- 5b. QUOTA V2 awareness (Pipeline V3 / Sequel / Live Action / Series creation) ---
+    # Se il player sta visitando una pagina di creazione e ha la quota studio satura,
+    # Velion suggerisce immediatamente cosa fare.
+    page_str = (page or '').lower()
+    is_production_page = any(p in page_str for p in (
+        '/pipeline-v3', '/create-film', '/create-series', '/create-anime',
+        '/create-sequel', '/create-live-action'
+    ))
+    if is_production_page:
+        try:
+            from utils.studio_quota import get_studio_quota_info
+            studio_t = 'production_studio'
+            if 'series' in page_str:
+                studio_t = 'studio_serie_tv'
+            elif 'anime' in page_str:
+                studio_t = 'studio_anime'
+            qc = await get_studio_quota_info(db, uid, studio_t, mode='classic')
+            ql = await get_studio_quota_info(db, uid, studio_t, mode='lampo')
+            classic_blocked = qc.get('parallel_full') or qc.get('daily_full')
+            lampo_blocked = ql.get('parallel_full') or ql.get('daily_full')
+            # Avvisa se almeno uno dei due è saturo (l'utente troverà il blocco entrando)
+            if classic_blocked or lampo_blocked:
+                # Determina il messaggio: priorità a parallel (limite duro) su daily (temporaneo)
+                if (classic_blocked and qc.get('parallel_full')) or (lampo_blocked and ql.get('parallel_full')):
+                    trigger_kind = 'quota_parallel_full'
+                else:
+                    trigger_kind = 'quota_daily_full'
+                all_triggers.append({
+                    'type': 'quota_full',
+                    'message': pick_variant(trigger_kind),
+                    'priority': 'high',
+                    'action': '/infrastructure',
+                    'meta': {
+                        'studio_type': studio_t,
+                        'classic_full': classic_blocked,
+                        'lampo_full': lampo_blocked,
+                        'classic_used': qc.get('parallel_used'),
+                        'classic_max': qc.get('max_parallel'),
+                        'classic_daily_used': qc.get('daily_used'),
+                        'classic_daily_max': qc.get('max_daily'),
+                        'daily_window_resets_at': qc.get('daily_window_resets_at'),
+                    },
+                    '_sort': PRIORITY_ORDER['quota_full'],
+                })
+        except Exception as e:
+            logger.warning(f"Velion quota check failed: {e}")
+
+    # --- 5c. LIVE ACTION awareness (close to unlock / ready) ---
+    # Requirements: Studio Anime|Production Lv 5 + Player Lv 10 + Fame 100
+    try:
+        anime_lvl = (await db.infrastructure.find_one(
+            {"owner_id": uid, "type": "studio_anime"}, {"_id": 0, "level": 1}
+        ) or {}).get('level', 0) or 0
+        prod_lvl = (await db.infrastructure.find_one(
+            {"owner_id": uid, "type": "production_studio"}, {"_id": 0, "level": 1}
+        ) or {}).get('level', 0) or 0
+        fame = int(user.get('fame', 0) or 0)
+        # Hai gia almeno un'opera animazione/anime rilasciata?
+        has_origin = await db.films.find_one(
+            {"user_id": uid, "$or": [{"genre": "animation"}, {"is_animation": True}]},
+            {"_id": 0, "id": 1}
+        ) or await db.tv_series.find_one(
+            {"user_id": uid, "type": "anime"}, {"_id": 0, "id": 1}
+        )
+        unlocked = (anime_lvl >= 5 or prod_lvl >= 5) and user_level >= 10 and fame >= 100
+        if unlocked and has_origin:
+            all_triggers.append({
+                'type': 'live_action_ready',
+                'message': pick_variant('live_action_ready'),
+                'priority': 'medium',
+                'action': '/create-live-action',
+                '_sort': PRIORITY_ORDER['live_action_ready'],
+            })
+        else:
+            # close = manca ≤ 1 requisito
+            missing = 0
+            if not (anime_lvl >= 5 or prod_lvl >= 5):
+                missing += 1
+            if user_level < 10:
+                missing += 1
+            if fame < 100:
+                missing += 1
+            if missing == 1 and has_origin:
+                all_triggers.append({
+                    'type': 'live_action_close',
+                    'message': pick_variant('live_action_close'),
+                    'priority': 'low',
+                    'action': '/create-live-action',
+                    '_sort': PRIORITY_ORDER['live_action_close'],
+                })
+    except Exception as e:
+        logger.warning(f"Velion LA check failed: {e}")
+
     # --- 6. PvP events ---
     pvp_types = ['pvp_attack', 'pvp_boycott', 'legal_action', 'investigation']
     pvp_notifs = [n for n in notifications if n.get('type') in pvp_types]
@@ -546,7 +716,7 @@ async def analyze_player_state(user: dict, page: str = None) -> dict:
 
     # --- 7. Low quality film ---
     for p in active_pipeline:
-        q = p.get('quality_score', 0)
+        q = p.get('quality_score', 0) or 0
         if q > 0 and q < 40:
             all_triggers.append({
                 'type': 'low_quality',

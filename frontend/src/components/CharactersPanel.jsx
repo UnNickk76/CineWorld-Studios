@@ -16,7 +16,7 @@
  * Logica età: importata da `characterAgeUtils.js`.
  */
 import React, { useEffect, useState, useMemo } from 'react';
-import { Users, Sparkles, RefreshCw, Loader2, CheckCircle2 } from 'lucide-react';
+import { Users, Sparkles, RefreshCw, Loader2, CheckCircle2, Wand2, Zap, X } from 'lucide-react';
 import { isActorCompatible, roleLabel, roleColor } from '../utils/characterAgeUtils';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -87,6 +87,66 @@ export default function CharactersPanel({ kind, projectId, actors = null, onToas
     setAssigningId(null);
   };
 
+  // ── Cast Suggerito (preview) ──
+  const [suggestModal, setSuggestModal] = useState(null); // { suggestions:[], pool_size }
+  const [suggestBusy, setSuggestBusy] = useState(false);
+
+  const openSuggest = async () => {
+    if (readOnly || actors === null || suggestBusy) return;
+    setSuggestBusy(true);
+    try {
+      const payload = { actors: (actors || []).map(a => ({
+        id: a.id, name: a.name, age: a.age, gender: a.gender,
+        skill: a.skill, popularity: a.popularity, stars: a.stars,
+        strong_genres: a.strong_genres,
+      })), overwrite: false };
+      const d = await apiCall(`/api/characters/${kind}/${projectId}/suggest-cast`, 'POST', payload);
+      setSuggestModal(d);
+    } catch (e) {
+      onToast && onToast(e.message || 'Errore generazione suggerimenti', 'error');
+    }
+    setSuggestBusy(false);
+  };
+
+  const applySuggestions = async () => {
+    if (!suggestModal) return;
+    setSuggestBusy(true);
+    try {
+      const payload = { actors: (actors || []).map(a => ({
+        id: a.id, name: a.name, age: a.age, gender: a.gender,
+        skill: a.skill, popularity: a.popularity, stars: a.stars,
+        strong_genres: a.strong_genres,
+      })), overwrite: false };
+      const d = await apiCall(`/api/characters/${kind}/${projectId}/auto-complete-cast`, 'POST', payload);
+      setChars(d.characters || []);
+      onChange && onChange(d.characters || []);
+      setSuggestModal(null);
+      onToast && onToast(`✨ Cast applicato: ${d.assigned}/${d.total} personaggi`);
+    } catch (e) {
+      onToast && onToast(e.message || 'Errore applicazione cast', 'error');
+    }
+    setSuggestBusy(false);
+  };
+
+  const autoCompleteAll = async () => {
+    if (readOnly || actors === null || suggestBusy) return;
+    setSuggestBusy(true);
+    try {
+      const payload = { actors: (actors || []).map(a => ({
+        id: a.id, name: a.name, age: a.age, gender: a.gender,
+        skill: a.skill, popularity: a.popularity, stars: a.stars,
+        strong_genres: a.strong_genres,
+      })), overwrite: true };
+      const d = await apiCall(`/api/characters/${kind}/${projectId}/auto-complete-cast`, 'POST', payload);
+      setChars(d.characters || []);
+      onChange && onChange(d.characters || []);
+      onToast && onToast(`⚡ Cast completato: ${d.assigned}/${d.total} (${d.no_match || 0} senza match età)`);
+    } catch (e) {
+      onToast && onToast(e.message || 'Errore auto-completa', 'error');
+    }
+    setSuggestBusy(false);
+  };
+
   // Statistiche slot
   const stats = useMemo(() => {
     const total = chars.length;
@@ -131,7 +191,7 @@ export default function CharactersPanel({ kind, projectId, actors = null, onToas
   // Lista personaggi
   return (
     <div className="rounded-xl border border-purple-500/20 bg-gradient-to-br from-purple-950/20 to-gray-900/50 overflow-hidden" data-testid="characters-panel">
-      <div className="px-3 py-2 border-b border-purple-500/10 flex items-center justify-between">
+      <div className="px-3 py-2 border-b border-purple-500/10 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Users className="w-3.5 h-3.5 text-purple-400" />
           <h3 className="text-[11px] font-bold text-purple-200 uppercase tracking-wider">
@@ -161,6 +221,32 @@ export default function CharactersPanel({ kind, projectId, actors = null, onToas
         )}
       </div>
 
+      {/* Pulsanti AI Cast (solo se attori disponibili) */}
+      {actors !== null && !readOnly && (
+        <div className="px-3 py-2 grid grid-cols-2 gap-2 border-b border-purple-500/10 bg-black/20">
+          <button
+            onClick={openSuggest}
+            disabled={suggestBusy || !chars.length}
+            className="px-2 py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-cyan-200 text-[10px] font-bold disabled:opacity-50 active:scale-95 transition-all flex items-center justify-center gap-1"
+            data-testid="suggest-cast-btn"
+            title="L'AI propone gli attori migliori, tu confermi"
+          >
+            {suggestBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+            Suggerisci Cast AI
+          </button>
+          <button
+            onClick={autoCompleteAll}
+            disabled={suggestBusy || !chars.length}
+            className="px-2 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-200 text-[10px] font-bold disabled:opacity-50 active:scale-95 transition-all flex items-center justify-center gap-1"
+            data-testid="auto-complete-cast-btn"
+            title={`Assegna automaticamente tutti i ${chars.length} personaggi`}
+          >
+            {suggestBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+            Completa Cast Auto
+          </button>
+        </div>
+      )}
+
       <ul className="divide-y divide-purple-500/10">
         {chars.map(c => (
           <CharacterRow
@@ -177,6 +263,56 @@ export default function CharactersPanel({ kind, projectId, actors = null, onToas
       {actors !== null && !stats.hasProtagonist && stats.total > 0 && (
         <div className="px-3 py-2 bg-amber-500/10 border-t border-amber-500/30 text-[10px] text-amber-300">
           ⚠️ Assegna un attore al personaggio protagonista per avanzare.
+        </div>
+      )}
+
+      {/* Modale preview suggerimenti */}
+      {suggestModal && (
+        <div className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-sm flex items-end sm:items-center justify-center p-3" onClick={() => !suggestBusy && setSuggestModal(null)}>
+          <div className="w-full max-w-md max-h-[85vh] rounded-2xl border border-cyan-500/40 bg-gradient-to-br from-cyan-950/70 to-gray-900/95 flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 py-3 flex items-center justify-between border-b border-cyan-500/20 shrink-0">
+              <div className="flex items-center gap-2">
+                <Wand2 className="w-4 h-4 text-cyan-400" />
+                <h3 className="text-sm font-bold text-cyan-200">Cast Suggerito AI</h3>
+              </div>
+              <button onClick={() => !suggestBusy && setSuggestModal(null)} disabled={suggestBusy} className="text-gray-400 hover:text-white" data-testid="suggest-close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-4 py-2 text-[10px] text-gray-400 border-b border-cyan-500/10 shrink-0">
+              Pool di {suggestModal.actors_pool_size} attori. I personaggi senza match d'età non vengono assegnati.
+            </div>
+            <ul className="flex-1 overflow-y-auto divide-y divide-cyan-500/10">
+              {suggestModal.suggestions.map(s => (
+                <li key={s.character_id} className="px-4 py-2 flex items-center gap-2" data-testid={`suggest-row-${s.character_id}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold text-white truncate">{s.character_name}</p>
+                    {s.actor_name ? (
+                      <p className="text-[10px] text-cyan-300 truncate">→ {s.actor_name} {s.kept ? '(già assegnato)' : ''}</p>
+                    ) : (
+                      <p className="text-[10px] text-red-400">— Nessun attore compatibile</p>
+                    )}
+                  </div>
+                  {s.score !== null && s.score !== undefined && (
+                    <span className="text-[9px] text-gray-500 shrink-0">score {s.score}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className="grid grid-cols-2 gap-2 p-3 border-t border-cyan-500/20 shrink-0">
+              <button onClick={() => setSuggestModal(null)} disabled={suggestBusy}
+                className="px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 text-xs font-bold disabled:opacity-50"
+                data-testid="suggest-cancel">
+                Annulla
+              </button>
+              <button onClick={applySuggestions} disabled={suggestBusy}
+                className="px-3 py-2 rounded-lg bg-cyan-500/30 border border-cyan-500/60 text-cyan-100 text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-1"
+                data-testid="suggest-apply">
+                {suggestBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                Applica
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

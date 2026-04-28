@@ -1,3 +1,43 @@
+## Cast Suggerito AI + Auto-Completa Cast (Apr 28, 2026 — sera 2)
+
+### Richiesta utente
+Aggiungere funzionalità AI per:
+1. **Suggerisci Cast AI**: l'AI propone gli attori migliori per ogni personaggio in modale di preview, l'utente può confermare/modificare
+2. **Completa Cast Automatico**: assegna direttamente tutti i personaggi (anche 20) agli attori più coerenti per età, ruolo, skill e genere
+
+### Implementazione
+
+**Backend `routes/characters.py`**:
+- Nuovo modello `ActorSlim`, `SuggestCastRequest` (campo `actors` opzionale + `overwrite`)
+- `_score_actor_for_character()`: scoring basato su skill/popolarità (50%/30%) + stelle×5 + bonus genre match (+15) + bonus ruolo principale (×3 stars per protagonist/antagonist) + penalità minor per superstar + bonus gender match (+10) o mismatch (−30) + età-precision (−0.5 per anno di gap). Età incompatibile → score −1 (escluso).
+- `_compute_suggestions()`: ordina personaggi per importanza (protagonist 5 → minor 1) e assegna greedy ad attori non ancora usati. Skip ai personaggi già assegnati se `overwrite=False`.
+- `_fetch_actors_pool()`: fallback automatico al database `db.people` (200 attori) se il client non passa `actors`.
+- Endpoint `POST /api/characters/{kind}/{pid}/suggest-cast` → ritorna preview con `score`, `kept`, `no_match`
+- Endpoint `POST /api/characters/{kind}/{pid}/auto-complete-cast` → applica direttamente, ritorna `{characters, assigned, total, no_match}`
+
+**Frontend `components/CharactersPanel.jsx`**:
+- 2 nuovi pulsanti nell'header (visibili solo quando `actors !== null` e non readOnly):
+  - "🪄 Suggerisci Cast AI" (cyan) → apre modale con preview, l'utente conferma con "Applica"
+  - "⚡ Completa Cast Auto" (amber) → assegna immediatamente tutti
+- Modale preview cast: lista personaggio→attore con score, "no match" rosso per gli incompatibili, pulsanti Annulla/Applica
+- Toast riepilogo: "✨ Cast applicato: 8/8 personaggi" o "⚡ Cast completato: 8/8 (0 senza match età)"
+
+### Test
+- Lint Python ✅, Lint JS ✅
+- `POST /api/characters/film_v3/<pid>/suggest-cast` → 8 personaggi con score 81-108 ✅
+- `POST /api/characters/film_v3/<pid>/auto-complete-cast` (overwrite=true) → Assigned: 8/8, no_match: 0 ✅
+  - Alessandro Rinaldi (45y, protagonist) → Tunde Adeyemi
+  - Livia Conte (50y, antagonist) → Folake Nwachukwu
+  - Greta Rinaldi (16y, supporting) → Khanyi Naidoo
+  - ecc.
+
+### File modificati
+- `/app/backend/routes/characters.py` (+~140 righe: scoring + 2 endpoint)
+- `/app/frontend/src/components/CharactersPanel.jsx` (+~120 righe: 2 pulsanti, modale preview, 3 azioni AI)
+
+---
+
+
 ## Personaggi AI + Live Action + UX errori 400 (Apr 28, 2026 — sera)
 
 ### Richieste utente

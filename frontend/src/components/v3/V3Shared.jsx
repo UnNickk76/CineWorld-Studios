@@ -60,7 +60,15 @@ export async function v3api(path, method = 'GET', body) {
     method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json().catch(() => ({}));
+  // Robust JSON parse: fallback to text if not JSON (rari endpoint con html/empty)
+  let data = {};
+  let rawText = '';
+  try {
+    rawText = await res.text();
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    data = { detail: rawText };
+  }
   if (!res.ok) {
     // `detail` can be a dict (e.g. provider_failed) or a string
     const detail = data.detail;
@@ -68,9 +76,11 @@ export async function v3api(path, method = 'GET', body) {
     if (typeof detail === 'string' && detail) {
       msg = detail;
     } else if (detail && typeof detail === 'object') {
-      msg = detail.message || detail.code || JSON.stringify(detail).slice(0, 140);
+      msg = detail.message || detail.code || JSON.stringify(detail).slice(0, 180);
     } else if (data.error) {
       msg = data.error;
+    } else if (rawText && rawText.length < 200) {
+      msg = rawText;  // last-resort: mostra il body raw
     } else if (res.status === 401 || res.status === 403) {
       msg = 'Sessione scaduta — accedi di nuovo';
     } else if (res.status === 404) {
@@ -80,6 +90,9 @@ export async function v3api(path, method = 'GET', body) {
     } else {
       msg = `Errore (HTTP ${res.status})`;
     }
+    // Log debug per diagnosi
+    // eslint-disable-next-line no-console
+    console.error(`[v3api] ${method} ${path} → HTTP ${res.status}`, { detail, rawText });
     const err = new Error(msg);
     err.status = res.status;
     err.code = typeof detail === 'object' ? detail.code : undefined;

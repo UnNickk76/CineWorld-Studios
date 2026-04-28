@@ -64,7 +64,22 @@ export async function v3api(path, method = 'GET', body) {
   if (!res.ok) {
     // `detail` can be a dict (e.g. provider_failed) or a string
     const detail = data.detail;
-    const msg = typeof detail === 'object' ? (detail.message || detail.code || 'Errore API') : (detail || data.error || 'Errore API');
+    let msg;
+    if (typeof detail === 'string' && detail) {
+      msg = detail;
+    } else if (detail && typeof detail === 'object') {
+      msg = detail.message || detail.code || JSON.stringify(detail).slice(0, 140);
+    } else if (data.error) {
+      msg = data.error;
+    } else if (res.status === 401 || res.status === 403) {
+      msg = 'Sessione scaduta — accedi di nuovo';
+    } else if (res.status === 404) {
+      msg = 'Risorsa non trovata';
+    } else if (res.status === 410) {
+      msg = 'Endpoint dismesso';
+    } else {
+      msg = `Errore (HTTP ${res.status})`;
+    }
     const err = new Error(msg);
     err.status = res.status;
     err.code = typeof detail === 'object' ? detail.code : undefined;

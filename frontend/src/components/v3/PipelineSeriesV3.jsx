@@ -7,6 +7,7 @@ import { AuthContext } from '../../contexts';
 import TrailerGeneratorCard from '../TrailerGeneratorCard';
 import CineConfirm from './CineConfirm';
 import LampoModal from '../LampoModal';
+import CharactersPanel from '../CharactersPanel';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -673,6 +674,16 @@ const CastPhase = ({ project, onRefresh, seriesType }) => {
   return (
     <PhaseWrapper title="Cast & Crew" subtitle={`Regia, sceneggiatori, ${mainLabel.toLowerCase()}, compositore`} icon={Users} color="cyan">
       <div className="space-y-2.5">
+        {/* PERSONAGGI AI (solo serie TV, non anime) — guida la scelta degli attori */}
+        {!isAnime && (
+          <CharactersPanel
+            kind="series_v3"
+            projectId={project.id}
+            actors={mainList.map(m => ({ id: m.id || m.npc_id, name: m.name, age: m.age }))}
+            onToast={(msg, type) => type === 'error' ? toast.error(msg) : toast.success(msg)}
+          />
+        )}
+
         {/* Regista / Showrunner */}
         <CastSlot
           label={isAnime ? 'Regista (Anime)' : 'Showrunner / Regista'}
@@ -1127,6 +1138,17 @@ const MarketingPhase = ({ project, onRefresh }) => {
   return (
     <PhaseWrapper title="Marketing & TV" subtitle="Sponsor, pubblicità episodi, promozione" icon={Megaphone} color="green">
       <div className="space-y-3">
+        {/* PERSONAGGI AI (anime: solo a fine riepilogo, no cast) */}
+        {(project.type === 'anime') && (
+          <CharactersPanel
+            kind="series_v3"
+            projectId={project.id}
+            actors={null}
+            onToast={(msg, type) => type === 'error' ? toast.error(msg) : toast.success(msg)}
+            readOnly={completed}
+          />
+        )}
+
         {/* Sponsor packages */}
         <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/15">
           <p className="text-[8px] text-green-300 font-bold uppercase mb-1.5">Sponsor ({selectedSponsors.length}/{sponsors.length})</p>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useContext } from 'react';
 import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check, Coins, Trash2, AlertTriangle, Handshake } from 'lucide-react';
 import { PhaseWrapper, ProgressCircle, v3api } from './V3Shared';
 import { AuthContext } from '../../contexts';
+import CharactersPanel from '../CharactersPanel';
 
 const SPEEDUP_COSTS = { 25: 10, 50: 15, 75: 20, 100: 25 };
 // FASE 2 TV: capped costs per Film TV (-80% scala)
@@ -801,6 +802,17 @@ export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
   return (
     <PhaseWrapper title="Sponsor & Marketing" subtitle="Trova sponsor e promuovi il film" icon={Megaphone} color="green">
       <div className="space-y-3">
+
+        {/* ═══ PERSONAGGI AI (solo film d'animazione) ═══ */}
+        {(film.genre === 'animation' || film.type === 'anime') && (
+          <CharactersPanel
+            kind="film_v3"
+            projectId={film.id}
+            actors={null}
+            onToast={toast}
+            readOnly={!!film.marketing_completed}
+          />
+        )}
 
         {/* ═══ STEP 1: SPONSORS ═══ */}
         {!sponsorsConfirmed ? (

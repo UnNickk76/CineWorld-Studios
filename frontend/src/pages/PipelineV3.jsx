@@ -87,7 +87,7 @@ export default function PipelineV3() {
   }, []);
 
   useEffect(() => { loadProjects(); loadQuota(); }, [loadProjects, loadQuota]);
-  useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); } }, [toast]);
+  useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), toast.type === 'error' ? 8000 : 3500); return () => clearTimeout(t); } }, [toast]);
   useEffect(() => { return () => { if (progressRef.current) clearInterval(progressRef.current); }; }, []);
 
   // Auto-select a project when ?p=<project_id> is passed in URL (used by "Genera Trailer"

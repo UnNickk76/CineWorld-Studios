@@ -84,6 +84,8 @@ from routes.talent_market import router as talent_market_router
 from routes.film_pipeline import router as film_pipeline_router
 from routes.pipeline_v2 import router as pipeline_v2_router
 from routes.pipeline_v3 import router as pipeline_v3_router
+from routes.characters import router as characters_router
+from routes.live_action import router as live_action_router
 from routes.series_pipeline import router as series_pipeline_router
 from routes.pipeline_series_v3 import router as pipeline_series_v3_router
 from routes.admin_recovery import router as admin_recovery_router
@@ -10821,6 +10823,8 @@ app.include_router(talent_market_router)
 app.include_router(film_pipeline_router, prefix="/api")
 app.include_router(pipeline_v2_router)
 app.include_router(pipeline_v3_router)
+app.include_router(characters_router)
+app.include_router(live_action_router)
 app.include_router(series_pipeline_router, prefix="/api")
 app.include_router(pipeline_series_v3_router)
 app.include_router(sequel_pipeline_router, prefix="/api")

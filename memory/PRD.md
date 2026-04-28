@@ -1,3 +1,82 @@
+## Personaggi AI + Live Action + UX errori 400 (Apr 28, 2026 — sera)
+
+### Richieste utente
+1. Toast "errore HTTP 400" troppo generico → messaggi italiani coerenti che durino abbastanza
+2. AI deve generare lista **personaggi 5-20** (con nome, ruolo importanza, età coerente, descrizione) — solo per **film d'animazione, anime, serie TV**
+   - Animazione/anime → fine riepilogo (no cast)
+   - Serie TV → prima del cast (per guidare la scelta degli attori)
+   - Menu a tendina con matching età freezato (forbice 3/8/10/12 anni in base all'età personaggio)
+3. **Live Action**: nuova funzione in /produci che adatta film d'animazione/anime in live-action cinematografico
+   - Requisiti: Studio Anime OR Production Studio Lv 5 + Player Lv 10 + Fame ≥ 100
+   - Solo produttore originale, gate 15 giorni reali dall'uscita
+   - Pipeline V3 classica + LAMPO supportata
+   - Personaggi pre-popolati dall'origine; cast con menu personaggi
+   - Hype bonus = (CWSv × 8) + (spettatori / 100k), cap 200
+   - Genere ereditato (sottogenere overrideable se assente in origine)
+   - Serie TV → no live action (già usano attori). Backlog: estendere "Sequel" a "Opere Derivate" (film-da-serie / serie-da-film)
+
+### Implementazione
+
+**Fase A — UX errori**
+- `frontend/src/pages/PipelineV3.jsx`: toast errore durata 8s (success 3.5s)
+- `frontend/src/components/v3/V3Shared.jsx`: messaggi 400/429/500 in italiano coerenti
+
+**Fase B — Personaggi AI**
+- Backend `utils/characters_ai.py`: util async `generate_characters_ai()` con fallback deterministico, normalizzazione age 4-95, deduplica nomi, garantito ≥1 protagonista
+- Backend `utils/characters_ai.py::age_tolerance_for/is_actor_compatible`: forbice ±3 (≤17), ±8 (18-35), ±10 (35-60), ±12 (60+)
+- Backend `routes/characters.py`: nuovo router `/api/characters` con
+  - `GET /{kind}/{pid}` (kind ∈ film_v3, series_v3, lampo)
+  - `POST /{kind}/{pid}/generate?force=true&count=8`
+  - `POST /{kind}/{pid}/assign` (collega attore↔personaggio)
+- Frontend `components/CharactersPanel.jsx`: pannello riusabile con generazione, lista, menu a tendina attore (incompatibili disabilitati visivamente)
+- Frontend `utils/characterAgeUtils.js`: gemello frontend di matching età + label/colori ruolo
+- Integrazione:
+  - `Phases.jsx::MarketingPhase` (film V3 animation/anime) → readonly
+  - `PipelineSeriesV3.jsx::CastPhase` (serie TV non anime) → editable con menu attori
+  - `PipelineSeriesV3.jsx::MarketingPhase` (anime) → readonly fine riepilogo
+
+**Fase C — Live Action**
+- Backend `routes/live_action.py`: prefix `/api/live-action`
+  - `GET /unlock-status`
+  - `GET /eligible-origins` → film d'animazione + anime di proprietà rilasciati ≥15gg, no live-action già prodotto
+  - `POST /create` con quota check + pre-popolamento personaggi (genera al volo se origine non li ha) + bonus hype + marca origin con `live_action_id`
+- Frontend `pages/CreateLiveActionPage.jsx`: pagina rotta `/create-live-action` con
+  - Box requisiti se non sbloccato
+  - Griglia opere eligibili con poster, kind (Animaz./Anime), CWSv, giorni, spettatori, badge LAMPO
+  - Modale di conferma con titolo, sottogenere (se assente), modalità (V3 / LAMPO), info bonus
+  - Naviga a `/pipeline-v3?p=<new_id>` dopo creazione
+- `App.js`: aggiunto `Camera` "Live Action" nel menu Produci, lazy-load + rotta protetta
+
+### Test
+- Lint JS ✅, Lint Python ✅
+- `POST /api/characters/film_v3/<pid>/generate` → 8 personaggi coerenti (Alessandro, Livia, Emma, Nico, Greta, ecc.) con role_type/age/description in italiano ✅
+- `GET /api/live-action/unlock-status` → corretto stato non-sbloccato (player Lv 1, Fame 15, Anime Lv 2, Prod Lv 1) ✅
+- `GET /api/live-action/eligible-origins` → unlocked:false, origins:[] (atteso) ✅
+- Screenshot pagina /create-live-action → header "LIVE ACTION" pink + 3 requisiti con check rossi ✅
+
+### File aggiunti
+- `/app/backend/utils/characters_ai.py`
+- `/app/backend/routes/characters.py`
+- `/app/backend/routes/live_action.py`
+- `/app/frontend/src/components/CharactersPanel.jsx`
+- `/app/frontend/src/utils/characterAgeUtils.js`
+- `/app/frontend/src/pages/CreateLiveActionPage.jsx`
+
+### File modificati
+- `/app/backend/server.py` (registrazione 2 router)
+- `/app/backend/routes/pipeline_v3.py` (endpoint `/quota-info`)
+- `/app/frontend/src/pages/PipelineV3.jsx` (badge quota + modale + toast 8s)
+- `/app/frontend/src/components/v3/V3Shared.jsx` (messaggi errore 400/429/500)
+- `/app/frontend/src/components/v3/Phases.jsx` (CharactersPanel in MarketingPhase)
+- `/app/frontend/src/components/v3/PipelineSeriesV3.jsx` (CharactersPanel cast TV + marketing anime)
+- `/app/frontend/src/App.js` (rotta + menu Produci + lazy import)
+
+### Backlog future
+- Estendere sezione **Sequel** → **Opere Derivate**: aggiungere "Film da Serie TV" e "Serie TV da Film" come modalità derivate dello stesso flow
+
+---
+
+
 ## Fix UX Quota Studio V3 — Modale errore + Badge quota visibile (Apr 28, 2026)
 
 ### Problema

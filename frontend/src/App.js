@@ -127,6 +127,7 @@ const SeriesTVPipeline = React.lazy(() => import('./pages/SeriesTVPipelineV3'));
 const SeriesDetail = React.lazy(() => import('./pages/SeriesDetail'));
 const AnimePipeline = React.lazy(() => import('./pages/AnimePipelineV3'));
 const SequelPipeline = React.lazy(() => import('./pages/SequelPipeline'));
+const CreateLiveActionPage = React.lazy(() => import('./pages/CreateLiveActionPage'));
 const EmittenteTVPage = React.lazy(() => import('./pages/EmittenteTVPage'));
 const TVStationPage = React.lazy(() => import('./pages/TVStationPage'));
 const AllTVStationsPage = React.lazy(() => import('./pages/AllTVStationsPage'));
@@ -1437,6 +1438,7 @@ const TopNavbar = () => {
                 { icon: Video, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400', count: prodCounts.film },
                 { icon: Radio, label: 'Film TV', path: '/create-tv-movie', color: 'bg-rose-500/15 border-rose-500/30 text-rose-400', count: 0, locked: !productionUnlocks?.has_emittente_tv, lockReason: 'Devi possedere una TV' },
                 { icon: Copy, label: 'Sequel', path: '/create-sequel', color: 'bg-orange-500/15 border-orange-500/30 text-orange-400', count: 0 },
+                { icon: Camera, label: 'Live Action', path: '/create-live-action', color: 'bg-pink-500/15 border-pink-500/30 text-pink-400', count: 0 },
                 { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', count: prodCounts.series },
                 { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400', count: prodCounts.anime },
                 { icon: BookOpen, label: 'Sceneggiature', path: '/emerging-screenplays', color: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400', count: 0 },
@@ -2205,6 +2207,7 @@ function App() {
                 <Route path="/create-series" element={<ProtectedRoute><SeriesTVPipeline /></ProtectedRoute>} />
                 <Route path="/create-anime" element={<ProtectedRoute><AnimePipeline /></ProtectedRoute>} />
                 <Route path="/create-sequel" element={<ProtectedRoute><SequelPipeline /></ProtectedRoute>} />
+                <Route path="/create-live-action" element={<ProtectedRoute><CreateLiveActionPage /></ProtectedRoute>} />
                 <Route path="/my-tv" element={<ProtectedRoute><EmittenteTVPage /></ProtectedRoute>} />
                 <Route path="/tv-station/:stationId" element={<ProtectedRoute><TVStationPage /></ProtectedRoute>} />
                 <Route path="/tv-station-setup" element={<ProtectedRoute><TVStationPage /></ProtectedRoute>} />

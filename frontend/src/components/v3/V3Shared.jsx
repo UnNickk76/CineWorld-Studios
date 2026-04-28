@@ -87,8 +87,14 @@ export async function v3api(path, method = 'GET', body) {
       msg = 'Risorsa non trovata';
     } else if (res.status === 410) {
       msg = 'Endpoint dismesso';
+    } else if (res.status === 400) {
+      msg = 'Operazione non consentita in questo momento. Controlla quota, cooldown o requisiti dello studio.';
+    } else if (res.status === 429) {
+      msg = 'Troppe richieste — aspetta qualche secondo e riprova';
+    } else if (res.status >= 500) {
+      msg = 'Errore del server — ritenta fra poco o contatta l\'admin';
     } else {
-      msg = `Errore (HTTP ${res.status})`;
+      msg = `Operazione non riuscita (codice ${res.status})`;
     }
     // Log debug per diagnosi
     // eslint-disable-next-line no-console

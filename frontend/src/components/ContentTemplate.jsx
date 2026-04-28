@@ -15,7 +15,7 @@ import CineConfirm from './v3/CineConfirm';
 import { Trash2 } from 'lucide-react';
 import { LampoLightning } from './LampoLightning';
 import { SagaBadge } from './saga/SagaBadge';
-import { getPreReleasePressReviews, getPreReleaseAudience } from '../utils/preReleasePhrases';
+import { getPreReleasePressReviews, getPreReleaseAudience, getPreReleasePressLabel, isProjectNotYetReleased } from '../utils/preReleasePhrases';
 import DistributionPopup, { hasDistributionData, getDistributionLabel } from './DistributionPopup';
 import TvMarketModal from './TvMarketModal';
 import TvAiringBadge from './TvAiringBadge';
@@ -773,8 +773,12 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   }
 
   const statusInfo = getStatusInfo(film, contentType);
-  // ⏳ "Not yet released" detector: scheduled in future OR LAMPO unreleased
+  // ⏳ "Not yet released" detector — ESTESO per coprire TUTTE le fasi pipeline pre-release
+  // (idea, hype, cast, prep, ciak, finalcut, marketing, la_prima, distribution, release_pending)
+  // oltre a LAMPO scheduled e scheduled_release_at futuro.
   const _isNotReleasedYet = (() => {
+    if (isProjectNotYetReleased(film)) return true;
+    // Legacy fallback per compatibilità
     if (film?.status === 'lampo_ready' || film?.status === 'lampo_scheduled') return true;
     const sch = film?.scheduled_release_at;
     if (sch) { try { return new Date(sch).getTime() > Date.now(); } catch {} }
@@ -1170,9 +1174,9 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       </div>
       <PStarBanner film={film} />
 
-      {/* 6. JOURNALIST REVIEWS (green boxes) — pre-release: aspettative dei giornali */}
+      {/* 6. JOURNALIST REVIEWS (green boxes) — pre-release: aspettative dei giornali, coerenti con la fase pipeline */}
       <div className="ct2-section-label" data-testid="ct-reviews-label">
-        {isNotReleasedYet ? 'Le aspettative della stampa' : 'Cosa ne pensano i giornali'}
+        {isNotReleasedYet ? getPreReleasePressLabel(film) : 'Cosa ne pensano i giornali'}
       </div>
       <div className="ct2-reviews-row" data-testid="ct-reviews">
         {reviews.map((r, i) => (

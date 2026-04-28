@@ -1,6 +1,18 @@
 // Pre-release / hype phrases generator
 // Le frasi vengono selezionate deterministicamente in base a (film_id + ora corrente)
 // così tutti i giocatori vedono le stesse frasi per la stessa ora — coerente con il sistema hype.
+//
+// AGGIORNATO (Apr 28, 2026): le press quotes ora sono SUDDIVISE PER FASE PIPELINE
+// (concept/riprese/postprod/promo/imminente) per coerenza realistica.
+// Vedi `pressByPhase.js` per i nuovi pool.
+
+import {
+  PRESS_BY_PHASE,
+  OUTLETS_BY_PHASE,
+  getProjectPhaseCategory,
+  isProjectNotYetReleased,
+  PHASE_LABELS,
+} from './pressByPhase';
 
 // ─── Hype levels (basati su quality + budget + cast + virtual_likes) ───
 // 'high'   → grande attesa, spettatori entusiasti
@@ -45,9 +57,6 @@ const PRESS_PRE_RELEASE = {
     'Curioso ma non convincente al 100%',
     'Resta da verificare l\'esito finale',
     'Il cast c\'è, ma il resto?',
-    'Ambizioso ma non sempre riuscito',
-    'Interessante ma con alti e bassi',
-    'Promettente ma imperfetto',
     'Da dimostrare nel concreto',
     'La curiosità è alta ma cautela d\'obbligo',
     'Concept solido, esecuzione tutta da verificare',
@@ -263,15 +272,35 @@ export function computeHypeLevel(film) {
 /**
  * Restituisce 3 frasi di "press pre-release" per un film non ancora uscito.
  * Si aggiornano ogni ora basandosi su (film_id + currentHour).
+ *
+ * AGGIORNATO: il pool di frasi è ora COERENTE con la fase pipeline reale del progetto.
+ * - idea/hype/cast → "concept" (rumor, casting buzz)
+ * - prep/ciak (riprese) → "riprese" (leak dal set)
+ * - finalcut → "postprod" (montaggio, test screening)
+ * - marketing → "promo" (trailer, materiali)
+ * - la_prima/distribution/release_pending → "imminente" (prevendite, hype finale)
  */
 export function getPreReleasePressReviews(film) {
   const level = computeHypeLevel(film);
-  const pool = PRESS_PRE_RELEASE[level] || PRESS_PRE_RELEASE.mid;
+  const phase = getProjectPhaseCategory(film);
+  // Prefer phase-specific pool; fallback to legacy mid pool
+  const phasePool = PRESS_BY_PHASE[phase]?.[level] || PRESS_BY_PHASE.imminente[level];
+  const pool = phasePool || PRESS_PRE_RELEASE[level] || PRESS_PRE_RELEASE.mid;
+  const outletsPool = OUTLETS_BY_PHASE[phase] || OUTLETS;
   const hour = Math.floor(Date.now() / 3600000);
-  const seed = djb2((film?.id || 'x') + ':' + hour);
+  const seed = djb2((film?.id || 'x') + ':' + phase + ':' + hour);
   const phrases = pickN(pool, 3, seed);
-  const outlets = pickN(OUTLETS, 3, seed + 999);
+  const outlets = pickN(outletsPool, 3, seed + 999);
   return phrases.map((quote, i) => ({ outlet: outlets[i], quote }));
+}
+
+/**
+ * Ritorna l'etichetta UI ("Le aspettative della stampa", "Indiscrezioni dal set", ecc.)
+ * coerente con la fase pipeline del progetto.
+ */
+export function getPreReleasePressLabel(film) {
+  const phase = getProjectPhaseCategory(film);
+  return PHASE_LABELS[phase] || 'Le aspettative della stampa';
 }
 
 /**
@@ -304,6 +333,10 @@ export function getTheaterDurationReason(theaterDays, film) {
 export default {
   computeHypeLevel,
   getPreReleasePressReviews,
+  getPreReleasePressLabel,
   getPreReleaseAudience,
   getTheaterDurationReason,
 };
+
+// Re-export per uso esterno
+export { isProjectNotYetReleased };

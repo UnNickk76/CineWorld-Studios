@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import ProducerProfileModal from '../ProducerProfileModal';
 import TrailerGeneratorCard from '../TrailerGeneratorCard';
 import VmRatingBadge from '../VmRatingBadge';
+import { getPreReleasePressReviews, getPreReleasePressLabel, isProjectNotYetReleased } from '../../utils/preReleasePhrases';
 import '../../styles/content-template.css';
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
@@ -180,6 +181,8 @@ function getProductionBuzz(film) {
 
 function isFilmReleased(film) {
   if (!film) return false;
+  // Difesa: se il film è ancora in pipeline pre-release (idea/hype/cast/ciak/...), NON è uscito.
+  if (isProjectNotYetReleased(film)) return false;
   const hasQuality = film.quality_score && film.quality_score > 0;
   const isInTheaters = film.status === 'in_theaters';
   const hasBeenReleased = film.released === true || film.released_at;
@@ -423,9 +426,13 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
   };
   const tvDateLabel = fmtTvDate(tvAirDate);
 
-  const reviews = isFilmReleased(film) ? generateReviews(film.quality_score, film.popularity_score || film.hype_score) : [];
-  const productionBuzz = !isFilmReleased(film) ? getProductionBuzz(film) : [];
-  const showReviews = isFilmReleased(film);
+  const _isReleasedNow = isFilmReleased(film);
+  const reviews = _isReleasedNow
+    ? generateReviews(film.quality_score, film.popularity_score || film.hype_score)
+    : (isProjectNotYetReleased(film) ? getPreReleasePressReviews(film) : []);
+  const productionBuzz = !_isReleasedNow ? getProductionBuzz(film) : [];
+  const showReviews = _isReleasedNow || (reviews && reviews.length > 0);
+  const reviewsLabel = _isReleasedNow ? 'Cosa ne pensano i giornali' : getPreReleasePressLabel(film);
   const castInfo = extractCastInfo(film.cast);
   const cwsv = film.cwsv_display || (film.quality_score ? (film.quality_score % 1 === 0 ? String(Math.round(film.quality_score)) : film.quality_score.toFixed(1)) : null);
   const cwsvNum = film.quality_score || 0;
@@ -597,7 +604,7 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
       {/* 6. JOURNALIST REVIEWS or PRODUCTION BUZZ */}
       {showReviews ? (
         <>
-          <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>
+          <div className="ct2-section-label" data-testid="ct-reviews-label">{reviewsLabel}</div>
           <div className="ct2-reviews-row" data-testid="ct-reviews">
             {reviews.map((r, i) => (
               <div key={i} className="ct2-review-box" data-testid={`ct-review-${i}`}>

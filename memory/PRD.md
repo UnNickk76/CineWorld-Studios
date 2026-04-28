@@ -1,3 +1,42 @@
+## Bug Fix: Press Reviews coerenti con fase pipeline (Apr 28, 2026 — late)
+
+### Bug segnalato dall'utente
+Un film in fase RIPRESE mostrava recensioni stile post-visione ("Ambizioso ma non sempre riuscito", "Promettente ma imperfetto") perché il check `isNotReleasedYet` controllava SOLO LAMPO scheduled / scheduled_release_at futuro, ignorando `pipeline_state` (idea/hype/cast/ciak/...). Quindi il film veniva trattato come "released" e mostrava recensioni vere.
+
+### Fix implementato (file univoci)
+- **NUOVO**: `/app/frontend/src/utils/pressByPhase.js` — frasi STAMPA differenziate per fase:
+  - `concept` (idea/hype/cast): rumors, casting buzz
+  - `riprese` (prep/ciak): "Avvistati sul set", "Foto trapelate dalle riprese", "Behind-the-scenes"
+  - `postprod` (finalcut): test screening, montaggio, anteprime stampa
+  - `promo` (marketing): trailer, campagna virale, materiali
+  - `imminente` (la_prima/distribution/release_pending): prevendite, premiere
+  - 15 frasi per ogni combinazione fase × livello (high/mid/low)
+  - `isProjectNotYetReleased(film)` helper estensibile
+  - `getProjectPhaseCategory(film)` mappa pipeline_state → categoria
+  - `PHASE_LABELS` per UI ("Indiscrezioni dal set", "Le voci dalla pre-produzione", ecc.)
+
+- **MODIFIED** `/app/frontend/src/utils/preReleasePhrases.js`:
+  - `getPreReleasePressReviews()` ora usa `PRESS_BY_PHASE[phase]` con seed `(film_id + phase + hour)` (deterministico)
+  - Aggiunto `getPreReleasePressLabel()` che ritorna l'etichetta UI corretta per fase
+  - Rimosse dal pool legacy `mid` le 3 frasi recensione-style ("Ambizioso ma non sempre riuscito", ecc.)
+  - Re-export di `isProjectNotYetReleased`
+
+- **PATCH** `/app/frontend/src/components/ContentTemplate.jsx`:
+  - `_isNotReleasedYet` ora usa `isProjectNotYetReleased(film)` (estende il check a tutti i pipeline_state pre-release)
+  - Etichetta sezione usa `getPreReleasePressLabel(film)` (es. "Indiscrezioni dal set" se in RIPRESE)
+
+- **PATCH** `/app/frontend/src/components/v3/FilmDetailV3.jsx`:
+  - `isFilmReleased()` ora ritorna `false` se `isProjectNotYetReleased(film)` (difesa)
+  - `reviews` usa `getPreReleasePressReviews()` quando il film è in pipeline pre-release
+  - Etichetta sezione dinamica via `reviewsLabel`
+
+### Risultato
+Un film in fase "ciak" ora mostra **"Indiscrezioni dal set"** con frasi tipo "Avvistati sul set i protagonisti: foto già virali", non più recensioni post-visione. Stesso comportamento per tutte le fasi pipeline (concept, riprese, postprod, promo, imminente).
+
+Lint Python ✅, Lint JS ✅, Frontend webpack compilato ✅.
+
+---
+
 ## Film a Capitoli (Saghe Pianificate) — Sistema completo (Apr 28, 2026 — pomeriggio)
 
 ### Richiesta utente

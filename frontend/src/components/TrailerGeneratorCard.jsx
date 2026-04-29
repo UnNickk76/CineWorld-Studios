@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Film, Sparkles, Crown, Play, Lock, TrendingUp, Trophy, X, Check, SkipForward, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import TrailerPlayerModal from './TrailerPlayerModal';
+import { TextTrailerCard } from './TrailerTextPlayer';
 
 const TIERS = [
   { key: 'base', label: 'Base', duration: 10, cost: 0, hype: 3, frames: 3, icon: Film, color: 'from-sky-600 to-blue-500', border: 'border-sky-500/40' },
@@ -413,6 +414,15 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
 
   const ModeIcon = modeMeta.icon;
   return (
+    <>
+      {/* Tier TESTUALE — sempre visibile sopra BASE, gratis */}
+      <TextTrailerCard
+        contentId={contentId}
+        contentTitle={contentTitle}
+        api={api}
+        existing={trailer?.text_trailer || null}
+        onGenerated={() => { /* nothing extra */ }}
+      />
     <div className={`rounded-2xl border ${modeMeta.border} bg-gradient-to-br ${modeMeta.bg} p-4`} data-testid="trailer-generator-card">
       <div className="flex items-center gap-2 mb-2">
         <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${modeMeta.accent} flex items-center justify-center`}>
@@ -467,5 +477,6 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
         </button>
       )}
     </div>
+    </>
   );
 }

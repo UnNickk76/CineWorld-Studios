@@ -781,6 +781,46 @@ async def activate_re_hype(saga_id: str, project_id: str, user: dict = Depends(g
                 })
     except Exception as e:
         log.warning(f"[RE_HYPE] follower notification failed: {e}")
+
+    # Auto-generazione recap testuale (idea J riconvertita: trailer testo gratuito)
+    try:
+        prev_film = await db.films.find_one(
+            {"saga_id": saga_id, "saga_chapter_number": chap_n - 1, "user_id": user["id"]},
+            {"_id": 0, "title": 1, "preplot": 1, "synopsis": 1, "genre": 1, "subgenres": 1},
+        ) if False else None  # chap_n non in scope qui
+        # Recupero capitolo precedente via project saga_chapter_number
+        proj_doc = None
+        for coll_n in ("film_projects", "lampo_projects"):
+            proj_doc = await db[coll_n].find_one({"id": project_id, "user_id": user["id"]}, {"_id": 0, "saga_chapter_number": 1, "title": 1, "preplot": 1, "synopsis": 1, "genre": 1, "subgenres": 1})
+            if proj_doc:
+                break
+        if proj_doc:
+            cur_chap_n = int(proj_doc.get("saga_chapter_number") or 0)
+            prev_film = await db.films.find_one(
+                {"saga_id": saga_id, "saga_chapter_number": cur_chap_n - 1, "user_id": user["id"]},
+                {"_id": 0, "title": 1, "preplot": 1, "synopsis": 1, "genre": 1},
+            )
+            if prev_film:
+                from routes.trailers import _generate_text_trailer
+                recap_trailer = await _generate_text_trailer(proj_doc, recap_of=prev_film)
+                # salva nel project doc
+                for coll_n in ("film_projects", "lampo_projects"):
+                    if await db[coll_n].find_one({"id": project_id, "user_id": user["id"]}, {"_id": 0, "id": 1}):
+                        await db[coll_n].update_one(
+                            {"id": project_id, "user_id": user["id"]},
+                            {"$set": {"text_trailer": recap_trailer, "text_trailer_generated_at": recap_trailer["generated_at"], "text_trailer_is_recap": True}},
+                        )
+                        break
+                # Notifica producer
+                await db.notifications.insert_one({
+                    "id": str(uuid.uuid4()), "user_id": user["id"], "type": "saga_recap_ready",
+                    "title": "📝 Recap testuale generato",
+                    "message": f"Il recap di «{prev_film.get('title')}» + teaser del nuovo capitolo è pronto per il pubblico.",
+                    "read": False, "created_at": now.isoformat(),
+                })
+    except Exception as e:
+        log.warning(f"[RE_HYPE] auto recap generation failed: {e}")
+
     return {"success": True, "bonus_pct": boost_pct, "duration_hours": status.get("duration_hours"), "window_end": status.get("window_end")}
 
 

@@ -1070,3 +1070,126 @@ async def best_highlights_leaderboard(limit: int = Query(10, ge=3, le=50), user:
             "owner_avatar_url": o.get("avatar_url"),
         })
     return {"items": out, "total": len(out)}
+
+
+
+# ════════════════════════════════════════════════════════════════════
+# TRAILER TESTUALE — gratuito, sempre disponibile (anti-spoiler)
+# ════════════════════════════════════════════════════════════════════
+
+async def _resolve_content_for_text_trailer(content_id: str, user_id: str) -> tuple[Optional[dict], Optional[str]]:
+    """Trova il contenuto in film_projects/lampo_projects/films/series_projects_v3."""
+    for coll in ("film_projects", "lampo_projects", "films", "series_projects_v3"):
+        d = await db[coll].find_one({"id": content_id, "user_id": user_id}, {"_id": 0})
+        if d:
+            return d, coll
+    return None, None
+
+
+async def _generate_text_trailer(content: dict, *, recap_of: Optional[dict] = None) -> dict:
+    """
+    Genera un trailer testuale cinematografico via Emergent LLM (gpt-4o-mini).
+    `recap_of` (opzionale): se passato, genera un "Previously on..." del cap precedente
+    + teaser del nuovo capitolo (per Re-Hype Window auto-recap).
+    """
+    title = content.get("title") or "Senza Titolo"
+    genre = content.get("genre") or "drama"
+    subgenres = content.get("subgenres") or []
+    if isinstance(subgenres, list):
+        subg_text = ", ".join(subgenres[:3]) or "—"
+    else:
+        subg_text = str(subgenres)
+    pretrama = content.get("preplot") or content.get("pretrama") or content.get("synopsis") or ""
+
+    if recap_of:
+        prev_title = recap_of.get("title") or ""
+        prev_pretrama = recap_of.get("preplot") or recap_of.get("synopsis") or ""
+        system = (
+            "Sei uno sceneggiatore di Hollywood specializzato in voice-over cinematografici per trailer. "
+            "Devi creare un breve recap del capitolo precedente di una saga + teaser del nuovo capitolo. "
+            "Stile: epico, evocativo, frasi brevi e potenti, IN ITALIANO. "
+            "VIETATO: spoiler oltre il 30% della trama, anticipazioni di finale o twist principali."
+        )
+        user_msg = (
+            f"PREVIOUSLY ON «{prev_title}»\nGenere: {genre}\nSinossi cap. precedente: {prev_pretrama[:600]}\n\n"
+            f"NUOVO CAPITOLO «{title}»\nSinossi nuovo capitolo: {pretrama[:600]}\n\n"
+            "Genera un voice-over di 4 sezioni:\n"
+            "1) PREVIOUSLY (recap cap. precedente in 2-3 frasi epiche, no spoiler oltre 30%)\n"
+            "2) MOOD (1-2 frasi che evocano il mood del nuovo capitolo)\n"
+            "3) BUILD-UP (2-3 frasi che alzano la tensione)\n"
+            "4) CLIFFHANGER (1 frase finale potentissima + 'COMING SOON').\n"
+            "Output: SOLO il testo, senza numerazione, separato da DOPPIO a-capo tra le sezioni."
+        )
+    else:
+        system = (
+            "Sei uno sceneggiatore di Hollywood specializzato in voice-over cinematografici per trailer. "
+            "Devi creare un trailer puramente testuale, evocativo come un voice-over di un teaser cinematografico. "
+            "Stile: epico, frasi brevi e potenti, IN ITALIANO. "
+            "VIETATO: spoiler oltre il 30% della trama, anticipare colpi di scena o finale."
+        )
+        user_msg = (
+            f"TITOLO: «{title}»\nGenere: {genre}\nSottogeneri: {subg_text}\n"
+            f"Pretrama: {pretrama[:1000]}\n\n"
+            "Genera un voice-over cinematografico di 4 sezioni:\n"
+            "1) APERTURA (1-2 frasi che stabiliscono il mondo o il mood, stile 'In un mondo dove...')\n"
+            "2) BUILD-UP (2-3 frasi che presentano la tensione/conflitto centrale)\n"
+            "3) TWIST/CLIFFHANGER (1-2 frasi che alzano la posta senza spoiler)\n"
+            "4) TITLE-CARD (titolo evocativo + 'COMING SOON').\n"
+            "Output: SOLO il testo, senza numerazione, separato da DOPPIO a-capo tra le sezioni."
+        )
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=os.environ["EMERGENT_LLM_KEY"],
+            session_id=f"trailer-text-{uuid.uuid4()}",
+            system_message=system,
+        ).with_model("openai", "gpt-4o-mini")
+        resp = await asyncio.wait_for(chat.send_message(UserMessage(text=user_msg)), timeout=25)
+        text = (resp or "").strip()
+    except Exception as e:
+        logger.error(f"[TRAILER_TEXT] LLM error: {e}")
+        text = (
+            f"In un mondo segnato dal genere {genre}, una storia sta per prendere vita.\n\n"
+            f"«{title}» — un viaggio che cambierà tutto.\n\n"
+            "Le scelte di pochi diventeranno il destino di molti.\n\n"
+            f"«{title}»\nCOMING SOON"
+        )
+
+    sections = [s.strip() for s in text.split("\n\n") if s.strip()]
+    return {
+        "type": "text",
+        "title": title,
+        "is_recap": bool(recap_of),
+        "prev_title": (recap_of or {}).get("title"),
+        "sections": sections,
+        "full_text": text,
+        "duration_seconds": 25,  # for typewriter UI pacing
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.post("/trailers/{content_id}/generate-text")
+async def generate_text_trailer(content_id: str, user: dict = Depends(_dep())):
+    """Genera un trailer testuale GRATUITO (no cinepass)."""
+    content, coll = await _resolve_content_for_text_trailer(content_id, user["id"])
+    if not content:
+        raise HTTPException(404, "Contenuto non trovato")
+
+    text_trailer = await _generate_text_trailer(content)
+    # Salva nel doc del contenuto
+    await db[coll].update_one(
+        {"id": content_id, "user_id": user["id"]},
+        {"$set": {"text_trailer": text_trailer, "text_trailer_generated_at": text_trailer["generated_at"]}},
+    )
+    return {"success": True, "text_trailer": text_trailer}
+
+
+@router.get("/trailers/{content_id}/text")
+async def get_text_trailer(content_id: str, user: dict = Depends(_dep())):
+    """Ritorna il trailer testuale del contenuto (se esiste)."""
+    for coll in ("film_projects", "lampo_projects", "films", "series_projects_v3"):
+        d = await db[coll].find_one({"id": content_id}, {"_id": 0, "text_trailer": 1, "title": 1})
+        if d and d.get("text_trailer"):
+            return {"text_trailer": d["text_trailer"], "title": d.get("title")}
+    raise HTTPException(404, "Trailer testuale non trovato")

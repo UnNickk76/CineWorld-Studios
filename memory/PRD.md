@@ -1,3 +1,54 @@
+## FASE: Trailer Testuale + Auto-Recap Saga (Apr 29, 2026)
+
+**Richiesta utente**: aggiungere un 4° tier "TESTUALE" al TrailerGeneratorCard — trailer puramente testuale, cinematografico, anti-spoiler, **gratis sempre**. Serve a sostituire l'idea J (mini-trailer AI 8s) che sarebbe stata troppo costosa in image-gen. Bonus: auto-recap generato al trigger Re-Hype per i cap. successivi.
+
+### Backend (`routes/trailers.py`)
+- **Endpoint nuovi**:
+  - `POST /api/trailers/{content_id}/generate-text` → genera trailer testuale gratuito
+  - `GET /api/trailers/{content_id}/text` → recupera trailer testuale salvato
+- **Helper `_generate_text_trailer(content, recap_of=None)`**:
+  - Usa `LlmChat(gpt-4o-mini)` via Emergent LLM Key
+  - System prompt: "voice-over Hollywood, stile epico, IN ITALIANO, VIETATO spoiler oltre il 30%"
+  - User prompt divide output in 4 sezioni: APERTURA / BUILD-UP / TWIST / TITLE-CARD (o PREVIOUSLY / MOOD / BUILD-UP / CLIFFHANGER per recap)
+  - Timeout 25s, fallback deterministico
+  - Output: `{type: 'text', sections: [...], full_text, duration_seconds: 25, is_recap, prev_title}`
+- **Salvato nel doc content**: campo `text_trailer` (film_projects, lampo_projects, films, series_projects_v3)
+
+### Auto-Recap al Re-Hype trigger (idea J riconvertita)
+In `activate_re_hype` di `sagas.py`, dopo notifica follower:
+- Recupera cap.precedente via `saga_chapter_number - 1`
+- Chiama `_generate_text_trailer(new_project, recap_of=prev_film)`
+- Salva come `text_trailer` del nuovo capitolo con flag `text_trailer_is_recap: true`
+- Notifica producer: "📝 Recap testuale generato"
+
+### Frontend (`components/TrailerTextPlayer.jsx`)
+- **`TrailerTextPlayer`**: modale full-screen, stile movie title-card
+  - Background: `radial-gradient #050505 → #000` con vignette
+  - Font: `Georgia` serif italic
+  - **Effetto typewriter** cinematografico: caratteri rivelati a 35-70/s (auto-tuned alla durata)
+  - Sezioni animate con stili differenziati (ultima = amber-300 2xl uppercase glow)
+  - Tap per saltare → mostra intero + bottone "Chiudi"
+  - Header "PREVIOUSLY ON «...»" per i recap saga
+- **`TextTrailerCard`**: card amber/yellow con badge GRATIS, bottone genera/rigenera/guarda
+  - Integrata **SOPRA** i tier BASE/CINEMATICO/PRO in `TrailerGeneratorCard` (sempre visibile)
+
+### Verifiche
+- Lint pulito (Python + JS)
+- Backend riavviato senza errori
+- Curl `POST /trailers/fake-id/generate-text` → 404 "Contenuto non trovato" (endpoint OK)
+
+---
+
+## 💡 Idee saga rimaste in stand by (aggiornato)
+
+- **B)** Views Doppie del Cap.1 contano nell'hype del Cap.2 — hook cinema engine
+- **F)** "No Scarta" durante Re-Hype Window — gating frontend ContentTemplate
+- **H)** Bonus Continuity +5% qualità per riuso attori — hook scoring engine
+- ~~**J)** Recap AI mini-trailer 8s~~ → **SOSTITUITA e COMPLETATA** via trailer testuale + auto-recap
+- **L)** Talk Show Saga in Le Mie TV — integrazione TV stations
+- **M)** Cast Reunion Foto AI — richiede image-gen (rimandata)
+
+
 ## FASE: Re-Hype Window + Match Attori AI + Idee A-M Saga (Apr 29, 2026)
 
 **Richieste utente** (tutte confermate):

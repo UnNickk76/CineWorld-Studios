@@ -173,33 +173,53 @@ async def trailers_ranking(
     limit: int = Query(50, ge=5, le=200),
     user: dict = Depends(get_current_user),
 ):
-    """Classifica trailer (films/series con trailer_url + views/likes)."""
+    """Classifica trailer (films/series con trailer.frames + views_count)."""
     period = period if period in PERIODS else "weekly"
     threshold = _period_threshold(period)
 
-    match: dict = {"trailer_url": {"$exists": True, "$ne": ""}}
+    # I trailer sono salvati come sub-document `trailer` con frames[], views_count, generated_at, tier
+    match: dict = {"trailer.frames": {"$exists": True, "$ne": []}}
     if threshold:
         match["$or"] = [
-            {"trailer_published_at": {"$gte": threshold.isoformat()}},
+            {"trailer.generated_at": {"$gte": threshold.isoformat()}},
             {"released_at": {"$gte": threshold.isoformat()}},
         ]
 
     items = []
-    cursor = db.films.find(
-        match,
-        {"_id": 0, "id": 1, "title": 1, "user_id": 1, "poster_url": 1, "trailer_url": 1,
-         "trailer_views": 1, "trailer_likes": 1, "hype_score": 1, "quality_score": 1,
-         "released_at": 1, "status": 1, "type": 1, "is_lampo": 1, "is_saga_chapter": 1},
-    )
-    for f in await cursor.to_list(1000):
-        views = int(f.get("trailer_views") or 0)
-        likes = int(f.get("trailer_likes") or 0)
-        # Score = views + likes*5 + hype*100
-        score = views + likes * 5 + int(float(f.get("hype_score") or 0) * 100)
-        f["_trailer_score"] = score
-        f["trailer_views_display"] = views
-        f["trailer_likes_display"] = likes
-        items.append(f)
+    projection = {
+        "_id": 0, "id": 1, "title": 1, "user_id": 1, "poster_url": 1,
+        "trailer": 1, "hype_score": 1, "quality_score": 1,
+        "released_at": 1, "status": 1, "type": 1, "content_type": 1,
+        "is_lampo": 1, "is_saga_chapter": 1,
+    }
+
+    # Aggrega da più collezioni (film + serie/anime se presenti)
+    collections = ["films", "series_projects_v3"]
+    for coll_name in collections:
+        try:
+            cursor = db[coll_name].find(match, projection)
+            for f in await cursor.to_list(1000):
+                trailer = f.get("trailer") or {}
+                views = int(trailer.get("views_count") or 0)
+                likes = int(trailer.get("likes_count") or trailer.get("trailer_likes") or 0)
+                tier = trailer.get("tier") or "base"
+                tier_weight = {"base": 1, "cinematic": 2, "pro": 3}.get(tier, 1)
+                score = views + likes * 5 + int(float(f.get("hype_score") or 0) * 100) + tier_weight * 10
+                f["_trailer_score"] = score
+                f["trailer_views_display"] = views
+                f["trailer_likes_display"] = likes
+                f["trailer_tier"] = tier
+                f["trailer_generated_at"] = trailer.get("generated_at")
+                f["trailer_trending"] = bool(trailer.get("trending"))
+                # Preserva frames per la UI (solo prima locandina per il preview)
+                first_frame = (trailer.get("frames") or [{}])[0]
+                f["trailer_cover"] = first_frame.get("storage_path") or ""
+                f["content_type"] = f.get("content_type") or ("series" if coll_name == "series_projects_v3" else "film")
+                # Rimuovi il documento trailer pesante
+                f.pop("trailer", None)
+                items.append(f)
+        except Exception as e:
+            log.warning(f"trailer ranking collection {coll_name} error: {e}")
 
     # Enrich with usernames
     user_ids = list({i.get("user_id") for i in items if i.get("user_id")})

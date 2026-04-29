@@ -1,5 +1,76 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { X, FileText, Loader2 } from 'lucide-react';
+import { X, FileText, Loader2, Download, Share2 } from 'lucide-react';
+
+/**
+ * Genera una card PNG "poster" del trailer testuale (stile locandina serif).
+ * Ritorna un dataURL. Il client può salvarlo o condividerlo via Web Share API.
+ */
+async function buildTrailerCard({ textTrailer, contentTitle }) {
+  const W = 1080, H = 1920;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  // Background radiale
+  const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) / 1.2);
+  grad.addColorStop(0, '#0b0b0c');
+  grad.addColorStop(1, '#000');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  // Grana sottile
+  ctx.globalAlpha = 0.04;
+  for (let i = 0; i < 1200; i++) {
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1);
+  }
+  ctx.globalAlpha = 1;
+  // Titolo serif
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = 'bold 56px Georgia, serif';
+  const title = (contentTitle || 'Trailer').toUpperCase();
+  ctx.fillText(title.slice(0, 40), W / 2, 220);
+  // Sections
+  const sections = textTrailer?.sections || [];
+  let y = 420;
+  ctx.fillStyle = '#f5f5f4';
+  ctx.font = 'italic 42px Georgia, serif';
+  const wrap = (txt, maxChars) => {
+    const words = (txt || '').split(/\s+/);
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      if ((cur + ' ' + w).trim().length > maxChars) { lines.push(cur.trim()); cur = w; }
+      else cur = (cur + ' ' + w).trim();
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  };
+  for (let i = 0; i < sections.length && y < H - 300; i++) {
+    const s = sections[i] || '';
+    const isCS = /coming soon|prossimamente/i.test(s);
+    if (isCS) {
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 76px Georgia, serif';
+      ctx.fillText(s.toUpperCase().slice(0, 30), W / 2, y + 40);
+      y += 120;
+      ctx.fillStyle = '#f5f5f4';
+      ctx.font = 'italic 42px Georgia, serif';
+      continue;
+    }
+    const lines = wrap(s, 42);
+    for (const ln of lines) {
+      if (y > H - 240) break;
+      ctx.fillText(ln, W / 2, y);
+      y += 58;
+    }
+    y += 40;
+  }
+  // Footer
+  ctx.fillStyle = '#71717a';
+  ctx.font = '28px Georgia, serif';
+  ctx.fillText('— CineWorld Studio\'s —', W / 2, H - 120);
+  return canvas.toDataURL('image/png');
+}
 
 /**
  * TrailerTextPlayer — modale full-screen con effetto typewriter cinematografico.
@@ -86,11 +157,53 @@ export default function TrailerTextPlayer({ textTrailer, contentTitle, onClose }
         </div>
 
         {done && (
-          <div className="mt-10 flex items-center justify-center gap-4">
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  const dataUrl = await buildTrailerCard({ textTrailer, contentTitle });
+                  // Prova Web Share con file image
+                  try {
+                    const blob = await (await fetch(dataUrl)).blob();
+                    const file = new File([blob], `${(contentTitle || 'trailer').replace(/[^a-z0-9]/gi, '_')}_trailer.png`, { type: 'image/png' });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                      await navigator.share({ files: [file], title: contentTitle, text: 'Dal Trailer Testuale — CineWorld' });
+                      return;
+                    }
+                  } catch (_) { /* fallthrough a download */ }
+                  // Fallback: download diretto
+                  const link = document.createElement('a');
+                  link.href = dataUrl;
+                  link.download = `${(contentTitle || 'trailer').replace(/[^a-z0-9]/gi, '_')}_trailer.png`;
+                  document.body.appendChild(link); link.click(); link.remove();
+                } catch (_) { /* silent */ }
+              }}
+              data-testid="trailer-text-share-btn"
+              className="px-5 py-2.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-xs font-black uppercase tracking-widest flex items-center gap-1.5 hover:scale-[1.03] transition-transform"
+            >
+              <Share2 className="w-3.5 h-3.5" /> Condividi
+            </button>
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  const dataUrl = await buildTrailerCard({ textTrailer, contentTitle });
+                  const link = document.createElement('a');
+                  link.href = dataUrl;
+                  link.download = `${(contentTitle || 'trailer').replace(/[^a-z0-9]/gi, '_')}_trailer.png`;
+                  document.body.appendChild(link); link.click(); link.remove();
+                } catch (_) { /* silent */ }
+              }}
+              data-testid="trailer-text-download-btn"
+              className="px-5 py-2.5 rounded-full bg-white/10 border border-white/20 text-white text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 hover:bg-white/20"
+            >
+              <Download className="w-3.5 h-3.5" /> Salva
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); onClose?.(); }}
               data-testid="trailer-text-end-btn"
-              className="px-6 py-2.5 rounded-full bg-white/10 border border-white/20 text-white text-xs font-bold uppercase tracking-widest hover:bg-white/20"
+              className="px-5 py-2.5 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-xs font-bold uppercase tracking-widest hover:bg-white/10"
             >
               Chiudi
             </button>

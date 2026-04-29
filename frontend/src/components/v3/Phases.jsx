@@ -703,9 +703,12 @@ export const FinalCutPhase = ({ film, onRefresh, toast }) => {
 };
 
 /* ═══════ SCARTA FILM DIALOG ═══════ */
-export const DiscardFilmButton = ({ filmId, onDiscard }) => {
+export const DiscardFilmButton = ({ filmId, onDiscard, film }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Idea F: durante finestra Re-Hype non si può scartare
+  const inReHype = !!(film?.in_re_hype_window || film?.re_hype_active);
 
   const doDiscard = async () => {
     setLoading(true);
@@ -718,10 +721,18 @@ export const DiscardFilmButton = ({ filmId, onDiscard }) => {
 
   return (
     <>
-      <button onClick={() => setShowConfirm(true)}
-        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-red-500/5 border border-red-500/15 text-red-400/60 text-[8px] font-bold hover:bg-red-500/10 hover:text-red-400 transition-all mt-4"
+      <button
+        onClick={() => { if (!inReHype) setShowConfirm(true); }}
+        disabled={inReHype}
+        title={inReHype ? 'Non puoi scartare durante la finestra Re-Hype della saga' : undefined}
+        className={`w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg border text-[8px] font-bold transition-all mt-4 ${
+          inReHype
+            ? 'bg-gray-900/40 border-gray-800 text-gray-600 cursor-not-allowed'
+            : 'bg-red-500/5 border-red-500/15 text-red-400/60 hover:bg-red-500/10 hover:text-red-400'
+        }`}
         data-testid="discard-film-btn">
-        <Trash2 className="w-3 h-3" /> Scarta Film
+        <Trash2 className="w-3 h-3" />
+        {inReHype ? 'Scarto bloccato · Re-Hype attivo' : 'Scarta Film'}
       </button>
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setShowConfirm(false)}>

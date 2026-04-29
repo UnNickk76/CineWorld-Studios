@@ -5,9 +5,9 @@ import TrailerPlayerModal from './TrailerPlayerModal';
 import { TextTrailerCard } from './TrailerTextPlayer';
 
 const TIERS = [
-  { key: 'base', label: 'Base', duration: 10, cost: 0, hype: 3, frames: 3, icon: Film, color: 'from-sky-600 to-blue-500', border: 'border-sky-500/40' },
-  { key: 'cinematic', label: 'Cinematico', duration: 20, cost: 10, hype: 8, frames: 6, icon: Sparkles, color: 'from-purple-600 to-fuchsia-500', border: 'border-purple-500/40' },
-  { key: 'pro', label: 'PRO', duration: 30, cost: 20, hype: 15, frames: 10, icon: Crown, color: 'from-amber-500 to-orange-500', border: 'border-amber-500/40' },
+  { key: 'base', label: 'Base', duration: 10, cost: 10, hype: 3, frames: 3, icon: Film, color: 'from-sky-600 to-blue-500', border: 'border-sky-500/40' },
+  { key: 'cinematic', label: 'Cinematico', duration: 20, cost: 20, hype: 8, frames: 6, icon: Sparkles, color: 'from-purple-600 to-fuchsia-500', border: 'border-purple-500/40' },
+  { key: 'pro', label: 'PRO', duration: 30, cost: 30, hype: 15, frames: 10, icon: Crown, color: 'from-amber-500 to-orange-500', border: 'border-amber-500/40' },
 ];
 
 const tierOrder = { base: 0, cinematic: 1, pro: 2 };

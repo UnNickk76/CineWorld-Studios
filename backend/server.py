@@ -11270,6 +11270,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/api/static", StaticFiles(directory="/app/backend/static"), name="static")
 # Poster serving handled by @app.get("/api/posters/{filename}") endpoint in server.py
 app.mount("/api/backgrounds", StaticFiles(directory="/app/backend/assets/backgrounds"), name="backgrounds")
+app.mount("/api/saga-reunions", StaticFiles(directory="/app/backend/assets/saga_reunions"), name="saga_reunions")
 
 app.add_middleware(
     CORSMiddleware,

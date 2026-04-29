@@ -1,10 +1,12 @@
 // CineWorld Studio's — TrailerRankingPanel
 // Pannello classifica trailer più visualizzati / piaciuti di tutti i player.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Loader2, Eye, Heart, Play, Sparkles } from 'lucide-react';
+import TrailerPlayerModal from '../TrailerPlayerModal';
+import { AuthContext } from '../../contexts';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -23,10 +25,11 @@ const fmtNum = (v) => {
 };
 
 export const TrailerRankingPanel = () => {
+  const { api, user } = useContext(AuthContext) || {};
   const [period, setPeriod] = useState('weekly');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [playingTrailer, setPlayingTrailer] = useState(null);
+  const [playingTrailer, setPlayingTrailer] = useState(null); // { trailer, title, contentId, contentGenre, contentOwnerId }
 
   const fetchRanking = useCallback(async () => {
     try {
@@ -41,6 +44,22 @@ export const TrailerRankingPanel = () => {
   }, [period]);
 
   useEffect(() => { fetchRanking(); }, [fetchRanking]);
+
+  const openTrailer = useCallback(async (item) => {
+    if (!api) return;
+    try {
+      const r = await api.get(`/trailers/${item.id}`);
+      const tr = r.data?.trailer;
+      if (!tr || !tr.frames?.length) return;
+      setPlayingTrailer({
+        trailer: tr,
+        title: item.title,
+        contentId: item.id,
+        contentGenre: item.genre || '',
+        contentOwnerId: item.user_id,
+      });
+    } catch { /* silent */ }
+  }, [api]);
 
   return (
     <div className="space-y-3" data-testid="trailer-ranking-panel">
@@ -70,34 +89,23 @@ export const TrailerRankingPanel = () => {
       ) : (
         <div className="space-y-1.5">
           {data.map((it, i) => (
-            <TrailerRow key={it.id + i} item={it} rank={i + 1} onPlay={() => setPlayingTrailer(it)} />
+            <TrailerRow key={it.id + i} item={it} rank={i + 1} onPlay={() => openTrailer(it)} />
           ))}
         </div>
       )}
 
       {/* Trailer modal */}
       {playingTrailer && (
-        <div
-          onClick={() => setPlayingTrailer(null)}
-          className="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-3"
-          data-testid="trailer-player-modal"
-        >
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md">
-            <div className="text-xs text-zinc-300 mb-2 text-center">{playingTrailer.title}</div>
-            <video
-              src={playingTrailer.trailer_url}
-              controls
-              autoPlay
-              className="w-full rounded-xl"
-            />
-            <button
-              onClick={() => setPlayingTrailer(null)}
-              className="mt-3 w-full py-2 rounded-lg bg-zinc-800 text-zinc-300 text-xs font-bold"
-            >
-              Chiudi
-            </button>
-          </div>
-        </div>
+        <TrailerPlayerModal
+          trailer={playingTrailer.trailer}
+          contentTitle={playingTrailer.title}
+          contentId={playingTrailer.contentId}
+          contentGenre={playingTrailer.contentGenre}
+          contentOwnerId={playingTrailer.contentOwnerId}
+          currentUserId={user?.id}
+          api={api}
+          onClose={() => setPlayingTrailer(null)}
+        />
       )}
     </div>
   );

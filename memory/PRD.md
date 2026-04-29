@@ -3142,3 +3142,41 @@ Dipendenze installate: `playwright==1.48.0`, `ffmpeg` (system apt), `fonts-dejav
 - Emergent LLM Key (GPT-4o-mini + Gemini Nano Banana image gen)
 - Emergent Object Storage
 - ICY metadata proxy (Web Radio)
+
+## Changelog Session (2026-04-29) — P0 Fixes + Idee Saga
+
+### Prezzi Trailer AI aggiornati
+- BASE: 10 CP (prima gratis)
+- CINEMATICO: 20 CP (prima 10)
+- PRO: 30 CP (prima 20)
+- File: `/app/frontend/src/components/TrailerGeneratorCard.jsx`
+- Motivazione: il trailer testuale è ora gratuito, quindi i tier video salgono proporzionalmente.
+
+### P0 Bug fix
+1. **"Film TV" apriva direttamente pipeline** → ora mostra **lista dei Film TV attivi** + modal "Nuovo Film TV".
+   - `/app/frontend/src/pages/CreateTvMoviePage.jsx` completamente rifatta (lista grid 3 col + modal di creazione).
+2. **CineBoard Trailer Ranking vuoto** → l'endpoint cercava `trailer_url` (mai popolato). Ora interroga `trailer.frames`/`trailer.views_count` e aggrega anche `series_projects_v3`. Il click apre il `TrailerPlayerModal` standard.
+   - `/app/backend/routes/cineboard_unified.py`
+   - `/app/frontend/src/components/cineboard/TrailerRankingPanel.jsx`
+3. **LAMPO Cinema Stats**: `status="in_theaters"` + `released_at` viene già salvato da `lampo._upsert_lampo_film`. Verificato che `ContentTemplate.jsx` mostra la barra se `hasCinemaDays` è valida (fallback su `released_at`). Da riverificare empiricamente alla prossima pubblicazione LAMPO (nessun progetto attivo in DB).
+
+### Idee Saga implementate (B, F, H, L, M + GIF export)
+- **B** · Re-Watch 2x sul Cap.1: durante finestra Re-Hype il cap.1 riceve `re_watch_multiplier=2.0` + `re_watch_window_end` per il motore spettatori.
+- **F** · "Scarta Film" disabilitato durante Re-Hype (`in_re_hype_window`/`re_hype_active`).
+  - `DiscardFilmButton` ora accetta `film` e mostra stato bloccato.
+- **H** · Continuity bonus CWSv: +0.5 per ogni attore riutilizzato dalle saghe passate (cap +3.0).
+  - Salvato in `continuity_bonus_cwsv` e `continuity_reused_actors` sul project.
+- **L** · Talk Show TV: evento `saga_events` tipo `talk_show` con reach stimato + bonus +3% hype + notifica producer.
+- **M** · Cast Reunion AI photo: GPT-Image-1 (via EMERGENT_LLM_KEY) genera una foto red-carpet con fino a 6 attori storici. Servita a `/api/saga-reunions/`.
+- **GIF/PNG Export** trailer testuali: pulsanti "Condividi" + "Salva" nella modale `TrailerTextPlayer` che generano una card 1080×1920 PNG via canvas (nativo) con typewriter + grain + vignette. Supporta Web Share API con fallback a download.
+
+### File modificati
+- backend: `routes/cineboard_unified.py`, `routes/sagas.py`, `server.py` (mount `/api/saga-reunions`)
+- frontend: `pages/CreateTvMoviePage.jsx`, `components/TrailerGeneratorCard.jsx`, `components/TrailerTextPlayer.jsx`, `components/cineboard/TrailerRankingPanel.jsx`, `components/v3/Phases.jsx`, `pages/PipelineV3.jsx`
+
+### Test manuale eseguito
+- `GET /api/cineboard-unified/trailers?period=alltime&limit=5` → 1 trailer Test Cast CRc (views=6, tier=base) ✅
+- `GET /api/tv-movies/check-eligibility` → eligible=True, 1 station ✅
+- `GET /api/films/my` → 6 films ✅
+- Backend riavviato senza errori ✅
+- Lint Python/JS pulito ✅

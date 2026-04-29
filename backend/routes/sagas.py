@@ -750,18 +750,25 @@ async def activate_re_hype(saga_id: str, project_id: str, user: dict = Depends(g
     if not status.get("open_window"):
         raise HTTPException(400, "Finestra Re-Hype non ancora aperta o già chiusa")
     now = datetime.now(timezone.utc)
-    await db.saga_re_hype.insert_one({
-        "id": str(uuid.uuid4()), "saga_id": saga_id, "project_id": project_id, "user_id": user["id"],
-        "activated_at": now.isoformat(), "window_end": status.get("window_end"),
-        "bonus_pct": status.get("bonus_pct", 0), "duration_hours": status.get("duration_hours", 24),
-        "expired": False,
-    })
+    re_hype_id = str(uuid.uuid4())
+
     boost_pct = status.get("bonus_pct", 0)
-    # (B) Views doppie Cap.1 → hype Cap.2: bonus extra in base a views/likes recenti del cap.prec
+    views_bonus = 0
+    continuity_bonus = 0
+    talk_show_scheduled = None
+    reunion_photo_url = None
+
+    # ── Identifica capitolo precedente
+    prev_id = (status.get("prev_film") or {}).get("id")
+    prev_title = (status.get("prev_film") or {}).get("title", "")
+
+    # ── (B) Views doppie Cap.1 → hype Cap.2: bonus extra in base a views/likes recenti del cap.prec
     try:
-        prev_id = (status.get("prev_film") or {}).get("id")
         if prev_id:
-            pf_full = await db.films.find_one({"id": prev_id, "user_id": user["id"]}, {"_id": 0, "total_spectators": 1, "likes_count": 1})
+            pf_full = await db.films.find_one(
+                {"id": prev_id, "user_id": user["id"]},
+                {"_id": 0, "total_spectators": 1, "likes_count": 1, "total_revenue": 1}
+            )
             if pf_full:
                 views = int(pf_full.get("total_spectators") or 0)
                 likes = int(pf_full.get("likes_count") or 0)
@@ -769,12 +776,163 @@ async def activate_re_hype(saga_id: str, project_id: str, user: dict = Depends(g
                 views_bonus = min(15, int(views / 500_000) + int(likes / 50))
                 if views_bonus > 0:
                     boost_pct += views_bonus
-                    await db.saga_re_hype.update_one(
-                        {"id": re_hype_id if 're_hype_id' in dir() else None},
-                        {"$set": {"views_bonus_pct": views_bonus}},
+                # Idea B: raddoppio pubblico Cap.1 durante finestra Re-Hype
+                # Segna il capitolo 1 come "in re-watch window" → il motore spettatori raddoppia le views per 24h
+                try:
+                    await db.films.update_one(
+                        {"id": prev_id, "user_id": user["id"]},
+                        {"$set": {
+                            "re_watch_window_active": True,
+                            "re_watch_multiplier": 2.0,
+                            "re_watch_window_end": (now + timedelta(hours=status.get("duration_hours", 24))).isoformat(),
+                        }},
                     )
+                except Exception as e:
+                    log.warning(f"[RE_HYPE] re-watch flag on prev film failed: {e}")
     except Exception as e:
         log.warning(f"[RE_HYPE] views bonus failed: {e}")
+
+    # ── (H) Continuity quality bonus: +CWSv se il cast del nuovo capitolo riutilizza attori dei capitoli precedenti
+    try:
+        # Prendi il cast del progetto corrente
+        cur_proj = None
+        cur_coll = None
+        for coll_n in ("film_projects", "lampo_projects"):
+            cur_proj = await db[coll_n].find_one(
+                {"id": project_id, "user_id": user["id"]},
+                {"_id": 0, "cast": 1, "characters": 1, "saga_chapter_number": 1}
+            )
+            if cur_proj:
+                cur_coll = coll_n
+                break
+        if cur_proj:
+            cur_actor_ids = set()
+            for a in (cur_proj.get("cast", {}) or {}).get("actors", []):
+                if a.get("actor_id"):
+                    cur_actor_ids.add(a["actor_id"])
+            for c in (cur_proj.get("characters") or []):
+                if c.get("actor_id"):
+                    cur_actor_ids.add(c["actor_id"])
+            # Prendi gli attori storici della saga
+            historic_ids = set()
+            async for f in db.films.find(
+                {"saga_id": saga_id, "user_id": user["id"]},
+                {"_id": 0, "cast": 1, "characters": 1}
+            ):
+                for a in (f.get("cast", {}) or {}).get("actors", []):
+                    if a.get("actor_id"):
+                        historic_ids.add(a["actor_id"])
+                for c in (f.get("characters") or []):
+                    if c.get("actor_id"):
+                        historic_ids.add(c["actor_id"])
+            reused = len(cur_actor_ids & historic_ids)
+            if reused > 0:
+                # +0.5 CWSv per ogni attore riutilizzato, cap 3.0
+                continuity_bonus = min(3.0, reused * 0.5)
+                if cur_coll:
+                    await db[cur_coll].update_one(
+                        {"id": project_id, "user_id": user["id"]},
+                        {"$set": {
+                            "continuity_bonus_cwsv": continuity_bonus,
+                            "continuity_reused_actors": reused,
+                        }},
+                    )
+    except Exception as e:
+        log.warning(f"[RE_HYPE] continuity bonus failed: {e}")
+
+    # ── (L) Talk Show TV appearance: schedula evento talk show durante la finestra
+    try:
+        # Cerca una talk show slot nelle TV station dell'utente
+        talk_show_scheduled = {
+            "scheduled_at": (now + timedelta(hours=6)).isoformat(),
+            "guest": user.get("nickname", "Produttore"),
+            "topic": f"Saga «{prev_title}» — anteprima del nuovo capitolo",
+            "reach_estimate": int(50_000 + views_bonus * 10_000),
+            "hype_bonus_pct": 3,
+        }
+        # Il boost totale include anche il talk show
+        boost_pct += 3
+        await db.saga_events.insert_one({
+            "id": str(uuid.uuid4()), "saga_id": saga_id, "project_id": project_id,
+            "user_id": user["id"], "type": "talk_show", "payload": talk_show_scheduled,
+            "created_at": now.isoformat(),
+        })
+        # Notifica
+        await db.notifications.insert_one({
+            "id": str(uuid.uuid4()), "user_id": user["id"], "type": "saga_talk_show",
+            "title": "🎙️ Sei ospite in Talk Show",
+            "message": f"«{prev_title}» al centro del dibattito — +3% hype sul nuovo capitolo.",
+            "read": False, "created_at": now.isoformat(),
+        })
+    except Exception as e:
+        log.warning(f"[RE_HYPE] talk show scheduling failed: {e}")
+
+    # ── (M) Cast Reunion AI photo: usa GPT Image per generare una foto di gruppo con il cast storico
+    try:
+        # Recupera il cast storico (nomi attori principali dei capitoli passati)
+        reunion_actors: list[str] = []
+        async for f in db.films.find(
+            {"saga_id": saga_id, "user_id": user["id"]},
+            {"_id": 0, "cast": 1, "characters": 1, "title": 1}
+        ):
+            for a in (f.get("cast", {}) or {}).get("actors", []):
+                nm = a.get("name") or a.get("actor_name")
+                if nm and nm not in reunion_actors:
+                    reunion_actors.append(nm)
+            for c in (f.get("characters") or []):
+                nm = c.get("actor_name") or c.get("name")
+                if nm and nm not in reunion_actors:
+                    reunion_actors.append(nm)
+            if len(reunion_actors) >= 6:
+                break
+        if reunion_actors:
+            try:
+                from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+                import os as _os, pathlib as _pl
+                api_key = _os.environ.get('EMERGENT_LLM_KEY')
+                if api_key:
+                    image_gen = OpenAIImageGeneration(api_key=api_key)
+                    prompt = (
+                        f"Cinematic group reunion photo of the cast of «{prev_title}» saga: "
+                        f"{', '.join(reunion_actors[:6])}. Professional red-carpet portrait, "
+                        f"warm lighting, premiere event vibe, photorealistic, vertical composition."
+                    )
+                    images = await image_gen.generate_images(prompt=prompt, model='gpt-image-1', number_of_images=1)
+                    if images and len(images) > 0:
+                        filename = f"reunion_{saga_id}_{now.timestamp():.0f}.png"
+                        dir_path = _pl.Path('/app/backend/assets/saga_reunions')
+                        dir_path.mkdir(parents=True, exist_ok=True)
+                        filepath = dir_path / filename
+                        with open(filepath, 'wb') as _fh:
+                            _fh.write(images[0])
+                        reunion_photo_url = f"/api/saga-reunions/{filename}"
+            except Exception as e:
+                log.warning(f"[RE_HYPE] reunion image gen skipped: {e}")
+                reunion_photo_url = None
+            await db.saga_events.insert_one({
+                "id": str(uuid.uuid4()), "saga_id": saga_id, "project_id": project_id,
+                "user_id": user["id"], "type": "cast_reunion_photo",
+                "payload": {"actors": reunion_actors[:6], "image_url": reunion_photo_url, "prev_title": prev_title},
+                "created_at": now.isoformat(),
+            })
+    except Exception as e:
+        log.warning(f"[RE_HYPE] cast reunion photo failed: {e}")
+
+    # ── Save Re-Hype record (con tutti i bonus accumulati)
+    await db.saga_re_hype.insert_one({
+        "id": re_hype_id, "saga_id": saga_id, "project_id": project_id, "user_id": user["id"],
+        "activated_at": now.isoformat(), "window_end": status.get("window_end"),
+        "bonus_pct": boost_pct,
+        "base_bonus_pct": status.get("bonus_pct", 0),
+        "views_bonus_pct": views_bonus,
+        "continuity_bonus_cwsv": continuity_bonus,
+        "talk_show_scheduled": talk_show_scheduled,
+        "reunion_photo_url": reunion_photo_url,
+        "duration_hours": status.get("duration_hours", 24),
+        "expired": False,
+    })
+
+    # ── Applica il boost al progetto corrente
     for coll in ("film_projects", "lampo_projects"):
         proj_existing = await db[coll].find_one({"id": project_id, "user_id": user["id"]}, {"_id": 0, "pre_release_hype": 1})
         if proj_existing:
@@ -782,13 +940,19 @@ async def activate_re_hype(saga_id: str, project_id: str, user: dict = Depends(g
             new_hype = min(100.0, current * (1 + boost_pct / 100.0) + boost_pct * 0.5)
             await db[coll].update_one(
                 {"id": project_id, "user_id": user["id"]},
-                {"$set": {"pre_release_hype": new_hype, "re_hype_active": True, "re_hype_window_end": status.get("window_end"), "re_hype_bonus_pct": boost_pct}},
+                {"$set": {
+                    "pre_release_hype": new_hype,
+                    "re_hype_active": True,
+                    "re_hype_window_end": status.get("window_end"),
+                    "re_hype_bonus_pct": boost_pct,
+                    "in_re_hype_window": True,
+                }},
             )
             break
+
     # Notifica follower
     try:
         producer_nick = user.get("nickname", "Un produttore")
-        prev_title = (status.get("prev_film") or {}).get("title", "")
         msg = f"@{producer_nick} sta per rilasciare il prossimo capitolo della saga di «{prev_title}»! Riguarda il capitolo precedente."
         async for f in db.user_follows.find({"target_user_id": user["id"]}, {"_id": 0, "follower_id": 1}):
             if f.get("follower_id"):
@@ -800,16 +964,14 @@ async def activate_re_hype(saga_id: str, project_id: str, user: dict = Depends(g
     except Exception as e:
         log.warning(f"[RE_HYPE] follower notification failed: {e}")
 
-    # Auto-generazione recap testuale (idea J riconvertita: trailer testo gratuito)
+    # Auto-generazione recap testuale (trailer testo gratuito)
     try:
-        prev_film = await db.films.find_one(
-            {"saga_id": saga_id, "saga_chapter_number": chap_n - 1, "user_id": user["id"]},
-            {"_id": 0, "title": 1, "preplot": 1, "synopsis": 1, "genre": 1, "subgenres": 1},
-        ) if False else None  # chap_n non in scope qui
-        # Recupero capitolo precedente via project saga_chapter_number
         proj_doc = None
         for coll_n in ("film_projects", "lampo_projects"):
-            proj_doc = await db[coll_n].find_one({"id": project_id, "user_id": user["id"]}, {"_id": 0, "saga_chapter_number": 1, "title": 1, "preplot": 1, "synopsis": 1, "genre": 1, "subgenres": 1})
+            proj_doc = await db[coll_n].find_one(
+                {"id": project_id, "user_id": user["id"]},
+                {"_id": 0, "saga_chapter_number": 1, "title": 1, "preplot": 1, "synopsis": 1, "genre": 1, "subgenres": 1}
+            )
             if proj_doc:
                 break
         if proj_doc:
@@ -821,7 +983,6 @@ async def activate_re_hype(saga_id: str, project_id: str, user: dict = Depends(g
             if prev_film:
                 from routes.trailers import _generate_text_trailer
                 recap_trailer = await _generate_text_trailer(proj_doc, recap_of=prev_film)
-                # salva nel project doc
                 for coll_n in ("film_projects", "lampo_projects"):
                     if await db[coll_n].find_one({"id": project_id, "user_id": user["id"]}, {"_id": 0, "id": 1}):
                         await db[coll_n].update_one(
@@ -829,7 +990,6 @@ async def activate_re_hype(saga_id: str, project_id: str, user: dict = Depends(g
                             {"$set": {"text_trailer": recap_trailer, "text_trailer_generated_at": recap_trailer["generated_at"], "text_trailer_is_recap": True}},
                         )
                         break
-                # Notifica producer
                 await db.notifications.insert_one({
                     "id": str(uuid.uuid4()), "user_id": user["id"], "type": "saga_recap_ready",
                     "title": "📝 Recap testuale generato",
@@ -839,7 +999,17 @@ async def activate_re_hype(saga_id: str, project_id: str, user: dict = Depends(g
     except Exception as e:
         log.warning(f"[RE_HYPE] auto recap generation failed: {e}")
 
-    return {"success": True, "bonus_pct": boost_pct, "duration_hours": status.get("duration_hours"), "window_end": status.get("window_end")}
+    return {
+        "success": True,
+        "bonus_pct": boost_pct,
+        "base_bonus_pct": status.get("bonus_pct", 0),
+        "views_bonus_pct": views_bonus,
+        "continuity_bonus_cwsv": continuity_bonus,
+        "talk_show": talk_show_scheduled,
+        "reunion_photo_url": reunion_photo_url,
+        "duration_hours": status.get("duration_hours"),
+        "window_end": status.get("window_end"),
+    }
 
 
 @router.get("/{saga_id}/historic-actor-ids")

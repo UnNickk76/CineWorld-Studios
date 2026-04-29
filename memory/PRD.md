@@ -1,3 +1,23 @@
+## FASE: Estensione Moderazione — Bottoni Segnala/Ban in tutto Admin Panel + CineConfirm Velion (Apr 29, 2026)
+
+**Problema**: l'utente ha segnalato che i bottoni "Segnala sempre" e "Banna sempre" (con prompt durata) non erano visibili nelle tab principali (Gestione Utenti, Gestione Ruoli) — erano disponibili SOLO nel tab Segnalazioni. Inoltre le conferme usavano `window.confirm` browser-default invece del CineConfirm Velion-style.
+
+**Modifiche**:
+1. **Gestione Utenti** (UsersTab in `AdminPage.jsx`): aggiunti nel pannello utente selezionato i bottoni `Segnala` (rosa, AlertTriangle) + `Ban`/`Sbanna` (arancione/emerald, ShieldOff/ShieldCheck) accanto al bottone `Elimina`. Badge `BAN` e `MUTE` se attivi.
+2. **Gestione Ruoli** (RolesTab in `AdminPage.jsx`): aggiunti i mini-bottoni icon-only `Segnala` (⚠️) + `Ban`/`Sbanna` (🛡️) accanto ai pulsanti dei ruoli (Co-Admin/Mod/User) per ogni utente. Badge `BAN` se bannato.
+3. **CineConfirm Velion**: tutti i `window.confirm` sostituiti con `CineConfirm` (toni `rose` per ban/segnala, `amber` per sblocco). Applicato in:
+   - `UsersTab` (segnalazione, sblocco)
+   - `RolesTab` (segnalazione, sblocco)
+   - `AdminModerationPanel` (eliminazione contenuto, segnalazione manuale, sblocco)
+4. **BanDurationModal** integrato in entrambe le tab (prompt durata flessibile + 8 preset + textarea motivo).
+
+**Files toccati**:
+- `/app/frontend/src/pages/AdminPage.jsx` (UsersTab + RolesTab)
+- `/app/frontend/src/components/moderation/AdminModerationPanel.jsx` (rimossi `window.confirm`)
+
+**Test manuale**: screenshot tab Gestione Ruoli mostra ogni riga utente con icone Segnala (⚠️ rosa) + Ban (🛡️ arancione) accanto ai 3 bottoni di ruolo. Lint pulito.
+
+
 ## FASE: Sistema Segnalazioni & Moderazione (Apr 29, 2026)
 
 **Obiettivo**: introdurre un sistema completo di moderazione comunitaria con segnalazioni, ban scaling automatico, decay temporale e ban banner globale.

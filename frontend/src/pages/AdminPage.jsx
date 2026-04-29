@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart, Image as ImageIcon, Video, RotateCcw } from 'lucide-react';
+import { Shield, ShieldCheck, ShieldOff, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart, Image as ImageIcon, Video, RotateCcw } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 import { Dialog, DialogContent } from '../components/ui/dialog';
@@ -13,6 +13,8 @@ import AdminFilmRecovery from '../components/AdminFilmRecovery';
 import AdminStatusEditor from '../components/AdminStatusEditor';
 import AdminAvatarsTab from '../components/AdminAvatarsTab';
 import AdminModerationPanel from '../components/moderation/AdminModerationPanel';
+import BanDurationModal from '../components/moderation/BanDurationModal';
+import CineConfirm from '../components/v3/CineConfirm';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
@@ -371,6 +373,44 @@ function UsersTab({ api }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  // Moderation state (Segnala/Ban)
+  const [banTarget, setBanTarget] = useState(null);
+  const [banBusy, setBanBusy] = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [unbanTarget, setUnbanTarget] = useState(null);
+
+  const handleManualReport = async () => {
+    if (!reportTarget) return;
+    try {
+      await api.post(`/admin/users/${reportTarget.id}/manual-report`, { category: 'inappropriato', notes: 'Segnalazione admin' });
+      toast.success(`Segnalazione inviata a @${reportTarget.nickname}`);
+      setReportTarget(null);
+      searchUsers(searchQuery);
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+  };
+
+  const handleConfirmBan = async ({ duration, reason }) => {
+    setBanBusy(true);
+    try {
+      await api.post(`/admin/users/${banTarget.id}/ban`, { duration, reason });
+      toast.success(`Ban applicato a @${banTarget.nickname}: ${duration}`);
+      setBanTarget(null);
+      searchUsers(searchQuery);
+      if (selectedUser?.id === banTarget.id) setSelectedUser(prev => ({ ...prev, is_banned: true }));
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+    finally { setBanBusy(false); }
+  };
+
+  const handleUnban = async () => {
+    if (!unbanTarget) return;
+    try {
+      await api.post(`/admin/users/${unbanTarget.id}/unban`, { reason: 'Sblocco admin' });
+      toast.success(`@${unbanTarget.nickname} sbloccato`);
+      setUnbanTarget(null);
+      searchUsers(searchQuery);
+      if (selectedUser?.id === unbanTarget.id) setSelectedUser(prev => ({ ...prev, is_banned: false }));
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+  };
 
   const searchUsers = useCallback(async (q) => {
     setLoading(true);
@@ -436,6 +476,37 @@ function UsersTab({ api }) {
         loading={deleteLoading}
       />
 
+      {/* Velion: Conferma Segnalazione */}
+      <CineConfirm
+        open={!!reportTarget}
+        title={`Segnalare @${reportTarget?.nickname}?`}
+        subtitle={`Verrà inviata una notifica al player con il messaggio standard. Segnalazione di tipo "Inappropriato".`}
+        confirmLabel="Conferma Segnalazione"
+        confirmTone="rose"
+        onConfirm={handleManualReport}
+        onCancel={() => setReportTarget(null)}
+      />
+
+      {/* Velion: Conferma Sblocco */}
+      <CineConfirm
+        open={!!unbanTarget}
+        title={`Sbloccare @${unbanTarget?.nickname}?`}
+        subtitle="Il counter dei ban totali resta invariato."
+        confirmLabel="Conferma Sblocco"
+        confirmTone="amber"
+        onConfirm={handleUnban}
+        onCancel={() => setUnbanTarget(null)}
+      />
+
+      {/* Ban: prompt durata + Velion-style design */}
+      <BanDurationModal
+        open={!!banTarget}
+        target={banTarget}
+        onCancel={() => setBanTarget(null)}
+        onConfirm={handleConfirmBan}
+        busy={banBusy}
+      />
+
       {/* Search */}
       <form onSubmit={handleSearch}>
         <div className="flex gap-2">
@@ -494,6 +565,26 @@ function UsersTab({ api }) {
                 {selectedUser.nickname?.[0]?.toUpperCase()}
               </div>
               <span className="flex-1">{selectedUser.nickname}</span>
+              {selectedUser.is_banned && <Badge className="text-[8px] h-3.5 bg-rose-500/30 text-rose-200 border-rose-500/50">BAN</Badge>}
+              {selectedUser.is_chat_muted && <Badge className="text-[8px] h-3.5 bg-amber-500/30 text-amber-200 border-amber-500/50">MUTE</Badge>}
+              <Button size="sm" variant="ghost" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 h-7 px-2 text-[10px]"
+                onClick={(e) => { e.stopPropagation(); setReportTarget(selectedUser); }}
+                data-testid="admin-report-user-btn">
+                <AlertTriangle className="w-3 h-3 mr-1" /> Segnala
+              </Button>
+              {selectedUser.is_banned ? (
+                <Button size="sm" variant="ghost" className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 h-7 px-2 text-[10px]"
+                  onClick={(e) => { e.stopPropagation(); setUnbanTarget(selectedUser); }}
+                  data-testid="admin-unban-user-btn">
+                  <ShieldCheck className="w-3 h-3 mr-1" /> Sbanna
+                </Button>
+              ) : (
+                <Button size="sm" variant="ghost" className="text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 h-7 px-2 text-[10px]"
+                  onClick={(e) => { e.stopPropagation(); setBanTarget(selectedUser); }}
+                  data-testid="admin-ban-user-btn">
+                  <ShieldOff className="w-3 h-3 mr-1" /> Ban
+                </Button>
+              )}
               <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 px-2 text-[10px]"
                 onClick={(e) => { e.stopPropagation(); setDeleteTarget(selectedUser); }}
                 data-testid="admin-delete-user-btn">
@@ -1691,6 +1782,11 @@ function RolesTab({ api }) {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
+  // Moderation state
+  const [banTarget, setBanTarget] = useState(null);
+  const [banBusy, setBanBusy] = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [unbanTarget, setUnbanTarget] = useState(null);
 
   const searchUsers = useCallback(async (q) => {
     setLoading(true);
@@ -1713,6 +1809,37 @@ function RolesTab({ api }) {
     finally { setActionLoading(null); }
   };
 
+  const handleManualReport = async () => {
+    if (!reportTarget) return;
+    try {
+      await api.post(`/admin/users/${reportTarget.id}/manual-report`, { category: 'inappropriato', notes: 'Segnalazione admin' });
+      toast.success(`Segnalazione inviata a @${reportTarget.nickname}`);
+      setReportTarget(null);
+      searchUsers(searchQuery);
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+  };
+
+  const handleConfirmBan = async ({ duration, reason }) => {
+    setBanBusy(true);
+    try {
+      await api.post(`/admin/users/${banTarget.id}/ban`, { duration, reason });
+      toast.success(`Ban applicato a @${banTarget.nickname}: ${duration}`);
+      setBanTarget(null);
+      searchUsers(searchQuery);
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+    finally { setBanBusy(false); }
+  };
+
+  const handleUnban = async () => {
+    if (!unbanTarget) return;
+    try {
+      await api.post(`/admin/users/${unbanTarget.id}/unban`, { reason: 'Sblocco admin' });
+      toast.success(`@${unbanTarget.nickname} sbloccato`);
+      setUnbanTarget(null);
+      searchUsers(searchQuery);
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+  };
+
   const ROLE_COLORS = {
     'ADMIN': 'bg-red-500/20 text-red-400 border-red-500/30',
     'CO_ADMIN': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
@@ -1722,6 +1849,31 @@ function RolesTab({ api }) {
 
   return (
     <div className="space-y-3" data-testid="admin-roles-tab">
+      <CineConfirm
+        open={!!reportTarget}
+        title={`Segnalare @${reportTarget?.nickname}?`}
+        subtitle="Verrà inviata una notifica al player con il messaggio standard."
+        confirmLabel="Conferma Segnalazione"
+        confirmTone="rose"
+        onConfirm={handleManualReport}
+        onCancel={() => setReportTarget(null)}
+      />
+      <CineConfirm
+        open={!!unbanTarget}
+        title={`Sbloccare @${unbanTarget?.nickname}?`}
+        subtitle="Il counter dei ban totali resta invariato."
+        confirmLabel="Conferma Sblocco"
+        confirmTone="amber"
+        onConfirm={handleUnban}
+        onCancel={() => setUnbanTarget(null)}
+      />
+      <BanDurationModal
+        open={!!banTarget}
+        target={banTarget}
+        onCancel={() => setBanTarget(null)}
+        onConfirm={handleConfirmBan}
+        busy={banBusy}
+      />
       <form onSubmit={(e) => { e.preventDefault(); searchUsers(searchQuery); }}>
         <div className="flex gap-2">
           <div className="flex-1 relative">
@@ -1753,6 +1905,7 @@ function RolesTab({ api }) {
                   <p className="text-[9px] text-gray-500 truncate">{u.email}</p>
                 </div>
                 <Badge className={`text-[8px] h-5 px-2 ${ROLE_COLORS[role] || ROLE_COLORS.USER}`}>{role}</Badge>
+                {u.is_banned && <Badge className="text-[8px] h-5 px-2 bg-rose-500/30 text-rose-200 border-rose-500/50">BAN</Badge>}
                 {!isNeo && (
                   <div className="flex gap-1 flex-shrink-0">
                     {['CO_ADMIN', 'MOD', 'USER'].map(r => (
@@ -1766,6 +1919,33 @@ function RolesTab({ api }) {
                         {r === 'CO_ADMIN' ? 'Co-Admin' : r === 'MOD' ? 'Mod' : 'User'}
                       </button>
                     ))}
+                    <button
+                      onClick={() => setReportTarget(u)}
+                      data-testid={`role-report-${u.nickname}`}
+                      title="Segnala"
+                      className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                    </button>
+                    {u.is_banned ? (
+                      <button
+                        onClick={() => setUnbanTarget(u)}
+                        data-testid={`role-unban-${u.nickname}`}
+                        title="Sbanna"
+                        className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                      >
+                        <ShieldCheck className="w-2.5 h-2.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setBanTarget(u)}
+                        data-testid={`role-ban-${u.nickname}`}
+                        title="Banna"
+                        className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-orange-500/10 text-orange-400 hover:bg-orange-500/20"
+                      >
+                        <ShieldOff className="w-2.5 h-2.5" />
+                      </button>
+                    )}
                   </div>
                 )}
                 {isNeo && <span className="text-[8px] text-red-400 font-bold flex-shrink-0">PROTETTO</span>}

@@ -4,6 +4,7 @@ import { AuthContext } from '../../contexts';
 import { AlertTriangle, ShieldOff, ShieldCheck, MessageSquareOff, MessageSquare, Trash2, X, Loader2, Search, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import BanDurationModal from './BanDurationModal';
+import CineConfirm from '../v3/CineConfirm';
 
 const CAT_LABELS = {
   inappropriato: '⚠️ Inappropriato',
@@ -30,6 +31,10 @@ export default function AdminModerationPanel() {
   // Ban modal
   const [banTarget, setBanTarget] = useState(null);
   const [banBusy, setBanBusy] = useState(false);
+  // Velion confirms
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [reportConfirm, setReportConfirm] = useState(null);
+  const [unbanConfirm, setUnbanConfirm] = useState(null);
 
   const loadReports = async () => {
     setLoading(true);
@@ -58,12 +63,15 @@ export default function AdminModerationPanel() {
     }
   };
 
-  const deleteContent = async (group) => {
-    if (!window.confirm(`Eliminare definitivamente "${group.content_title}" e segnalare il proprietario?`)) return;
+  const deleteContent = (group) => setDeleteConfirm(group);
+  const confirmDelete = async () => {
+    const group = deleteConfirm;
+    if (!group) return;
     setBusyId(group.content_id);
     try {
       await api.delete(`/admin/content/${group.content_type}/${group.content_id}`);
       toast.success('Contenuto eliminato + segnalazione automatica inviata');
+      setDeleteConfirm(null);
       await loadReports();
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Errore');
@@ -98,12 +106,16 @@ export default function AdminModerationPanel() {
     }
   };
 
-  const handleManualReport = async () => {
+  const handleManualReport = () => {
     if (!selectedUser) return;
-    if (!window.confirm(`Segnalare manualmente @${selectedUser.nickname}?`)) return;
+    setReportConfirm(selectedUser);
+  };
+  const confirmManualReport = async () => {
+    if (!reportConfirm) return;
     try {
-      await api.post(`/admin/users/${selectedUser.id}/manual-report`, { category: 'inappropriato', notes: 'Segnalazione admin' });
+      await api.post(`/admin/users/${reportConfirm.id}/manual-report`, { category: 'inappropriato', notes: 'Segnalazione admin' });
       toast.success('Segnalazione inviata + notifica al player');
+      setReportConfirm(null);
       await selectUser(selectedUser);
     } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
   };
@@ -120,12 +132,14 @@ export default function AdminModerationPanel() {
     } finally { setBanBusy(false); }
   };
 
-  const handleUnban = async (u) => {
-    if (!window.confirm(`Sbloccare @${u.nickname}?`)) return;
+  const handleUnban = (u) => setUnbanConfirm(u);
+  const confirmUnban = async () => {
+    if (!unbanConfirm) return;
     try {
-      await api.post(`/admin/users/${u.id}/unban`, { reason: 'Sblocco admin' });
+      await api.post(`/admin/users/${unbanConfirm.id}/unban`, { reason: 'Sblocco admin' });
       toast.success('Utente sbloccato');
-      if (selectedUser?.id === u.id) await selectUser(selectedUser);
+      setUnbanConfirm(null);
+      if (selectedUser?.id === unbanConfirm.id) await selectUser(selectedUser);
     } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
   };
 
@@ -321,6 +335,33 @@ export default function AdminModerationPanel() {
         onCancel={() => setBanTarget(null)}
         onConfirm={handleConfirmBan}
         busy={banBusy}
+      />
+      <CineConfirm
+        open={!!deleteConfirm}
+        title={`Eliminare "${deleteConfirm?.content_title}"?`}
+        subtitle={`Verrà eliminato il contenuto e inviata una segnalazione automatica al proprietario @${deleteConfirm?.target_user_nickname} con motivo "violazione regole interne".`}
+        confirmLabel="Conferma Eliminazione"
+        confirmTone="rose"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirm(null)}
+      />
+      <CineConfirm
+        open={!!reportConfirm}
+        title={`Segnalare @${reportConfirm?.nickname}?`}
+        subtitle="Verrà inviata una notifica standard al player. Il counter sale di 1."
+        confirmLabel="Conferma Segnalazione"
+        confirmTone="rose"
+        onConfirm={confirmManualReport}
+        onCancel={() => setReportConfirm(null)}
+      />
+      <CineConfirm
+        open={!!unbanConfirm}
+        title={`Sbloccare @${unbanConfirm?.nickname}?`}
+        subtitle="Il counter dei ban totali resta invariato."
+        confirmLabel="Conferma Sblocco"
+        confirmTone="amber"
+        onConfirm={confirmUnban}
+        onCancel={() => setUnbanConfirm(null)}
       />
     </div>
   );

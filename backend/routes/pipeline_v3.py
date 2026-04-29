@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import random
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Literal
 
@@ -147,11 +148,13 @@ def _step_index(state: str) -> int:
 def _calc_crc_from_npc(npc: dict) -> int:
     """Calculate CRc (Cast Rank CineWorld) 0-100."""
     skills = npc.get('skills', {})
-    if not skills:
-        return 0
-    avg_skill = sum(skills.values()) / len(skills)
     fame = npc.get('fame_score', npc.get('fame', 0)) or 0
     stars = npc.get('stars', 1) or 1
+    if not skills:
+        # Fallback per studenti scuola / agency senza skills granulari:
+        # stima basata su stelle + fama. 5 stelle = 40 base, +20 max da fame.
+        return max(0, min(100, round(stars * 8 + min(fame, 100) * 0.2)))
+    avg_skill = sum(skills.values()) / len(skills)
     crc = avg_skill * 0.6 + min(fame, 100) * 0.2 + stars * 4
     return max(0, min(100, round(crc)))
 
@@ -317,6 +320,7 @@ class CreateProjectRequest(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     genre: str = Field(min_length=1, max_length=40)
     subgenre: Optional[str] = None
+    subgenres: Optional[List[str]] = None
     preplot: str = Field(default="", max_length=4000)
 
 
@@ -328,6 +332,7 @@ class IdeaSaveRequest(BaseModel):
     subgenres: Optional[List[str]] = None
     locations: Optional[List[str]] = None
     budget_tier: Optional[str] = None  # micro, low, mid, big, blockbuster, mega
+    vm_rating: Optional[Literal["vm14", "vm16", "vm18"]] = None  # null = visione libera
 
 
 class PromptRequest(BaseModel):
@@ -379,6 +384,22 @@ async def list_projects(user: dict = Depends(get_current_user)):
         {"_id": 0},
     ).sort("created_at", -1).to_list(100)
     return {"items": items}
+
+
+@router.get("/quota-info")
+async def get_quota_info(
+    studio_type: str = "production_studio",
+    mode: str = "classic",
+    user: dict = Depends(get_current_user),
+):
+    """Return current quota state for the studio so UI can pre-display capacity
+    BEFORE the user attempts to create a project."""
+    from utils.studio_quota import get_studio_quota_info
+    if studio_type not in ("production_studio", "studio_serie_tv", "studio_anime"):
+        raise HTTPException(400, "studio_type non valido")
+    if mode not in ("classic", "lampo"):
+        raise HTTPException(400, "mode non valido")
+    return await get_studio_quota_info(db, user["id"], studio_type, mode=mode)
 
 
 @router.post("/films/create")
@@ -459,13 +480,27 @@ async def get_cwsv_full(pid: str, user: dict = Depends(get_current_user)):
 
 @router.post("/films/{pid}/save-idea")
 async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_current_user)):
+    from utils.content_filter import censor_text
+    title_safe = censor_text(req.title.strip())
+    preplot_safe = censor_text(req.preplot.strip())
+
+    # Auto VM rating: erotic -> vm16 default, horror -> vm14 default; user override accepted
+    genre_l = (req.genre or "").lower().strip()
+    auto_vm = None
+    if genre_l == "erotic":
+        auto_vm = "vm16"
+    elif genre_l == "horror":
+        auto_vm = "vm14"
+    vm_rating = req.vm_rating or auto_vm
+
     update_data = {
-        "title": req.title.strip(),
+        "title": title_safe,
         "genre": req.genre.strip(),
         "subgenre": (req.subgenre or "").strip() or None,
-        "preplot": req.preplot.strip(),
+        "preplot": preplot_safe,
         "subgenres": req.subgenres or [],
         "locations": req.locations or [],
+        "vm_rating": vm_rating,
         "status": "pipeline_active",
     }
     # Budget tier (only for new films, validated)
@@ -551,6 +586,34 @@ async def get_released_film_detail(film_id: str, user: dict = Depends(get_curren
         {"_id": 0, "nickname": 1, "production_house_name": 1, "avatar_url": 1, "logo_url": 1}
     )
     film["producer"] = producer or {}
+
+    # === TV BROADCAST INFO ===
+    # Risolve il nome della stazione TV per:
+    #  1) Film TV/TV Movie (target_station_id)
+    #  2) Diritti TV venduti via Mercato (tv_rights_buyer_station_id)
+    try:
+        sids = []
+        if film.get("target_station_id"):
+            sids.append(film["target_station_id"])
+        if film.get("tv_rights_buyer_station_id"):
+            sids.append(film["tv_rights_buyer_station_id"])
+        if sids:
+            stmap = {}
+            async for st in db.tv_stations.find(
+                {"id": {"$in": list(set(sids))}},
+                {"_id": 0, "id": 1, "name": 1, "custom_name": 1, "station_name": 1, "logo_url": 1}
+            ):
+                stmap[st["id"]] = st
+            if film.get("target_station_id") and film["target_station_id"] in stmap:
+                st = stmap[film["target_station_id"]]
+                film["target_station_name"] = st.get("custom_name") or st.get("station_name") or st.get("name") or "TV"
+                film["target_station_logo"] = st.get("logo_url") or ""
+            if film.get("tv_rights_buyer_station_id") and film["tv_rights_buyer_station_id"] in stmap:
+                st = stmap[film["tv_rights_buyer_station_id"]]
+                film["tv_rights_station_name"] = st.get("custom_name") or st.get("station_name") or st.get("name") or "TV"
+                film["tv_rights_station_logo"] = st.get("logo_url") or ""
+    except Exception:
+        pass
 
     # Calculate days in theater
     theater_start = film.get("theater_start") or film.get("released_at") or film.get("created_at")
@@ -933,6 +996,11 @@ async def generate_screenplay(pid: str, req: PromptRequest, user: dict = Depends
             f"[Sceneggiatura generata come bozza - AI non disponibile]"
         )
 
+    # Censura screenplay e prompt (anche generati AI)
+    from utils.content_filter import censor_text
+    screenplay_text = censor_text(screenplay_text)
+    prompt = censor_text(prompt)
+
     project = await _update_project(pid, user["id"], {
         "screenplay_source": req.source,
         "screenplay_prompt": prompt,
@@ -1030,10 +1098,15 @@ async def get_cast_proposals(pid: str, user: dict = Depends(get_current_user)):
     proposals = {"directors": [], "screenwriters": [], "actors": [], "composers": []}
     role_counts = {'director': 10, 'screenwriter': 10, 'actor': 30, 'composer': 8}
 
+    # === ANIMATION: at posto degli "actor" usa "anime_illustrator" (disegnatori) ===
+    is_animation = (genre or '').lower() == 'animation'
+
     for role_type, target_count in role_counts.items():
+        # Per progetti di animazione, gli "attori" sono in realtà disegnatori
+        query_type = 'anime_illustrator' if (is_animation and role_type == 'actor') else role_type
         sample_size = target_count * 8  # Larger pool for level-gating filters
         cursor = db.people.aggregate([
-            {'$match': {'type': role_type}},
+            {'$match': {'type': query_type}},
             {'$sample': {'size': sample_size}},
             {'$project': {'_id': 0}},
         ])
@@ -1120,6 +1193,12 @@ async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user))
         {'_id': 0}
     ).to_list(100)
 
+    # Get pre-engaged talents (Step 3 — Living Talent System)
+    pre_engagements = await db.talent_pre_engagements.find(
+        {'user_id': user['id'], 'role': 'actor', 'contract_status': {'$in': ['active', 'threatened']}},
+        {'_id': 0}
+    ).to_list(100)
+
     # Already cast in this project
     cast = project.get("cast", {})
     cast_ids = set()
@@ -1145,8 +1224,9 @@ async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user))
         aid = actor.get('id', '')
         is_returning = aid in past_actor_ids
         base_cost = actor.get('cost_per_film', 100000)
-        discount = 0.30 if is_returning else 0.15  # -30% returning, -15% own agency
-        final_cost = int(base_cost * (1 - discount))
+        # Player's own roster → costo 0 (richiesta utente)
+        final_cost = 0
+        discount = 1.0
 
         result.append({
             "id": aid,
@@ -1161,9 +1241,10 @@ async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user))
             "primary_skills": actor.get("primary_skills", []),
             "cost": final_cost,
             "original_cost": base_cost,
-            "discount_pct": int(discount * 100),
+            "discount_pct": 100,
             "is_returning": is_returning,
             "is_agency": True,
+            "is_own_roster": True,
             "source": "agency",
             "crc": _calc_crc_from_npc(actor),
             "already_cast": aid in cast_ids,
@@ -1183,15 +1264,83 @@ async def get_my_agency_actors(pid: str, user: dict = Depends(get_current_user))
             "fame_category": "emerging",
             "skills": student.get("skills", {}),
             "primary_skills": [],
-            "cost": 50000,
+            "cost": 0,
             "original_cost": 50000,
-            "discount_pct": 0,
+            "discount_pct": 100,
             "is_returning": False,
             "is_agency": True,
+            "is_own_roster": True,
             "source": "school",
             "crc": _calc_crc_from_npc(student),
             "already_cast": sid in cast_ids,
             "strong_genres": student.get("strong_genres", []),
+        })
+
+    # Pre-engaged talents (Step 3) — costo 0, badge dedicato
+    for eng in pre_engagements:
+        snap = eng.get('npc_snapshot', {}) or {}
+        npc_id = eng.get('npc_id', '')
+        # Try to enrich from people collection if snapshot is sparse
+        if not snap.get('skills') or not snap.get('age'):
+            try:
+                full = await db.people.find_one({'id': npc_id}, {'_id': 0})
+                if full:
+                    snap = {**full, **snap}
+            except Exception:
+                pass
+        days_remaining = 0
+        try:
+            from datetime import datetime, timezone
+            exp = datetime.fromisoformat(str(eng.get('contract_expires_at', '')).replace('Z', '+00:00'))
+            days_remaining = max(0, int((exp - datetime.now(timezone.utc)).total_seconds() // 86400))
+        except Exception:
+            pass
+        # Happiness flags (Step 4)
+        h = int(eng.get('happiness_score', 75) or 75)
+        if h >= 75: emoji = '😊'
+        elif h >= 55: emoji = '🙂'
+        elif h >= 35: emoji = '😐'
+        elif h >= 15: emoji = '😠'
+        else: emoji = '😡'
+        is_threatened = eng.get('contract_status') == 'threatened'
+        grace_days = None
+        if is_threatened and eng.get('grace_period_ends_at'):
+            try:
+                from datetime import datetime, timezone
+                gd = datetime.fromisoformat(str(eng.get('grace_period_ends_at')).replace('Z', '+00:00'))
+                grace_days = max(0, int((gd - datetime.now(timezone.utc)).total_seconds() // 86400))
+            except Exception:
+                pass
+        result.append({
+            "id": npc_id,
+            "name": snap.get("name", "?"),
+            "age": snap.get("age"),
+            "nationality": snap.get("nationality", ""),
+            "gender": snap.get("gender", ""),
+            "stars": eng.get("npc_stars", snap.get("stars", 2)),
+            "fame": snap.get("fame_score", 0),
+            "fame_category": snap.get("fame_category", ""),
+            "skills": snap.get("skills", {}),
+            "primary_skills": snap.get("primary_skills", []),
+            "cost": 0,
+            "original_cost": snap.get("cost_per_film", 0),
+            "discount_pct": 100,
+            "is_returning": npc_id in past_actor_ids,
+            "is_agency": True,
+            "is_own_roster": True,
+            "is_pre_engaged": True,
+            "pre_engage_id": eng.get("id"),
+            "pre_engage_days_remaining": days_remaining,
+            "cast_role_intended": eng.get("cast_role_intended"),
+            "happiness_score": h,
+            "happiness_emoji": emoji,
+            "is_threatened": is_threatened,
+            "grace_days_remaining": grace_days,
+            "is_urgent": days_remaining < 7 or is_threatened,
+            "source": "pre_engaged",
+            "crc": _calc_crc_from_npc(snap),
+            "already_cast": npc_id in cast_ids,
+            "strong_genres": snap.get("strong_genres", []),
         })
 
     # Sort by CRc
@@ -1298,7 +1447,9 @@ async def get_npc_agency_proposals(pid: str, user: dict = Depends(get_current_us
         for role_type in ['actor', 'director', 'screenwriter', 'composer']:
             count = (3 if role_type == 'actor' else 1) * multiplier
             sample_size = count * 3
-            match_filter = {'type': role_type}
+            # Animation: gli "actor" sono disegnatori
+            query_type = 'anime_illustrator' if (genre.lower() == 'animation' and role_type == 'actor') else role_type
+            match_filter = {'type': query_type}
             if min_stars > 0:
                 match_filter['stars'] = {'$gte': min_stars}
             cursor = db.people.aggregate([
@@ -1674,6 +1825,36 @@ async def cast_agency_actor_v3(pid: str, data: dict, user: dict = Depends(get_cu
                 'fame_score': 20, 'fame_category': 'emerging',
                 'cost_per_film': 50000, 'primary_skills': [],
             }
+    elif source == "pre_engaged":
+        # Pre-engaged NPC (gia' bloccato dal player). Carica dallo snapshot in talent_pre_engagements.
+        pe = await db.talent_pre_engagements.find_one(
+            {'npc_id': actor_id, 'user_id': user['id'], 'contract_status': {'$in': ['active', 'threatened']}},
+            {'_id': 0}
+        )
+        if pe:
+            snap = pe.get('npc_snapshot') or {}
+            # Enrich from people collection if snapshot is sparse
+            if not snap.get('skills') or not snap.get('age'):
+                try:
+                    full = await db.people.find_one({'id': actor_id}, {'_id': 0})
+                    if full:
+                        snap = {**full, **snap}
+                except Exception:
+                    pass
+            actor = {
+                'id': actor_id,
+                'name': snap.get('name') or 'NPC',
+                'age': snap.get('age'),
+                'skills': snap.get('skills', {}),
+                'gender': snap.get('gender', ''),
+                'nationality': snap.get('nationality', ''),
+                'stars': pe.get('npc_stars', snap.get('stars', 3)),
+                'fame_score': snap.get('fame_score', snap.get('fame', 0)),
+                'fame_category': snap.get('fame_category', 'emerging'),
+                'cost_per_film': 0,  # gratis (gia' pre-pagato)
+                'primary_skills': snap.get('primary_skills', []),
+                'is_pre_engaged': True,
+            }
     else:
         actor = await db.agency_actors.find_one(
             {'id': actor_id, 'user_id': user['id']}, {'_id': 0}
@@ -1692,9 +1873,10 @@ async def cast_agency_actor_v3(pid: str, data: dict, user: dict = Depends(get_cu
             if a.get('id'): past_ids.add(a['id'])
 
     is_returning = actor_id in past_ids
+    # Player's own actors (school/agency) → costo 0 (richiesta utente)
+    final_cost = 0
     base_cost = actor.get('cost_per_film', 100000)
-    discount = 0.30 if is_returning else 0.15
-    final_cost = int(base_cost * (1 - discount))
+    discount = 1.0  # 100% (own roster)
 
     # Check funds
     if user.get('funds', 0) < final_cost:
@@ -1720,6 +1902,8 @@ async def cast_agency_actor_v3(pid: str, data: dict, user: dict = Depends(get_cu
         "primary_skills": actor.get("primary_skills", []),
         "crc": _calc_crc_from_npc(actor),
         "is_agency_actor": True,
+        "is_own_roster": True,
+        "own_source": source,  # 'school' or 'agency'
         "is_returning": is_returning,
         "discount_pct": int(discount * 100),
     }
@@ -1764,10 +1948,17 @@ class SelectCastBody(BaseModel):
     npc_id: str
     role: str  # director, screenwriter, actor, composer
     cast_role: Optional[str] = None  # protagonista, antagonista, supporto, etc.
+    force_accept: Optional[bool] = False  # bypass rejection check (post-renegoziazione)
 
 @router.post("/films/{pid}/select-cast-member")
 async def select_cast_member(pid: str, req: SelectCastBody, user: dict = Depends(get_current_user)):
-    """Select a specific NPC for the cast."""
+    """Select a specific NPC for the cast.
+
+    Sistema rifiuti: se `req.force_accept` non è True, l'NPC può rifiutare
+    in base a `calculate_rejection_chance` (level/fame/genre/star). Il client
+    può rinegoziare via `/cast/renegotiate/{negotiation_id}` (esistente in
+    routes/cast.py) e poi rifare select-cast-member con `force_accept=True`.
+    """
     project = await _get_project(pid, user["id"])
     cast = project.get("cast", {"director": None, "screenwriters": [], "actors": [], "composer": None})
     cast.setdefault("screenwriters", [])
@@ -1791,6 +1982,64 @@ async def select_cast_member(pid: str, req: SelectCastBody, user: dict = Depends
         raise HTTPException(400, "Hai gia un compositore (max 1)")
     if role == "screenwriter" and len(cast.get("screenwriters", [])) >= 3:
         raise HTTPException(400, "Hai gia 3 sceneggiatori (max 3)")
+
+    # ─── Sistema rifiuti V3 (collegato a calculate_rejection_chance di routes/cast.py) ───
+    force_accept = bool(getattr(req, "force_accept", False))
+    if not force_accept:
+        try:
+            from routes.cast import calculate_rejection_chance
+            from datetime import timedelta as _td
+            full_user = await db.users.find_one({"id": user["id"]}, {"_id": 0})
+            # Skip NPC che hai già rifiutato nelle ultime 24h
+            existing_rej = await db.rejections.find_one({
+                "user_id": user["id"], "person_id": req.npc_id,
+                "created_at": {"$gte": (datetime.now(timezone.utc) - _td(hours=24)).isoformat()}
+            })
+            if existing_rej:
+                return {
+                    "success": False, "rejected": True, "already_refused": True,
+                    "person_name": npc.get("name"),
+                    "reason": existing_rej.get("reason"),
+                    "negotiation_id": existing_rej.get("id"),
+                    "requested_fee": existing_rej.get("requested_fee"),
+                    "can_renegotiate": existing_rej.get("renegotiation_count", 0) < 3,
+                }
+            will_refuse, reason = calculate_rejection_chance(npc, full_user, project.get("genre"))
+            if will_refuse:
+                rejection_id = str(uuid.uuid4())
+                expected_fee = npc.get("cost_per_film", npc.get("fee", 50000))
+                requested_fee = round(expected_fee * (1.1 + random.random() * 0.3))
+                await db.rejections.insert_one({
+                    "id": rejection_id,
+                    "user_id": user["id"],
+                    "person_id": req.npc_id,
+                    "person_name": npc.get("name"),
+                    "person_type": npc.get("type", role),
+                    "reason": reason,
+                    "can_renegotiate": True,
+                    "requested_fee": requested_fee,
+                    "expected_fee": expected_fee,
+                    "renegotiation_count": 0,
+                    "context": "v3_pipeline",
+                    "project_id": pid,
+                    "intended_role": role,
+                    "intended_cast_role": req.cast_role or "generico",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+                return {
+                    "success": False, "rejected": True, "already_refused": False,
+                    "person_name": npc.get("name"),
+                    "person_type": npc.get("type", role),
+                    "reason": reason,
+                    "stars": npc.get("stars", 3),
+                    "fame": npc.get("fame_score", 50),
+                    "negotiation_id": rejection_id,
+                    "can_renegotiate": True,
+                    "requested_fee": requested_fee,
+                    "expected_fee": expected_fee,
+                }
+        except Exception as _rej_err:
+            logger.warning(f"Rejection check skipped: {_rej_err}")
 
     entry = {
         "id": npc.get("id"),
@@ -2164,7 +2413,7 @@ async def speedup(pid: str, req: SpeedupRequest, user: dict = Depends(get_curren
     if current_progress >= 99.9:
         raise HTTPException(400, "Già al 100%! Non serve velocizzare.")
 
-    cost = get_speedup_cost(req.percentage, current_progress)
+    cost = get_speedup_cost(req.percentage, current_progress, is_tv_movie=bool(project.get("is_tv_movie")))
     balances = await _spend(user["id"], funds=0, cinepass=cost)
 
     update = {
@@ -2443,6 +2692,11 @@ async def velion_optimize(pid: str, user: dict = Depends(get_current_user)):
 @router.post("/films/{pid}/confirm-release")
 async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     from utils.calc_production_cost import calculate_production_cost
+    from utils.saga_release_hook import (
+        check_saga_release_gate, attach_saga_metadata,
+        apply_fan_base_hype_modifier, post_release_update_saga,
+        apply_chapter_cost_discount,
+    )
     project = await _get_project(pid, user["id"])
 
     if project.get("pipeline_state") == "released":
@@ -2452,6 +2706,11 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
             "status": "released",
             "quality_score": project.get("quality_score"),
         }
+
+    # ─── SAGA: gate rilascio (cap. precedente fuori sala) ───
+    saga_ok, saga_reason = await check_saga_release_gate(project, user["id"])
+    if not saga_ok:
+        raise HTTPException(400, saga_reason)
 
     # If premiere: cannot release until La Prima 24h window has fully elapsed.
     if project.get("release_type") == "premiere":
@@ -2484,15 +2743,58 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         cwsv_display = "5"
         cwsv_data = {}
 
+    # ─── Bonus "Propri Attori" (scuola/agenzia del player) ───────────
+    # Premia i player che usano i propri attori. Il bonus è proporzionale
+    # al valore (stelle) di ogni attore proprio nel cast del film.
+    try:
+        cast_data = project.get("cast", {}) or {}
+        own_actor_bonus = 0.0
+        own_count = 0
+        for a in (cast_data.get("actors", []) or []):
+            if a.get("is_own_roster"):
+                stars = float(a.get("stars", 0) or 0)
+                # Curva quadratica: attori top contribuiscono di più.
+                # Es: 4★ → 0.4%, 7★ → 1.225%, 9★ → 2.025% per attore.
+                own_actor_bonus += (stars * stars) * 0.025
+                own_count += 1
+        # Cap a +5% sul punteggio finale
+        own_actor_bonus = min(own_actor_bonus, 5.0)
+        if own_actor_bonus > 0:
+            # Applica come moltiplicatore percentuale sul CWSv
+            quality_score = round(min(10.0, quality_score * (1.0 + own_actor_bonus / 100.0)), 2)
+            cwsv_data["own_actor_bonus_pct"] = round(own_actor_bonus, 2)
+            cwsv_data["own_actor_count"] = own_count
+            cwsv_display = str(int(round(quality_score * 10)))
+    except Exception:
+        pass
+
+    # ─── FASE 2: Bonus Genere↔Stile TV (+5% CWSv) ───────────
+    if project.get("is_tv_movie") and project.get("tv_genre_style_match"):
+        try:
+            bonus_pct = float(project.get("tv_genre_bonus_pct") or 5.0)
+            quality_score = round(min(10.0, quality_score * (1.0 + bonus_pct / 100.0)), 2)
+            cwsv_data["tv_genre_match_bonus_pct"] = bonus_pct
+            cwsv_display = str(int(round(quality_score * 10)))
+        except Exception:
+            pass
+
     # Calculate production cost (safe — handles missing data)
     # Note: we pass base cost to _spend; scaling is applied INSIDE _spend to avoid double-scaling
     try:
         cost = calculate_production_cost(project)  # base cost, no user_doc
+        # SAGA: capitolo >= 2 → 70% costo
+        cost = apply_chapter_cost_discount(cost, project)
         total_funds = cost.get("total_funds", 0)
         total_cp = cost.get("total_cp", 0)
     except Exception:
         total_funds = 0
         total_cp = 0
+
+    # === TV MOVIE: apply -70% cost discount + cap CP ===
+    is_tv_movie = bool(project.get("is_tv_movie"))
+    if is_tv_movie:
+        total_funds = int(total_funds * 0.30)
+        total_cp = min(int(total_cp * 0.30), 10)  # max 10 CP al rilascio
 
     # Deduct funds (if any cost) — scaling applied inside _spend based on level
     if total_funds > 0 or total_cp > 0:
@@ -2548,6 +2850,7 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "genre": project.get("genre"),
         "subgenre": project.get("subgenre"),
         "subgenres": project.get("subgenres", []),
+        "vm_rating": project.get("vm_rating"),
         "preplot": project.get("preplot"),
         "poster_url": project.get("poster_url", ""),
         "screenplay_text": project.get("screenplay_text", ""),
@@ -2572,7 +2875,25 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "cwsv_display": cwsv_display,
         "cwsv_data": cwsv_data,
         "final_quality": quality_score,
-        "status": "in_theaters",
+        "status": "in_tv_programming" if is_tv_movie else "in_theaters",
+        # === TV MOVIE FLAGS ===
+        "is_tv_movie": is_tv_movie,
+        "target_station_id": project.get("target_station_id") if is_tv_movie else None,
+        "target_station_name": project.get("target_station_name") if is_tv_movie else None,
+        "target_station_style": project.get("target_station_style") if is_tv_movie else None,
+        "tv_air_datetime": project.get("tv_air_datetime") if is_tv_movie else None,
+        "tv_time_slot": project.get("tv_time_slot") if is_tv_movie else None,
+        "tv_replays_count": 0 if is_tv_movie else None,
+        "tv_replays_max": 3 if is_tv_movie else None,
+        # FASE 2 metadata
+        "tv_genre_style_match": project.get("tv_genre_style_match") if is_tv_movie else None,
+        "tv_genre_bonus_pct": project.get("tv_genre_bonus_pct") if is_tv_movie else None,
+        "tv_anteprima_active": project.get("tv_anteprima_active") if is_tv_movie else None,
+        "tv_maratona_eligible": project.get("tv_maratona_eligible") if is_tv_movie else None,
+        "tv_share_modifier": (
+            {"prime": 1.0, "daytime": 0.7, "late": 0.5, "morning": 0.4}.get(project.get("tv_time_slot") or "prime", 1.0)
+            if is_tv_movie else None
+        ),
         "released": True,
         "pipeline_version": 3,
         "theater_days": project.get("distribution_theater_days", 21),
@@ -2587,7 +2908,7 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "la_prima_city": (project.get("premiere") or {}).get("city") if (project.get("release_type") == "premiere") else None,
         "la_prima_nation": (project.get("premiere") or {}).get("nation") if (project.get("release_type") == "premiere") else None,
         "opening_day_revenue": _calc_opening_day(quality_score, project),
-        "current_cinemas": max(1, len(project.get("distribution_continents", []))),
+        "current_cinemas": 0 if is_tv_movie else max(1, len(project.get("distribution_continents", []))),
         # Purchased-screenplay flags — propagate to films so UI can show the book badge
         "from_purchased_screenplay": bool(project.get("from_purchased_screenplay")),
         "purchased_screenplay_mode": project.get("purchased_screenplay_mode"),
@@ -2599,6 +2920,69 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
 
     result = await db.films.insert_one(film_doc)
 
+    # ─── SAGA: applica metadati + fan-base modifier all'opening day ───
+    try:
+        attach_saga_metadata(film_doc, project)
+        if project.get("saga_id"):
+            await db.films.update_one(
+                {"id": film_doc["id"]},
+                {"$set": {
+                    "saga_id": film_doc.get("saga_id"),
+                    "saga_chapter_number": film_doc.get("saga_chapter_number"),
+                    "saga_subtitle": film_doc.get("saga_subtitle", ""),
+                    "is_saga_chapter": True,
+                    "is_saga_first": film_doc.get("is_saga_first", False),
+                    "saga_cliffhanger": film_doc.get("saga_cliffhanger", False),
+                }}
+            )
+            new_open = await apply_fan_base_hype_modifier(film_doc, project)
+            await db.films.update_one(
+                {"id": film_doc["id"]},
+                {"$set": {
+                    "opening_day_revenue": new_open,
+                    "saga_fan_base_modifier": film_doc.get("saga_fan_base_modifier"),
+                    "saga_prev_cwsv": film_doc.get("saga_prev_cwsv"),
+                }}
+            )
+    except Exception:
+        pass
+
+    # === FASE 2: TV MOVIE — apply slot share + maratona modifiers to opening day ===
+    if is_tv_movie:
+        try:
+            slot = project.get("tv_time_slot") or "prime"
+            slot_mod = {"prime": 1.0, "daytime": 0.7, "late": 0.5, "morning": 0.4}.get(slot, 1.0)
+            maratona_mod = 1.15 if project.get("tv_maratona_eligible") else 1.0
+            base_rev = int(film_doc.get("opening_day_revenue") or 0)
+            new_rev = int(base_rev * slot_mod * maratona_mod)
+            await db.films.update_one(
+                {"id": film_doc["id"]},
+                {"$set": {
+                    "opening_day_revenue": new_rev,
+                    "tv_share_modifier_applied": round(slot_mod * maratona_mod, 3),
+                    "tv_slot_mod": slot_mod,
+                    "tv_maratona_mod": maratona_mod,
+                }}
+            )
+        except Exception:
+            pass
+
+    # === TV MOVIE: attach to TV station palinsesto ===
+    if is_tv_movie and project.get("target_station_id"):
+        try:
+            await db.tv_stations.update_one(
+                {"id": project["target_station_id"], "user_id": user["id"]},
+                {"$addToSet": {"contents.films": {
+                    "content_id": film_doc["id"],
+                    "added_at": _now(),
+                    "via_tv_movie": True,
+                    "scheduled_at": project.get("tv_air_datetime"),
+                    "time_slot": project.get("tv_time_slot"),
+                }}}
+            )
+        except Exception:
+            pass
+
     project = await _update_project(pid, user["id"], {
         "film_id": film_doc["id"],
         "pipeline_state": "released",
@@ -2608,12 +2992,20 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "final_quality": quality_score,
     })
 
-    # Hook: medals + challenges
+    # Hook: medals + challenges + cast evolution + star discovery
     try:
         from game_hooks import on_film_released
-        await on_film_released(user["id"])
+        await on_film_released(user["id"], film_doc=film_doc, project=project)
     except Exception:
         pass
+
+    # ─── SAGA: aggiorna stato saga + bonus trilogia ───
+    saga_bonuses = {"trilogy_bonus": 0, "saga_concluded": False}
+    if project.get("saga_id"):
+        try:
+            saga_bonuses = await post_release_update_saga(film_doc, project, user["id"])
+        except Exception:
+            pass
 
     # Award XP + fame for release
     try:
@@ -2627,6 +3019,27 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
     except Exception:
         pass
 
+    # Bonus XP per uso dei propri attori (scuola/agenzia)
+    try:
+        cast_data = project.get("cast", {}) or {}
+        own_xp = 0
+        for a in (cast_data.get("actors", []) or []):
+            if a.get("is_own_roster"):
+                stars = float(a.get("stars", 0) or 0)
+                own_xp += int(50 * stars)  # 4★→200, 7★→350, 9★→450 per attore
+        own_xp = min(own_xp, 1000)
+        if own_xp > 0:
+            from utils.xp_fame import grant_xp
+            try:
+                await grant_xp(db, user['id'], own_xp, source='own_actors_bonus',
+                               detail=f"{cast_data.get('actors', []) and sum(1 for a in cast_data.get('actors', []) if a.get('is_own_roster')) or 0} attori propri")
+            except Exception:
+                # fallback diretto
+                await db.users.update_one({'id': user['id']},
+                                          {'$inc': {'total_xp': own_xp, 'xp': own_xp}})
+    except Exception:
+        pass
+
     return {
         "success": True,
         "film_id": film_doc["id"],
@@ -2634,6 +3047,7 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "quality_score": quality_score,
         "cwsv_display": cwsv_display,
         "project": project,
+        "saga_bonuses": saga_bonuses,
     }
 
 

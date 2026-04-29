@@ -608,15 +608,12 @@ def generate_cast_member_v2(
     base_cost = calculate_cast_cost(stars, fame, role_type, years_active)
     cost = int(base_cost * 1.4) if cast_is_star else base_cost
     
-    # Generate avatar
+    # Generate avatar (DiceBear 7.x — stable schema; seed encodes gender+role)
     seed = f"{first_name}{last_name}{role_type}".replace(' ', '')
     if gender == 'female':
-        hair_styles = ['longHairStraight', 'longHairCurly', 'longHairBob', 'longHairStraight2']
-        avatar_url = f"https://api.dicebear.com/9.x/avataaars/svg?seed={seed}&backgroundColor=ffd5dc,c0aede&top={random.choice(hair_styles)}"
+        avatar_url = f"https://api.dicebear.com/7.x/avataaars/svg?seed={seed}&backgroundColor=ffd5dc,c0aede"
     else:
-        hair_styles = ['shortHairShortFlat', 'shortHairShortWaved', 'shortHairTheCaesar']
-        facial_hair = ['', '&facialHair=beardLight', '&facialHair=beardMedium']
-        avatar_url = f"https://api.dicebear.com/9.x/avataaars/svg?seed={seed}&backgroundColor=b6e3f4,ffdfbf&top={random.choice(hair_styles)}{random.choice(facial_hair)}"
+        avatar_url = f"https://api.dicebear.com/7.x/avataaars/svg?seed={seed}&backgroundColor=b6e3f4,ffdfbf"
     
     # Determine primary and secondary skills
     sorted_skills = sorted(skills.items(), key=lambda x: x[1], reverse=True)

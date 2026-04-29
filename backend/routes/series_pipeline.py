@@ -1341,14 +1341,65 @@ async def release_series(series_id: str, user: dict = Depends(get_current_user))
         quality_result['score'] = min(98, quality_result['score'] + guest_star_bonus)
         quality_result['breakdown']['guest_star_bonus'] = round(guest_star_bonus, 1)
     
-    # Generate episodes
+    # Generate episodes (con mini_plot AI batch + fallback template)
+    episode_templates = [
+        "I protagonisti affrontano una svolta inaspettata.",
+        "Un segreto del passato viene a galla.",
+        "Nuove alleanze, vecchi rancori.",
+        "Una scelta che cambierà tutto.",
+        "Un incontro decisivo scuote il gruppo.",
+        "Tra verità e inganno, qualcuno paga il prezzo.",
+        "L'equilibrio si spezza in modo irreversibile.",
+        "Vecchie ferite si riaprono al momento sbagliato.",
+        "Una rivelazione cambia il volto della storia.",
+        "Lo scontro finale prende forma.",
+    ]
+
+    # FASE: Genera mini-trame AI in batch (un solo prompt per tutti gli episodi)
+    ai_minitrame = {}
+    try:
+        ai_key = os.environ.get('EMERGENT_LLM_KEY', '')
+        if ai_key:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            n_ep = int(series.get('num_episodes', 10))
+            type_label = 'anime' if series.get('type') == 'anime' else 'serie TV'
+            chat = LlmChat(
+                api_key=ai_key,
+                session_id=f"episode-minitrame-{uuid.uuid4()}",
+                system_message="Sei uno sceneggiatore italiano. Genera mini-trame coincise (max 18 parole) per ogni episodio, una per riga, formato 'N. TESTO'."
+            ).with_model("openai", "gpt-4o-mini")
+            prompt = (
+                f"Genera {n_ep} mini-trame per gli episodi di una {type_label} dal titolo '{series.get('title', '')}' "
+                f"di genere '{series.get('genre_name', series.get('genre', ''))}'. "
+                f"Una mini-trama per episodio, max 18 parole l'una, in italiano, focalizzata sui colpi di scena. "
+                f"Formato OBBLIGATORIO: 'N. testo' (es. '1. I protagonisti scoprono il segreto.')"
+            )
+            response = await chat.send_message(UserMessage(text=prompt))
+            for line in (response or "").split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                # Match "N. text" or "N) text"
+                import re as _re
+                m = _re.match(r"^(\d+)[.)\-:]\s*(.+)$", line)
+                if m:
+                    ai_minitrame[int(m.group(1))] = m.group(2).strip()
+    except Exception as _e:
+        logger.warning(f"AI mini-trame batch failed (using fallback): {_e}")
+
     episodes = []
     for i in range(1, series['num_episodes'] + 1):
         ep_quality_var = random.gauss(0, 3)
+        # Preferisci AI; fallback template
+        ai_text = ai_minitrame.get(i)
+        if ai_text:
+            mini_plot = f"Episodio {i}: {ai_text}"
+        else:
+            mini_plot = f"Episodio {i}: {random.choice(episode_templates)}"
         ep = {
             'number': i,
             'title': f"Episodio {i}",
-            'mini_plot': '',
+            'mini_plot': mini_plot,
             'quality_score': round(max(10, min(98, quality_result['score'] + ep_quality_var)), 1),
             'audience': 0,
             'ad_revenue': 0,
@@ -1644,24 +1695,24 @@ async def schedule_series_release(series_id: str, req: ScheduleReleaseRequest, u
 @router.get("/coming-soon")
 async def get_coming_soon():
     """Get all content in coming_soon status (public endpoint)."""
-    # Series/Anime coming soon + in production + ready to release
+    # Series/Anime coming soon + in production + ready to release + LAMPO ready/scheduled
+    # I LAMPO scheduled e ready DEVONO essere visibili a tutti i player nella sezione Prossimamente.
     series_cursor = db.tv_series.find(
-        {'status': {'$in': ['coming_soon', 'production', 'ready_to_release']}, '$or': [
+        {'status': {'$in': ['coming_soon', 'production', 'ready_to_release', 'lampo_scheduled', 'lampo_ready']}, '$or': [
             {'scheduled_release_at': {'$ne': None}},
-            {'status': {'$in': ['production', 'ready_to_release']}}
+            {'status': {'$in': ['production', 'ready_to_release', 'lampo_scheduled', 'lampo_ready']}}
         ]},
         {'_id': 0, 'id': 1, 'title': 1, 'genre_name': 1, 'type': 1, 'poster_url': 1,
          'num_episodes': 1, 'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1,
          'created_at': 1, 'news_events': 1, 'auto_comments': 1, 'pre_screenplay': 1,
-         'description': 1, 'total_boycott_penalty': 1, 'status': 1}
+         'description': 1, 'total_boycott_penalty': 1, 'status': 1, 'is_lampo': 1, 'mode': 1}
     ).sort('scheduled_release_at', 1)
     series_items = await series_cursor.to_list(50)
     
-    # Films coming soon + in production (visible until released)
+    # Films coming soon + in production (visible until released) — visibili anche senza poster
     film_cursor = db.film_projects.find(
         {'status': {'$in': ['coming_soon', 'ready_for_casting', 'casting', 'sponsor', 'ciak', 'screenplay', 'pre_production', 'shooting', 'pending_release', 'prima']},
-         'pipeline_state': {'$nin': ['released', 'completed', 'out_of_theaters', 'discarded']},
-         'poster_url': {'$ne': None}},
+         'pipeline_state': {'$nin': ['released', 'completed', 'out_of_theaters', 'discarded']}},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
          'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
          'news_events': 1, 'auto_comments': 1, 'pre_screenplay': 1,
@@ -1669,11 +1720,13 @@ async def get_coming_soon():
     ).sort('created_at', -1)
     film_items = await film_cursor.to_list(50)
 
-    # V2 Pipeline films (have poster, not yet released/discarded)
+    # V2 Pipeline films — visibili dalla fase locandina in poi (idea esclusa)
     v2_cursor = db.film_projects.find(
         {'pipeline_version': 2,
-         'poster_url': {'$ne': None},
-         'pipeline_state': {'$nin': ['released', 'completed', 'discarded']}},
+         '$or': [
+            {'pipeline_state': {'$nin': ['idea', 'released', 'completed', 'discarded']}},
+            {'pipeline_state': 'idea', 'poster_url': {'$nin': [None, '']}},
+         ]},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
          'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
          'pre_imdb_score': 1, 'pipeline_state': 1, 'pipeline_ui_step': 1,
@@ -1689,11 +1742,17 @@ async def get_coming_soon():
     )
     remaster_items = await remaster_cursor.to_list(50)
 
-    # V3 Pipeline films (have poster, not yet released/discarded)
+    # V3 Pipeline films — appaiono in Prossimamente DA quando entrano nella fase locandina ('hype')
+    # in poi (anche prima che il poster sia effettivamente generato). Esclusi: 'idea' (fase
+    # pre-locandina), 'released', 'completed', 'discarded', 'deleted'.
+    # Eccezione: se un film ha già un poster_url ma e' ancora in 'idea' (es. test admin),
+    # lo includiamo lo stesso per visibilita'.
     v3_cursor = db.film_projects.find(
         {'pipeline_version': 3,
-         'poster_url': {'$nin': [None, '']},
-         'pipeline_state': {'$nin': ['released', 'completed', 'discarded']}},
+         '$or': [
+            {'pipeline_state': {'$nin': ['idea', 'released', 'completed', 'discarded', 'deleted']}},
+            {'pipeline_state': 'idea', 'poster_url': {'$nin': [None, '']}},
+         ]},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'subgenre': 1, 'subgenres': 1, 'poster_url': 1,
          'user_id': 1, 'scheduled_release_at': 1, 'hype_score': 1, 'created_at': 1,
          'pre_imdb_score': 1, 'pipeline_state': 1, 'pipeline_ui_step': 1,
@@ -1701,11 +1760,13 @@ async def get_coming_soon():
     ).sort('created_at', -1)
     v3_items = await v3_cursor.to_list(50)
 
-    # V3 Pipeline SERIES/ANIME projects (have poster, not yet released/discarded)
+    # V3 Pipeline SERIES/ANIME — visibili dalla fase locandina in poi (idea esclusa).
     v3_series_cursor = db.series_projects_v3.find(
         {'pipeline_version': 3,
-         'poster_url': {'$nin': [None, '']},
-         'pipeline_state': {'$nin': ['released', 'discarded', 'deleted']}},
+         '$or': [
+            {'pipeline_state': {'$nin': ['idea', 'released', 'discarded', 'deleted']}},
+            {'pipeline_state': 'idea', 'poster_url': {'$nin': [None, '']}},
+         ]},
         {'_id': 0, 'id': 1, 'title': 1, 'genre': 1, 'genre_name': 1, 'subgenres': 1,
          'poster_url': 1, 'user_id': 1, 'created_at': 1, 'type': 1,
          'num_episodes': 1, 'pipeline_state': 1, 'pipeline_version': 1}

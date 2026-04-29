@@ -26,34 +26,36 @@ from fastapi import HTTPException
 
 
 # ─────────────────────────────────────────────────────────────────
-# Classic quota curve — user-approved (Feb 2026)
+# Quota v2 — doppia quota: PARALLEL (totale aperti) + DAILY (creati nelle ultime 24h)
+# Più generosa della v1, niente più cooldown post-release.
+# Apr 28, 2026 — quota_v2 reset: i progetti creati prima di QUOTA_V2_RESET_AT
+# NON vengono conteggiati (correzione del bug del conteggio).
 # ─────────────────────────────────────────────────────────────────
-# Cooldown expressed in hours.  "∞" parallel is represented as None.
+QUOTA_V2_RESET_AT = datetime(2026, 4, 28, 7, 0, 0, tzinfo=timezone.utc)
+
+# (level_cap, max_parallel, max_daily)
 _QUOTA_TABLE = [
-    # (level_cap, max_parallel, cooldown_hours)
-    (2,    1,     5 * 24),   # Lv 0-2:  1 parallel, 5 giorni
-    (5,    2,     5 * 24),   # Lv 3-5:  2 parallel, 5 giorni
-    (8,    3,     3 * 24),   # Lv 6-8:  3 parallel, 3 giorni
-    (14,   5,     2 * 24),   # Lv 9-14
-    (24,   8,     1 * 24),   # Lv 15-24
-    (49,   12,    12),       # Lv 25-49
-    (99,   20,    6),        # Lv 50-99
-    (199,  40,    1),        # Lv 100-199
+    (2,    3,     1),     # Lv 0-2:   3 totali, 1 al giorno
+    (5,    5,     2),     # Lv 3-5:   5 totali, 2 al giorno
+    (8,    10,    3),     # Lv 6-8:  10 totali, 3 al giorno
+    (14,   15,    5),     # Lv 9-14: 15 totali, 5 al giorno
+    (24,   25,    8),     # Lv 15-24
+    (49,   40,    15),    # Lv 25-49
+    (99,   60,    30),    # Lv 50-99
+    (199,  100,   50),    # Lv 100-199
     # >= 200: unlimited
 ]
 
-# LAMPO quota curve — separate, SHORTER cooldowns (perk del fast-production)
-# max_parallel is also tighter at low levels to avoid spam.
+# LAMPO quota — più rilassata su daily (è la modalità veloce)
 _LAMPO_QUOTA_TABLE = [
-    # (level_cap, max_parallel, cooldown_hours)
-    (2,    1,     24),       # Lv 0-2:  1 parallel, 1 giorno
-    (5,    1,     12),       # Lv 3-5:  1 parallel, 12h
-    (8,    2,     6),        # Lv 6-8:  2 parallel, 6h
-    (14,   3,     3),        # Lv 9-14: 3 parallel, 3h
-    (24,   4,     2),        # Lv 15-24
-    (49,   6,     1),        # Lv 25-49
-    (99,   10,    1),        # Lv 50-99
-    (199,  20,    1),        # Lv 100-199
+    (2,    2,     2),     # Lv 0-2:  2 totali, 2 al giorno
+    (5,    3,     4),     # Lv 3-5:  3 totali, 4 al giorno
+    (8,    5,     6),     # Lv 6-8:  5 totali, 6 al giorno
+    (14,   8,     10),    # Lv 9-14
+    (24,   12,    15),    # Lv 15-24
+    (49,   20,    30),    # Lv 25-49
+    (99,   30,    60),    # Lv 50-99
+    (199,  50,    100),   # Lv 100-199
     # >= 200: unlimited
 ]
 
@@ -69,14 +71,14 @@ _STUDIO_TO_CONTENT = {
 
 
 def get_quota_for_level(level: int, mode: Mode = "classic") -> dict:
-    """Return {max_parallel: int|None, cooldown_hours: int} for a given studio level."""
+    """Return {max_parallel, max_daily, level} for a given studio level."""
     lvl = max(0, int(level or 0))
     table = _LAMPO_QUOTA_TABLE if mode == "lampo" else _QUOTA_TABLE
-    for cap, parallel, cd in table:
+    for cap, parallel, daily in table:
         if lvl <= cap:
-            return {"max_parallel": parallel, "cooldown_hours": cd, "level": lvl}
+            return {"max_parallel": parallel, "max_daily": daily, "level": lvl}
     # 200+ unlimited
-    return {"max_parallel": None, "cooldown_hours": 0, "level": lvl}
+    return {"max_parallel": None, "max_daily": None, "level": lvl}
 
 
 async def _get_studio_level(db, user_id: str, studio_type: str) -> int:
@@ -92,29 +94,94 @@ async def _get_studio_level(db, user_id: str, studio_type: str) -> int:
 
 
 async def _count_active_projects(db, user_id: str, studio_type: str, mode: Mode = "classic") -> int:
-    """Count player's active (non-released/discarded) projects of the matching mode+content type."""
+    """Conta i progetti ATTIVI (non released/discarded) creati dopo QUOTA_V2_RESET_AT.
+    I progetti pre-fix sono esclusi (correzione bug conteggio Apr 28, 2026).
+
+    SAGA: tutti i capitoli appartenenti alla stessa saga contano come 1 SOLO slot.
+    Progetti senza saga_id contano 1 ciascuno.
+    """
+    cutoff_iso = QUOTA_V2_RESET_AT.isoformat()
     if mode == "lampo":
         content_type = _STUDIO_TO_CONTENT[studio_type]
-        return await db.lampo_projects.count_documents({
+        match = {
             "user_id": user_id,
             "content_type": content_type,
             "released": {"$ne": True},
             "status": {"$nin": ["discarded", "error"]},
-        })
-    # Classic — escludiamo esplicitamente i progetti LAMPO
-    if studio_type == "production_studio":
-        return await db.film_projects.count_documents({
+            "created_at": {"$gte": cutoff_iso},
+        }
+        coll = db.lampo_projects
+    elif studio_type == "production_studio":
+        match = {
             "user_id": user_id,
             "pipeline_state": {"$nin": ["released", "discarded", "deleted"]},
             "mode": {"$ne": "lampo"},
-        })
-    content_type = "anime" if studio_type == "studio_anime" else "tv_series"
-    return await db.series_projects_v3.count_documents({
-        "user_id": user_id,
-        "type": content_type,
-        "pipeline_state": {"$nin": ["released", "discarded", "deleted"]},
-        "mode": {"$ne": "lampo"},
-    })
+            "created_at": {"$gte": cutoff_iso},
+        }
+        coll = db.film_projects
+    else:
+        content_type = "anime" if studio_type == "studio_anime" else "tv_series"
+        match = {
+            "user_id": user_id,
+            "type": content_type,
+            "pipeline_state": {"$nin": ["released", "discarded", "deleted"]},
+            "mode": {"$ne": "lampo"},
+            "created_at": {"$gte": cutoff_iso},
+        }
+        coll = db.series_projects_v3
+
+    # Aggregation: raggruppa per saga_id (capitoli della stessa saga = 1 slot)
+    pipeline = [
+        {"$match": match},
+        {"$group": {"_id": {"$ifNull": ["$saga_id", "$id"]}, "count": {"$sum": 1}}},
+    ]
+    n = 0
+    async for _ in coll.aggregate(pipeline):
+        n += 1
+    return n
+
+
+async def _count_daily_creations(db, user_id: str, studio_type: str, mode: Mode = "classic") -> tuple[int, Optional[datetime]]:
+    """Conta i progetti CREATI nelle ultime 24 ore."""
+    now = datetime.now(timezone.utc)
+    window_start = max(now - timedelta(hours=24), QUOTA_V2_RESET_AT)
+    window_iso = window_start.isoformat()
+
+    if mode == "lampo":
+        content_type = _STUDIO_TO_CONTENT[studio_type]
+        coll = db.lampo_projects
+        match = {
+            "user_id": user_id,
+            "content_type": content_type,
+            "status": {"$nin": ["discarded", "error"]},
+            "created_at": {"$gte": window_iso},
+        }
+    elif studio_type == "production_studio":
+        coll = db.film_projects
+        match = {
+            "user_id": user_id,
+            "pipeline_state": {"$nin": ["discarded", "deleted"]},
+            "mode": {"$ne": "lampo"},
+            "created_at": {"$gte": window_iso},
+        }
+    else:
+        coll = db.series_projects_v3
+        content_type = "anime" if studio_type == "studio_anime" else "tv_series"
+        match = {
+            "user_id": user_id,
+            "type": content_type,
+            "pipeline_state": {"$nin": ["discarded", "deleted"]},
+            "mode": {"$ne": "lampo"},
+            "created_at": {"$gte": window_iso},
+        }
+
+    count = await coll.count_documents(match)
+    oldest = None
+    if count > 0:
+        d = await coll.find_one(match, {"_id": 0, "created_at": 1}, sort=[("created_at", 1)])
+        if d:
+            oldest = _parse_dt(d.get("created_at"))
+    return count, oldest
 
 
 def _parse_dt(raw) -> Optional[datetime]:
@@ -132,98 +199,76 @@ def _parse_dt(raw) -> Optional[datetime]:
         return None
 
 
-async def _last_cooldown_anchor(db, user_id: str, studio_type: str, mode: Mode = "classic") -> Optional[datetime]:
-    """Return the expiry datetime of the cooldown for this studio+mode, or None if no active cooldown.
-
-    LAMPO mode: anchor = most-recent LAMPO *creation* time (so cooldown is consumed
-    immediately on start, even if the player cancels or refreshes — anti-evasione).
-    Classic mode: anchor = most-recent classic release/creation.
-    """
-    if mode == "lampo":
-        content_type = _STUDIO_TO_CONTENT[studio_type]
-        doc = await db.lampo_projects.find_one(
-            {"user_id": user_id, "content_type": content_type, "status": {"$ne": "discarded"}},
-            {"_id": 0, "created_at": 1},
-            sort=[("created_at", -1)],
-        )
-        if not doc:
-            return None
-        return _parse_dt(doc.get("created_at"))
-
-    # Classic — exclude LAMPO outputs from cooldown tracking
-    if studio_type == "production_studio":
-        doc = await db.films.find_one(
-            {"user_id": user_id, "is_lampo": {"$ne": True}},
-            {"_id": 0, "released_at": 1, "created_at": 1},
-            sort=[("created_at", -1)],
-        )
-    else:
-        content_type = "anime" if studio_type == "studio_anime" else "tv_series"
-        doc = await db.tv_series.find_one(
-            {"user_id": user_id, "type": content_type, "is_lampo": {"$ne": True}},
-            {"_id": 0, "released_at": 1, "created_at": 1},
-            sort=[("created_at", -1)],
-        )
-    if not doc:
-        return None
-    return _parse_dt(doc.get("released_at") or doc.get("created_at"))
-
-
 async def get_studio_quota_info(db, user_id: str, studio_type: StudioType, mode: Mode = "classic") -> dict:
-    """Return current quota status for UI display / tooltip."""
+    """Quota v2: PARALLEL (totale aperti) + DAILY (creazioni ultime 24h).
+    Niente più cooldown post-release."""
     level = await _get_studio_level(db, user_id, studio_type)
-    # Il giocatore ha SEMPRE accesso a production_studio (auto-seed Lv 0).
-    # Per LAMPO consideriamo livello minimo 0 uguale al classic.
     quota = get_quota_for_level(level, mode=mode)
-    active = await _count_active_projects(db, user_id, studio_type, mode=mode)
-    last = await _last_cooldown_anchor(db, user_id, studio_type, mode=mode)
-    cd_expires = None
-    cooldown_active = False
-    if last and quota["cooldown_hours"] > 0:
-        expiry = last + timedelta(hours=quota["cooldown_hours"])
-        if expiry > datetime.now(timezone.utc):
-            cd_expires = expiry.isoformat()
-            cooldown_active = True
+    parallel_used = await _count_active_projects(db, user_id, studio_type, mode=mode)
+    daily_used, oldest_in_window = await _count_daily_creations(db, user_id, studio_type, mode=mode)
+
+    max_parallel = quota["max_parallel"]
+    max_daily = quota["max_daily"]
+    unlimited = max_parallel is None and max_daily is None
+
+    parallel_full = (max_parallel is not None) and parallel_used >= max_parallel
+    daily_full = (max_daily is not None) and daily_used >= max_daily
+
+    # Daily window reset: quando il progetto più vecchio esce dalla finestra (oldest+24h)
+    daily_window_resets_at = None
+    if daily_full and oldest_in_window is not None:
+        reset = oldest_in_window + timedelta(hours=24)
+        if reset > datetime.now(timezone.utc):
+            daily_window_resets_at = reset.isoformat()
+
     return {
         "studio_type": studio_type,
         "mode": mode,
         "level": level,
-        "max_parallel": quota["max_parallel"],
-        "parallel_used": active,
-        "parallel_available": None if quota["max_parallel"] is None else max(0, quota["max_parallel"] - active),
-        "cooldown_hours": quota["cooldown_hours"],
-        "cooldown_active": cooldown_active,
-        "cooldown_expires_at": cd_expires,
-        "unlimited": quota["max_parallel"] is None,
+        "max_parallel": max_parallel,
+        "parallel_used": parallel_used,
+        "parallel_available": None if max_parallel is None else max(0, max_parallel - parallel_used),
+        "parallel_full": parallel_full,
+        "max_daily": max_daily,
+        "daily_used": daily_used,
+        "daily_available": None if max_daily is None else max(0, max_daily - daily_used),
+        "daily_full": daily_full,
+        "daily_window_resets_at": daily_window_resets_at,
+        # Backward-compat fields (vecchio cooldown — sempre False ora)
+        "cooldown_active": daily_full,
+        "cooldown_expires_at": daily_window_resets_at,
+        "cooldown_hours": 0,
+        "unlimited": unlimited,
+        # Mostriamo la doppia quota in UI solo se max_parallel > 1 (cioè quando ha senso)
+        "show_dual_quota": max_parallel is not None and max_parallel > 1,
     }
 
 
 async def check_studio_quota(db, user_id: str, studio_type: StudioType, mode: Mode = "classic") -> dict:
-    """Raise HTTPException if the user cannot start a new project now.
-    Returns the info dict on success (so callers can display it)."""
+    """Bloccato se PARALLEL o DAILY pieno."""
     info = await get_studio_quota_info(db, user_id, studio_type, mode=mode)
 
-    # Level gate: studio non posseduto (esclusa production_studio, auto-seeded a Lv 0)
+    # Level gate: studio non posseduto
     if info["level"] <= 0 and studio_type != "production_studio":
         label = {"studio_anime": "Studio Anime", "studio_serie_tv": "Studio Serie TV"}.get(studio_type, "Studio")
         raise HTTPException(400, f"Devi possedere uno {label}. Acquistalo nelle Infrastrutture.")
 
+    scope = "LAMPO" if mode == "lampo" else "classici"
+
     # Parallel slot check
-    if info["max_parallel"] is not None and info["parallel_used"] >= info["max_parallel"]:
-        scope = "LAMPO" if mode == "lampo" else "classici"
+    if info["parallel_full"]:
         raise HTTPException(
             400,
-            f"Limite progetti {scope} raggiunto ({info['parallel_used']}/{info['max_parallel']}). "
-            f"Completa un progetto o potenzia lo studio al livello superiore."
+            f"Limite progetti {scope} aperti raggiunto ({info['parallel_used']}/{info['max_parallel']}). "
+            f"Completa o scarta un progetto, oppure potenzia lo studio."
         )
 
-    # Cooldown check
-    if info["cooldown_active"]:
-        expiry = info["cooldown_expires_at"]
-        scope = "LAMPO" if mode == "lampo" else "Studio"
+    # Daily quota check
+    if info["daily_full"]:
         raise HTTPException(
             400,
-            f"{scope} in cooldown fino a {expiry}. Potenzia lo studio per ridurre il tempo."
+            f"Limite giornaliero {scope} raggiunto ({info['daily_used']}/{info['max_daily']} nelle ultime 24h). "
+            f"Riprova più tardi o potenzia lo studio."
         )
 
     return info

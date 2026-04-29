@@ -15,6 +15,15 @@ from emerging_screenplays import generate_synopsis
 
 router = APIRouter()
 
+
+def _ensure_avatar(actor: dict) -> dict:
+    """Garantisce un avatar_url dicebear-style derivato dal nome se mancante."""
+    if actor and not actor.get('avatar_url'):
+        name = (actor.get('name') or 'NPC').strip()
+        seed = ''.join(c for c in name if c.isalnum())[:40] or 'NPC'
+        actor['avatar_url'] = f'https://api.dicebear.com/7.x/avataaars/svg?seed={seed}'
+    return actor
+
 # Genre list for actor specializations
 ALL_GENRES = [
     'action', 'comedy', 'drama', 'horror', 'sci_fi', 'romance',
@@ -473,6 +482,7 @@ async def get_actors_for_casting(user: dict = Depends(get_current_user)):
         a['skills'] = convert_legacy_skills(a.get('skills', {}))
         if a.get('skill_caps'):
             a['skill_caps'] = convert_legacy_skill_caps(a['skill_caps'])
+        _ensure_avatar(a)
 
     # 2. School students (available for casting, continue training + bonus)
     school_students = await db.casting_school_students.find(
@@ -485,6 +495,7 @@ async def get_actors_for_casting(user: dict = Depends(get_current_user)):
         # Calculate current skills for display
         from routes.acting_school import calculate_current_skills
         s['skills'] = calculate_current_skills(s)
+        _ensure_avatar(s)
 
     current_count = len(effective_actors)
     slots_available = max(0, max_actors - current_count)
@@ -850,7 +861,8 @@ async def send_agency_actor_to_school(actor_id: str, user: dict = Depends(get_cu
     # Check if school has capacity
     from routes.acting_school import get_training_slots
     school = await db.infrastructure.find_one(
-        {'owner_id': user['id'], 'type': 'acting_school'}, {'_id': 0, 'level': 1}
+        {'owner_id': user['id'], 'type': {'$in': ['cinema_school', 'acting_school', 'scuola_recitazione', 'casting_school']}},
+        {'_id': 0, 'level': 1}
     )
     if not school:
         raise HTTPException(400, "Non possiedi una Scuola di Recitazione. Acquistala dalle Infrastrutture!")
@@ -876,6 +888,15 @@ async def send_agency_actor_to_school(actor_id: str, user: dict = Depends(get_cu
 
     # Create school student from agency actor
     now = datetime.now(timezone.utc).isoformat()
+    base_skills = actor.get('skills', {}) or {}
+    talent = actor.get('hidden_talent', 0.5)
+    # Pre-compute target skills (final cap) + duration (5-20 days, talent-based)
+    try:
+        from routes.acting_school import compute_training_plan
+        target_skills, duration_days = compute_training_plan(base_skills, talent, is_from_agency=True)
+    except Exception:
+        target_skills = dict(base_skills)
+        duration_days = 14
     student = {
         'id': actor['id'],
         'user_id': user['id'],
@@ -884,9 +905,17 @@ async def send_agency_actor_to_school(actor_id: str, user: dict = Depends(get_cu
         'nationality': actor.get('nationality', 'Unknown'),
         'age': actor.get('age', 25),
         'avatar_url': actor.get('avatar_url', ''),
-        'base_skills': actor.get('skills', {}),
+        # Preserve baseline so we can show "base + boost" in UI and avoid skill=0
+        'base_skills': dict(base_skills),
+        'initial_skills': dict(base_skills),
+        'skills': dict(base_skills),
+        # Pre-determined target + duration (talent-based) ⇒ progress = elapsed/duration
+        'target_skills': target_skills,
+        'training_duration_days': duration_days,
         'skill_caps': actor.get('skill_caps', {}),
-        'hidden_talent': actor.get('hidden_talent', 0.5),
+        'hidden_talent': talent,
+        # potential drives the cap formula in calculate_casting_student_skills
+        'potential': talent,
         'strong_genres': actor.get('strong_genres', []),
         'strong_genres_names': actor.get('strong_genres_names', []),
         'adaptable_genre': actor.get('adaptable_genre', ''),

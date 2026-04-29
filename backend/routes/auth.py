@@ -222,6 +222,18 @@ async def register(user_data: UserCreate):
     existing = await db.users.find_one({'email': user_data.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Blocco email post-eliminazione (60gg)
+    blk = await db.email_blocks.find_one({'email': user_data.email.lower()})
+    if blk and blk.get('blocked_until'):
+        try:
+            until = datetime.fromisoformat(blk['blocked_until'].replace("Z", "+00:00"))
+            if until > datetime.now(timezone.utc):
+                raise HTTPException(status_code=403, detail=f"Email bloccata per violazioni fino al {until.strftime('%d/%m/%Y')}")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
     
     avatar_url = generate_default_avatar(user_data.nickname, user_data.gender)
     
@@ -1041,4 +1053,6 @@ async def get_player_profile(nickname: str, user: dict = Depends(get_current_use
         'best_film': best_film,
         'best_cwsv_display': best_display,
         'challenge_stats': {'wins': wins, 'losses': losses},
+        'created_at': target.get('created_at'),
+        'logo_url': target.get('logo_url', ''),
     }

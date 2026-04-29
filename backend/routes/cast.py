@@ -224,6 +224,16 @@ class AffinityPreviewRequest(BaseModel):
 
 # ==================== ENDPOINTS ====================
 
+@router.get("/people/{person_id}")
+async def get_person_by_id(person_id: str, user: dict = Depends(get_current_user)):
+    """Restituisce stats e skill di un NPC (attore/regista/sceneggiatore/compositore/illustratore).
+    Usato dalle notifiche (es. star_discovery) per aprire popup con i dati del talento."""
+    npc = await db.people.find_one({'id': person_id}, {'_id': 0})
+    if not npc:
+        raise HTTPException(404, "Persona non trovata")
+    return npc
+
+
 @router.get("/actors")
 async def get_actors(
     page: int = 1,

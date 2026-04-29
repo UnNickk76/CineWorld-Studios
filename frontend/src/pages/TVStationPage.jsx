@@ -11,7 +11,7 @@ import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import {
   Radio, Tv, Sparkles, Film, Plus, ChevronRight, ChevronLeft,
-  Loader2, DollarSign, Eye, Globe, Menu as MenuIcon, Check, Edit2
+  Loader2, DollarSign, Eye, Globe, Menu as MenuIcon, Check, Edit2, Star
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -59,6 +59,8 @@ export default function TVStationPage() {
   const [stationName, setStationName] = useState('');
   const [selectedNation, setSelectedNation] = useState('Italia');
   const [adSeconds, setAdSeconds] = useState(30);
+  const [selectedStyle, setSelectedStyle] = useState('default');
+  const [availableStyles, setAvailableStyles] = useState([]);
   const [setupLoading, setSetupLoading] = useState(false);
   const [newStationId, setNewStationId] = useState(null);
 
@@ -113,12 +115,19 @@ export default function TVStationPage() {
   const submitStep2 = async () => {
     setSetupLoading(true);
     try {
-      await api.post('/tv-stations/setup-step2', { station_id: newStationId, ad_seconds: adSeconds });
+      await api.post('/tv-stations/setup-step2', { station_id: newStationId, ad_seconds: adSeconds, style: selectedStyle });
       toast.success('Emittente TV configurata!');
       navigate(`/tv-station/${newStationId}`, { replace: true });
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
     setSetupLoading(false);
   };
+
+  // Load available styles when entering step 2
+  useEffect(() => {
+    if (setupStep === 2 && availableStyles.length === 0) {
+      api.get('/tv-stations/available-styles').then(r => setAvailableStyles(r.data?.styles || [])).catch(() => {});
+    }
+  }, [setupStep, availableStyles.length, api]);
 
   // Handle click on any content poster
   const handleContentClick = (item) => {
@@ -207,6 +216,38 @@ export default function TVStationPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Style selector */}
+            <Card className="bg-[#111113] border-red-500/20 mb-4">
+              <CardContent className="p-4">
+                <p className="text-xs text-gray-400 mb-1">Stile Branding</p>
+                <p className="text-[10px] text-gray-600 mb-3">Definisce font, colori e glow del badge "In TV dal..." sui contenuti.</p>
+                {availableStyles.length === 0 ? (
+                  <p className="text-[10px] text-gray-500 italic">Caricamento stili...</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {availableStyles.map(s => {
+                      const isSelected = selectedStyle === s.key;
+                      return (
+                        <button
+                          key={s.key}
+                          onClick={() => setSelectedStyle(s.key)}
+                          data-testid={`style-${s.key}`}
+                          className={`relative rounded-lg p-2 text-left border transition-all ${isSelected ? 'border-red-500 ring-2 ring-red-500/30' : 'border-white/10 hover:border-white/20'}`}
+                          style={{
+                            background: isSelected ? `linear-gradient(135deg, ${s.color}22, transparent)` : 'rgba(255,255,255,0.02)',
+                          }}
+                        >
+                          <p className="text-[11px] font-bold" style={{ color: s.color, fontFamily: s.font_family }}>{s.label}</p>
+                          <p className="text-[8px] text-gray-500 leading-tight mt-0.5">{s.tagline}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Button className="w-full h-12 bg-red-500 hover:bg-red-600 font-['Bebas_Neue'] text-lg mt-4" onClick={submitStep2} disabled={setupLoading} data-testid="step2-submit">
               {setupLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
               AVVIA L'EMITTENTE <Radio className="w-5 h-5 ml-2" />
@@ -536,7 +577,18 @@ function FilmDetailPopup({ film, onClose }) {
         <div className="p-3 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             {(film.genre || film.genre_name) && <Badge className="text-[9px] bg-white/10 text-gray-300">{film.genre || film.genre_name}</Badge>}
-            {film.quality_score > 0 && <span className="text-[10px] font-bold text-yellow-400">{film.quality_score}/100</span>}
+            {film.quality_score > 0 && (() => {
+              // Allinea con il resto dell'app: stella + voto x.x (scala 0-10)
+              const raw = Number(film.quality_score) || 0;
+              const score10 = raw > 10 ? raw / 10 : raw;
+              const color = score10 >= 8 ? '#f0c040' : score10 >= 6 ? '#4ade80' : score10 >= 4 ? '#facc15' : '#f87171';
+              return (
+                <span className="flex items-center gap-1 text-[10px] font-bold" style={{ color }}>
+                  <Star className="w-3 h-3" fill={color} color={color} />
+                  {score10.toFixed(1)}
+                </span>
+              );
+            })()}
           </div>
           {film.description && <p className="text-[10px] text-gray-400 line-clamp-3">{film.description}</p>}
         </div>

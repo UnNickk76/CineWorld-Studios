@@ -13,6 +13,11 @@ import UltimiTrailerStrip from '../components/UltimiTrailerStrip';
 import VelionCinematicEvent from '../components/VelionCinematicEvent';
 import { ProducerBadge } from '../components/ProducerBadge';
 import { LampoLightning } from '../components/LampoLightning';
+import { SagaBadge } from '../components/saga/SagaBadge';
+import TvRightsBadge from '../components/TvRightsBadge';
+import VmRatingBadge from '../components/VmRatingBadge';
+import TvMarketModal from '../components/TvMarketModal';
+import TvMarketDashboardWidget from '../components/TvMarketDashboardWidget';
 import { SectionSortMenu, sortItems, DEFAULT_SORT_OPTIONS } from '../components/SectionSortMenu';
 import ProssimamenteDetailModal from '../components/ProssimamenteDetailModal';
 import { MasterpieceBadge, PlayerBadge } from '../components/PlayerBadge';
@@ -94,7 +99,9 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
   useEffect(() => {
     api.get('/pipeline-series-v3/prossimamente').then(r => setData(r.data || {})).catch(() => {});
   }, [api]);
-  const rawItems = [...(data.coming_soon || []), ...(data.airing || [])];
+  // Solo "in arrivo" — esclude le serie/anime che sono gia' iniziate ad andare in onda
+  // (quelle vanno mostrate in "Ultimi Aggiornamenti Serie TV").
+  const rawItems = [...(data.coming_soon || [])];
   const items = sortItems(rawItems, sortValue);
   return (
     <div className="mb-4 rounded-xl" data-testid="prossimamente-v3">
@@ -118,7 +125,7 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
               {items.map(item => (
                 <button key={item.id}
-                  onClick={() => onItemClick?.(item.id)}
+                  onClick={() => onItemClick?.(item)}
                   data-testid={`prossimamente-v3-item-${item.id}`}
                   className="flex-shrink-0 w-24 rounded-lg overflow-hidden border border-indigo-500/15 bg-black/30 text-left hover:border-indigo-400/40 active:scale-[0.97] transition-all">
                   <div className="aspect-[2/3] bg-gray-800 relative">
@@ -126,6 +133,9 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
                       <div className="w-full h-full flex items-center justify-center">{item.type === 'anime' ? <Sparkles className="w-4 h-4 text-gray-700" /> : <Tv className="w-4 h-4 text-gray-700" />}</div>}
                     {item.aired_count != null && (
                       <div className="absolute bottom-0.5 right-0.5 px-1 py-0.5 rounded bg-black/80 text-[6px] text-indigo-400 font-bold">{item.aired_count}/{item.total_episodes} EP</div>
+                    )}
+                    {(item.type === 'tv_movie' || item.is_tv_movie) && (
+                      <div className="absolute top-0.5 right-0.5 px-1 py-0.5 rounded bg-cyan-500/90 text-[6px] text-black font-black uppercase tracking-wider">Film TV</div>
                     )}
                     {item.pipeline_state && item.pipeline_state !== 'released' && (
                       <div className="status-pulse-glow absolute top-0.5 left-0.5 px-1 py-0.5 rounded-full bg-amber-500/80 text-[5px] text-black font-black uppercase">{item.pipeline_state}</div>
@@ -137,11 +147,22 @@ const ProssimamenteV3Section = ({ onItemClick }) => {
                       variant="bottom-left"
                       size="xs"
                     />
-                    <LampoLightning item={item} variant="top-right" size="xs" />
+                    <LampoLightning item={item} variant="bottom-left" size="xs" />
+                    <SagaBadge chapterNumber={item.saga_chapter_number} totalChapters={item.saga_total_planned_chapters} cliffhanger={item.saga_cliffhanger} size="xs" position="top-left" />
+                    {item.vm_rating && (
+                      <div className="absolute top-4 left-0.5 z-20">
+                        <VmRatingBadge rating={item.vm_rating} size="xs" />
+                      </div>
+                    )}
+                    {item.tv_rights_active_contract_id && item.tv_rights_station_name && (
+                      <span className="absolute bottom-1 right-1 z-10 px-1 py-0.5 rounded text-[6px] font-black uppercase bg-cyan-400 text-black border border-cyan-300/50 shadow flex items-center gap-0.5 max-w-[80%] truncate">
+                        📺 {item.tv_rights_station_name}
+                      </span>
+                    )}
                   </div>
                   <div className="p-1">
                     <p className="text-[7px] font-bold text-white truncate">{item.title}</p>
-                    <p className="text-[6px] text-gray-500">{item.producer?.nickname || item.producer_nickname || ''}</p>
+                    <p className="text-[6px] text-gray-500">{item.producer?.production_house_name || item.producer_house || item.producer?.nickname || item.producer_nickname || ''}</p>
                   </div>
                 </button>
               ))}
@@ -170,6 +191,7 @@ const Dashboard = () => {
   const [selectedFilmId, setSelectedFilmId] = useState(null);
   const [mySeries, setMySeries] = useState([]);
   const [myAnime, setMyAnime] = useState([]);
+  const [rightsModalContent, setRightsModalContent] = useState(null);
   const [eventiWow, setEventiWow] = useState([]);
 
   // Ordinamento per-sezione (persistito in localStorage)
@@ -529,10 +551,7 @@ const Dashboard = () => {
           {/* 1.5 Evento Ri-Cinema */}
           <RiCinemaShowcase api={api} navigate={navigate} />
 
-          {/* 1.7 Trailer da non perdere (Cinematico+PRO trending) */}
-          <FeaturedTrailersStrip />
-
-          {/* 1.75 Ultimi Trailer (fresh from AI, all tiers) */}
+          {/* 1.75 Ultimi Trailer (fresh from AI, all tiers) — sostituisce 'Trailer da non perdere' (ridondante) */}
           <UltimiTrailerStrip limit={12} />
 
           {/* 1.8 Best Highlights — Top trailer post-lancio */}
@@ -582,6 +601,11 @@ const Dashboard = () => {
           {/* 3. Prossimamente FILM */}
           <div className="mb-4 rounded-xl glow-blue" data-testid="dashboard-coming-soon-film">
             <ComingSoonSection compact filterType="film" sectionTitle="PROSSIMAMENTE FILM" />
+          </div>
+
+          {/* TV Market Dashboard Widget — cruscotto produttore TV */}
+          <div className="mb-4">
+            <TvMarketDashboardWidget />
           </div>
 
           {/* 4. Ultimi Aggiornamenti FILM */}
@@ -705,10 +729,12 @@ const Dashboard = () => {
                             variant="bottom-left"
                             size="xs"
                           />
-                          <LampoLightning item={film} variant="top-right" size="xs" />
+                          <LampoLightning item={film} variant="bottom-left" size="xs" />
+                          <SagaBadge chapterNumber={film.saga_chapter_number} totalChapters={film.saga_total_planned_chapters} cliffhanger={film.saga_cliffhanger} size="xs" position="top-left" />
+                          <TvRightsBadge item={film} onClick={(it) => setRightsModalContent({ ...it, type: 'film' })} position="bottom-right" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{film.title}</p>
-                        <p className="text-[6px] text-gray-500 truncate">{film.producer_nickname}</p>
+                        <p className="text-[6px] text-gray-500 truncate">{film.producer_house || film.producer_nickname}</p>
                       </div>
                     ))}
                   </div>
@@ -728,7 +754,14 @@ const Dashboard = () => {
           </div>
 
           {/* 5b. Prossimamente V3 Serie/Anime */}
-          <ProssimamenteV3Section onItemClick={(id) => setProssimamenteDetailId(id)} />
+          <ProssimamenteV3Section onItemClick={(item) => {
+            // I Film TV puntano al modal Film, non al modal Serie
+            if (item?.type === 'tv_movie' || item?.is_tv_movie) {
+              setSelectedFilmId(item.id);
+            } else {
+              setProssimamenteDetailId(item?.id || item);
+            }
+          }} />
 
           {/* 6. Ultimi Aggiornamenti SERIE TV */}
           <div className="mb-4 rounded-xl glow-purple" data-testid="recent-releases-series">
@@ -771,10 +804,11 @@ const Dashboard = () => {
                             variant="bottom-left"
                             size="xs"
                           />
-                          <LampoLightning item={s} variant="top-right" size="xs" />
+                          <LampoLightning item={s} variant="bottom-left" size="xs" />
+                          <TvRightsBadge item={s} onClick={(it) => setRightsModalContent(it)} position="bottom-right" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{s.title}</p>
-                        {s.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{s.producer_nickname}</p>}
+                        {(s.producer_house || s.producer_nickname) && <p className="text-[6px] text-gray-500 truncate">{s.producer_house || s.producer_nickname}</p>}
                       </div>
                     ))}
                   </div>
@@ -831,10 +865,11 @@ const Dashboard = () => {
                             variant="bottom-left"
                             size="xs"
                           />
-                          <LampoLightning item={a} variant="top-right" size="xs" />
+                          <LampoLightning item={a} variant="bottom-left" size="xs" />
+                          <TvRightsBadge item={a} onClick={(it) => setRightsModalContent(it)} position="bottom-right" />
                         </div>
                         <p className="text-[7px] font-semibold truncate mt-0.5">{a.title}</p>
-                        {a.producer_nickname && <p className="text-[6px] text-gray-500 truncate">{a.producer_nickname}</p>}
+                        {(a.producer_house || a.producer_nickname) && <p className="text-[6px] text-gray-500 truncate">{a.producer_house || a.producer_nickname}</p>}
                       </div>
                     ))}
                   </div>
@@ -1139,6 +1174,15 @@ const Dashboard = () => {
         onClose={() => setProssimamenteDetailId(null)}
         seriesId={prossimamenteDetailId}
       />
+
+      {/* TV Rights Modal — apre il market in vista panoramica per mostrare contratto attivo */}
+      {rightsModalContent && (
+        <TvMarketModal
+          open={!!rightsModalContent}
+          onClose={() => setRightsModalContent(null)}
+          content={rightsModalContent}
+        />
+      )}
     </>
   );
 };

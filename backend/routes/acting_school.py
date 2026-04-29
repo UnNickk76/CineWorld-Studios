@@ -527,35 +527,78 @@ def get_casting_student_capacity(school_level: int) -> int:
 
 # Calculate current skills for a casting student based on time and potential
 def calculate_casting_student_skills(student: dict) -> dict:
+    """Skill correnti durante la formazione.
+
+    Modello: ad enrollment salvi `target_skills` (cap finale prefissato) e
+    `training_duration_days` (5-20 in base al talento + random). Le skill
+    correnti progrediscono linearmente da `base_skills` → `target_skills`
+    secondo `progress = elapsed_days / training_duration_days` (clamp 0-1).
+    Quando progress=1, lo studente è `ready_to_graduate` e resta lì finché
+    il player non clicca "Trasferisci in Agenzia".
+    """
     enrolled_at = student.get('enrolled_at')
-    if not enrolled_at:
-        return student.get('skills', {})
-    
+    base_skills = student.get('base_skills') or student.get('initial_skills') or student.get('skills') or {}
+    target_skills = student.get('target_skills') or {}
+    duration_days = float(student.get('training_duration_days') or 0)
+
+    if not enrolled_at or not base_skills:
+        return base_skills, False
+
+    # Legacy doc senza target_skills/duration → mantengo behaviour vecchio (non rompo)
+    if not target_skills or duration_days <= 0:
+        return base_skills, False
+
     if isinstance(enrolled_at, str):
         enrolled_at = datetime.fromisoformat(enrolled_at.replace('Z', '+00:00'))
-    
     now = datetime.now(timezone.utc)
-    elapsed_hours = (now - enrolled_at).total_seconds() / 3600
-    elapsed_days = elapsed_hours / 24
-    
-    potential = student.get('potential', 0.7)
-    motivation = student.get('motivation', 0.8)
-    initial_skills = student.get('initial_skills', student.get('skills', {}))
-    
+    elapsed_days = (now - enrolled_at).total_seconds() / 86400
+    progress = max(0.0, min(1.0, elapsed_days / duration_days))
+
     current = {}
-    all_maxed = True
-    for skill_name, init_val in initial_skills.items():
-        # Max skill value based on potential (potential 0.6 → max 60, potential 1.0 → max 100)
-        max_val = int(potential * 100)
-        # Improvement rate: +3-6 points per day, scaled by motivation
-        improvement_per_day = (3 + motivation * 3) * (0.8 + potential * 0.4)
-        new_val = int(init_val + improvement_per_day * elapsed_days)
-        new_val = min(new_val, max_val)
-        current[skill_name] = new_val
-        if new_val < max_val:
-            all_maxed = False
-    
+    for skill_name, base_val in base_skills.items():
+        target_val = target_skills.get(skill_name, base_val)
+        try:
+            cur = float(base_val) + (float(target_val) - float(base_val)) * progress
+        except Exception:
+            cur = float(base_val)
+        current[skill_name] = int(round(cur))
+
+    all_maxed = progress >= 1.0
     return current, all_maxed
+
+
+def compute_training_plan(base_skills: dict, hidden_talent: float, is_from_agency: bool) -> tuple:
+    """Calcola target_skills (cap finale) e training_duration_days (5-20 random
+    talent-based) all'iscrizione.
+
+    Talenti alti: 5-10gg medi, target alto.
+    Talenti bassi: 12-20gg medi, target basso.
+    Random factor ±3 giorni → imprevedibilità.
+    """
+    talent = max(0.0, min(1.0, float(hidden_talent or 0.5)))
+
+    # Durata base 5-20 (talent 1.0 → 5, talent 0 → 20). Random ±3 → mai meno di 5.
+    base_duration = 5 + (1 - talent) * 15
+    jitter = random.uniform(-3, 3)
+    duration_days = max(5, min(22, round(base_duration + jitter)))
+
+    target = {}
+    for skill_name, base_val in (base_skills or {}).items():
+        try:
+            base_v = float(base_val)
+        except Exception:
+            base_v = 0.0
+        if is_from_agency:
+            # Ex-agenzia: bonus piccolo 2-7 in base al talento, +random ±1
+            bonus = 2 + talent * 5 + random.uniform(-1, 1)
+            cap = min(100, max(base_v, base_v + bonus))
+        else:
+            # Fresh student: cap basato sul potenziale (talent×100), +30/+60 in base al talento
+            growth = 30 + talent * 30 + random.uniform(-5, 10)
+            cap = min(100, max(base_v + 5, base_v + growth))
+        target[skill_name] = int(round(cap))
+
+    return target, int(duration_days)
 
 # Daily training cost for casting students
 def get_daily_training_cost(school_level: int) -> int:
@@ -603,8 +646,14 @@ async def get_casting_students(user: dict = Depends(get_current_user)):
             )
             s['status'] = 'max_potential'
         
-        # Can graduate after 24 hours
-        can_graduate = elapsed_hours >= 24
+        # Can graduate after duration_days completed (or fallback 24h legacy)
+        duration_days = float(s.get('training_duration_days') or 0)
+        if duration_days > 0:
+            can_graduate = elapsed_days >= duration_days
+            progress_pct = max(0, min(100, int(round((elapsed_days / duration_days) * 100))))
+        else:
+            can_graduate = elapsed_hours >= 24
+            progress_pct = max(0, min(100, int(elapsed_hours / 24 * 100)))
         
         # Training cost info
         daily_cost = get_daily_training_cost(school_level)
@@ -623,7 +672,13 @@ async def get_casting_students(user: dict = Depends(get_current_user)):
             'is_legendary': s.get('is_legendary', False),
             'current_skills': current_skills,
             'initial_skills': s.get('initial_skills', s.get('skills', {})),
-            'status': s.get('status', 'training'),
+            'base_skills': s.get('base_skills') or s.get('initial_skills') or s.get('skills', {}),
+            'target_skills': s.get('target_skills') or {},
+            'training_duration_days': s.get('training_duration_days') or 0,
+            'training_progress_pct': progress_pct,
+            'from_agency': bool(s.get('from_agency')),
+            'hidden_talent': s.get('hidden_talent', s.get('potential', 0.5)),
+            'status': 'ready_to_graduate' if (all_maxed and s.get('from_agency')) else s.get('status', 'training'),
             'all_maxed': all_maxed,
             'can_graduate': can_graduate,
             'enrolled_at': s.get('enrolled_at'),

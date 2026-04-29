@@ -26,8 +26,8 @@ export const STEP_STYLES = {
   emerald: { active: 'border-emerald-500 bg-emerald-500/15 text-emerald-400', line: 'bg-emerald-600', text: 'text-emerald-400' },
 };
 
-export const GENRES = ['action','comedy','drama','horror','sci_fi','romance','thriller','animation','documentary','fantasy','adventure','musical','western','biographical','mystery','war','crime','noir','historical'];
-export const GENRE_LABELS = { action:'Azione', comedy:'Commedia', drama:'Dramma', horror:'Horror', sci_fi:'Fantascienza', romance:'Romantico', thriller:'Thriller', animation:'Animazione', documentary:'Documentario', fantasy:'Fantasy', adventure:'Avventura', musical:'Musical', western:'Western', biographical:'Biografico', mystery:'Giallo', war:'Guerra', crime:'Crime', noir:'Noir', historical:'Storico' };
+export const GENRES = ['action','comedy','drama','horror','sci_fi','romance','thriller','animation','documentary','fantasy','adventure','musical','western','biographical','mystery','war','crime','noir','historical','erotic'];
+export const GENRE_LABELS = { action:'Azione', comedy:'Commedia', drama:'Dramma', horror:'Horror', sci_fi:'Fantascienza', romance:'Romantico', thriller:'Thriller', animation:'Animazione', documentary:'Documentario', fantasy:'Fantasy', adventure:'Avventura', musical:'Musical', western:'Western', biographical:'Biografico', mystery:'Giallo', war:'Guerra', crime:'Crime', noir:'Noir', historical:'Storico', erotic:'Erotico' };
 export const SUBGENRE_MAP = {
   action:['militare','spy','vendetta','arti marziali','heist','survival','inseguimento','guerriglia','vigilante','cacciatore di taglie','mercenario','rivolta','apocalittico','arena','pirateria','corpo a corpo','anti-terrorismo','fuga','sabotaggio','assedio'],
   comedy:['slapstick','romantica','nera','satirica','demenziale','teen','familiare','parodia','buddy','workplace','mockumentary','stoner','improvvisata','grottesca','commedia degli equivoci','fish out of water','screwball','farsesca','british humor','comicità involontaria'],
@@ -48,6 +48,7 @@ export const SUBGENRE_MAP = {
   crime:['gangster','heist','detective','mafioso','narcos','rapina','contrabbando','corruzione','sicario','truffa','riciclaggio','testimone','fuga','cartello','strada','white collar','cyber crime','banda','prigione','informatore'],
   noir:['classico','neo-noir','tech-noir','sunshine noir','nordic noir','tropical noir','rural noir','mediterranean noir','amnesiac noir','femme fatale','detective corrotto','pioggia','notturno','jazz noir','hitchcockiano','kafkiano','lynchiano','ermetico','onirico','esistenziale'],
   historical:['guerra','imperi','medioevo','rinascimento','antica roma','antico egitto','rivoluzione francese','epoca vittoriana','belle époque','coloniale','samurai','vichinghi','pirateria storica','conquistadores','ottomano','mongolo','dinastia cinese','maya e aztechi','età del bronzo','guerra fredda'],
+  erotic:['sensuale','seduzione','passionale','tabù','triangolo','vintage retrò','psicologico','noir erotico','storico','epoca','art house','transgressivo','ossessione','feticismo','romanticismo dark','intrigo','potere','infedeltà','iniziazione','liberazione'],
 };
 
 export const LOCATION_TAGS = ['Urban','Suburban','Rurale','Costiero','Montano','Deserto','Tropicale','Artico','Storico','Futuristico','Sotterraneo','Spaziale'];
@@ -59,11 +60,45 @@ export async function v3api(path, method = 'GET', body) {
     method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json().catch(() => ({}));
+  // Robust JSON parse: fallback to text if not JSON (rari endpoint con html/empty)
+  let data = {};
+  let rawText = '';
+  try {
+    rawText = await res.text();
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    data = { detail: rawText };
+  }
   if (!res.ok) {
     // `detail` can be a dict (e.g. provider_failed) or a string
     const detail = data.detail;
-    const msg = typeof detail === 'object' ? (detail.message || detail.code || 'Errore API') : (detail || data.error || 'Errore API');
+    let msg;
+    if (typeof detail === 'string' && detail) {
+      msg = detail;
+    } else if (detail && typeof detail === 'object') {
+      msg = detail.message || detail.code || JSON.stringify(detail).slice(0, 180);
+    } else if (data.error) {
+      msg = data.error;
+    } else if (rawText && rawText.length < 200) {
+      msg = rawText;  // last-resort: mostra il body raw
+    } else if (res.status === 401 || res.status === 403) {
+      msg = 'Sessione scaduta — accedi di nuovo';
+    } else if (res.status === 404) {
+      msg = 'Risorsa non trovata';
+    } else if (res.status === 410) {
+      msg = 'Endpoint dismesso';
+    } else if (res.status === 400) {
+      msg = 'Operazione non consentita in questo momento. Controlla quota, cooldown o requisiti dello studio.';
+    } else if (res.status === 429) {
+      msg = 'Troppe richieste — aspetta qualche secondo e riprova';
+    } else if (res.status >= 500) {
+      msg = 'Errore del server — ritenta fra poco o contatta l\'admin';
+    } else {
+      msg = `Operazione non riuscita (codice ${res.status})`;
+    }
+    // Log debug per diagnosi
+    // eslint-disable-next-line no-console
+    console.error(`[v3api] ${method} ${path} → HTTP ${res.status}`, { detail, rawText });
     const err = new Error(msg);
     err.status = res.status;
     err.code = typeof detail === 'object' ? detail.code : undefined;
@@ -74,8 +109,9 @@ export async function v3api(path, method = 'GET', body) {
 }
 
 /* ═══════ STEPPER ═══════ */
-export const StepperBar = ({ current, onSelect }) => {
-  const ci = V3_STEPS.findIndex(s => s.id === current);
+export const StepperBar = ({ current, onSelect, isTvMovie = false }) => {
+  const STEPS = isTvMovie ? V3_STEPS.filter(s => s.id !== 'la_prima' && s.id !== 'distribution') : V3_STEPS;
+  const ci = STEPS.findIndex(s => s.id === current);
   const ref = useRef(null);
   useEffect(() => {
     if (ref.current) {
@@ -90,7 +126,7 @@ export const StepperBar = ({ current, onSelect }) => {
   }, [current]);
   return (
     <div ref={ref} className="flex items-center gap-0 overflow-x-auto py-2 px-1 scrollbar-hide" data-testid="v3-stepper">
-      {V3_STEPS.map((s, i) => {
+      {STEPS.map((s, i) => {
         const Icon = s.icon;
         const style = STEP_STYLES[s.color];
         const done = i < ci; const active = i === ci;

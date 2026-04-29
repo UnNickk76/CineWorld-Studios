@@ -15,7 +15,7 @@ import {
   ArrowLeft, ArrowRight, UserPlus, UserCheck, Handshake, Target, Clock, RotateCcw,
   Download, Smartphone, Share2, Link2, Copy, QrCode, CheckCircle, Zap, Lightbulb, Bug,
   Palette, Briefcase, Rocket,
-  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, RadioTower, Disc, Video, Loader2
+  KeyRound, AlertCircle, Mail, Tv, Swords, Shield, Flame, History, ArrowUpCircle, Pen, Save, Megaphone, Store, Radio, RadioTower, Disc, Video, Loader2, Library
 } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -52,6 +52,8 @@ import { RadioProvider, useRadio } from './contexts/RadioContext';
 import { RadioPromoBanner } from './components/RadioPromoBanner';
 import { RadioFloatingPlayer } from './components/RadioFloatingPlayer';
 import { NowPlayingBanner } from './components/NowPlayingBanner';
+import BanBanner from './components/moderation/BanBanner';
+import VeteranBadge from './components/VeteranBadge';
 import { RadioStationsPopup } from './components/RadioStationsPopup';
 import { CompareProducersModal } from './components/CompareProducersModal';
 import { AvatarWithLogo } from './components/StudioName';
@@ -117,6 +119,7 @@ const NotificationsPage = React.lazy(() => import('./pages/NotificationsPage'));
 const ProfilePage = React.lazy(() => import('./pages/ProfilePage'));
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
 const SagasSeriesPage = React.lazy(() => import('./pages/SagasSeriesPage'));
+const MySagasPage = React.lazy(() => import('./pages/MySagasPage'));
 const PlayerContentPage = React.lazy(() => import('./pages/PlayerContentPage'));
 const PasswordRecoveryPage = React.lazy(() => import('./pages/PasswordRecoveryPage'));
 const NicknameRecoveryPage = React.lazy(() => import('./pages/NicknameRecoveryPage'));
@@ -127,10 +130,15 @@ const SeriesTVPipeline = React.lazy(() => import('./pages/SeriesTVPipelineV3'));
 const SeriesDetail = React.lazy(() => import('./pages/SeriesDetail'));
 const AnimePipeline = React.lazy(() => import('./pages/AnimePipelineV3'));
 const SequelPipeline = React.lazy(() => import('./pages/SequelPipeline'));
+const CreateLiveActionPage = React.lazy(() => import('./pages/CreateLiveActionPage'));
 const EmittenteTVPage = React.lazy(() => import('./pages/EmittenteTVPage'));
 const TVStationPage = React.lazy(() => import('./pages/TVStationPage'));
 const AllTVStationsPage = React.lazy(() => import('./pages/AllTVStationsPage'));
 const CastingAgencyPage = React.lazy(() => import('./pages/CastingAgencyPage'));
+const TalentMarketPage = React.lazy(() => import('./pages/TalentMarketPage'));
+const MyDraftsPage = React.lazy(() => import('./pages/MyDraftsPage'));
+const CreateTvMoviePage = React.lazy(() => import('./pages/CreateTvMoviePage'));
+const TvAwardsPage = React.lazy(() => import('./pages/TvAwardsPage'));
 const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 const HqPage = React.lazy(() => import('./pages/HqPage'));
 const PvPArenaPage = React.lazy(() => import('./pages/PvPArenaPage'));
@@ -467,7 +475,7 @@ const MobileBottomNav = () => {
     { icon: Building, label: 'Infrastrutture', path: '/infrastructure' },
     { icon: Target, label: 'Arena', path: '/pvp-arena' },
     { icon: Coins, label: 'Contest', path: '/games' },
-    { icon: BookOpen, label: 'Saghe', path: '/sagas' },
+    { icon: BookOpen, label: 'Saghe', path: '/my-sagas' },
     { icon: Star, label: 'Stelle', path: '/stars' },
     { icon: User, label: 'Profilo', path: '/profile' },
   ];
@@ -1194,6 +1202,7 @@ const TopNavbar = () => {
     { path: '/journal', icon: Newspaper, label: 'cinema_journal' },
     { path: '/stars', icon: Star, label: 'discovered_stars' },
     { path: '/festivals', icon: Award, label: 'festivals' },
+    { path: '/tv-awards', icon: Trophy, label: 'TV Awards' },
     { path: '/social', icon: Globe, label: 'cineboard' },
     { path: '/games', icon: Coins, label: 'contests' },
     { path: '/minigiochi', icon: Gamepad2, label: language === 'it' ? 'Minigiochi + Sfide' : 'Minigames + VS' },
@@ -1430,20 +1439,28 @@ const TopNavbar = () => {
             <div className="grid grid-cols-3 gap-2 p-3">
               {[
                 { icon: Video, label: 'Film', path: '/create-film', color: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400', count: prodCounts.film },
+                { icon: Radio, label: 'Film TV', path: '/create-tv-movie', color: 'bg-rose-500/15 border-rose-500/30 text-rose-400', count: 0, locked: !productionUnlocks?.has_emittente_tv, lockReason: 'Devi possedere una TV' },
                 { icon: Copy, label: 'Sequel', path: '/create-sequel', color: 'bg-orange-500/15 border-orange-500/30 text-orange-400', count: 0 },
+                { icon: Camera, label: 'Live Action', path: '/create-live-action', color: 'bg-pink-500/15 border-pink-500/30 text-pink-400', count: 0 },
                 { icon: Tv, label: 'Serie TV', path: '/create-series', color: 'bg-blue-500/15 border-blue-500/30 text-blue-400', count: prodCounts.series },
                 { icon: Sparkles, label: 'Anime', path: '/create-anime', color: 'bg-amber-600/15 border-amber-600/30 text-amber-400', count: prodCounts.anime },
-                { icon: Radio, label: 'La Tua TV', path: '/my-tv', color: 'bg-teal-500/15 border-teal-500/30 text-teal-400', count: 0 },
+                { icon: Library, label: 'Saghe', path: '/saghe', color: 'bg-violet-500/15 border-violet-500/30 text-violet-400', count: 0 },
+                { icon: BookOpen, label: 'Sceneggiature', path: '/emerging-screenplays', color: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400', count: 0 },
                 { icon: Users, label: 'Agenzia', path: '/agenzia', color: 'bg-purple-500/15 border-purple-500/30 text-purple-400', count: 0 },
+                { icon: Clock, label: 'Bozze', path: '/le-mie-bozze', color: 'bg-amber-500/15 border-amber-500/30 text-amber-400', count: 0 },
               ].map(item => (
                 <button key={item.path}
-                  className={`relative flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border ${item.color} transition-all hover:scale-105 active:scale-95`}
-                  onClick={() => { setShowProductionMenu(false); navigate(item.path); }}
+                  className={`relative flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl border ${item.color} transition-all ${item.locked ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:scale-105 active:scale-95'}`}
+                  onClick={() => {
+                    if (item.locked) { toast.info(item.lockReason || 'Bloccato'); return; }
+                    setShowProductionMenu(false); navigate(item.path);
+                  }}
                   data-testid={`produci-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                 >
                   <item.icon className="w-6 h-6" />
                   <span className="text-[10px] font-bold">{item.label}</span>
-                  {item.count > 0 && (
+                  {item.locked && <Lock className="absolute top-1 left-1 w-3 h-3 text-gray-500" />}
+                  {!item.locked && item.count > 0 && (
                     <span className="absolute top-1 right-1 min-w-[14px] h-3.5 px-1 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
                       {item.count}
                     </span>
@@ -1636,6 +1653,7 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
               <div className="flex items-center gap-2 mt-0.5">
                 {p.level && <span className="text-[8px] font-bold text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded px-1 py-0.5">LV {p.level}</span>}
                 {p.fame != null && <span className="text-[8px] text-amber-400/70 bg-amber-500/10 border border-amber-500/15 rounded px-1 py-0.5">Fama {p.fame?.toLocaleString()}</span>}
+                <VeteranBadge createdAt={p.created_at} size="sm" />
                 <span className={`w-2 h-2 rounded-full ${p.is_online ? 'bg-green-400' : 'bg-gray-600'}`} />
               </div>
             </div>
@@ -2174,6 +2192,7 @@ function App() {
               <RadioPromoBanner />
               <RadioFloatingPlayer />
               <NowPlayingBanner />
+              <BanBanner />
               <Routes>
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/recovery/password" element={<PasswordRecoveryPage />} />
@@ -2194,6 +2213,7 @@ function App() {
                 <Route path="/create-series" element={<ProtectedRoute><SeriesTVPipeline /></ProtectedRoute>} />
                 <Route path="/create-anime" element={<ProtectedRoute><AnimePipeline /></ProtectedRoute>} />
                 <Route path="/create-sequel" element={<ProtectedRoute><SequelPipeline /></ProtectedRoute>} />
+                <Route path="/create-live-action" element={<ProtectedRoute><CreateLiveActionPage /></ProtectedRoute>} />
                 <Route path="/my-tv" element={<ProtectedRoute><EmittenteTVPage /></ProtectedRoute>} />
                 <Route path="/tv-station/:stationId" element={<ProtectedRoute><TVStationPage /></ProtectedRoute>} />
                 <Route path="/tv-station-setup" element={<ProtectedRoute><TVStationPage /></ProtectedRoute>} />
@@ -2207,6 +2227,9 @@ function App() {
                 <Route path="/medals" element={<ProtectedRoute><MedalsChallengePage /></ProtectedRoute>} />
                 <Route path="/drafts" element={<ProtectedRoute><FilmMarketplace /></ProtectedRoute>} />
                 <Route path="/emerging-screenplays" element={<ProtectedRoute><EmergingScreenplays /></ProtectedRoute>} />
+                <Route path="/le-mie-bozze" element={<ProtectedRoute><MyDraftsPage /></ProtectedRoute>} />
+                <Route path="/create-tv-movie" element={<ProtectedRoute><CreateTvMoviePage /></ProtectedRoute>} />
+                <Route path="/tv-awards" element={<ProtectedRoute><TvAwardsPage /></ProtectedRoute>} />
                 <Route path="/journal" element={<ProtectedRoute><CinemaJournal /></ProtectedRoute>} />
                 <Route path="/stars" element={<ProtectedRoute><DiscoveredStars /></ProtectedRoute>} />
                 <Route path="/releases" element={<ProtectedRoute><ReleaseNotes /></ProtectedRoute>} />
@@ -2227,6 +2250,7 @@ function App() {
                 <Route path="/strategico" element={<ProtectedRoute><StrategicoPage /></ProtectedRoute>} />
                 <Route path="/acting-school" element={<ProtectedRoute><ActingSchool /></ProtectedRoute>} />
                 <Route path="/casting-agency" element={<ProtectedRoute><CastingAgencyPage /></ProtectedRoute>} />
+                <Route path="/talent-market" element={<ProtectedRoute><TalentMarketPage /></ProtectedRoute>} />
                 <Route path="/marketplace" element={<ProtectedRoute><MarketplacePage /></ProtectedRoute>} />
                 <Route path="/tour" element={<ProtectedRoute><CinemaTourPage /></ProtectedRoute>} />
                 <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
@@ -2234,6 +2258,8 @@ function App() {
                 <Route path="/system-notes" element={<ProtectedRoute><SystemNotesPage /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
                 <Route path="/sagas" element={<ProtectedRoute><SagasSeriesPage /></ProtectedRoute>} />
+                <Route path="/my-sagas" element={<ProtectedRoute><MySagasPage /></ProtectedRoute>} />
+                <Route path="/saghe" element={<ProtectedRoute><MySagasPage /></ProtectedRoute>} />
                 <Route path="/festivals" element={<ProtectedRoute><FestivalsPage /></ProtectedRoute>} />
                 <Route path="/credits" element={<ProtectedRoute><CreditsPage /></ProtectedRoute>} />
                 <Route path="/player/:id" element={<ProtectedRoute><PlayerPublicProfile /></ProtectedRoute>} />

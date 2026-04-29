@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Badge } from '../components/ui/badge';
+import { UnifiedRankingPanel } from '../components/cineboard/UnifiedRankingPanel';
+import { TrailerRankingPanel } from '../components/cineboard/TrailerRankingPanel';
 import { PlayerBadge, MasterpieceBadge } from '../components/PlayerBadge';
 import { Progress } from '../components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
@@ -584,34 +586,53 @@ const CineBoard = () => {
       
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
-        <TabsList className="grid w-full grid-cols-4 bg-[#1A1A1A]">
-          <TabsTrigger value="daily" className="data-[state=active]:bg-green-500 data-[state=active]:text-black text-xs sm:text-sm" data-testid="tab-daily">
-            <TrendingUp className="w-4 h-4 mr-1 sm:mr-2" />
+        <TabsList className="grid w-full grid-cols-6 bg-[#1A1A1A]">
+          <TabsTrigger value="globale" className="data-[state=active]:bg-cyan-500 data-[state=active]:text-black text-[10px] sm:text-sm" data-testid="tab-globale">
+            <Trophy className="w-3.5 h-3.5 mr-0.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Globale</span>
+            <span className="sm:hidden">Glob.</span>
+          </TabsTrigger>
+          <TabsTrigger value="trailer" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white text-[10px] sm:text-sm" data-testid="tab-trailer">
+            <Play className="w-3.5 h-3.5 mr-0.5 sm:mr-1.5" />
+            <span>Trailer</span>
+          </TabsTrigger>
+          <TabsTrigger value="daily" className="data-[state=active]:bg-green-500 data-[state=active]:text-black text-[10px] sm:text-sm" data-testid="tab-daily">
+            <TrendingUp className="w-3.5 h-3.5 mr-0.5 sm:mr-1.5" />
             <span className="hidden sm:inline">{t('daily')}</span>
             <span className="sm:hidden">Oggi</span>
           </TabsTrigger>
-          <TabsTrigger value="weekly" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white text-xs sm:text-sm" data-testid="tab-weekly">
-            <BarChart3 className="w-4 h-4 mr-1 sm:mr-2" />
+          <TabsTrigger value="weekly" className="data-[state=active]:bg-purple-500 data-[state=active]:text-white text-[10px] sm:text-sm" data-testid="tab-weekly">
+            <BarChart3 className="w-3.5 h-3.5 mr-0.5 sm:mr-1.5" />
             <span className="hidden sm:inline">{t('weekly')}</span>
-            <span className="sm:hidden">Settimana</span>
+            <span className="sm:hidden">Sett.</span>
           </TabsTrigger>
-          <TabsTrigger value="now_playing" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black text-xs sm:text-sm" data-testid="tab-top50">
-            <Film className="w-4 h-4 mr-1 sm:mr-2" />
+          <TabsTrigger value="now_playing" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black text-[10px] sm:text-sm" data-testid="tab-top50">
+            <Film className="w-3.5 h-3.5 mr-0.5 sm:mr-1.5" />
             <span className="hidden sm:inline">{t('nowPlaying')}</span>
-            <span className="sm:hidden">Top 50</span>
+            <span className="sm:hidden">Top50</span>
           </TabsTrigger>
-          <TabsTrigger value="attendance" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white text-xs sm:text-sm" data-testid="tab-attendance">
-            <Users className="w-4 h-4 mr-1 sm:mr-2" />
+          <TabsTrigger value="attendance" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white text-[10px] sm:text-sm" data-testid="tab-attendance">
+            <Users className="w-3.5 h-3.5 mr-0.5 sm:mr-1.5" />
             <span className="hidden sm:inline">{t('attendance')}</span>
-            <span className="sm:hidden">Affluenza</span>
+            <span className="sm:hidden">Affl.</span>
           </TabsTrigger>
         </TabsList>
       </Tabs>
       
       {/* Score Legend removed - scoring still in backend calculation */}
       
+      {/* Globale tab — classifica unificata di tutti i contenuti */}
+      {activeTab === 'globale' && (
+        <UnifiedRankingPanel />
+      )}
+
+      {/* Trailer tab — classifica trailer */}
+      {activeTab === 'trailer' && (
+        <TrailerRankingPanel />
+      )}
+
       {/* Film List - Only for now_playing and hall_of_fame tabs */}
-      {activeTab !== 'attendance' && (loading ? (
+      {!['attendance', 'globale', 'trailer'].includes(activeTab) && (loading ? (
         <div className="text-center py-8 text-gray-400">
           <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
           {language === 'it' ? 'Caricamento classifica...' : 'Loading rankings...'}

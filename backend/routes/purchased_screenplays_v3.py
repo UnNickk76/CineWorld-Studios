@@ -92,14 +92,58 @@ async def _mark_screenplay_consumed(screenplay_id: str, source: str, user_id: st
 async def _auto_fill_cast(user_id: str, genre: str) -> dict:
     """Pick best actors from user's agency + NPC fillers (stelle medie).
     Returns a cast dict compatible with pipeline_v3 cast schema.
+    Step 3 — Pre-engaged actors hanno priorità (max 2) e sono inclusi auto.
     """
     cast = {'director': None, 'screenwriters': [], 'actors': [], 'composer': None}
+
+    # 0) Pre-engaged actors (priority — Living Talent System Step 3)
+    pre_engs = await db.talent_pre_engagements.find(
+        {'user_id': user_id, 'role': 'actor', 'contract_status': {'$in': ['active', 'threatened']}},
+        {'_id': 0}
+    ).limit(20).to_list(20)
+    used_ids = set()
+    roles_order = ['protagonista', 'antagonista', 'co protagonista', 'supporto', 'generico', 'generico']
+    pre_max = 2
+    for eng in pre_engs[:pre_max]:
+        snap = eng.get('npc_snapshot', {}) or {}
+        if not snap.get('skills'):
+            try:
+                full = await db.people.find_one({'id': eng.get('npc_id')}, {'_id': 0})
+                if full:
+                    snap = {**full, **snap}
+            except Exception:
+                pass
+        npc_id = eng.get('npc_id')
+        if not npc_id or npc_id in used_ids:
+            continue
+        used_ids.add(npc_id)
+        idx = len(cast['actors'])
+        role = roles_order[idx] if idx < len(roles_order) else 'generico'
+        cast['actors'].append({
+            'id': npc_id,
+            'name': snap.get('name'),
+            'age': snap.get('age'),
+            'nationality': snap.get('nationality', ''),
+            'gender': snap.get('gender', ''),
+            'stars': eng.get('npc_stars', snap.get('stars', 2)),
+            'fame': snap.get('fame_score', 0),
+            'fame_category': snap.get('fame_category', 'rookie'),
+            'role_type': 'actor',
+            'cost': 0,  # pre-engaged → costo 0
+            'skills': snap.get('skills', {}),
+            'primary_skills': snap.get('primary_skills', []),
+            'crc': 60,
+            'cast_role': role,
+            'from_agency': True,
+            'is_own_roster': True,
+            'is_pre_engaged': True,
+            'pre_engage_id': eng.get('id'),
+            'own_source': 'pre_engaged',
+        })
 
     # 1) Prefer user's hired_stars (agency actors) — sorted by fame/skill
     hired = await db.hired_stars.find({'user_id': user_id}, {'_id': 0}).to_list(50)
     hired.sort(key=lambda x: (x.get('fame_score', 0), x.get('skill_avg', 0)), reverse=True)
-
-    used_ids = set()
 
     def _actor_from_hired(h: dict, role_type: str) -> dict:
         used_ids.add(h.get('id'))
@@ -120,8 +164,9 @@ async def _auto_fill_cast(user_id: str, genre: str) -> dict:
             'from_agency': True,
         }
 
-    roles_order = ['protagonista', 'antagonista', 'co protagonista', 'supporto', 'generico', 'generico']
     for i, h in enumerate(hired[:6]):
+        if h.get('id') in used_ids:
+            continue
         role = roles_order[i] if i < len(roles_order) else 'generico'
         a = _actor_from_hired(h, 'actor')
         a['cast_role'] = role
@@ -162,7 +207,39 @@ async def _auto_fill_cast(user_id: str, genre: str) -> dict:
             })
 
     # 3) Director, composer, screenwriter from NPC pool (medium stars)
+    # 3) Director, composer, screenwriter — preferisci pre-engaged se disponibili (Step 3)
     for role_key, field in [('director', 'director'), ('composer', 'composer')]:
+        eng_role = await db.talent_pre_engagements.find_one(
+            {'user_id': user_id, 'role': role_key,
+             'contract_status': {'$in': ['active', 'threatened']}},
+            {'_id': 0}
+        )
+        if eng_role:
+            snap = eng_role.get('npc_snapshot', {}) or {}
+            if not snap.get('skills'):
+                full = await db.people.find_one({'id': eng_role.get('npc_id')}, {'_id': 0})
+                if full:
+                    snap = {**full, **snap}
+            cast[field] = {
+                'id': eng_role.get('npc_id'),
+                'name': snap.get('name'),
+                'age': snap.get('age'),
+                'nationality': snap.get('nationality', ''),
+                'gender': snap.get('gender', ''),
+                'stars': eng_role.get('npc_stars', snap.get('stars', 2)),
+                'fame': snap.get('fame_score', 0),
+                'fame_category': snap.get('fame_category', 'rookie'),
+                'role_type': role_key,
+                'cost': 0,
+                'skills': snap.get('skills', {}),
+                'primary_skills': snap.get('primary_skills', []),
+                'crc': 60,
+                'is_pre_engaged': True,
+                'pre_engage_id': eng_role.get('id'),
+                'is_own_roster': True,
+                'own_source': 'pre_engaged',
+            }
+            continue
         npc = await db.people.find_one(
             {'type': role_key, 'stars': {'$gte': 2, '$lte': 4}}, {'_id': 0}
         )
@@ -177,20 +254,44 @@ async def _auto_fill_cast(user_id: str, genre: str) -> dict:
                 'crc': 50,
             }
 
-    writer = await db.people.find_one(
-        {'type': {'$in': ['screenwriter', 'writer']}, 'stars': {'$gte': 2, '$lte': 4}},
+    eng_writer = await db.talent_pre_engagements.find_one(
+        {'user_id': user_id, 'role': 'screenwriter',
+         'contract_status': {'$in': ['active', 'threatened']}},
         {'_id': 0}
     )
-    if writer:
+    if eng_writer:
+        snap = eng_writer.get('npc_snapshot', {}) or {}
+        if not snap.get('skills'):
+            full = await db.people.find_one({'id': eng_writer.get('npc_id')}, {'_id': 0})
+            if full:
+                snap = {**full, **snap}
         cast['screenwriters'].append({
-            'id': writer.get('id'), 'name': writer.get('name'), 'age': writer.get('age'),
-            'nationality': writer.get('nationality', ''), 'gender': writer.get('gender', ''),
-            'stars': writer.get('stars', 2), 'fame': writer.get('fame_score', 0),
-            'fame_category': writer.get('fame_category', 'rookie'),
-            'role_type': 'screenwriter', 'cost': writer.get('cost_per_film', 50000),
-            'skills': writer.get('skills', {}), 'primary_skills': writer.get('primary_skills', []),
-            'crc': 50,
+            'id': eng_writer.get('npc_id'), 'name': snap.get('name'), 'age': snap.get('age'),
+            'nationality': snap.get('nationality', ''), 'gender': snap.get('gender', ''),
+            'stars': eng_writer.get('npc_stars', snap.get('stars', 2)),
+            'fame': snap.get('fame_score', 0),
+            'fame_category': snap.get('fame_category', 'rookie'),
+            'role_type': 'screenwriter', 'cost': 0,
+            'skills': snap.get('skills', {}), 'primary_skills': snap.get('primary_skills', []),
+            'crc': 60,
+            'is_pre_engaged': True, 'pre_engage_id': eng_writer.get('id'),
+            'is_own_roster': True, 'own_source': 'pre_engaged',
         })
+    else:
+        writer = await db.people.find_one(
+            {'type': {'$in': ['screenwriter', 'writer']}, 'stars': {'$gte': 2, '$lte': 4}},
+            {'_id': 0}
+        )
+        if writer:
+            cast['screenwriters'].append({
+                'id': writer.get('id'), 'name': writer.get('name'), 'age': writer.get('age'),
+                'nationality': writer.get('nationality', ''), 'gender': writer.get('gender', ''),
+                'stars': writer.get('stars', 2), 'fame': writer.get('fame_score', 0),
+                'fame_category': writer.get('fame_category', 'rookie'),
+                'role_type': 'screenwriter', 'cost': writer.get('cost_per_film', 50000),
+                'skills': writer.get('skills', {}), 'primary_skills': writer.get('primary_skills', []),
+                'crc': 50,
+            })
 
     return cast
 

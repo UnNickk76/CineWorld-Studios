@@ -1,14 +1,24 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check, Coins, Trash2, AlertTriangle, Handshake } from 'lucide-react';
+import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check, Coins, Trash2, AlertTriangle, Handshake, Users } from 'lucide-react';
+import { toast } from 'sonner';
 import { PhaseWrapper, ProgressCircle, v3api } from './V3Shared';
 import { AuthContext } from '../../contexts';
+import CharactersPanel from '../CharactersPanel';
+import { SagaCheckbox } from '../saga/SagaCheckbox';
 
 const SPEEDUP_COSTS = { 25: 10, 50: 15, 75: 20, 100: 25 };
+// FASE 2 TV: capped costs per Film TV (-80% scala)
+const SPEEDUP_COSTS_TV = { 25: 1, 50: 3, 75: 4, 100: 5 };
 
 // Cost decreases exponentially inverse based on current progress
 function getSpeedupCost(baseCost, currentProgress) {
   const remaining = (100 - currentProgress) / 100;
   return Math.max(1, Math.ceil(baseCost * remaining));
+}
+
+// Per Film TV usa SPEEDUP_COSTS_TV (cap 5 CP)
+function getSpeedupCostsFor(film) {
+  return film?.is_tv_movie ? SPEEDUP_COSTS_TV : SPEEDUP_COSTS;
 }
 
 // Shared hook: is the current user a guest? (tutorial plays for free)
@@ -177,7 +187,7 @@ export const HypePhase = ({ film, onRefresh, toast }) => {
             <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza (a pagamento)</p>
             <div className="grid grid-cols-2 gap-1.5">
               {[25,50,75,100].map(p => {
-                const cost = getSpeedupCost(SPEEDUP_COSTS[p], hypeProgress);
+                const cost = getSpeedupCost(getSpeedupCostsFor(film)[p], hypeProgress);
                 const remaining = 100 - hypeProgress;
                 const gain = Math.ceil(remaining * (p / 100));
                 return (
@@ -329,7 +339,7 @@ export const CiakPhase = ({ film, onRefresh, toast }) => {
   const daysDone = Math.min(shootDays, Math.floor((progress / 100) * shootDays));
 
   const speedup = async (pct) => {
-    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], progress);
+    const cost = getSpeedupCost(getSpeedupCostsFor(film)[pct], progress);
     setLoading(true);
     try {
       await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'ciak', percentage: pct });
@@ -382,7 +392,7 @@ export const CiakPhase = ({ film, onRefresh, toast }) => {
             <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza Riprese (a pagamento)</p>
             <div className="grid grid-cols-2 gap-1.5">
               {[25,50,75,100].map(p => {
-                const cost = getSpeedupCost(SPEEDUP_COSTS[p], progress);
+                const cost = getSpeedupCost(getSpeedupCostsFor(film)[p], progress);
                 const remH = Math.floor((remainingMs * (p / 100)) / 3600000);
                 const remM = Math.floor(((remainingMs * (p / 100)) % 3600000) / 60000);
                 const saved = remH > 0 ? `-${remH}h${remM}m` : `-${remM}m`;
@@ -588,7 +598,7 @@ export const FinalCutPhase = ({ film, onRefresh, toast }) => {
   };
 
   const speedup = async (pct) => {
-    const cost = getSpeedupCost(SPEEDUP_COSTS[pct], progress);
+    const cost = getSpeedupCost(getSpeedupCostsFor(film)[pct], progress);
     setLoading(true);
     try {
       await v3api(`/films/${film.id}/speedup`, 'POST', { stage: 'finalcut', percentage: pct });
@@ -650,7 +660,7 @@ export const FinalCutPhase = ({ film, onRefresh, toast }) => {
                 <p className="text-[8px] text-gray-500 uppercase font-bold">Velocizza (a pagamento)</p>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[25,50,75,100].map(p => {
-                    const cost = getSpeedupCost(SPEEDUP_COSTS[p], progress);
+                    const cost = getSpeedupCost(getSpeedupCostsFor(film)[p], progress);
                     const remH = Math.floor((remainingMs * (p / 100)) / 3600000);
                     const remM = Math.floor(((remainingMs * (p / 100)) % 3600000) / 60000);
                     const saved = remH > 0 ? `-${remH}h${remM}m` : `-${remM}m`;
@@ -693,9 +703,12 @@ export const FinalCutPhase = ({ film, onRefresh, toast }) => {
 };
 
 /* ═══════ SCARTA FILM DIALOG ═══════ */
-export const DiscardFilmButton = ({ filmId, onDiscard }) => {
+export const DiscardFilmButton = ({ filmId, onDiscard, film }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Idea F: durante finestra Re-Hype non si può scartare
+  const inReHype = !!(film?.in_re_hype_window || film?.re_hype_active);
 
   const doDiscard = async () => {
     setLoading(true);
@@ -708,10 +721,18 @@ export const DiscardFilmButton = ({ filmId, onDiscard }) => {
 
   return (
     <>
-      <button onClick={() => setShowConfirm(true)}
-        className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-red-500/5 border border-red-500/15 text-red-400/60 text-[8px] font-bold hover:bg-red-500/10 hover:text-red-400 transition-all mt-4"
+      <button
+        onClick={() => { if (!inReHype) setShowConfirm(true); }}
+        disabled={inReHype}
+        title={inReHype ? 'Non puoi scartare durante la finestra Re-Hype della saga' : undefined}
+        className={`w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg border text-[8px] font-bold transition-all mt-4 ${
+          inReHype
+            ? 'bg-gray-900/40 border-gray-800 text-gray-600 cursor-not-allowed'
+            : 'bg-red-500/5 border-red-500/15 text-red-400/60 hover:bg-red-500/10 hover:text-red-400'
+        }`}
         data-testid="discard-film-btn">
-        <Trash2 className="w-3 h-3" /> Scarta Film
+        <Trash2 className="w-3 h-3" />
+        {inReHype ? 'Scarto bloccato · Re-Hype attivo' : 'Scarta Film'}
       </button>
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setShowConfirm(false)}>
@@ -794,6 +815,18 @@ export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
   return (
     <PhaseWrapper title="Sponsor & Marketing" subtitle="Trova sponsor e promuovi il film" icon={Megaphone} color="green">
       <div className="space-y-3">
+
+        {/* ═══ PERSONAGGI AI (solo film d'animazione) ═══ */}
+        {(film.genre === 'animation' || film.type === 'anime') && (
+          <CharactersPanel
+            kind="film_v3"
+            projectId={film.id}
+            actors={null}
+            onToast={toast}
+            readOnly={!!film.marketing_completed}
+            sagaId={film.saga_id || null}
+          />
+        )}
 
         {/* ═══ STEP 1: SPONSORS ═══ */}
         {!sponsorsConfirmed ? (
@@ -1452,6 +1485,19 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
   const [velionResult, setVelionResult] = useState(null);
   const [applying, setApplying] = useState(false);
 
+  // ─── SAGA: stato per "Film a Capitoli" ─────────────────────
+  const sagaAlreadyChapter = !!film.saga_id; // capitolo successivo (saga già attiva)
+  const sagaIsFirst = !!film.is_saga_first;
+  const canShowSagaCheckbox = !film.is_tv_movie && !film.is_sequel
+    && !sagaAlreadyChapter
+    && (film.kind === 'animation' || film.kind === 'film' || !film.kind);
+
+  const [sagaEnabled, setSagaEnabled] = useState(false);
+  const [sagaChapters, setSagaChapters] = useState(3);
+  const [sagaCliffhanger, setSagaCliffhanger] = useState(false);
+  const [sagaSubtitle, setSagaSubtitle] = useState('');
+  const [startingSaga, setStartingSaga] = useState(false);
+
   useEffect(() => {
     v3api(`/films/${film.id}/production-cost`).then(setCost).catch(() => {});
     v3api(`/films/${film.id}/savings-options`).then(d => setSavingsOptions(d.options || [])).catch(() => {});
@@ -1511,6 +1557,43 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
   };
   const releaseBlocked = !!laPrimaBlock;
 
+  // ─── SAGA: handler che avvia la saga prima del rilascio se attivata ───
+  const handleConfirm = async () => {
+    if (canShowSagaCheckbox && sagaEnabled) {
+      try {
+        setStartingSaga(true);
+        const API = process.env.REACT_APP_BACKEND_URL;
+        const token = localStorage.getItem('cineworld_token');
+        const r = await fetch(`${API}/api/sagas/start`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: film.id,
+            pipeline: 'v3',
+            total_planned_chapters: sagaChapters,
+            chapter1_subtitle: sagaSubtitle,
+            cliffhanger: sagaCliffhanger,
+          }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          toast.error(err?.detail || 'Impossibile avviare la saga. Continuo senza.');
+          // eslint-disable-next-line no-console
+          console.warn('[saga.start] failed', r.status, err);
+        } else {
+          toast.success(`Saga avviata: ${sagaChapters} capitoli pianificati! Trovala in "Saghe".`);
+        }
+      } catch (e) {
+        toast.error('Errore di rete avviando la saga.');
+        // eslint-disable-next-line no-console
+        console.warn('[saga.start] error', e);
+      } finally {
+        setStartingSaga(false);
+      }
+    }
+    onConfirm?.();
+  };
+
   return (
     <PhaseWrapper title="STEP FINALE" subtitle="Riepilogo e conferma uscita" icon={Ticket} color="emerald">
       <div className="space-y-3">
@@ -1524,6 +1607,49 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
           <p className="text-[9px] text-gray-400">{releaseType === 'premiere' ? 'La Prima' : 'Rilascio Diretto'}</p>
           {film.film_duration_label && <p className="text-[8px] text-emerald-400">{film.film_duration_label}</p>}
         </div>
+
+        {/* Personaggi & Cast — coerenza pretrama/sceneggiatura */}
+        {Array.isArray(film.characters) && film.characters.length > 0 && (
+          <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 space-y-1.5" data-testid="release-cast-block">
+            <p className="text-[8px] text-purple-400 uppercase font-bold flex items-center gap-1.5">
+              <Users className="w-3 h-3" /> Personaggi & Cast
+            </p>
+            <div className="space-y-1">
+              {film.characters
+                .slice()
+                .sort((a, b) => {
+                  const ord = { protagonist: 0, antagonist: 1, coprotagonist: 2, supporting: 3, minor: 4 };
+                  return (ord[a.role_type] ?? 9) - (ord[b.role_type] ?? 9);
+                })
+                .slice(0, 8)
+                .map((c, i) => {
+                  const roleColor = {
+                    protagonist: 'text-amber-300',
+                    antagonist: 'text-red-300',
+                    coprotagonist: 'text-cyan-300',
+                    supporting: 'text-emerald-300',
+                    minor: 'text-gray-400',
+                  }[c.role_type] || 'text-gray-300';
+                  return (
+                    <div key={c.id || i} className="flex items-center justify-between gap-2 text-[9px]">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-bold text-white truncate">{c.name}</span>
+                        <span className={`ml-1 text-[7px] uppercase tracking-wider ${roleColor}`}>{c.role_type}</span>
+                      </div>
+                      <span className="text-[9px] text-gray-300 truncate ml-2">
+                        {c.actor_name ? <span className="text-emerald-300">→ {c.actor_name}</span> : <span className="text-gray-500 italic">— non assegnato</span>}
+                      </span>
+                    </div>
+                  );
+                })}
+              {film.characters.length > 8 && (
+                <p className="text-[8px] text-gray-500 italic text-center pt-1">
+                  e altri {film.characters.length - 8} personaggi…
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Cost Breakdown */}
         {cost && (
@@ -1607,10 +1733,31 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
           </div>
         )}
 
+        {/* SAGA: Film a Capitoli (solo per Film/Animazione, non TV/Sequel/già-saga) */}
+        {canShowSagaCheckbox && (
+          <SagaCheckbox
+            enabled={sagaEnabled}
+            onToggle={setSagaEnabled}
+            totalChapters={sagaChapters}
+            onTotalChange={setSagaChapters}
+            cliffhanger={sagaCliffhanger}
+            onCliffhangerChange={setSagaCliffhanger}
+            contentKind={film.kind || 'film'}
+            disabled={loading || startingSaga}
+          />
+        )}
+        {sagaAlreadyChapter && (
+          <div className="p-2.5 rounded-xl bg-amber-950/30 border border-amber-700/40 text-[10px] text-amber-200 flex items-center gap-2" data-testid="saga-chapter-info">
+            <Award className="w-3.5 h-3.5" />
+            Capitolo <strong>{film.saga_chapter_number}</strong> della saga.
+            {sagaIsFirst ? ' (Primo capitolo)' : ' (Capitolo successivo)'}
+          </div>
+        )}
+
         {/* Confirm Button with cost */}
-        <button onClick={onConfirm} disabled={loading || releaseBlocked}
+        <button onClick={handleConfirm} disabled={loading || releaseBlocked || startingSaga}
           className="w-full text-sm py-3 rounded-xl bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 text-emerald-300 font-bold disabled:opacity-30 disabled:cursor-not-allowed" data-testid="confirm-release-btn">
-          {loading ? '...' : releaseBlocked ? `Bloccato: La Prima ${laPrimaBlock.state === 'live' ? 'in corso' : 'in attesa'}` : (
+          {(loading || startingSaga) ? '...' : releaseBlocked ? `Bloccato: La Prima ${laPrimaBlock.state === 'live' ? 'in corso' : 'in attesa'}` : (
             isGuest ? (
               <span className="flex items-center justify-center gap-2">
                 <s className="text-emerald-300/40 font-normal">${totalFunds.toLocaleString()} + {totalCp}CP</s>

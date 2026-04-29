@@ -243,12 +243,17 @@ function ChatTab() {
     }
   }, [messages]);
 
-  // Fetch tips on mount
+  // Fetch tips on mount — mix general + features_v2 (così vedi anche i "sapevi che...")
   useEffect(() => {
     if (!api) return;
-    api.get('/velion/tips?category=general&count=3')
-      .then(r => setTips(r.data?.tips || []))
-      .catch(() => {});
+    Promise.all([
+      api.get('/velion/tips?category=general&count=2').catch(() => ({ data: { tips: [] } })),
+      api.get('/velion/tips?category=features_v2&count=2').catch(() => ({ data: { tips: [] } })),
+    ]).then(([g, f]) => {
+      const combined = [...(g.data?.tips || []), ...(f.data?.tips || [])];
+      // shuffle leggero
+      setTips(combined.sort(() => Math.random() - 0.5).slice(0, 4));
+    });
   }, [api]);
 
   const handleSend = async (overrideText) => {

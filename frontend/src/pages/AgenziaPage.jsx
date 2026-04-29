@@ -323,7 +323,7 @@ export default function AgenziaPage() {
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 rounded-lg bg-purple-500/15 flex items-center justify-center"><Search className="w-5 h-5 text-purple-400" /></div>
                 <div>
-                  <h4 className="text-sm font-semibold">Talent Scout Attori</h4>
+                  <h4 className="text-sm font-semibold">Agenzia Talent Scout</h4>
                   <p className="text-[10px] text-gray-500">Scopre giovani talenti per la tua Agenzia Cast</p>
                 </div>
               </div>

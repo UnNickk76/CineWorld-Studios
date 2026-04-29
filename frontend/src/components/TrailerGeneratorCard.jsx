@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Film, Sparkles, Crown, Play, Lock, TrendingUp, Trophy, X, Check, SkipForward, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import TrailerPlayerModal from './TrailerPlayerModal';
+import { TextTrailerCard } from './TrailerTextPlayer';
 
 const TIERS = [
-  { key: 'base', label: 'Base', duration: 10, cost: 0, hype: 3, frames: 3, icon: Film, color: 'from-sky-600 to-blue-500', border: 'border-sky-500/40' },
-  { key: 'cinematic', label: 'Cinematico', duration: 20, cost: 10, hype: 8, frames: 6, icon: Sparkles, color: 'from-purple-600 to-fuchsia-500', border: 'border-purple-500/40' },
-  { key: 'pro', label: 'PRO', duration: 30, cost: 20, hype: 15, frames: 10, icon: Crown, color: 'from-amber-500 to-orange-500', border: 'border-amber-500/40' },
+  { key: 'base', label: 'Base', duration: 10, cost: 10, hype: 3, frames: 3, icon: Film, color: 'from-sky-600 to-blue-500', border: 'border-sky-500/40' },
+  { key: 'cinematic', label: 'Cinematico', duration: 20, cost: 20, hype: 8, frames: 6, icon: Sparkles, color: 'from-purple-600 to-fuchsia-500', border: 'border-purple-500/40' },
+  { key: 'pro', label: 'PRO', duration: 30, cost: 30, hype: 15, frames: 10, icon: Crown, color: 'from-amber-500 to-orange-500', border: 'border-amber-500/40' },
 ];
 
 const tierOrder = { base: 0, cinematic: 1, pro: 2 };
@@ -23,14 +24,27 @@ function isReleasedContent(contentStatus) {
  *   - pre_launch (default): blue/orange CTA, +hype boost, full price
  *   - highlights (post-release): gold/trophy CTA, no hype boost, 50% discount
  */
-export default function TrailerGeneratorCard({ contentId, contentTitle, contentGenre = '', contentStatus = '', api, userCredits = 0, canGenerate = true, onGenerated, isGuest = false, onSkip, onConfirm }) {
+export default function TrailerGeneratorCard({ contentId, contentTitle, contentGenre = '', contentStatus = '', api, userCredits = 0, canGenerate = true, onGenerated, isGuest = false, onSkip, onConfirm, sagaInheritance = null }) {
   const [trailer, setTrailer] = useState(null);
   const [job, setJob] = useState(null);
   const [showPlayer, setShowPlayer] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [inheritedTrailer, setInheritedTrailer] = useState(null);
   const pollRef = useRef(null);
   const jobStartRef = useRef(null);
   const tickerRef = useRef(null);
+
+  // Saga: capitolo successivo eredita il trailer del capitolo 1 (no rigenerazione).
+  const isSagaSubsequentChapter = !!(sagaInheritance && sagaInheritance.active);
+
+  useEffect(() => {
+    if (!isSagaSubsequentChapter || !sagaInheritance?.sagaId) return;
+    let abort = false;
+    api.get(`/sagas/${sagaInheritance.sagaId}/inherited-trailer`).then(r => {
+      if (!abort) setInheritedTrailer(r.data?.trailer || null);
+    }).catch(() => { if (!abort) setInheritedTrailer(null); });
+    return () => { abort = true; };
+  }, [isSagaSubsequentChapter, sagaInheritance?.sagaId]);
 
   // Smooth 1-second ticker while a job is running, for the progress circle
   useEffect(() => {
@@ -169,6 +183,77 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
   const progress = Math.max(job?.progress || 0, virtualProgress);
   const circumference = 2 * Math.PI * 34;
   const dashOffset = circumference - (progress / 100) * circumference;
+
+  // RENDER: capitolo successivo di una saga — trailer ereditato dal Cap.1
+  if (isSagaSubsequentChapter) {
+    const inhTrailer = inheritedTrailer;
+    return (
+      <>
+        <div className={`rounded-2xl border border-violet-500/30 bg-gradient-to-br from-[#1a1428] to-[#0d0d10] p-4`} data-testid="trailer-saga-inherited">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+              <Film className="w-3.5 h-3.5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-bold text-violet-300 uppercase tracking-wider">Trailer dal Cap. 1</p>
+              <p className="text-[8px] text-gray-500">Ereditato dalla saga · niente rigenerazione su capitoli successivi</p>
+            </div>
+          </div>
+          {inhTrailer ? (
+            <>
+              <button
+                onClick={() => setShowPlayer(true)}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-bold flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+                data-testid="trailer-saga-watch-btn">
+                <Play className="w-4 h-4 fill-white" /> Guarda Trailer del Cap. 1
+              </button>
+              <p className="text-[8px] text-gray-500 mt-2 text-center">
+                {inhTrailer.duration_seconds}s · {inhTrailer.frames?.length || 0} frame
+              </p>
+            </>
+          ) : (
+            <div className="px-3 py-3 rounded-xl bg-black/30 border border-white/5 text-center">
+              <p className="text-[10px] text-gray-400">Nessun trailer creato per il Cap. 1.</p>
+              <p className="text-[8px] text-gray-600 mt-1">La saga prosegue senza trailer ereditato.</p>
+            </div>
+          )}
+          <button
+            disabled
+            className="mt-2 w-full py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/5 text-amber-300/60 font-bold text-[11px] flex items-center justify-center gap-2 cursor-not-allowed opacity-60"
+            data-testid="trailer-saga-sequel-disabled"
+            title="Funzione futura">
+            <Sparkles className="w-3.5 h-3.5" /> Sequel del trailer · in arrivo
+          </button>
+          {onConfirm && (
+            <button
+              onClick={onConfirm}
+              className="mt-2 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/40 text-emerald-300 font-bold flex items-center justify-center gap-2 hover:bg-emerald-500/30 transition-colors"
+              data-testid="trailer-saga-confirm-btn">
+              <Check className="w-4 h-4" /> Conferma e prosegui
+            </button>
+          )}
+          {onSkip && !onConfirm && (
+            <button
+              onClick={onSkip}
+              className="mt-2 w-full py-2 rounded-xl border border-gray-700 bg-gray-900/50 text-gray-300 text-[11px] font-bold hover:bg-gray-800 flex items-center justify-center gap-2"
+              data-testid="trailer-saga-skip-btn">
+              <SkipForward className="w-3.5 h-3.5" /> Prosegui
+            </button>
+          )}
+        </div>
+        {showPlayer && inhTrailer && (
+          <TrailerPlayerModal
+            trailer={inhTrailer}
+            contentTitle={contentTitle}
+            contentGenre={contentGenre}
+            contentId={contentId}
+            api={api}
+            onClose={() => setShowPlayer(false)}
+          />
+        )}
+      </>
+    );
+  }
 
   // RENDER: job in corso
   if (job && job.status === 'running') {
@@ -329,6 +414,15 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
 
   const ModeIcon = modeMeta.icon;
   return (
+    <>
+      {/* Tier TESTUALE — sempre visibile sopra BASE, gratis */}
+      <TextTrailerCard
+        contentId={contentId}
+        contentTitle={contentTitle}
+        api={api}
+        existing={trailer?.text_trailer || null}
+        onGenerated={() => { /* nothing extra */ }}
+      />
     <div className={`rounded-2xl border ${modeMeta.border} bg-gradient-to-br ${modeMeta.bg} p-4`} data-testid="trailer-generator-card">
       <div className="flex items-center gap-2 mb-2">
         <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${modeMeta.accent} flex items-center justify-center`}>
@@ -383,5 +477,6 @@ export default function TrailerGeneratorCard({ contentId, contentTitle, contentG
         </button>
       )}
     </div>
+    </>
   );
 }

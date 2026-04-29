@@ -11,15 +11,30 @@ import { GraduationCap, User, Star, Clock, Check, Unlock, Lock, RefreshCw, Spark
 import { LoadingSpinner } from '../components/ErrorBoundary';
 import { SKILL_TRANSLATIONS } from '../constants';
 
-const SkillBar = ({ name, value, max = 100, language }) => (
-  <div className="flex items-center gap-2">
-    <span className="text-[10px] text-gray-400 w-28 truncate">{SKILL_TRANSLATIONS?.[name]?.[language] || name}</span>
-    <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, value)}%`, background: value > 70 ? '#22c55e' : value > 40 ? '#eab308' : '#ef4444' }} />
+const SkillBar = ({ name, value, max = 100, language, baseValue }) => {
+  const v = Math.min(100, value || 0);
+  const base = baseValue != null ? Math.min(100, Math.max(0, baseValue)) : null;
+  const boost = base != null ? Math.max(0, v - base) : 0;
+  const showBoost = base != null && boost > 0;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] text-gray-400 w-28 truncate">{SKILL_TRANSLATIONS?.[name]?.[language] || name}</span>
+      <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden relative">
+        {showBoost ? (
+          <>
+            <div className="absolute inset-y-0 left-0 h-full" style={{ width: `${base}%`, background: '#22c55e' }} />
+            <div className="absolute inset-y-0 h-full" style={{ left: `${base}%`, width: `${boost}%`, background: '#06b6d4' }} />
+          </>
+        ) : (
+          <div className="h-full rounded-full transition-all" style={{ width: `${v}%`, background: v > 70 ? '#22c55e' : v > 40 ? '#eab308' : '#ef4444' }} />
+        )}
+      </div>
+      <span className="text-[10px] font-mono text-gray-300 w-6 text-right">
+        {showBoost ? <span><span className="text-gray-400">{base}</span><span className="text-cyan-400">+{boost}</span></span> : v}
+      </span>
     </div>
-    <span className="text-[10px] font-mono text-gray-300 w-6 text-right">{value}</span>
-  </div>
-);
+  );
+};
 
 const ActingSchool = () => {
   const { api, user, refreshUser } = useContext(AuthContext);
@@ -244,10 +259,10 @@ const ActingSchool = () => {
                       </div>
                     )}
 
-                    {/* Skills grid */}
+                    {/* Skills grid (base + boost in different color) */}
                     <div className="grid grid-cols-2 gap-1 mb-2">
                       {Object.entries(s.current_skills || {}).map(([k, v]) => (
-                        <SkillBar key={k} name={k} value={v} language={language} />
+                        <SkillBar key={k} name={k} value={v} baseValue={(s.base_skills || {})[k]} language={language} />
                       ))}
                     </div>
 

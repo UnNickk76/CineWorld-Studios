@@ -7,6 +7,8 @@ import { AuthContext } from '../../contexts';
 import { toast } from 'sonner';
 import ProducerProfileModal from '../ProducerProfileModal';
 import TrailerGeneratorCard from '../TrailerGeneratorCard';
+import VmRatingBadge from '../VmRatingBadge';
+import { getPreReleasePressReviews, getPreReleasePressLabel, isProjectNotYetReleased } from '../../utils/preReleasePhrases';
 import '../../styles/content-template.css';
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
@@ -179,6 +181,8 @@ function getProductionBuzz(film) {
 
 function isFilmReleased(film) {
   if (!film) return false;
+  // Difesa: se il film è ancora in pipeline pre-release (idea/hype/cast/ciak/...), NON è uscito.
+  if (isProjectNotYetReleased(film)) return false;
   const hasQuality = film.quality_score && film.quality_score > 0;
   const isInTheaters = film.status === 'in_theaters';
   const hasBeenReleased = film.released === true || film.released_at;
@@ -402,9 +406,33 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
   const isOwner = film?.user_id === user?.id;
   const isLive = film?.status === 'in_theaters';
 
-  const reviews = isFilmReleased(film) ? generateReviews(film.quality_score, film.popularity_score || film.hype_score) : [];
-  const productionBuzz = !isFilmReleased(film) ? getProductionBuzz(film) : [];
-  const showReviews = isFilmReleased(film);
+  // === Film TV state ===
+  const isTvMovie = !!(film?.is_tv_movie);
+  const tvAirIso = film?.tv_air_datetime || null;
+  const tvAirDate = tvAirIso ? new Date(tvAirIso) : null;
+  const tvIsAiringNow = isTvMovie && tvAirDate && tvAirDate.getTime() <= Date.now() && (film?.status === 'in_tv_programming' || film?.status === 'completed');
+  const tvIsScheduled = isTvMovie && tvAirDate && tvAirDate.getTime() > Date.now();
+  const tvStationName = film?.target_station_name || 'TV';
+  const fmtTvDate = (d) => {
+    if (!d) return '';
+    try {
+      const day = String(d.getDate()).padStart(2, '0');
+      const mesi = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+      const mese = mesi[d.getMonth()];
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mm = String(d.getMinutes()).padStart(2,'0');
+      return `${day} ${mese} ${hh}:${mm}`;
+    } catch { return ''; }
+  };
+  const tvDateLabel = fmtTvDate(tvAirDate);
+
+  const _isReleasedNow = isFilmReleased(film);
+  const reviews = _isReleasedNow
+    ? generateReviews(film.quality_score, film.popularity_score || film.hype_score)
+    : (isProjectNotYetReleased(film) ? getPreReleasePressReviews(film) : []);
+  const productionBuzz = !_isReleasedNow ? getProductionBuzz(film) : [];
+  const showReviews = _isReleasedNow || (reviews && reviews.length > 0);
+  const reviewsLabel = _isReleasedNow ? 'Cosa ne pensano i giornali' : getPreReleasePressLabel(film);
   const castInfo = extractCastInfo(film.cast);
   const cwsv = film.cwsv_display || (film.quality_score ? (film.quality_score % 1 === 0 ? String(Math.round(film.quality_score)) : film.quality_score.toFixed(1)) : null);
   const cwsvNum = film.quality_score || 0;
@@ -423,13 +451,26 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
       </button>
 
       {/* 1. STATUS BAR */}
-      <div className={`ct2-status-bar ${isLive ? 'ct2-status-cinema' : 'ct2-status-catalogo'}`} data-testid="ct-status-bar">
-        <span className="ct2-status-label">{isLive ? 'Al Cinema' : 'Fuori Sala'}</span>
+      <div className={`ct2-status-bar ${
+        tvIsAiringNow ? 'ct2-status-tv-airing' :
+        tvIsScheduled ? 'ct2-status-tv-scheduled' :
+        isLive ? 'ct2-status-cinema' : 'ct2-status-catalogo'
+      }`} data-testid="ct-status-bar">
+        <span className={`ct2-status-label ${(tvIsAiringNow || tvIsScheduled) ? 'tv-glow' : ''}`}>
+          {tvIsAiringNow ? 'ORA IN ONDA' :
+           tvIsScheduled ? 'A BREVE IN ONDA' :
+           isLive ? 'Al Cinema' : 'Fuori Sala'}
+        </span>
       </div>
 
       {/* 2. POSTER + INFO BOX */}
       <div className="ct2-top-block" data-testid="ct-top-block">
-        <div className="ct2-poster" data-testid="ct-poster">
+        <div className="ct2-poster" data-testid="ct-poster" style={{ position: 'relative' }}>
+          {film.vm_rating && (
+            <div style={{ position: 'absolute', top: 6, left: 6, zIndex: 10 }}>
+              <VmRatingBadge rating={film.vm_rating} size="sm" />
+            </div>
+          )}
           {posterSrc(film.poster_url) ? (
             <img src={posterSrc(film.poster_url)} alt={film.title} onError={(e) => { e.target.style.display = 'none'; }} />
           ) : (
@@ -458,6 +499,52 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
       {/* 3. TITLE */}
       <div className="ct2-title-row" data-testid="ct-title">
         <h1 className="ct2-title" data-testid="film-title">{film.title}</h1>
+        {(() => {
+          // Badge celeste "In TV dal X.X.XXXX su -emittente-"
+          // Cerca prima i diritti TV venduti via Mercato, poi Film TV / target station diretto
+          const startIso = film.tv_rights_start_at || film.tv_rights_end_at || film.tv_air_datetime;
+          const stationName = film.tv_rights_station_name || film.target_station_name;
+          const isPendingCinema = film.tv_rights_pending_cinema || (film.status === 'in_theaters' && film.tv_rights_buyer_station_id);
+          if (!stationName) return null;
+          const fmtDate = (iso) => {
+            try {
+              const d = new Date(iso);
+              return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            } catch { return ''; }
+          };
+          const dateLabel = startIso ? fmtDate(startIso) : '';
+          return (
+            <span
+              className="ct-tv-broadcast-badge"
+              data-testid="film-tv-broadcast-badge"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                marginLeft: 8,
+                padding: '3px 10px',
+                borderRadius: 999,
+                border: '1px solid rgba(34, 211, 238, 0.5)',
+                background: 'linear-gradient(90deg, rgba(34,211,238,0.12), rgba(8,145,178,0.10))',
+                color: '#67e8f9',
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 11,
+                letterSpacing: 1,
+                textTransform: 'uppercase',
+                whiteSpace: 'nowrap',
+                boxShadow: '0 0 8px rgba(34,211,238,0.18)',
+                verticalAlign: 'middle',
+              }}
+              title={isPendingCinema ? `Prossimamente in TV su ${stationName}` : `In TV su ${stationName}`}
+            >
+              <Tv size={12} />
+              {isPendingCinema ? 'Prossimamente in TV' : 'In TV'}
+              {dateLabel && <> · {isPendingCinema ? 'dal' : 'dal'} {dateLabel}</>}
+              <span style={{ opacity: 0.8 }}>su</span>
+              <span style={{ fontWeight: 800 }}>{stationName}</span>
+            </span>
+          );
+        })()}
       </div>
       {/* Production House */}
       {(film.producer?.production_house_name || film.producer?.nickname) && (
@@ -491,10 +578,25 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
 
       {/* IN SALA BAR — CLICKABLE → opens cinema popup */}
       <div
-        onClick={() => setShowCinemaPopup(true)}
-        style={{ border: '2px solid #00ffff', background: 'rgba(0,255,255,0.08)', padding: '10px', marginTop: '8px', marginLeft: '10px', marginRight: '10px', textAlign: 'center', fontWeight: 'bold', color: '#00ffff', borderRadius: '8px', fontFamily: "'Bebas Neue', sans-serif", fontSize: '14px', letterSpacing: '1px', cursor: 'pointer', transition: 'background 0.2s' }}
+        onClick={() => !isTvMovie && setShowCinemaPopup(true)}
+        style={{
+          border: `2px solid ${tvIsAiringNow ? '#34d399' : tvIsScheduled ? '#a78bfa' : '#00ffff'}`,
+          background: tvIsAiringNow ? 'rgba(52,211,153,0.10)' : tvIsScheduled ? 'rgba(167,139,250,0.10)' : 'rgba(0,255,255,0.08)',
+          padding: '10px', marginTop: '8px', marginLeft: '10px', marginRight: '10px',
+          textAlign: 'center', fontWeight: 'bold',
+          color: tvIsAiringNow ? '#34d399' : tvIsScheduled ? '#a78bfa' : '#00ffff',
+          borderRadius: '8px', fontFamily: "'Bebas Neue', sans-serif",
+          fontSize: '14px', letterSpacing: '1px',
+          cursor: isTvMovie ? 'default' : 'pointer',
+          transition: 'background 0.2s',
+          animation: (tvIsAiringNow || tvIsScheduled) ? 'tv-glow-pulse 2s ease-in-out infinite' : undefined
+        }}
         data-testid="in-sala-bar">
-        {isLive
+        {tvIsAiringNow
+          ? `In onda su ${tvStationName}${tvDateLabel ? ` dal ${tvDateLabel}` : ''}`
+          : tvIsScheduled
+          ? `Prossimamente${tvDateLabel ? ` dal ${tvDateLabel}` : ''} su ${tvStationName}`
+          : isLive
           ? `IN SALA - ${cinemaDays} giorni - ${cinemaRemain} rimanenti`
           : 'FUORI SALA'}
       </div>
@@ -502,7 +604,7 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
       {/* 6. JOURNALIST REVIEWS or PRODUCTION BUZZ */}
       {showReviews ? (
         <>
-          <div className="ct2-section-label" data-testid="ct-reviews-label">Cosa ne pensano i giornali</div>
+          <div className="ct2-section-label" data-testid="ct-reviews-label">{reviewsLabel}</div>
           <div className="ct2-reviews-row" data-testid="ct-reviews">
             {reviews.map((r, i) => (
               <div key={i} className="ct2-review-box" data-testid={`ct-review-${i}`}>
@@ -595,6 +697,7 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
             canGenerate={true}
             isGuest={!!user?.is_guest}
             onGenerated={onRefresh}
+            sagaInheritance={(film.saga_id && (film.saga_chapter_number || 0) > 1) ? { active: true, sagaId: film.saga_id, chapterNumber: film.saga_chapter_number } : null}
           />
         </div>
       )}

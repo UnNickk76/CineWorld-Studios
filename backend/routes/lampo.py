@@ -72,6 +72,7 @@ class StartLampoRequest(BaseModel):
     budget_tier: BudgetTier = "mid"
     num_episodes: Optional[int] = 10  # serie/anime only
     target_tv_station_id: Optional[str] = None  # serie/anime only — manda alla mia TV
+    vm_rating: Optional[Literal["vm14", "vm16", "vm18"]] = None
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -96,7 +97,7 @@ def _cwsv_for_studio_level(level: int, budget_tier: str) -> float:
     return round(max(1.0, min(9.8, score)), 1)
 
 
-async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5, budget_tier: str = "mid", cwsv: float = 5.0) -> dict:
+async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5, budget_tier: str = "mid", cwsv: float = 5.0, genre: str = "") -> dict:
     """Random NPC cast selection, filtered by player level (reuses level-gating logic).
 
     Arricchisce ogni membro con: gender_label, age, role_label, character_role (solo attori),
@@ -109,9 +110,12 @@ async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5, 
     else: max_stars = 5
 
     is_anime = content_type == "anime"
-    director_type = "anime_director" if is_anime else "director"
-    actor_type = "anime_illustrator" if is_anime else "actor"
-    actor_label_it = "Disegnatore" if is_anime else "Attore"
+    # Animation: anche film/tv_series con genere "animation" usano disegnatori e regista anime
+    is_animation_film = (genre or "").lower() == "animation" and not is_anime
+    use_illustrators = is_anime or is_animation_film
+    director_type = "anime_director" if use_illustrators else "director"
+    actor_type = "anime_illustrator" if use_illustrators else "actor"
+    actor_label_it = "Disegnatore" if use_illustrators else "Attore"
 
     # Probabilità ridotta che UN membro sia "guest star" (livello > progetto+3)
     # Eventro RARISSIMO: ~3% che capiti almeno un guest in tutto il cast
@@ -125,6 +129,13 @@ async def _pick_random_cast(content_type: str, level: int, num_actors: int = 5, 
             {"$sample": {"size": count}},
             {"$project": {"_id": 0}},
         ]).to_list(count)
+        # ⚠️ Fallback difensivo: se vuoto, ripeschiamo SENZA filtro stelle per garantire cast non vuoto
+        if not pool:
+            pool = await db.people.aggregate([
+                {"$match": {"$or": [{"type": rtype}, {"role_type": rtype}]}},
+                {"$sample": {"size": count}},
+                {"$project": {"_id": 0}},
+            ]).to_list(count)
         return pool
 
     director_list = await _sample(director_type, 1, allow_guest=True)
@@ -252,6 +263,7 @@ async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay
             "genre": proj["genre"],
             "subgenre": proj.get("subgenre"),
             "subgenres": subgenres,
+            "vm_rating": proj.get("vm_rating"),
             "preplot": proj["preplot"],
             "screenplay": screenplay_text or "",
             "synopsis": screenplay_text or proj.get("preplot", ""),
@@ -297,6 +309,7 @@ async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay
         "genre": proj["genre"],
         "genre_name": proj["genre"],
         "subgenres": subgenres,
+        "vm_rating": proj.get("vm_rating"),
         "preplot": proj["preplot"],
         "screenplay": screenplay_text or "",
         "synopsis": screenplay_text or proj.get("preplot", ""),
@@ -322,32 +335,60 @@ async def _insert_lampo_ready_stub(pid, proj, cast, cwsv, poster_url, screenplay
     await db.lampo_projects.update_one({"id": pid}, {"$set": {"linked_series_id": series_id}})
 
 
-async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, preplot: str) -> dict:
-    """Generate concise screenplay/synopsis text + extract 1-3 sub-genres via Emergent LLM (gpt-4o-mini).
+async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, preplot: str, num_episodes: int = 0) -> dict:
+    """Generate concise screenplay/synopsis text + extract 1-3 sub-genres + (optional) AI-generated episodes via Emergent LLM (gpt-4o-mini).
 
-    Returns: {"screenplay": str, "subgenres": list[str]}
+    Returns: {"screenplay": str, "subgenres": list[str], "episodes": [{title, synopsis}, ...]}
     """
     import os, json, re
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key:
-        return {"screenplay": "", "subgenres": []}
+        return {"screenplay": "", "subgenres": [], "episodes": []}
     try:
         from emergentintegrations.llm.chat import LlmChat, UserMessage
         ct_label = {"film": "film", "tv_series": "serie TV", "anime": "anime"}.get(content_type, "film")
+        wants_episodes = (num_episodes or 0) > 0 and content_type in ("tv_series", "anime")
         chat = LlmChat(
             api_key=key,
             session_id=f"lampo-screenplay-{uuid.uuid4()}",
             system_message=(
-                "Sei uno sceneggiatore italiano esperto. Rispondi SEMPRE e SOLO con un oggetto JSON valido, "
-                "senza markdown, senza testo extra prima o dopo."
+                "Sei uno sceneggiatore italiano fedele. La tua REGOLA ASSOLUTA è rispettare ESATTAMENTE "
+                "la pretrama del produttore: chi fa cosa, chi ama chi, chi uccide chi, ruoli, generi (M/F), "
+                "moventi e relazioni. NON invertire MAI i ruoli. NON inventare fatti non presenti. "
+                "Se la pretrama dice 'Lei deve uccidere Lui', allora nella sceneggiatura DEVE essere lei "
+                "incaricata di ucciderlo, mai il contrario. Rispondi SEMPRE e SOLO con un oggetto JSON "
+                "valido, senza markdown, senza testo extra prima o dopo."
             ),
         ).with_model("openai", "gpt-4o-mini")
+
+        # Costruisce dinamicamente la struttura JSON richiesta
+        episodes_block = ""
+        if wants_episodes:
+            n = max(1, min(26, int(num_episodes or 10)))
+            episodes_block = (
+                f',\n "episodes": [\n'
+                f'    {{"title": "<titolo unico ep.1, max 4 parole, italiano, evocativo>", "synopsis": "<mini-trama ep.1 in italiano: 1-2 frasi che descrivono cosa succede>"}},\n'
+                f"    ... (esattamente {n} episodi totali, NUMERATI 1..{n}, ciascuno con titolo unico e mini-trama coerente con la sceneggiatura)\n"
+                f'  ]'
+            )
+
         prompt = (
-            f'Per un {ct_label} {genre} intitolato "{title}" con pretrama del produttore: "{preplot}"\n\n'
+            f'TIPO: {ct_label} {genre}\n'
+            f'TITOLO: "{title}"\n'
+            + (f'NUMERO EPISODI: {num_episodes}\n' if wants_episodes else '')
+            + f'PRETRAMA DEL PRODUTTORE (DA RISPETTARE LETTERALMENTE):\n"""\n{preplot}\n"""\n\n'
             f"Restituisci ESATTAMENTE un JSON con questa struttura:\n"
             f'{{"screenplay": "<sceneggiatura sintetica max 350 parole in italiano: logline, conflitto, '
             f'4-5 punti chiave di trama, climax, risoluzione, atmosfera. Paragrafi brevi separati da \\n>",\n'
-            f' "subgenres": ["sotto-genere1", "sotto-genere2", "sotto-genere3"]}}\n\n'
+            f' "subgenres": ["sotto-genere1", "sotto-genere2", "sotto-genere3"]{episodes_block}\n'
+            f'}}\n\n'
+            f"REGOLE TASSATIVE per la sceneggiatura:\n"
+            f"1. RILEGGI la pretrama 2 volte prima di scrivere. Identifica: protagonista, antagonista, "
+            f"vittima/e, persone amate, chi compie l'azione e chi la subisce.\n"
+            f"2. NON invertire i ruoli (es. se 'lei deve uccidere lui', NON scrivere 'lui deve uccidere lei').\n"
+            f"3. NON cambiare i nomi dei personaggi né il loro genere.\n"
+            f"4. NON aggiungere personaggi non menzionati a meno che non siano comparse generiche.\n"
+            f"5. La logline deve riassumere FEDELMENTE il conflitto della pretrama.\n\n"
             f"REGOLE per i sotto-generi:\n"
             f"- Estrai 1-3 sotto-generi pertinenti analizzando la pretrama (es: 'thriller psicologico', "
             f"'distopico', 'noir', 'survival', 'commedia romantica', 'coming of age', 'mystery', 'satirico', "
@@ -356,6 +397,16 @@ async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, 
             f"- Tutti in italiano, minuscoli, max 3 parole ciascuno.\n"
             f"- NON ripetere il genere principale '{genre}'.\n"
             f"- Devono essere coerenti con la pretrama, non generici."
+            + (
+                "\n\nREGOLE per gli episodi:\n"
+                f"- Esattamente {num_episodes} episodi.\n"
+                "- TITOLI: ognuno UNICO (mai ripetere lo stesso titolo), evocativi, max 4 parole, in italiano. "
+                "Niente 'Episodio N' come titolo.\n"
+                "- SINOSSI: 1-2 frasi che descrivono COSA SUCCEDE in quell'episodio specifico, coerente "
+                "con l'arco narrativo della sceneggiatura. Mai generiche tipo 'nuove alleanze, vecchi rancori'.\n"
+                "- Gli episodi devono raccontare un arco progressivo: setup → escalation → climax → risoluzione."
+                if wants_episodes else ""
+            )
         )
         resp = await chat.send_message(UserMessage(text=prompt))
         raw = (resp or "").strip()
@@ -379,16 +430,35 @@ async def _generate_screenplay_lampo(title: str, genre: str, content_type: str, 
             s2 = s.strip().lower()
             if not s2 or s2 == (genre or "").lower():
                 continue
-            # clip to 3 words and 30 chars
             s2 = " ".join(s2.split()[:3])[:30]
             if s2 and s2 not in cleaned:
                 cleaned.append(s2)
             if len(cleaned) >= 3:
                 break
-        return {"screenplay": screenplay, "subgenres": cleaned}
+        # Sanitize episodes
+        episodes_out = []
+        if wants_episodes:
+            ep_raw = data.get("episodes") or []
+            if isinstance(ep_raw, list):
+                seen_titles = set()
+                for i, ep in enumerate(ep_raw[:num_episodes]):
+                    if not isinstance(ep, dict):
+                        continue
+                    t = (ep.get("title") or "").strip()
+                    syn = (ep.get("synopsis") or "").strip()
+                    # dedup titles (case-insensitive)
+                    tl = t.lower()
+                    if tl in seen_titles or not t:
+                        t = f"Capitolo {i + 1}"
+                    seen_titles.add(t.lower())
+                    episodes_out.append({
+                        "title": t,
+                        "synopsis": syn or f"Episodio {i + 1}",
+                    })
+        return {"screenplay": screenplay, "subgenres": cleaned, "episodes": episodes_out}
     except Exception as e:
-        logger.warning(f"LAMPO screenplay+subgenres gen failed: {e}")
-        return {"screenplay": "", "subgenres": []}
+        logger.warning(f"LAMPO screenplay+subgenres+episodes gen failed: {e}")
+        return {"screenplay": "", "subgenres": [], "episodes": []}
 
 
 def _random_episode_minitrama(ep_num: int, genre: str) -> str:
@@ -426,7 +496,10 @@ async def _worker_generate(pid: str):
             return
 
         screenplay_task = asyncio.create_task(
-            _generate_screenplay_lampo(proj["title"], proj["genre"], proj["content_type"], proj["preplot"])
+            _generate_screenplay_lampo(
+                proj["title"], proj["genre"], proj["content_type"], proj["preplot"],
+                num_episodes=int(proj.get("num_episodes") or 0) if proj["content_type"] in ("tv_series", "anime") else 0,
+            )
         )
         poster_task = asyncio.create_task(
             _generate_poster_lampo(proj["title"], proj["genre"], proj["content_type"], pid)
@@ -441,11 +514,12 @@ async def _worker_generate(pid: str):
 
         # Wait for parallel AI tasks (with safety timeout)
         try:
-            screenplay_data = await asyncio.wait_for(screenplay_task, timeout=12)
+            screenplay_data = await asyncio.wait_for(screenplay_task, timeout=20)
         except Exception:
-            screenplay_data = {"screenplay": "", "subgenres": []}
+            screenplay_data = {"screenplay": "", "subgenres": [], "episodes": []}
         screenplay_text = (screenplay_data or {}).get("screenplay") or ""
         subgenres = (screenplay_data or {}).get("subgenres") or []
+        ai_episodes = (screenplay_data or {}).get("episodes") or []
         try:
             poster_url = await asyncio.wait_for(poster_task, timeout=15)
         except Exception:
@@ -464,8 +538,151 @@ async def _worker_generate(pid: str):
 
         cast = await _pick_random_cast(
             proj["content_type"], studio_level, num_actors=5,
-            budget_tier=proj.get("budget_tier", "mid"), cwsv=cwsv
+            budget_tier=proj.get("budget_tier", "mid"), cwsv=cwsv,
+            genre=proj.get("genre", "")
         )
+
+        # LAMPO auto-include: sostituisci fino a 2 attori NPC con attori
+        # del roster del player (scuola/agenzia) se disponibili. Costo 0
+        # e badge "is_own_roster" → bonus CWSv/XP automatici al rilascio.
+        try:
+            own_pool = []
+            agency_actors_doc = await db.agency_actors.find(
+                {"user_id": proj["user_id"]}, {"_id": 0}
+            ).limit(20).to_list(20)
+            for a in agency_actors_doc:
+                own_pool.append({**a, "_own_source": "agency"})
+            school_students = await db.casting_school_students.find(
+                {"user_id": proj["user_id"], "status": {"$in": ["training", "max_potential"]}},
+                {"_id": 0}
+            ).limit(20).to_list(20)
+            for s in school_students:
+                own_pool.append({**s, "_own_source": "school"})
+            # Step 3 — Pre-engaged actors injected con priorità (max 2 garantiti)
+            pre_engs = await db.talent_pre_engagements.find(
+                {"user_id": proj["user_id"], "role": "actor",
+                 "contract_status": {"$in": ["active", "threatened"]}},
+                {"_id": 0}
+            ).limit(20).to_list(20)
+            pre_pool = []
+            for e in pre_engs:
+                snap = e.get("npc_snapshot", {}) or {}
+                # Enrich da people se snapshot sparso
+                if not snap.get("skills"):
+                    try:
+                        full = await db.people.find_one({"id": e.get("npc_id")}, {"_id": 0})
+                        if full:
+                            snap = {**full, **snap}
+                    except Exception:
+                        pass
+                pre_pool.append({
+                    **snap,
+                    "id": e.get("npc_id"),
+                    "_own_source": "pre_engaged",
+                    "_pre_engage_id": e.get("id"),
+                })
+
+            if cast.get("actors") and (own_pool or pre_pool):
+                import random as _rnd2
+                actor_slots = len(cast["actors"])
+                used_idx = set()
+                # 1. Pre-engaged hanno priorità: max 2, prima del random own pool
+                k_pre = min(2, len(pre_pool), actor_slots)
+                pre_pick = _rnd2.sample(pre_pool, k_pre) if k_pre > 0 else []
+                for ow in pre_pick:
+                    # Trova primo slot non usato
+                    i = next((idx for idx in range(actor_slots) if idx not in used_idx), None)
+                    if i is None:
+                        break
+                    used_idx.add(i)
+                    char_role = cast["actors"][i].get("character_role")
+                    enriched = {
+                        **ow,
+                        "id": ow.get("id"),
+                        "name": ow.get("name", "?"),
+                        "stars": ow.get("stars", 2),
+                        "gender": ow.get("gender", ""),
+                        "gender_label": "M" if str(ow.get("gender", "")).lower().startswith("m") else "F",
+                        "role_type": "anime_illustrator" if (proj["content_type"] == "anime" or (proj.get("genre") or "").lower() == "animation") else "actor",
+                        "role_label": "Disegnatore" if (proj["content_type"] == "anime" or (proj.get("genre") or "").lower() == "animation") else "Attore",
+                        "skills": ow.get("skills", {}),
+                        "fame_score": ow.get("fame_score", 30),
+                        "score": 65 + (ow.get("stars", 2) * 4),
+                        "is_guest_star": False,
+                        "is_own_roster": True,
+                        "own_source": "pre_engaged",
+                        "is_agency_actor": True,
+                        "is_pre_engaged": True,
+                        "pre_engage_id": ow.get("_pre_engage_id"),
+                    }
+                    if char_role:
+                        enriched["character_role"] = char_role
+                    cast["actors"][i] = enriched
+                # 2. Owned (agency/school) per riempire i restanti slot, max 2 totali
+                remaining_own_slots = max(0, 2 - k_pre)
+                if remaining_own_slots > 0 and own_pool:
+                    k_own = min(remaining_own_slots, len(own_pool), actor_slots - len(used_idx))
+                    own_pick = _rnd2.sample(own_pool, k_own) if k_own > 0 else []
+                    for ow in own_pick:
+                        i = next((idx for idx in range(actor_slots) if idx not in used_idx), None)
+                        if i is None:
+                            break
+                        used_idx.add(i)
+                        char_role = cast["actors"][i].get("character_role")
+                        enriched = {
+                            **ow,
+                            "id": ow.get("id"),
+                            "name": ow.get("name", "?"),
+                            "stars": ow.get("stars", 2),
+                            "gender": ow.get("gender", ""),
+                            "gender_label": "M" if str(ow.get("gender", "")).lower().startswith("m") else "F",
+                            "role_type": "anime_illustrator" if (proj["content_type"] == "anime" or (proj.get("genre") or "").lower() == "animation") else "actor",
+                            "role_label": "Disegnatore" if (proj["content_type"] == "anime" or (proj.get("genre") or "").lower() == "animation") else "Attore",
+                            "skills": ow.get("skills", {}),
+                            "fame_score": ow.get("fame_score", 30),
+                            "score": 60 + (ow.get("stars", 2) * 4),
+                            "is_guest_star": False,
+                            "is_own_roster": True,
+                            "own_source": ow.get("_own_source", "agency"),
+                            "is_agency_actor": True,
+                        }
+                        if char_role:
+                            enriched["character_role"] = char_role
+                        cast["actors"][i] = enriched
+
+            # 3. Pre-engaged registi/sceneggiatori/compositori auto-assegnati se disponibili (no agency_actors equivalente)
+            for role_key, cast_field in [("director", "director"), ("screenwriter", "screenwriter"), ("composer", "composer")]:
+                try:
+                    eng_role = await db.talent_pre_engagements.find_one(
+                        {"user_id": proj["user_id"], "role": role_key,
+                         "contract_status": {"$in": ["active", "threatened"]}},
+                        {"_id": 0}
+                    )
+                    if not eng_role:
+                        continue
+                    snap = eng_role.get("npc_snapshot", {}) or {}
+                    if not snap.get("skills"):
+                        full = await db.people.find_one({"id": eng_role.get("npc_id")}, {"_id": 0})
+                        if full:
+                            snap = {**full, **snap}
+                    enriched = {
+                        **snap,
+                        "id": eng_role.get("npc_id"),
+                        "name": snap.get("name", "?"),
+                        "stars": eng_role.get("npc_stars", 2),
+                        "gender": snap.get("gender", ""),
+                        "skills": snap.get("skills", {}),
+                        "fame_score": snap.get("fame_score", 30),
+                        "is_own_roster": True,
+                        "own_source": "pre_engaged",
+                        "is_pre_engaged": True,
+                        "pre_engage_id": eng_role.get("id"),
+                    }
+                    cast[cast_field] = enriched
+                except Exception as _e_role:
+                    logger.warning(f"LAMPO pre-engaged {role_key} fail pid={pid}: {_e_role}")
+        except Exception as _own_err:
+            logger.warning(f"LAMPO own-roster injection fail pid={pid}: {_own_err}")
 
         # Distribuzione automatica (solo film — serie/anime usano il loro flow TV)
         distribution_plan = None
@@ -476,16 +693,24 @@ async def _worker_generate(pid: str):
             except Exception as dist_err:
                 logger.warning(f"LAMPO distribution plan fail pid={pid}: {dist_err}")
 
-        # Episodes per serie/anime
+        # Episodes per serie/anime — usa AI se disponibili, altrimenti fallback templates
         episodes = []
         if proj["content_type"] in ("tv_series", "anime"):
             num_ep = max(1, min(26, int(proj.get("num_episodes") or 10)))
             base_duration = 50 if proj["content_type"] == "tv_series" else 24
             for i in range(1, num_ep + 1):
+                # Preferisci episodio AI se presente per questo indice
+                ai_ep = ai_episodes[i - 1] if (i - 1) < len(ai_episodes) else None
+                if ai_ep and (ai_ep.get("title") or ai_ep.get("synopsis")):
+                    ep_title = (ai_ep.get("title") or f"Capitolo {i}").strip()
+                    ep_synopsis = (ai_ep.get("synopsis") or _random_episode_minitrama(i, proj["genre"])).strip()
+                else:
+                    ep_title = f"Capitolo {i}"
+                    ep_synopsis = _random_episode_minitrama(i, proj["genre"])
                 episodes.append({
                     "episode_number": i,
-                    "title": f"Ep. {i}",
-                    "synopsis": _random_episode_minitrama(i, proj["genre"]),
+                    "title": ep_title,
+                    "synopsis": ep_synopsis,
                     "duration_minutes": base_duration + random.randint(-3, 7),
                 })
 
@@ -572,15 +797,23 @@ async def start_lampo(req: StartLampoRequest, user: dict = Depends(get_current_u
 
     pid = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
+    # Content filter + auto VM
+    from utils.content_filter import censor_text
+    title_safe = censor_text(req.title.strip())
+    preplot_safe = censor_text(req.preplot.strip())
+    genre_l = (req.genre or "").lower()
+    auto_vm = "vm16" if genre_l == "erotic" else ("vm14" if genre_l == "horror" else None)
+    vm_rating = req.vm_rating or auto_vm
     doc = {
         "id": pid,
         "user_id": user["id"],
         "mode": "lampo",
         "content_type": req.content_type,
-        "title": req.title.strip(),
+        "title": title_safe,
         "genre": req.genre,
         "subgenre": req.subgenre,
-        "preplot": req.preplot.strip(),
+        "preplot": preplot_safe,
+        "vm_rating": vm_rating,
         "budget_tier": req.budget_tier,
         "base_cost": base_cost,
         "paid_cost": scaled_cost,
@@ -623,6 +856,60 @@ async def get_my_lampo_projects(user: dict = Depends(get_current_user)):
         {"_id": 0}
     ).sort("created_at", -1).to_list(20)
     return {"projects": docs}
+
+
+# ─── Autosave bozza form (richiesta utente) ─────────────────────────
+class LampoDraftFormReq(BaseModel):
+    content_type: Literal["film", "tv_series", "anime"]
+    title: Optional[str] = ""
+    genre: Optional[str] = None
+    subgenre: Optional[str] = None
+    preplot: Optional[str] = ""
+    budget_tier: Optional[Literal["low", "mid", "high"]] = "mid"
+    num_episodes: Optional[int] = None
+    target_tv_station_id: Optional[str] = None
+
+
+@router.post("/draft-form")
+async def save_lampo_draft_form(req: LampoDraftFormReq, user: dict = Depends(get_current_user)):
+    """Salva la bozza del form LAMPO (autosave dal momento in cui si scrive il titolo).
+
+    Una bozza per (user_id, content_type). Sopravvive a refresh / chiusure pagina.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    payload = req.model_dump()
+    payload["user_id"] = user["id"]
+    payload["updated_at"] = now
+    await db.lampo_form_drafts.update_one(
+        {"user_id": user["id"], "content_type": req.content_type},
+        {"$set": payload, "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+    return {"success": True, "draft": payload}
+
+
+@router.get("/draft-form")
+async def get_lampo_draft_form(
+    content_type: Literal["film", "tv_series", "anime"],
+    user: dict = Depends(get_current_user),
+):
+    """Recupera l'ultima bozza del form LAMPO per il content_type indicato."""
+    doc = await db.lampo_form_drafts.find_one(
+        {"user_id": user["id"], "content_type": content_type}, {"_id": 0}
+    )
+    return {"draft": doc}
+
+
+@router.delete("/draft-form")
+async def delete_lampo_draft_form(
+    content_type: Literal["film", "tv_series", "anime"],
+    user: dict = Depends(get_current_user),
+):
+    """Elimina la bozza dopo che la produzione è stata avviata."""
+    await db.lampo_form_drafts.delete_one(
+        {"user_id": user["id"], "content_type": content_type}
+    )
+    return {"success": True}
 
 
 async def _upsert_lampo_film(film_doc: dict) -> str:
@@ -677,6 +964,17 @@ async def release_lampo(
         raise HTTPException(400, "Il progetto non è ancora pronto")
     if proj.get("released"):
         raise HTTPException(400, "Già rilasciato")
+
+    # ─── SAGA: gate rilascio (cap. precedente fuori sala) ───
+    try:
+        from utils.saga_release_hook import check_saga_release_gate
+        ok_saga, reason_saga = await check_saga_release_gate(proj, user["id"])
+        if not ok_saga:
+            raise HTTPException(400, reason_saga)
+    except HTTPException:
+        raise
+    except Exception:
+        pass
 
     now_dt = datetime.now(timezone.utc)
     now = now_dt.isoformat()
@@ -773,6 +1071,13 @@ async def release_lampo(
                 "release_cities": (proj.get("distribution_plan") or {}).get("cities", []),
                 "worldwide": bool((proj.get("distribution_plan") or {}).get("mondo", False)),
                 "release_event": None,
+                # SAGA flags (pre-inserted so scheduler can finalize correctly)
+                "saga_id": proj.get("saga_id"),
+                "saga_chapter_number": proj.get("saga_chapter_number"),
+                "saga_subtitle": proj.get("saga_subtitle", ""),
+                "is_saga_chapter": bool(proj.get("saga_id")),
+                "is_saga_first": bool(proj.get("is_saga_first")),
+                "saga_cliffhanger": bool(proj.get("saga_cliffhanger")),
             }
             film_id = await _upsert_lampo_film(film_doc)
             await db.lampo_projects.update_one(
@@ -856,9 +1161,46 @@ async def release_lampo(
             {"id": pid},
             {"$set": {"released": True, "released_film_id": film_id, "release_event": release_event, "updated_at": now}}
         )
+
+        # ─── SAGA: propaga metadati + fan-base + post-release update ───
+        saga_bonuses = {"trilogy_bonus": 0, "saga_concluded": False}
+        if proj.get("saga_id"):
+            try:
+                from utils.saga_release_hook import (
+                    attach_saga_metadata, apply_fan_base_hype_modifier, post_release_update_saga,
+                )
+                attach_saga_metadata(film_doc, proj)
+                await db.films.update_one(
+                    {"id": film_id},
+                    {"$set": {
+                        "saga_id": film_doc.get("saga_id"),
+                        "saga_chapter_number": film_doc.get("saga_chapter_number"),
+                        "saga_subtitle": film_doc.get("saga_subtitle", ""),
+                        "is_saga_chapter": True,
+                        "is_saga_first": film_doc.get("is_saga_first", False),
+                        "saga_cliffhanger": film_doc.get("saga_cliffhanger", False),
+                    }}
+                )
+                # Per LAMPO immediate: opening_day_revenue è in cwsv-driven, ma non sempre presente; calcoliamo se manca
+                film_doc["user_id"] = user["id"]
+                new_open = await apply_fan_base_hype_modifier(film_doc, proj)
+                if film_doc.get("saga_fan_base_modifier"):
+                    await db.films.update_one(
+                        {"id": film_id},
+                        {"$set": {
+                            "opening_day_revenue": new_open,
+                            "saga_fan_base_modifier": film_doc.get("saga_fan_base_modifier"),
+                            "saga_prev_cwsv": film_doc.get("saga_prev_cwsv"),
+                        }}
+                    )
+                film_doc["id"] = film_id
+                saga_bonuses = await post_release_update_saga(film_doc, proj, user["id"])
+            except Exception:
+                pass
+
         ev_label = (release_event or {}).get("name", "")
         msg = f"'{proj['title']}' è al cinema!" + (f" Evento: {ev_label}" if ev_label else "")
-        return {"success": True, "type": "film", "released_id": film_id, "scheduled": False, "theater_days": theater_days, "message": msg, "release_event": release_event, "xp_gained": xp_event_bonus + int((proj.get('cwsv') or 5) * 10)}
+        return {"success": True, "type": "film", "released_id": film_id, "scheduled": False, "theater_days": theater_days, "message": msg, "release_event": release_event, "xp_gained": xp_event_bonus + int((proj.get('cwsv') or 5) * 10), "saga_bonuses": saga_bonuses}
 
     # ───────────────── tv_series / anime ─────────────────
     target_station_id = proj.get("target_tv_station_id")
@@ -1035,6 +1377,32 @@ async def finalize_scheduled_lampo_releases():
                     "theater_weeks": theater_weeks_fix,
                 }, "$inc": {"virtual_likes": initial_likes}}
             )
+
+            # ─── SAGA: post-release update se questo film è capitolo di una saga ───
+            if film.get("saga_id"):
+                try:
+                    from utils.saga_release_hook import apply_fan_base_hype_modifier, post_release_update_saga
+                    proj_stub = {
+                        "saga_id": film["saga_id"],
+                        "saga_chapter_number": film.get("saga_chapter_number"),
+                        "saga_subtitle": film.get("saga_subtitle", ""),
+                        "is_saga_first": film.get("is_saga_first", False),
+                        "saga_cliffhanger": film.get("saga_cliffhanger", False),
+                        "user_id": film["user_id"],
+                    }
+                    new_open = await apply_fan_base_hype_modifier(film, proj_stub)
+                    if film.get("saga_fan_base_modifier"):
+                        await db.films.update_one(
+                            {"id": film["id"]},
+                            {"$set": {
+                                "opening_day_revenue": new_open,
+                                "saga_fan_base_modifier": film.get("saga_fan_base_modifier"),
+                                "saga_prev_cwsv": film.get("saga_prev_cwsv"),
+                            }}
+                        )
+                    await post_release_update_saga(film, proj_stub, film["user_id"])
+                except Exception as _e_saga:
+                    pass
             base_xp = int((film.get("cwsv") or 5) * 10)
             total_xp = base_xp + xp_event_bonus
             await db.users.update_one(

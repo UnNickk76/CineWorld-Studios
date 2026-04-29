@@ -4,6 +4,8 @@ import { PhaseWrapper, GENRES, GENRE_LABELS, SUBGENRE_MAP, ProgressCircle, v3api
 import { AuthContext } from '../../contexts';
 import TrailerGeneratorCard from '../TrailerGeneratorCard';
 import CineConfirm from './CineConfirm';
+import { LocationCoherenceBar } from './LocationCoherenceBar';
+import ReHypeWindow from '../saga/ReHypeWindow';
 
 /*
   Flusso sequenziale:
@@ -21,13 +23,20 @@ const LOC_CAT_META = {
   historical:{ label: 'Storici',       icon: Landmark,  color: 'text-purple-400',  border: 'border-purple-500/30',  bg: 'bg-purple-500/10' },
 };
 
-const MAX_LOCATIONS = 5;
+const MAX_LOCATIONS = 999; // No hard limit — coerenza valutata da AI/sweet spot
 
 export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false }) => {
   const { user, api } = useContext(AuthContext) || {};
   const isGuest = !!user?.is_guest;
-  // Determine which sub-phase we're in based on saved data
-  const hasSavedIdea = !!(film.genre && film.preplot && film.preplot.length >= 50 && (film.subgenres?.length > 0 || film.subgenre));
+  // Determine which sub-phase we're in based on saved data.
+  // NOTE: il film e' "idea-saved" SOLO quando ha tutti i campi base + locations + budget_tier
+  // (altrimenti l'utente non puo' modificare location/budget se sono ancora vuoti).
+  const hasSavedIdea = !!(
+    film.genre && film.preplot && film.preplot.length >= 50 &&
+    (film.subgenres?.length > 0 || film.subgenre) &&
+    (film.locations?.length > 0) &&
+    film.budget_tier
+  );
   const hasPoster = !!film.poster_url;
   const hasScreenplay = !!(film.screenplay_text && film.screenplay_text.length > 50);
 
@@ -43,6 +52,10 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
   const [preplot, setPreplot] = useState(film.preplot || '');
   const [locations, setLocations] = useState(film.locations || []);
   const [budgetTier, setBudgetTier] = useState(film.budget_tier || 'mid');
+  const [vmRating, setVmRating] = useState(film.vm_rating || (
+    (film.genre || '').toLowerCase() === 'erotic' ? 'vm16' :
+    (film.genre || '').toLowerCase() === 'horror' ? 'vm14' : null
+  ));
   const [posterPrompt, setPosterPrompt] = useState('');
   const [showPromptInput, setShowPromptInput] = useState(false);
   const [manualScreenplay, setManualScreenplay] = useState('');
@@ -95,6 +108,15 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
   const subgenreOptions = useMemo(() => SUBGENRE_MAP[genre] || [], [genre]);
   const mark = () => onDirty?.();
 
+  // Auto VM rating quando il genere cambia (override possibile manuale)
+  useEffect(() => {
+    if (vmRating) return;  // gia' impostato dal player
+    const g = (genre || '').toLowerCase();
+    if (g === 'erotic') setVmRating('vm16');
+    else if (g === 'horror') setVmRating('vm14');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genre]);
+
   // Phase 0 validation
   const phase0Valid = title.trim().length >= 2 && genre && subgenres.length >= 1 && preplot.trim().length >= 50;
 
@@ -102,7 +124,7 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
   const confirmPhase0 = async () => {
     setLoading('phase0');
     try {
-      await v3api(`/films/${film.id}/save-idea`, 'POST', { title, genre, subgenre: subgenres.join(', '), preplot, subgenres, locations, budget_tier: budgetTier });
+      await v3api(`/films/${film.id}/save-idea`, 'POST', { title, genre, subgenre: subgenres.join(', '), preplot, subgenres, locations, budget_tier: budgetTier, vm_rating: vmRating });
       await onRefresh();
       setSubPhase(1);
       toast?.('Idea salvata!');
@@ -198,6 +220,16 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
     <PhaseWrapper title="L'Idea" subtitle="Dai forma al tuo progetto cinematografico" icon={Sparkles} color="amber">
       <div className="space-y-3">
 
+        {/* ═══ SAGA HEADER — mini-timeline + fan base bonus + cliffhanger reminder ═══ */}
+        {film.saga_id && (film.saga_chapter_number || 0) >= 1 && (
+          <SagaPipelineHeader film={film} api={api} />
+        )}
+
+        {/* ═══ RE-HYPE WINDOW (cap. successivi) ═══ */}
+        {film.saga_id && (film.saga_chapter_number || 0) > 1 && (
+          <ReHypeWindow sagaId={film.saga_id} projectId={film.id} onActivated={onRefresh} />
+        )}
+
         {/* ═══ SEMPRE VISIBILE: Titolo + Genere + Sottogeneri + Pretrama + Ambientazione ═══ */}
         <input value={title} onChange={e => { setTitle(e.target.value); mark(); }}
           placeholder="Titolo del film" className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm text-white placeholder-gray-600"
@@ -235,13 +267,43 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
             rows={4} placeholder="Descrivi la trama del tuo film (min 50 caratteri)..."
             disabled={subPhase > 0}
             className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-[10px] text-white placeholder-gray-600 disabled:opacity-50" data-testid="preplot-input" />
+          <p className="text-[7px] text-amber-500/70 mt-1">⚠ Parolacce e linguaggio esplicito vengono automaticamente censurati. Le bestemmie sono vietate.</p>
+        </div>
+
+        {/* VM Rating selector */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[8px] text-gray-500 uppercase font-bold">Classificazione (Visione)</span>
+            {vmRating && <span className="text-[8px] font-bold text-red-400">{vmRating.toUpperCase()}</span>}
+          </div>
+          <div className="grid grid-cols-4 gap-1" data-testid="vm-rating-selector">
+            {[
+              { v: null,   label: 'Tutti', color: 'border-gray-700 text-gray-400' },
+              { v: 'vm14', label: 'VM 14', color: 'border-yellow-600/50 text-yellow-300' },
+              { v: 'vm16', label: 'VM 16', color: 'border-orange-600/60 text-orange-300' },
+              { v: 'vm18', label: 'VM 18', color: 'border-red-600/70 text-red-300' },
+            ].map(opt => (
+              <button key={String(opt.v)}
+                onClick={() => { setVmRating(opt.v); mark(); }}
+                disabled={subPhase > 0}
+                data-testid={`vm-rating-${opt.v || 'free'}`}
+                className={`text-[8px] py-1.5 rounded-lg border font-bold transition disabled:opacity-50 ${vmRating === opt.v ? `${opt.color} bg-white/5` : 'border-gray-800 text-gray-600'}`}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[7px] text-gray-500 mt-1">
+            {(genre || '').toLowerCase() === 'erotic' && 'Genere erotico → minimo VM16. '}
+            {(genre || '').toLowerCase() === 'horror' && 'Genere horror → consigliato VM14+. '}
+            La classificazione influenza pubblico, distribuzione TV e fasce orarie.
+          </p>
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[8px] text-gray-500 uppercase font-bold">Location di Ripresa</span>
             <span className={`text-[8px] ${locations.length > 0 ? 'text-cyan-400' : 'text-gray-600'}`}>
-              {locations.length}/{MAX_LOCATIONS}
+              {locations.length} selezionate
             </span>
           </div>
 
@@ -301,10 +363,13 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
               .map(l => {
                 const selected = locations.includes(l.name);
                 const meta = LOC_CAT_META[l.category] || LOC_CAT_META.studios;
-                const atLimit = locations.length >= MAX_LOCATIONS && !selected;
+                // Costo crescente: 6+ → +60%, 11+ → +140%, 16+ → +250%
+                const idxIfSelected = selected ? locations.indexOf(l.name) : locations.length;
+                const costMult = idxIfSelected < 5 ? 1.0 : idxIfSelected < 10 ? 1.6 : idxIfSelected < 15 ? 2.4 : 3.5;
+                const adjCost = Math.round((l.cost_per_day * costMult) / 1000);
                 return (
-                  <button key={l.name} onClick={() => subPhase === 0 && !atLimit && toggleLoc(l.name)}
-                    disabled={subPhase > 0 || atLimit}
+                  <button key={l.name} onClick={() => subPhase === 0 && toggleLoc(l.name)}
+                    disabled={subPhase > 0}
                     className={`w-full flex items-center justify-between p-1.5 rounded-lg border transition-all disabled:opacity-40 ${
                       selected ? `${meta.bg} ${meta.border}` : 'border-gray-800 hover:border-gray-700 bg-gray-900/20'
                     }`}
@@ -316,7 +381,11 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
                         <span className="text-[8px] text-emerald-400 font-black">GRATIS</span>
                       </span>
                     ) : (
-                      <span className="shrink-0 ml-2 text-[8px] text-gray-400">${(l.cost_per_day / 1000).toFixed(0)}K<span className="text-gray-600">/g</span></span>
+                      <span className="shrink-0 ml-2 text-[8px] text-gray-400">
+                        ${adjCost}K
+                        <span className="text-gray-600">/g</span>
+                        {costMult > 1 && <span className="text-amber-400 ml-0.5">×{costMult}</span>}
+                      </span>
                     )}
                   </button>
                 );
@@ -337,6 +406,17 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
                   )}
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* Coherence Bar — sweet spot + AI advice */}
+          {(genre || locations.length > 0) && (
+            <div className="mt-2">
+              <LocationCoherenceBar
+                genre={genre}
+                preplot={preplot}
+                locations={locations}
+              />
             </div>
           )}
         </div>
@@ -530,6 +610,7 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
                   onGenerated={onRefresh}
                   onSkip={skipTrailer}
                   onConfirm={confirmTrailerAndProceed}
+                  sagaInheritance={(film.saga_id && (film.saga_chapter_number || 0) > 1) ? { active: true, sagaId: film.saga_id, chapterNumber: film.saga_chapter_number } : null}
                 />
               </>
             )}
@@ -634,6 +715,87 @@ const DangerZoneFilm = ({ film, onRefresh, toast, api }) => {
         onConfirm={onRestart}
         onCancel={() => !busy && setShowRestart(false)}
       />
+    </div>
+  );
+};
+
+
+/**
+ * SagaPipelineHeader — mini-timeline + fan base bonus + cliffhanger reminder
+ * Visibile in cima alla pipeline V3 quando il film è parte di una saga.
+ */
+const SagaPipelineHeader = ({ film, api }) => {
+  const [saga, setSaga] = useState(null);
+
+  useEffect(() => {
+    if (!film?.saga_id || !api) return;
+    api.get(`/sagas/${film.saga_id}`).then(r => setSaga(r.data || null)).catch(() => setSaga(null));
+  }, [film?.saga_id, api]);
+
+  if (!saga) return null;
+
+  const total = saga.saga?.total_planned_chapters || 0;
+  const released = saga.chapters?.length || 0;
+  const currentN = film.saga_chapter_number || 1;
+  const prevChapter = (saga.chapters || []).find(c => (c.chapter_number || 0) === currentN - 1);
+  const prevCwsv = prevChapter?.cwsv || 0;
+  const prevCliff = !!prevChapter?.saga_cliffhanger;
+
+  // Calcolo fan base bonus modifier (replica logica backend)
+  const fanBaseBonusPct = currentN >= 2 ? Math.round(((prevCwsv >= 8 ? 1.25 : prevCwsv >= 6.5 ? 1.15 : prevCwsv >= 5 ? 1.05 : 0.95) - 1) * 100) : 0;
+  const earlyOffset = prevCwsv >= 8 ? 6 : prevCwsv >= 6.5 ? 5 : prevCwsv >= 5 ? 4 : prevCwsv >= 3.5 ? 3 : 2;
+
+  return (
+    <div className="rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-950/40 via-fuchsia-950/30 to-zinc-900/40 p-3 space-y-2.5" data-testid="saga-pipeline-header">
+      {/* Title + chapter info */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[10px] uppercase tracking-wider text-violet-300 font-bold">SAGA</span>
+          <span className="text-[11px] font-bold text-white truncate">{saga.saga?.title || 'Saga'}</span>
+        </div>
+        <span className="text-[9px] text-violet-200 font-bold whitespace-nowrap">Cap. {currentN}/{total}</span>
+      </div>
+
+      {/* Mini-timeline */}
+      {total > 0 && (
+        <div className="flex items-center gap-1" data-testid="saga-timeline">
+          {Array.from({ length: total }, (_, i) => {
+            const n = i + 1;
+            const isReleased = n <= released;
+            const isCurrent = n === currentN;
+            return (
+              <div key={n} className="flex-1 flex flex-col items-center">
+                <div className={`w-full h-1.5 rounded-full ${isCurrent ? 'bg-violet-400' : isReleased ? 'bg-emerald-500' : 'bg-zinc-700'}`} />
+                <span className={`text-[7px] mt-0.5 font-bold ${isCurrent ? 'text-violet-300' : isReleased ? 'text-emerald-300' : 'text-zinc-500'}`}>
+                  {isCurrent ? '◉' : isReleased ? '✓' : n}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* (d) Fan Base Bonus + (e) Cliffhanger reminder */}
+      {currentN >= 2 && (
+        <div className="grid grid-cols-2 gap-2">
+          {fanBaseBonusPct !== 0 && (
+            <div className={`px-2 py-1.5 rounded-lg border text-[9px] font-bold ${fanBaseBonusPct > 0 ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-rose-500/40 bg-rose-500/10 text-rose-300'}`} data-testid="saga-fanbase-badge">
+              Fan Base {fanBaseBonusPct > 0 ? `+${fanBaseBonusPct}%` : `${fanBaseBonusPct}%`}
+              <div className="text-[7px] opacity-80 font-normal">CWSv prec. {prevCwsv.toFixed(1)}</div>
+            </div>
+          )}
+          {prevCliff && (
+            <div className="px-2 py-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[9px] font-bold" data-testid="saga-cliffhanger-reminder">
+              💥 Cliffhanger attivo
+              <div className="text-[7px] opacity-80 font-normal">+5% hype iniziale</div>
+            </div>
+          )}
+          <div className="px-2 py-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 text-[9px] font-bold col-span-2 sm:col-span-1">
+            ⏱ Hype anticipato {earlyOffset}gg
+            <div className="text-[7px] opacity-80 font-normal">prima della fine cinema cap. precedente</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

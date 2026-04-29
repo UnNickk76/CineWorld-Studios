@@ -224,6 +224,32 @@
   animation: none;
 }
 .ct2-status-catalogo::before { display: none; }
+/* TV — ORA IN ONDA (verde acceso animato) */
+.ct2-status-tv-airing {
+  --glow-color: rgba(52, 211, 153, 0.85);
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.45) 0%, rgba(5, 40, 30, 0.22) 100%);
+  color: #6ee7b7;
+  border-bottom-color: rgba(52, 211, 153, 0.45);
+}
+/* TV — A BREVE IN ONDA (viola/indaco animato) */
+.ct2-status-tv-scheduled {
+  --glow-color: rgba(167, 139, 250, 0.8);
+  background: linear-gradient(135deg, rgba(67, 30, 110, 0.4) 0%, rgba(35, 15, 60, 0.2) 100%);
+  color: #c4b5fd;
+  border-bottom-color: rgba(167, 139, 250, 0.4);
+}
+.tv-glow {
+  text-shadow: 0 0 10px currentColor, 0 0 20px currentColor;
+  animation: tv-text-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tv-text-pulse {
+  0%, 100% { text-shadow: 0 0 6px currentColor, 0 0 12px currentColor; opacity: 0.92; }
+  50% { text-shadow: 0 0 14px currentColor, 0 0 28px currentColor; opacity: 1; }
+}
+@keyframes tv-glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(52,211,153,0.25); }
+  50% { box-shadow: 0 0 18px rgba(52,211,153,0.55), 0 0 30px rgba(52,211,153,0.25); }
+}
 .ct2-status-label {
   position: relative;
   z-index: 1;

@@ -7,9 +7,12 @@ import { useDraggable } from '../hooks/useDraggable';
 
 const VELION_SIZE = 72;
 const LS_KEY = 'velion_visible';
-const POLL_INTERVAL = 600000; // 10 minutes
-const BUBBLE_COOLDOWN = 600000; // 10 minutes between bubbles
-const HIGH_PRIORITY_TYPES = new Set(['stuck_film', 'countdown_imminent', 'countdown', 'low_hype', 'high_hype']);
+const POLL_INTERVAL = 600000; // 10 minutes — re-check stato giocatore
+const BUBBLE_COOLDOWN = 1800000; // 30 minutes between bubbles — meno invasivo
+const HIGH_PRIORITY_TYPES = new Set([
+  'stuck_film', 'countdown_imminent', 'countdown', 'low_hype', 'high_hype',
+  'quota_full', 'live_action_ready', 'live_action_close',
+]);
 
 export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, onHelpClick, mode }) => {
   const { api, user } = useContext(AuthContext);
@@ -64,10 +67,10 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, onHelpClick, 
   // Poll player status (only when ON)
   const lastBubbleTime = React.useRef(0);
   const recentBubbleTypes = React.useRef(new Set());
-  const fetchTriggers = useCallback(async () => {
+  const fetchTriggers = useCallback(async (forceImportant = false) => {
     if (!api || !user || isOff) return;
-    // Don't show new bubble within cooldown period (10 min)
-    if (Date.now() - lastBubbleTime.current < BUBBLE_COOLDOWN) return;
+    // Don't show new bubble within cooldown period — UNLESS forceImportant (es. cambio pagina con quota piena)
+    if (!forceImportant && Date.now() - lastBubbleTime.current < BUBBLE_COOLDOWN) return;
     try {
       const currentPage = location.pathname;
       const idle = idleMinutesRef.current;
@@ -119,10 +122,19 @@ export const VelionOverlay = ({ onClick, onDismiss, onBubbleClick, onHelpClick, 
     return () => clearTimeout(greetTimer);
   }, [user, api, isOff]);
 
-  // Clear bubble on page change (no re-fetch to avoid spam)
+  // Clear bubble on page change + immediately re-check for critical context (es. quota piena)
   useEffect(() => {
     if (!user || !api || isOff) return;
     setBubble(null);
+    // Re-check al cambio pagina ma SOLO se entriamo in una pagina di creazione/produzione,
+    // dove serve avvisare immediatamente di blocchi (quota satura, requisiti live action mancanti)
+    const path = (location.pathname || '').toLowerCase();
+    const isProductionPage = ['/pipeline-v3', '/create-film', '/create-series', '/create-anime',
+                              '/create-sequel', '/create-live-action'].some(p => path.startsWith(p));
+    if (isProductionPage) {
+      const t = setTimeout(() => fetchTriggers(true), 1500);
+      return () => clearTimeout(t);
+    }
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear bubble when switching to OFF

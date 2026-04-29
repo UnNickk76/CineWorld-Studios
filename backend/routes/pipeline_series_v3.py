@@ -3,7 +3,7 @@
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime, timezone, timedelta
 import uuid
 import logging
@@ -117,6 +117,7 @@ class CreateRequest(BaseModel):
     series_type: str = "tv_series"  # tv_series | anime
     num_episodes: int = 10
     preplot: str = ""
+    vm_rating: Optional[Literal["vm14", "vm16", "vm18"]] = None
 
 class IdeaSaveRequest(BaseModel):
     title: str
@@ -130,6 +131,7 @@ class IdeaSaveRequest(BaseModel):
     series_format: Optional[str] = None
     episode_duration_min: Optional[int] = None
     equipment_level: Optional[str] = None
+    vm_rating: Optional[Literal["vm14", "vm16", "vm18"]] = None
 
 class AdvanceRequest(BaseModel):
     next_state: str
@@ -184,6 +186,7 @@ async def create_project(req: CreateRequest, user: dict = Depends(get_current_us
         "subgenre": None,
         "subgenres": [],
         "preplot": req.preplot,
+        "vm_rating": req.vm_rating or ("vm16" if (req.genre or "").lower() == "erotic" else ("vm14" if (req.genre or "").lower() == "horror" else None)),
         "num_episodes": num_ep,
         "season_number": 1,
         "locations": [],
@@ -248,13 +251,22 @@ async def save_idea(pid: str, req: IdeaSaveRequest, user: dict = Depends(get_cur
 
     num_ep = max(ep_range[0], min(ep_range[1], req.num_episodes))
 
+    # Content filter + auto VM
+    from utils.content_filter import censor_text
+    title_safe = censor_text((req.title or "").strip())
+    preplot_safe = censor_text((req.preplot or "").strip())
+    genre_l = (req.genre or "").lower()
+    auto_vm = "vm16" if genre_l == "erotic" else ("vm14" if genre_l == "horror" else None)
+    vm_rating = req.vm_rating or auto_vm
+
     return await _update_project(pid, user["id"], {
-        "title": req.title,
+        "title": title_safe,
         "genre": req.genre,
         "genre_name": genre_info.get("name_it", req.genre),
         "subgenre": req.subgenre,
         "subgenres": req.subgenres or [],
-        "preplot": req.preplot,
+        "preplot": preplot_safe,
+        "vm_rating": vm_rating,
         "num_episodes": num_ep,
         "locations": req.locations or [],
         **({"series_format": req.series_format} if req.series_format else {}),
@@ -1194,6 +1206,7 @@ async def confirm_release(pid: str, user: dict = Depends(get_current_user)):
         "genre": project.get("genre"),
         "genre_name": project.get("genre_name"),
         "subgenres": project.get("subgenres", []),
+        "vm_rating": project.get("vm_rating"),
         "preplot": project.get("preplot"),
         "poster_url": project.get("poster_url", ""),
         "screenplay_text": project.get("screenplay_text", ""),
@@ -1679,18 +1692,22 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
          "pipeline_state": {"$nin": ["released", "discarded", "deleted"]}},
         {"_id": 0, "id": 1, "title": 1, "genre": 1, "genre_name": 1, "type": 1,
          "poster_url": 1, "num_episodes": 1, "season_number": 1, "user_id": 1,
-         "pipeline_state": 1, "created_at": 1}
+         "pipeline_state": 1, "created_at": 1, "vm_rating": 1}
     ).sort("created_at", -1).to_list(20)
 
     # Also get released series marked prossimamente that haven't started airing
+    # Nota: rimosso filtro `pipeline_version: 3` per essere robusto contro item con metadati legacy/mancanti.
+    # I LAMPO scheduled/ready hanno comunque pipeline_version=3, ma alcuni item legacy potrebbero mancarlo.
     released = await db.tv_series.find(
-        {"prossimamente_tv": True, "pipeline_version": 3,
+        {"prossimamente_tv": True,
          "status": {"$in": ["in_tv", "lampo_scheduled", "lampo_ready"]}},
         {"_id": 0, "id": 1, "title": 1, "genre": 1, "genre_name": 1, "type": 1,
          "poster_url": 1, "num_episodes": 1, "season_number": 1, "user_id": 1,
          "cwsv_display": 1, "quality_score": 1, "released_at": 1, "episodes": 1,
          "is_lampo": 1, "scheduled_release_at": 1, "status": 1, "source_project_id": 1,
-         "target_tv_station_id": 1}
+         "target_tv_station_id": 1, "pipeline_version": 1, "vm_rating": 1,
+         "tv_rights_active_contract_id": 1, "tv_rights_buyer_user_id": 1,
+         "tv_rights_buyer_station_id": 1, "tv_rights_mode": 1, "tv_rights_end_at": 1}
     ).sort("released_at", -1).to_list(20)
 
     # Dedup: rimuovi dai 'projects' tutti quelli che hanno una versione 'released' equivalente
@@ -1717,6 +1734,36 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
             u = await db.users.find_one({"id": uid}, {"_id": 0, "nickname": 1, "production_house_name": 1})
             item["producer"] = u or {}
 
+    # 📺 Enrich con info contratto TV market attivo (station + buyer house)
+    try:
+        rights_station_ids = list({i.get('tv_rights_buyer_station_id') for i in released if i.get('tv_rights_buyer_station_id')})
+        rights_buyer_ids = list({i.get('tv_rights_buyer_user_id') for i in released if i.get('tv_rights_buyer_user_id')})
+        stations_map, buyers_map = {}, {}
+        if rights_station_ids:
+            async for st in db.tv_stations.find(
+                {'id': {'$in': rights_station_ids}},
+                {'_id': 0, 'id': 1, 'name': 1, 'custom_name': 1, 'logo_url': 1}
+            ):
+                stations_map[st['id']] = st
+        if rights_buyer_ids:
+            async for u in db.users.find(
+                {'id': {'$in': rights_buyer_ids}},
+                {'_id': 0, 'id': 1, 'nickname': 1, 'production_house_name': 1}
+            ):
+                buyers_map[u['id']] = u
+        for item in released:
+            sid = item.get('tv_rights_buyer_station_id')
+            bid = item.get('tv_rights_buyer_user_id')
+            if sid and sid in stations_map:
+                st = stations_map[sid]
+                item['tv_rights_station_name'] = st.get('custom_name') or st.get('station_name') or st.get('name') or 'TV'
+                item['tv_rights_station_logo'] = st.get('logo_url') or ''
+            if bid and bid in buyers_map:
+                b = buyers_map[bid]
+                item['tv_rights_buyer_house'] = b.get('production_house_name') or b.get('nickname') or ''
+    except Exception:
+        pass
+
     # Mark aired status for released
     for r in released:
         eps = r.get("episodes", [])
@@ -1725,4 +1772,65 @@ async def get_prossimamente(user: dict = Depends(get_current_user)):
         if "episodes" in r:
             del r["episodes"]  # Don't send full episodes list
 
-    return {"coming_soon": deduped_projects, "airing": released}
+    # === FILM TV (Film per la TV) ===
+    # Includi sia Film TV in produzione (db.film_projects con is_tv_movie:True)
+    # sia Film TV già rilasciati ma in attesa di andare in onda (db.films con is_tv_movie:True, status in_tv_programming).
+    tv_movie_projects_raw = await db.film_projects.find(
+        {"is_tv_movie": True,
+         "pipeline_state": {"$nin": ["released", "discarded", "deleted"]}},
+        {"_id": 0, "id": 1, "title": 1, "genre": 1, "type": 1,
+         "poster_url": 1, "user_id": 1, "pipeline_state": 1, "created_at": 1,
+         "target_station_name": 1, "tv_air_datetime": 1, "vm_rating": 1}
+    ).sort("created_at", -1).to_list(20)
+
+    tv_movie_films_raw = await db.films.find(
+        {"is_tv_movie": True, "status": "in_tv_programming"},
+        {"_id": 0, "id": 1, "title": 1, "genre": 1,
+         "poster_url": 1, "user_id": 1, "released_at": 1, "tv_air_datetime": 1,
+         "target_station_id": 1, "target_station_name": 1, "cwsv_display": 1, "quality_score": 1,
+         "vm_rating": 1,
+         "tv_rights_active_contract_id": 1, "tv_rights_buyer_user_id": 1,
+         "tv_rights_buyer_station_id": 1, "tv_rights_mode": 1, "tv_rights_end_at": 1}
+    ).sort("released_at", -1).to_list(20)
+
+    tv_movies_combined = []
+    for p in tv_movie_projects_raw:
+        p["type"] = "tv_movie"
+        p["genre_name"] = p.pop("genre", "")
+        p["is_tv_movie"] = True
+        tv_movies_combined.append(p)
+    for f in tv_movie_films_raw:
+        f["type"] = "tv_movie"
+        f["genre_name"] = f.pop("genre", "")
+        f["is_tv_movie"] = True
+        # Marca come "in attesa di airing" così la dashboard sa che è già rilasciato
+        f["pipeline_state"] = "in_tv_programming"
+        tv_movies_combined.append(f)
+
+    # Enrich producer info
+    for item in tv_movies_combined:
+        uid = item.get("user_id")
+        if uid:
+            u = await db.users.find_one({"id": uid}, {"_id": 0, "nickname": 1, "production_house_name": 1})
+            item["producer"] = u or {}
+
+    # Enrich tv_rights for released tv movies
+    try:
+        rm_station_ids = list({i.get('tv_rights_buyer_station_id') for i in tv_movie_films_raw if i.get('tv_rights_buyer_station_id')})
+        if rm_station_ids:
+            stations_map_m = {}
+            async for st in db.tv_stations.find(
+                {'id': {'$in': rm_station_ids}},
+                {'_id': 0, 'id': 1, 'name': 1, 'custom_name': 1, 'logo_url': 1}
+            ):
+                stations_map_m[st['id']] = st
+            for item in tv_movies_combined:
+                sid = item.get('tv_rights_buyer_station_id')
+                if sid and sid in stations_map_m:
+                    st = stations_map_m[sid]
+                    item['tv_rights_station_name'] = st.get('custom_name') or st.get('station_name') or st.get('name') or 'TV'
+                    item['tv_rights_station_logo'] = st.get('logo_url') or ''
+    except Exception:
+        pass
+
+    return {"coming_soon": deduped_projects + tv_movies_combined, "airing": released}

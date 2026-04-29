@@ -8,6 +8,7 @@ import { AuthContext } from '../contexts';
 import { Dialog, DialogContent } from './ui/dialog';
 import { Tv, Sparkles, Star, Film as FilmIcon, Clock, X, ChevronDown, ChevronUp, Play, Trash2 } from 'lucide-react';
 import CineConfirm from './v3/CineConfirm';
+import TvAiringBadge from './TvAiringBadge';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -120,6 +121,10 @@ export default function ProssimamenteDetailModal({ open, onClose, seriesId }) {
         {/* Stats */}
         {data && (
           <div className="px-4 py-3 space-y-3 max-h-[55vh] overflow-y-auto scrollbar-hide">
+            {/* TV Airing badge */}
+            <div className="flex justify-start">
+              <TvAiringBadge contentId={seriesId} compact />
+            </div>
             <div className="grid grid-cols-4 gap-2">
               <StatBox label="Tipo" value={isAnime ? 'Anime' : 'Serie'} color="text-indigo-400" />
               <StatBox label="Ep." value={data?.num_episodes || episodes.length || 0} color="text-cyan-400" icon={<FilmIcon className="w-3 h-3" />} />

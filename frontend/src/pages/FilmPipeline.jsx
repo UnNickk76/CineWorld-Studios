@@ -25,6 +25,7 @@ import { FilmProductionCard } from '../components/FilmProductionCard';
 import FilmPopup, { FilmInlineView } from '../components/FilmPopup';
 import { DraftsSection } from '../components/DraftsSection';
 import LaPremiereSection from '../components/LaPremiereSection';
+import LampoModalFilm from '../components/LampoModal';
 import '../styles/cinematic-pipeline.css';
 
 // Haptic feedback utility
@@ -3375,7 +3376,7 @@ const StepPreviewPanel = ({ film, stepIndex, onClose }) => {
 };
 
 // ─── Film Carousel Component ───
-const FilmCarousel = ({ films, selectedId, onSelect, onNew, countdowns }) => (
+const FilmCarousel = ({ films, selectedId, onSelect, onNew, countdowns, lampoDrafts = [], onSelectLampo }) => (
   <div className="mb-3">
     <div className="film-carousel">
       {/* New Film Card */}
@@ -3390,6 +3391,54 @@ const FilmCarousel = ({ films, selectedId, onSelect, onNew, countdowns }) => (
         <span className="text-[10px] font-bold text-yellow-500/80 tracking-wide">NUOVO</span>
         <span className="text-[8px] text-yellow-600/50">FILM</span>
       </button>
+
+      {/* ⚡ LAMPO Drafts (film) */}
+      {lampoDrafts.map(lp => {
+        const isReady = lp.status === 'ready';
+        const isGenerating = lp.status === 'generating';
+        const badgeLabel = isReady ? 'PRONTO' : isGenerating ? `${lp.progress_pct || 0}%` : (lp.status || '').toUpperCase();
+        return (
+          <button
+            key={`lampo-${lp.id}`}
+            onClick={() => onSelectLampo?.(lp)}
+            className={`carousel-film-card rounded-lg border-2 overflow-hidden ${
+              isReady
+                ? 'border-amber-400/70 shadow-[0_0_12px_rgba(251,191,36,0.4)]'
+                : isGenerating
+                ? 'border-amber-500/40 animate-pulse'
+                : 'border-amber-500/30'
+            }`}
+            data-testid={`lampo-film-draft-${lp.id}`}
+          >
+            <div className="w-full h-[100px] bg-gradient-to-br from-amber-900/40 to-orange-950/40 relative overflow-hidden">
+              {lp.poster_url ? (
+                <img
+                  src={lp.poster_url.startsWith('/') ? `${process.env.REACT_APP_BACKEND_URL}${lp.poster_url}` : lp.poster_url}
+                  alt="" className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="text-3xl">⚡</span>
+                </div>
+              )}
+              {/* LAMPO badge */}
+              <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-full bg-amber-400 text-black text-[7px] font-black uppercase tracking-wider shadow">
+                ⚡ LAMPO
+              </div>
+              {/* Status */}
+              <div className="absolute top-1 right-1 px-1 py-0.5 rounded text-[7px] font-bold text-amber-300 bg-black/80 border border-amber-500/30 uppercase">
+                {badgeLabel}
+              </div>
+            </div>
+            <div className="p-1.5 bg-gradient-to-br from-amber-950/60 to-black">
+              <p className="text-[10px] font-bold text-amber-100 truncate">{lp.title || 'Senza titolo'}</p>
+              <p className="text-[8px] text-amber-300/80">
+                {isReady ? '✓ Da rilasciare' : isGenerating ? 'In produzione…' : 'Bozza'}
+              </p>
+            </div>
+          </button>
+        );
+      })}
 
       {/* Film Cards */}
       {films.map(f => {
@@ -3607,6 +3656,9 @@ const FilmPipeline = () => {
   const { api, refreshUser, cachedGet } = useContext(AuthContext);
   const [searchParams, setSearchParams] = useSearchParams();
   const [films, setFilms] = useState([]);
+  const [lampoFilmDrafts, setLampoFilmDrafts] = useState([]);
+  const [activeLampoProject, setActiveLampoProject] = useState(null);
+  const [showLampoFromCard, setShowLampoFromCard] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedFilm, setSelectedFilm] = useState(null);
   const [countdowns, setCountdowns] = useState({});
@@ -3644,9 +3696,20 @@ const FilmPipeline = () => {
     } catch (e) { console.error(e); }
   }, [api]);
 
+  // ⚡ Carica i progetti LAMPO (film) non ancora rilasciati
+  const loadLampoFilmDrafts = useCallback(async () => {
+    try {
+      const res = await api.get('/lampo/mine');
+      const all = res.data?.projects || [];
+      const filtered = all.filter(p => p && !p.released && p.content_type === 'film' && p.status !== 'discarded');
+      setLampoFilmDrafts(filtered);
+    } catch { setLampoFilmDrafts([]); }
+  }, [api]);
+
   useEffect(() => {
     loadFilms();
     refreshCounts();
+    loadLampoFilmDrafts();
     const interval = setInterval(loadFilms, 30000);
     return () => clearInterval(interval);
   }, [loadFilms, refreshCounts]);
@@ -3790,6 +3853,8 @@ const FilmPipeline = () => {
                   onSelect={(f) => { setSelectedFilm(f); setShowCreation(false); haptic([15]); }}
                   onNew={() => { setSelectedFilm(null); setShowCreation(true); haptic([10]); }}
                   countdowns={countdowns}
+                  lampoDrafts={lampoFilmDrafts}
+                  onSelectLampo={(lp) => { setActiveLampoProject(lp); setShowLampoFromCard(true); haptic([15]); }}
                 />
 
                 {/* Drafts section */}
@@ -3897,6 +3962,21 @@ const FilmPipeline = () => {
           </div>
         )}
       </div>
+
+      {/* ⚡ LAMPO Modal — riapertura draft dalla carousel */}
+      {showLampoFromCard && activeLampoProject && (
+        <LampoModalFilm
+          open={showLampoFromCard}
+          contentType="film"
+          existingProject={activeLampoProject}
+          onClose={() => {
+            setShowLampoFromCard(false);
+            setActiveLampoProject(null);
+            loadLampoFilmDrafts();
+            loadFilms();
+          }}
+        />
+      )}
     </div>
   );
 };

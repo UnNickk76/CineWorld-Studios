@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Star, Zap, X, Lock, Unlock } from 'lucide-react';
+import { Users, Star, Zap, X, Lock, Unlock, GraduationCap, Briefcase } from 'lucide-react';
 import { PhaseWrapper, v3api } from './V3Shared';
+import { CharacterChangeAlert } from '../saga/CharacterChangeAlert';
 
 const CAST_TABS = [
   { id: 'directors', label: 'Registi', max: 1 },
   { id: 'screenwriters', label: 'Scenegg.', max: 3 },
-  { id: 'actors', label: 'Attori', max: 999 },
+  { id: 'actors', label: 'Attori', max: 999, animationLabel: 'Disegnatori' },
   { id: 'composers', label: 'Compositori', max: 1 },
 ];
 
@@ -229,6 +230,7 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
   const [skillNpc, setSkillNpc] = useState(null);
   const [castSource, setCastSource] = useState('pool'); // 'pool' | 'agency' | 'npc_agencies'
   const cast = film.cast || { director: null, screenwriters: [], actors: [], composer: null };
+  const isAnimation = (film?.genre || '').toLowerCase() === 'animation';
 
   useEffect(() => {
     v3api(`/films/${film.id}/cast-proposals`).then(setProposals).catch(() => {});
@@ -239,11 +241,47 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
     v3api(`/films/${film.id}/npc-agency-proposals`).then(setNpcAgencies).catch(() => {});
   }, [film.id]);
 
-  const selectMember = async (npc, role, castRole) => {
+  const [rejectDlg, setRejectDlg] = useState(null); // { npc, role, castRole, reason, requested_fee, expected_fee, negotiation_id }
+
+  const selectMember = async (npc, role, castRole, opts = {}) => {
     setLoading(true);
     try {
-      await v3api(`/films/${film.id}/select-cast-member`, 'POST', { npc_id: npc.id, role, cast_role: castRole || 'generico' });
-      await onRefresh(); toast?.(`${npc.name} aggiunto al cast!`);
+      const res = await v3api(`/films/${film.id}/select-cast-member`, 'POST', {
+        npc_id: npc.id, role, cast_role: castRole || 'generico',
+        force_accept: !!opts.force_accept,
+      });
+      if (res && res.rejected) {
+        // Apri dialog rinegoziazione
+        setRejectDlg({
+          npc, role, castRole,
+          reason: res.reason || 'Ha rifiutato',
+          requested_fee: res.requested_fee || 0,
+          expected_fee: res.expected_fee || 0,
+          negotiation_id: res.negotiation_id,
+          can_renegotiate: res.can_renegotiate !== false,
+          already_refused: !!res.already_refused,
+        });
+        setLoading(false);
+        return;
+      }
+      await onRefresh();
+      toast?.(`${npc.name} aggiunto al cast!`);
+    } catch (e) { toast?.(e.message, 'error'); }
+    setLoading(false);
+  };
+
+  const tryRenegotiate = async (acceptHigherFee) => {
+    if (!rejectDlg) return;
+    setLoading(true);
+    try {
+      if (acceptHigherFee) {
+        // Forza l'accettazione bypassando il check (l'utente ha accettato la fee aumentata)
+        await selectMember(rejectDlg.npc, rejectDlg.role, rejectDlg.castRole, { force_accept: true });
+        setRejectDlg(null);
+      } else {
+        // Riprovo senza force_accept (potrebbe rifiutare di nuovo o accettare casualmente)
+        await selectMember(rejectDlg.npc, rejectDlg.role, rejectDlg.castRole);
+      }
     } catch (e) { toast?.(e.message, 'error'); }
     setLoading(false);
   };
@@ -295,6 +333,16 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
       <div className="space-y-3">
         {skillNpc && <SkillsModal npc={skillNpc} onClose={() => setSkillNpc(null)} />}
 
+        {/* SAGA: Alert nuovi/rimossi personaggi tra capitoli */}
+        {film.saga_id && film.saga_chapter_number > 1 && (
+          (film.saga_chars_added?.length > 0 || film.saga_chars_removed?.length > 0) && (
+            <CharacterChangeAlert
+              added={(film.characters || []).filter(c => (film.saga_chars_added || []).includes(c.name))}
+              removed={film.saga_chars_removed || []}
+            />
+          )
+        )}
+
         {/* Auto Cast */}
         <button onClick={autoCast} disabled={loading}
           className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[9px] font-bold hover:bg-cyan-500/15 disabled:opacity-30" data-testid="auto-cast-btn">
@@ -312,7 +360,7 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
             <p className="text-[8px] font-bold text-white">{(cast.screenwriters || []).length}/3</p>
           </div>
           <div className="p-1.5 rounded-lg bg-gray-800/30 border border-gray-700/30 text-center">
-            <p className="text-[7px] text-gray-500">Attori</p>
+            <p className="text-[7px] text-gray-500">{isAnimation ? 'Disegn.' : 'Attori'}</p>
             <p className="text-[8px] font-bold text-white">{(cast.actors || []).length}</p>
           </div>
           <div className="p-1.5 rounded-lg bg-gray-800/30 border border-gray-700/30 text-center">
@@ -330,7 +378,10 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                 <button onClick={() => setSkillNpc(a)} className="text-[8px] font-bold text-cyan-400 hover:text-cyan-300 underline decoration-dotted underline-offset-2">{a.name}</button>
                 {a.gender && GENDER_SYMBOL[a.gender] && <span className={`text-[9px] ${GENDER_COLOR[a.gender] || ''}`}>{GENDER_SYMBOL[a.gender]}</span>}
                 <span className="text-[7px] text-gray-500">({roleDisplay(a.cast_role)})</span>
-                {a.is_agency_actor && <span className="text-[6px] px-1 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">Agenzia</span>}
+                {a.is_pre_engaged && <span className={`text-[6px] px-1 py-0.5 rounded ${a.is_threatened ? 'bg-red-500/20 text-red-300 border border-red-500/40 animate-pulse' : 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/40'} font-bold flex items-center gap-0.5`}>{a.is_threatened ? '⚠️' : '📜'} {a.is_threatened ? `Rescissione ${a.grace_days_remaining ?? 3}gg` : 'Pre-ingaggiato'}{a.happiness_emoji ? ` ${a.happiness_emoji}` : ''}</span>}
+                {a.is_own_roster && a.own_source === 'school' && <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-0.5"><GraduationCap className="w-2 h-2" />Scuola</span>}
+                {a.is_own_roster && a.own_source === 'agency' && <span className="text-[6px] px-1 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-0.5"><Briefcase className="w-2 h-2" />Mia Agenzia</span>}
+                {a.is_agency_actor && !a.is_own_roster && <span className="text-[6px] px-1 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">Agenzia</span>}
                 {a.is_returning && <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">Ritorno</span>}
               </div>
             ))}
@@ -377,10 +428,10 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                 <button key={t.id} onClick={() => setTab(t.id)}
                   className={`flex-1 py-1.5 rounded-lg text-[8px] font-bold border ${
                     tab === t.id ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'border-gray-800 text-gray-500'
-                  }`}>{t.label}</button>
+                  }`}>{(isAnimation && t.animationLabel) ? t.animationLabel : t.label}</button>
               ))}
             </div>
-            <p className="text-[7px] text-gray-500">{currentTab?.label} disponibili ({tabItems.length}) {isFull && <span className="text-amber-400">\u2014 Slot pieno</span>}</p>
+            <p className="text-[7px] text-gray-500">{(isAnimation && currentTab?.animationLabel) ? currentTab.animationLabel : currentTab?.label} disponibili ({tabItems.length}) {isFull && <span className="text-amber-400">\u2014 Slot pieno</span>}</p>
             <div className="space-y-1.5 max-h-64 overflow-y-auto">
               {tabItems.map(npc => {
                 const sel = selectedIds.has(npc.id);
@@ -399,52 +450,92 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
 
         {/* === SOURCE: MY AGENCY === */}
         {castSource === 'agency' && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {agencyInfo && (
-              <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-purple-500/5 border border-purple-500/15">
-                <div>
-                  <p className="text-[9px] font-bold text-purple-300">{agencyInfo.agency_name}</p>
-                  <p className="text-[7px] text-gray-500">Lv.{agencyInfo.agency_level} \u2022 {agencyInfo.total} attori</p>
-                </div>
+              <div className="px-2 py-1.5 rounded-lg bg-purple-500/5 border border-purple-500/15">
+                <p className="text-[9px] font-bold text-purple-300">{agencyInfo.agency_name}</p>
+                <p className="text-[7px] text-gray-500">Lv.{agencyInfo.agency_level} • {agencyInfo.total} attori propri • <span className="text-emerald-400 font-bold">Costo $0</span></p>
+                <p className="text-[6px] text-emerald-300/70 mt-0.5">+XP e bonus CWSv all'uscita del film (proporzionale a stelle/numero attori propri)</p>
               </div>
             )}
             {availableAgency.length === 0 ? (
-              <p className="text-center text-[8px] text-gray-600 py-4">Nessun attore disponibile nella tua agenzia. Recluta dalla pagina Agenzia!</p>
+              <p className="text-center text-[8px] text-gray-600 py-4">Nessun attore disponibile. Recluta dalla pagina Agenzia o forma in Scuola di Recitazione!</p>
             ) : (
-              <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                {availableAgency.map(actor => (
-                  <div key={actor.id} className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all bg-purple-500/5 border-purple-500/20 hover:border-purple-500/40`}>
-                    <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-xs font-bold text-purple-300 shrink-0">
-                      {(actor.name || '?')[0]}
+              <>
+                {/* Group by source: school vs agency */}
+                {[
+                  { key: 'pre_engaged', label: 'Pre-ingaggiati', icon: Star, color: 'yellow', tint: 'bg-yellow-500/5 border-yellow-500/30 hover:border-yellow-500/50', avatarBg: 'bg-yellow-500/20 text-yellow-300', btnCls: 'bg-yellow-500/10 border-yellow-500/25 text-yellow-400 hover:bg-yellow-500/20', emoji: '📜' },
+                  { key: 'school', label: 'Scuola di Recitazione', icon: GraduationCap, color: 'emerald', tint: 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40', avatarBg: 'bg-emerald-500/20 text-emerald-300', btnCls: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' },
+                  { key: 'agency', label: 'La Mia Agenzia', icon: Briefcase, color: 'purple', tint: 'bg-purple-500/5 border-purple-500/20 hover:border-purple-500/40', avatarBg: 'bg-purple-500/20 text-purple-300', btnCls: 'bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20' },
+                ].map(group => {
+                  const items = availableAgency.filter(a => (a.source || 'agency') === group.key);
+                  if (items.length === 0) return null;
+                  const Icon = group.icon;
+                  return (
+                    <div key={group.key} className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        {group.emoji ? <span className="text-xs">{group.emoji}</span> : <Icon className={`w-3 h-3 text-${group.color}-400`} />}
+                        <p className={`text-[8px] font-bold text-${group.color}-300 uppercase tracking-wider`}>{group.label}</p>
+                        <span className={`text-[7px] text-${group.color}-400/70`}>({items.length})</span>
+                      </div>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {items.map(actor => (
+                          <div key={actor.id} className={`w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${group.tint}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${group.avatarBg}`}>
+                              {(actor.name || '?')[0]}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <button onClick={() => setSkillNpc(actor)} className={`text-[9px] font-bold text-white truncate hover:text-${group.color}-400 underline decoration-dotted underline-offset-2`}>{actor.name}</button>
+                                {actor.gender && GENDER_SYMBOL[actor.gender] && <span className={`text-[10px] ${GENDER_COLOR[actor.gender] || ''}`}>{GENDER_SYMBOL[actor.gender]}</span>}
+                                <span className={`text-[6px] px-1 py-0.5 rounded font-black border ${
+                                  actor.crc >= 80 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
+                                  actor.crc >= 60 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' :
+                                  'bg-amber-500/15 text-amber-400 border-amber-500/25'
+                                }`}>CRc {actor.crc}</span>
+                                {actor.is_pre_engaged && actor.pre_engage_days_remaining != null && (
+                                  <span className={`text-[6px] px-1 py-0.5 rounded font-bold border ${
+                                    actor.is_threatened ? 'bg-red-500/20 text-red-300 border-red-500/40 animate-pulse' :
+                                    actor.pre_engage_days_remaining < 7 ? 'bg-orange-500/20 text-orange-300 border-orange-500/40 animate-pulse' :
+                                    'bg-yellow-500/10 text-yellow-300 border-yellow-500/20'
+                                  }`}>
+                                    {actor.is_threatened ? `⚠️ ${actor.grace_days_remaining ?? 3}gg` : `${actor.pre_engage_days_remaining}gg`}
+                                    {actor.happiness_emoji ? ` ${actor.happiness_emoji}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 mt-0.5 text-[7px]">
+                                <span className="text-gray-500">{actor.nationality}</span>
+                                <span className="text-gray-700">•</span>
+                                <span className="text-gray-500">{actor.age || '?'} anni</span>
+                                <span className="text-gray-700">•</span>
+                                <span className="text-emerald-400 font-bold">GRATIS</span>
+                              </div>
+                              <div className="flex items-center gap-0.5 mt-0.5">
+                                {Array.from({ length: actor.stars || 1 }).map((_, i) => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-1 shrink-0">
+                              <select
+                                value={actorRoles[actor.id] || 'generico'}
+                                onChange={(e) => setActorRoles(prev => ({ ...prev, [actor.id]: e.target.value }))}
+                                disabled={loading || isFull}
+                                className={`text-[7px] px-1 py-0.5 rounded border ${group.btnCls} disabled:opacity-30 cursor-pointer`}
+                                data-testid={`cast-own-role-${actor.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {ACTOR_ROLES.map(r => <option key={r} value={r}>{ROLE_DISPLAY[r] || r}</option>)}
+                              </select>
+                              <button onClick={() => !isFull && castAgencyActor(actor, 'actor', actorRoles[actor.id] || 'generico')} disabled={loading || isFull}
+                                className={`text-[7px] px-2 py-1 rounded-lg font-bold border ${group.btnCls} disabled:opacity-30`} data-testid={`cast-own-${actor.id}`}>+</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <button onClick={() => setSkillNpc(actor)} className="text-[9px] font-bold text-white truncate hover:text-purple-400 underline decoration-dotted underline-offset-2">{actor.name}</button>
-                        {actor.gender && GENDER_SYMBOL[actor.gender] && <span className={`text-[10px] ${GENDER_COLOR[actor.gender] || ''}`}>{GENDER_SYMBOL[actor.gender]}</span>}
-                        <span className={`text-[6px] px-1 py-0.5 rounded font-black border ${
-                          actor.crc >= 80 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
-                          actor.crc >= 60 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' :
-                          'bg-amber-500/15 text-amber-400 border-amber-500/25'
-                        }`}>CRc {actor.crc}</span>
-                        {actor.is_returning && <span className="text-[6px] px-1 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">Ritorno</span>}
-                      </div>
-                      <div className="flex items-center gap-1 mt-0.5 text-[7px] text-gray-500">
-                        <span>{actor.nationality}</span>
-                        <span>\u2022</span>
-                        <span className="text-emerald-400 font-bold">-{actor.discount_pct}%</span>
-                        <span>\u2022</span>
-                        <span>${(actor.cost || 0).toLocaleString()}</span>
-                        {actor.original_cost !== actor.cost && <span className="line-through text-gray-700">${(actor.original_cost || 0).toLocaleString()}</span>}
-                      </div>
-                      <div className="flex items-center gap-0.5 mt-0.5">
-                        {Array.from({ length: actor.stars || 1 }).map((_, i) => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}
-                      </div>
-                    </div>
-                    <button onClick={() => !isFull && castAgencyActor(actor, 'actor', actorRoles[actor.id] || 'generico')} disabled={loading || isFull}
-                      className="text-[7px] px-2 py-1 rounded-lg font-bold shrink-0 bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 disabled:opacity-30">+</button>
-                  </div>
-                ))}
-              </div>
+                  );
+                })}
+              </>
             )}
           </div>
         )}
@@ -506,13 +597,25 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
                           {npc.is_exclusive && !isExcActor && <span className="text-[5px] px-1 py-0.5 rounded bg-yellow-500/10 text-yellow-500/70 font-bold">Contratto</span>}
                         </div>
                         <p className="text-[7px] text-gray-500">
-                          {npc.nationality} | {npc.cost === 0 ? <span className="text-yellow-400 font-bold">GRATIS</span> : `$${(npc.cost || 0).toLocaleString()}`} | {npc.agency_name}
+                          {npc.nationality} | {npc.age || '?'} anni | {npc.cost === 0 ? <span className="text-yellow-400 font-bold">GRATIS</span> : `$${(npc.cost || 0).toLocaleString()}`} | {npc.agency_name}
                         </p>
                         <div className="flex items-center gap-0.5 mt-0.5">
                           {Array.from({ length: npc.stars || 1 }).map((_, i) => <Star key={i} className="w-2 h-2 text-yellow-400 fill-yellow-400" />)}
                         </div>
                       </div>
-                      <button onClick={() => !sel && !isFull && selectMember(npc, npc.role_type === 'director' ? 'director' : npc.role_type === 'screenwriter' ? 'screenwriter' : npc.role_type === 'composer' ? 'composer' : 'actor', npc.role_type === 'actor' ? 'generico' : undefined)}
+                      {npc.role_type === 'actor' && (
+                        <select
+                          value={actorRoles[npc.id] || 'generico'}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setActorRoles(prev => ({ ...prev, [npc.id]: e.target.value }))}
+                          disabled={sel || loading || isFull}
+                          className="text-[7px] rounded bg-gray-900 border border-amber-500/30 px-1 py-0.5 text-amber-300 shrink-0"
+                          data-testid={`cast-agency-role-${npc.id}`}
+                        >
+                          {ACTOR_ROLES.map(r => <option key={r} value={r}>{ROLE_DISPLAY[r] || r}</option>)}
+                        </select>
+                      )}
+                      <button onClick={() => !sel && !isFull && selectMember(npc, npc.role_type === 'director' ? 'director' : npc.role_type === 'screenwriter' ? 'screenwriter' : npc.role_type === 'composer' ? 'composer' : 'actor', npc.role_type === 'actor' ? (actorRoles[npc.id] || 'generico') : undefined)}
                         disabled={sel || loading || isFull}
                         className={`text-[7px] px-2 py-1 rounded-lg font-bold shrink-0 ${sel ? 'bg-gray-800 text-gray-600' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20'} disabled:opacity-30`}>
                         {sel ? 'OK' : '+'}
@@ -531,6 +634,55 @@ export const CastPhase = ({ film, onRefresh, toast }) => {
             setCastSource('npc_agencies');
             v3api(`/films/${film.id}/npc-agency-proposals`).then(setNpcAgencies).catch(() => {});
           }} />
+        )}
+
+        {/* Rejection / Renegotiation Dialog */}
+        {rejectDlg && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-3" data-testid="cast-rejection-dialog">
+            <div className="w-full max-w-sm bg-gradient-to-br from-red-950/40 to-black border border-red-500/30 rounded-xl p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <div className="w-8 h-8 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 text-sm font-bold">!</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] uppercase tracking-wider text-red-400 font-bold">{rejectDlg.npc.name} ha rifiutato</p>
+                  <p className="text-[11px] text-white italic mt-0.5">"{rejectDlg.reason}"</p>
+                </div>
+              </div>
+              {rejectDlg.can_renegotiate && rejectDlg.requested_fee > 0 && (
+                <div className="rounded-lg bg-white/5 border border-white/10 p-2.5 space-y-1">
+                  <p className="text-[8px] text-gray-500 uppercase">Controproposta</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-gray-400">Fee originale:</span>
+                    <span className="text-[10px] text-gray-500 line-through">${(rejectDlg.expected_fee || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-amber-300">Fee richiesta:</span>
+                    <span className="text-[12px] font-bold text-amber-400">${(rejectDlg.requested_fee || 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => setRejectDlg(null)} disabled={loading}
+                        data-testid="cast-rejection-cancel"
+                        className="flex-1 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] text-gray-400 hover:bg-white/10">
+                  Lascia perdere
+                </button>
+                {rejectDlg.can_renegotiate && rejectDlg.requested_fee > 0 && (
+                  <button onClick={() => tryRenegotiate(true)} disabled={loading}
+                          data-testid="cast-rejection-accept-fee"
+                          className="flex-1 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-bold disabled:opacity-50">
+                    Paga ${(rejectDlg.requested_fee || 0).toLocaleString()}
+                  </button>
+                )}
+              </div>
+              {!rejectDlg.already_refused && rejectDlg.can_renegotiate && (
+                <button onClick={() => tryRenegotiate(false)} disabled={loading}
+                        data-testid="cast-rejection-retry"
+                        className="w-full py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-[9px] text-cyan-300 hover:bg-cyan-500/20">
+                  Insisti senza aumentare la fee (rischio rifiuto definitivo 24h)
+                </button>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </PhaseWrapper>

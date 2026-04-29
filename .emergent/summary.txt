@@ -2,52 +2,38 @@
 
 <handoff summary>
 **original_problem_statement**: 
-The user requested a massive overhaul of the game's economics, multiple UI/UX pipeline fixes for the Dashboard and Content Templates, the integration of a new LAMPO! (Lightning) ultra-fast production pipeline for low-effort/rapid content creation, and an infrastructure gating system. 
+The user requested a massive overhaul of the game's economics, Dashboard/TV UI/UX fixes, the LAMPO! pipeline integration, and infrastructure gating. New requirements added during this session included a complete TV Rights Market (Mercato Diritti TV) system, an Admin Status Editor, and several UI/UX adjustments for content posters and dashboard feeds.
 
 PRODUCT REQUIREMENTS:
-- Complete Economics Overhaul.
-- Dashboard and TV Section UI/UX fixes.
-- LAMPO! fast-production system: A streamlined pipeline bypassing UI steps to instantly generate Films/Series/Anime with randomized distribution, scheduled releases, AI posters, full AI screenplays, and enriched NPC casts.
-- Infrastructure Gating:  owned by default (Level 0), rename feature, and softened upgrade scaling.
+- TV Rights Market: Allow producers to sell/lease TV rights (100% exclusive or 50% split) to TV station owners.
+- Admin panel enhancements: Allow admins to force-change project statuses.
+- UI Fixes: Move LAMPO badges, update production house text, add clickable distribution tracking.
+- Fix infrastructure level bug preventing upgrades.
 
 **User's preferred language**: Italian (You MUST INSTRUCT the next agent to respond in Italian only)
 
 **what currently exists?** 
-A complex full-stack multiplayer cinema management game. The LAMPO! system is now highly advanced, featuring real AI-generated posters and screenplays, dynamic scheduling (release immediate vs later), animated Wow! release overlays, rich randomized cast generation (with ages, roles, and a Guest Star badge), and pre-release hype phrases for unreleased films. Infrastructure logic handles auto-seeding, renaming, and softer level upgrades. Dashboard properly shows global feeds for LAMPO drafts and scheduled releases.
+A complex full-stack multiplayer cinema management game. It features the LAMPO! AI generation pipeline (for ultra-fast film/series/anime creation), classic V3 pipelines, TV Stations, a global dashboard, an Admin Panel, and a newly built TV Rights Market where players can buy/rent broadcast rights.
 
 **Last working item**: 
-    - Last item agent was working: Expanding the Genre selection in the LAMPO form. The user requested a much larger list of genres (especially for Anime) with brief descriptive tooltips/text so players know what they mean. Furthermore, the user requested that sub-genres should no longer be manually selected; instead, the AI should automatically extract up to 3 sub-genres based on the plot/pre-plot provided by the user. The agent was inspecting  to update the  dictionary when the session ended.
+    - Last item agent was working: Fixing a bug in the Infrastructure upgrade popup where the player's current level is incorrectly displayed as 0 (e.g., Richiesto livello 1, attuale 0) even though the player is actually level 2. This prevents the user from upgrading their infrastructure.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? manual testing by curl / python -c for backend AI logic, and screenshot tool for the frontend form UI.
+    - Which testing method agent to use? Frontend screenshot tool (to verify the popup UI) and backend manual curl/python -c to check the  endpoint payload.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Expand LAMPO Genres with descriptions (P0)
-     - Attempted fixes: Agent grepped for  in  but made no edits yet.
-     - Next debug checklist: Update  in  to include a comprehensive list of genres for Film, Series, and Anime. Add a  field to each genre object and display it in the dropdown or as a small helper text below the select input.
-     - Why fix this issue and what will be achieved with the fix? Improves UX so players understand niche genres (especially Anime sub-categories).
+  Issue 1: Infrastructure Upgrade Popup shows incorrect Player Level (Displays 0 instead of actual level) (P0)
+     - Attempted fixes: The agent used  to locate the  calculations in  (line ~590) and the frontend fallback logic in . No files were edited yet.
+     - Next debug checklist: Check  around the  endpoint. Ensure  is being accurately retrieved and passed in the response dict as . On the frontend (), ensure the variable mapping matches the backend response (e.g.,  vs ).
+     - Why fix this issue and what will be achieved with the fix? It currently blocks players from upgrading infrastructures because the game falsely assumes they don't meet the level requirements.
      - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend
-
-  Issue 2: AI Auto-selection of Sub-genres (P0)
-     - Attempted fixes: None yet.
-     - Next debug checklist: Update . Remove manual  input from the LAMPO frontend form. In the backend AI prompt ( or the main generation logic), instruct the LLM to analyze the  and output 1 to 3 relevant sub-genres, saving them into the document.
-     - Why fix this issue and what will be achieved with the fix? Reduces friction for the user and leverages AI for better categorization.
-     - Status: NOT STARTED
-     - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Both
+     - Blocked on other issue: None
 
-  Issue 3: Align Classic Pipeline Cast with LAMPO Cast (P1)
-     - Attempted fixes: None. The agent proposed this, and the user hasn't strictly confirmed, but it's a logical follow-up. 
-     - Next debug checklist: The LAMPO cast now includes , , , synthetic , and a rare  badge. The Classic V3 pipeline ( or ) lacks these rich features at the final release stage. Discuss with the user if they want these retrofitted.
-     - Status: USER VERIFICATION PENDING
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Backend
-
-**In progress Task List**:
-  None (All active work is captured in the Issues above).
+**In progress Task List**: 
+  None
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
@@ -61,19 +47,16 @@ A complex full-stack multiplayer cinema management game. The LAMPO! system is no
     - (P2) PvP Tournaments module.
 
 **Completed work in this session**
--  auto-seed race condition and name duplication fixes (DONE)
-- Infrastructure Rename () and softer upgrade cost scaling (DONE)
-- LAMPO full AI poster generation () and screenplay generation () (DONE)
-- LAMPO Scheduled releases (12h, 24h, etc.) via APScheduler () (DONE)
-- UI Effects:  on generation start,  on completion (DONE)
-- Fixed  stuck at 1 day bug in  (DONE)
-- Frontend dashboard mappings for LAMPO drafts/scheduled items (DONE)
-- Hype pre-release phrases: Added  (175+ phrases) for unreleased content in  (DONE)
-- LAMPO rich cast generation: added gender, age, role, score, and Guest Star logic (DONE)
-- Dashboard global feed fix for  and  items (DONE)
+- Expand LAMPO Genres with descriptions & Backend AI Auto-Subgenre extraction (DONE)
+- Distribution Popup: Clickable UI showing exact distribution (countries/cities/attendance) for both LAMPO and Classic V3 films (DONE)
+- LAMPO Anime Bug Fixes: Scrollable/clickable episodes with AI-generated titles/synopses, and cast fallback logic (DONE)
+- LAMPO Drafts visibility fixed in Dashboard/Prossimamente feeds globally (DONE)
+- Admin Status Editor: Clickable status in Admin Panel to force-change project status () (DONE)
+- TV Rights Market: Full backend () and frontend (, ) for buying/renting TV rights with 100% or 50% splits (DONE)
+- UI Locandine Fixes: Removed redundant Producer badge, replaced with Production House text, and moved the animated LAMPO lightning badge to bottom-left (DONE)
 
 **Earlier issues found/mentioned but not fixed**
-- The user noted that The Concept (a series) was not displaying correctly globally. The agent confirmed the code is fixed, but the user is testing on their Production app which hasn't been deployed yet. Keep this in mind if the user reports older bugs recurring—they might just need to deploy.
+- None.
 
 **Known issue recurrence from previous fork**
   - Issue recurrence in previous fork: None
@@ -81,82 +64,82 @@ A complex full-stack multiplayer cinema management game. The LAMPO! system is no
   - Status: RESOLVED
 
 **Code Architecture**
-- Frontend:  (React). Key components: , , .
-- Backend:  (FastAPI). Key modules: , , , , .
+- Frontend:  (React). Key pages: , , .
+- Backend:  (FastAPI). Key modules: , , , .
 
 **Key Technical Concepts**
-- **LAMPO Pipeline**: Bypasses standard phases for instant/scheduled generation. Uses  and  via Emergent LLM Key.
-- **APScheduler**: Manages the  and  background jobs.
-- **ContentTemplate**: A highly dynamic React component that renders UI differently based on whether the project is a film/series, released/unreleased, and its pipeline state.
+- **LAMPO Pipeline**: Ultra-fast AI generation.
+- **TV Market Rights**: New bidding/leasing system integrated with the TV Station scheduling mechanics.
+- **APScheduler**: Manages auto-releasing LAMPO drafts and updating financial/TV market states.
 
 **key DB schema**
   - : Maps users to their owned studios.
-  -  / : Legacy and finalized projects.
-  -  / : In-progress projects. LAMPO items live here temporarily with  or .
+  - , , : New collections managing the TV rights marketplace.
 
 **changes in tech stack**
-  - None.
+  - None
 
 **All files of reference** 
-  -  (Currently exploring for Genre expansion)
-  -  (Needs update for AI subgenre extraction)
+  -  (Currently debugging level issue)
+  -  (Currently debugging  endpoint)
+  - , ,  (Created in this session)
+  -  (Created in this session)
+  -  (Created in this session)
   -  (Created in this session)
 
 **Areas that need refactoring**: 
-  -  is getting extremely massive (>1200 lines) with many conditional renders for LAMPO/Classic/V1/V2 states.
+  -  has grown significantly (>1300 lines) despite moving features into isolated components. Keep this in mind when making further edits.
 
 **key api endpoints**
-  -  & 
+  - 
   - 
   - 
 
 **Critical Info for New Agent** 
-- **Language**: You MUST reply to the user in Italian.
-- **Emergent LLM Key**: Already set up and working for poster and text generation in  and . Do not ask the user for OpenAI keys.
-- **Deploy Status**: The user frequently compares your preview environment fixes against their Production app. Remind them gently that your fixes are in the preview environment and require a deploy to reflect on their live game.
-- Use  and  to query MongoDB extensively while fixing logic to prevent regressions.
+- **Language Requirement**: You MUST communicate with the user entirely in Italian.
+- The user has repeatedly requested **No test agent** and **Ottimizzato per mobile** (mobile-optimized UI). Rely on manual testing via , , and screenshot tool for verification. Ensure UI components adapt gracefully to mobile dimensions.
+- **Emergent LLM Key**: Works effectively for AI content generation in the backend. Do not prompt the user for third-party OpenAI keys.
 
 **documents and test reports created in this job** 
-  -  (Updated with LAMPO features and Infrastructure scaling).
+  -  (Updated extensively with TV Market logic and UI fixes)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: Pointed out film in theater days was stuck at 1 day.
-2. *Agent*: Fixed  bug failing to update the  collection.
-3. *User*: Noted LAMPO drafts weren't visible properly, wow effect too fast, and some double X UI glitches.
-4. *Agent*: Fixed UI glitches, extended wow effect, mapped drafts correctly.
-5. *User*: Reported duplicate TV series posters, trailer buttons active for LAMPO, and unclickable TV stations.
-6. *Agent*: Deduped global feeds, hid trailers for LAMPO, made stations clickable.
-7. *User*: Requested countdowns for scheduled releases, random theater days for LAMPO, and pre-release public/press review texts.
-8. *Agent*: Implemented  (175+ phrases) and dynamic theater days.
-9. *User*: Requested rich Cast generation for LAMPO (Gender, Age, Role, Guest Star badge).
-10. *Agent*: Updated  to generate and calculate these fields.
-11. *User*: (PENDING) Asked about differences between Classic and LAMPO cast. Also requested an expansion of the LAMPO genre list with descriptions, and requested that the AI auto-selects up to 3 sub-genres from the pre-plot instead of manual selection.
+- *User*: Pointed out that TV Rights are visible globally but LAMPO drafts aren't.
+- *Agent*: Investigated and fixed the global feeds in  and .
+- *User*: Requested an Admin Status Editor popup (clickable status to force override film/series states).
+- *Agent*: Created  and .
+- *User*: Requested the Mercato Diritti TV feature (selling/renting rights at 100% or 50% split) and UI tweaks to posters (remove badge, change text to house name, move LAMPO badge).
+- *Agent*: Implemented all UI tweaks and built the TV rights market backend/frontend end-to-end.
+- *User*: Confirmed completion and requested adding the Cruscotto TV Market widget to the dashboard.
+- *Agent*: Built and integrated .
+- *User*: (PENDING) Uploaded a screenshot showing a bug in the Infrastructure upgrade modal: Richiesto livello 1, attuale 0 when the player is actually level 2.
+- *Agent*: Found the responsible files ( and ) but the session terminated before the fix could be deployed.
 
 **Project Health Check:**
-- Broken: None.
+- Broken: Infrastructure upgrade level validation.
 - Mocked: None.
 
 **3rd Party Integrations** 
   - Emergent LLM Key (GPT-4o-mini + GPT-image-1) — uses Emergent LLM Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (User strictly requested No test agent previously).
+  - Testing agent used after significant changes: NO (Explicitly declined by user)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
   - Known regressions: None
 
 **Credentials to test flow:**
-Check  (typically Email: fandrex1@gmail.com).
+Check  (Email: fandrex1@gmail.com, Nickname: NeoMorpheus, Admin Role).
 
 **What agent forgot to execute**
-The agent searched for  inside  but did not execute the actual replacements to add descriptions or expand the Anime list. The backend update to  to auto-extract 3 sub-genres via the AI prompt is also untouched.
+The agent located the lines in  and  causing the  bug, but the context ended before the file edits were actually written and tested.
 
 **Debugging checklist for current issue**
-    Issue: Expand Genres & AI Auto-Subgenre
+    Issue: Infrastructure upgrade player level reads as 0
     
     Frontend files to check:
-    -  (Expand  dictionary with descriptive text for Film/Series/Anime. Remove the manual  select input).
-    
+    -  (Lines ~500-800. Check how  vs  is utilized in the UI).
+  
     Backend files to check:
-    -  (Update the  prompt or initial generation prompt to analyze the user's pre_screenplay and return an array of 1-3 sub-genres. Ensure these are saved to the project document).
+    -  (Lines ~590. Ensure  is retrieved correctly in the  endpoint. If the user object doesn't have a  key populated by , you might need to query  or ensure  provides it).
 </handoff summary></analysis>

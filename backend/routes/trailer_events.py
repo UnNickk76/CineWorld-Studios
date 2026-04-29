@@ -200,13 +200,25 @@ async def trailers_formula_explainer(user: dict = Depends(_dep())):
 
 @router.get("/events/trailers/recent")
 async def trailers_recent(limit: int = Query(10, ge=3, le=30), user: dict = Depends(_dep())):
-    """Ultimi trailer generati (per la strip in Dashboard)."""
+    """Ultimi trailer generati (per la strip in Dashboard).
+    Deduplicato per content_id: lo stesso film può apparire in collezioni multiple
+    (films + film_projects, etc.) — manteniamo la versione più recente."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     items = await _collect_trailers({"trailer.generated_at": {"$gte": cutoff}}, limit=300)
     items.sort(key=lambda x: x.get("generated_at") or "", reverse=True)
-    top = items[:limit]
-    await _enrich_entries(top)
-    return {"items": top, "total": len(top)}
+    # Deduplica: tieni la prima occorrenza (più recente per content_id)
+    seen = set()
+    deduped = []
+    for it in items:
+        cid = it.get("content_id")
+        if not cid or cid in seen:
+            continue
+        seen.add(cid)
+        deduped.append(it)
+        if len(deduped) >= limit:
+            break
+    await _enrich_entries(deduped)
+    return {"items": deduped, "total": len(deduped)}
 
 
 # ═══════ Vote (Sunday vote / community upvote) ═══════

@@ -243,7 +243,7 @@ async def purchase_infrastructure(request: InfrastructurePurchaseRequest, user: 
     # Block duplicate purchase for unique infrastructure types
     unique_types = ['cinema_school', 'production_studio', 'studio_serie_tv', 'studio_anime', 'talent_scout_actors', 'talent_scout_screenwriters', 'pvp_investigative', 'pvp_operative', 'pvp_legal']
     if request.type in unique_types and existing > 0:
-        names = {'cinema_school': 'Scuola di Recitazione', 'production_studio': 'Studio di Produzione', 'studio_serie_tv': 'Studio Serie TV', 'studio_anime': 'Studio Anime', 'talent_scout_actors': 'Talent Scout Attori', 'talent_scout_screenwriters': 'Talent Scout Sceneggiatori', 'pvp_investigative': 'Divisione Investigativa', 'pvp_operative': 'Divisione Operativa', 'pvp_legal': 'Divisione Legale'}
+        names = {'cinema_school': 'Scuola di Recitazione', 'production_studio': 'Studio di Produzione', 'studio_serie_tv': 'Studio Serie TV', 'studio_anime': 'Studio Anime', 'talent_scout_actors': 'Agenzia Talent Scout', 'talent_scout_screenwriters': 'Talent Scout Sceneggiatori', 'pvp_investigative': 'Divisione Investigativa', 'pvp_operative': 'Divisione Operativa', 'pvp_legal': 'Divisione Legale'}
         raise HTTPException(status_code=400, detail=f"Possiedi già una {names.get(request.type, request.type)}! Puoi averne solo una.")
     
     # Exponential scaling for emittente_tv (multiple purchases allowed)
@@ -468,6 +468,123 @@ INFRA_PRODUCTS = {
     8: [{'id': 'cocktail_bar', 'name': 'Cocktail Bar', 'base_price': 12}],
 }
 
+
+# ─────────────────────────────────────────────────────────────────
+# PERK PER LIVELLO — descrive cosa sblocca/migliora ogni livello,
+# per tipo di infrastruttura. Allineato alla logica vera del gioco
+# (utils/studio_quota.py, routes/live_action.py, ecc.).
+# ─────────────────────────────────────────────────────────────────
+INFRA_LEVEL_PERKS = {
+    'production_studio': {
+        1: ['3 progetti classici totali aperti', '1 al giorno', '2 LAMPO totali, 2 al giorno'],
+        3: ['5 classici totali, 2 al giorno', '3 LAMPO totali, 4 al giorno'],
+        5: ['Sblocca Live Action (con Player Lv 10 + Fama 100)'],
+        6: ['10 classici totali, 3 al giorno', '5 LAMPO totali, 6 al giorno'],
+        9: ['15 classici totali, 5 al giorno', '8 LAMPO totali, 10 al giorno'],
+        15: ['25 classici totali, 8 al giorno', '12 LAMPO totali, 15 al giorno'],
+        25: ['40 classici totali, 15 al giorno', '20 LAMPO totali, 30 al giorno'],
+        50: ['60 classici totali, 30 al giorno', '30 LAMPO totali, 60 al giorno'],
+        100: ['100 classici totali, 50 al giorno', '50 LAMPO totali, 100 al giorno'],
+        200: ['Progetti classici e LAMPO illimitati'],
+    },
+    'studio_serie_tv': {
+        1: ['3 serie TV totali aperte', '1 al giorno', '2 LAMPO totali, 2 al giorno'],
+        3: ['5 serie totali, 2 al giorno'],
+        6: ['10 serie totali, 3 al giorno'],
+        9: ['15 serie totali, 5 al giorno'],
+        15: ['25 serie totali, 8 al giorno'],
+        25: ['40 serie totali, 15 al giorno'],
+        50: ['60 serie totali, 30 al giorno'],
+        200: ['Serie illimitate'],
+    },
+    'studio_anime': {
+        1: ['3 anime totali aperti', '1 al giorno', '2 LAMPO totali, 2 al giorno'],
+        3: ['5 anime totali, 2 al giorno'],
+        5: ['Sblocca Live Action (con Player Lv 10 + Fama 100)'],
+        6: ['10 anime totali, 3 al giorno'],
+        9: ['15 anime totali, 5 al giorno'],
+        15: ['25 anime totali, 8 al giorno'],
+        25: ['40 anime totali, 15 al giorno'],
+        50: ['60 anime totali, 30 al giorno'],
+        200: ['Anime illimitati'],
+    },
+    'cinema_school': {
+        1: ['1 studente in formazione, velocità 1.0×'],
+        2: ['2 studenti in formazione'],
+        3: ['3 studenti, velocità 1.2×'],
+        5: ['5 studenti, velocità 1.5×'],
+        7: ['7 studenti, velocità 1.8×'],
+        10: ['10 studenti, velocità 2.0×'],
+    },
+    'talent_scout_actors': {
+        1: ['Trova attori — 5 candidati / settimana'],
+        2: ['Trova anche registi e compositori'],
+        3: ['Sblocco disegnatori per anime/animazione'],
+        4: ['Quota +50% candidati'],
+        5: ['Quota massima — accesso a talent rari/leggendari'],
+    },
+    'talent_scout_screenwriters': {
+        1: ['Sceneggiature pronte (1/settimana)'],
+        2: ['+1 sceneggiatura, generi più vari'],
+        3: ['Sceneggiatori esperti (4 stelle)'],
+        4: ['Quota +50%'],
+        5: ['Sceneggiatori di prestigio, generi premium'],
+    },
+    'emittente_tv': {
+        1: ['1 slot programmazione per tipo (Film/Serie/Anime)', 'Income passivo $5k/giorno'],
+        2: ['2 slot per tipo'],
+        3: ['3 slot per tipo', 'Sblocco fascia oraria prime time'],
+        5: ['5 slot per tipo', 'Diritti TV market — offerte ricevute'],
+        10: ['10 slot per tipo, palinsesto avanzato'],
+        200: ['Slot illimitati per tipo'],
+    },
+    'pvp_investigative': {
+        1: ['Indaga su 1 boicottaggio/settimana'],
+        2: ['Indaga 2/sett, +20% precisione'],
+        3: ['3/sett, traccia anti-anonimato'],
+        5: ['Indagini illimitate'],
+    },
+    'pvp_operative': {
+        1: ['Esegui 1 contro-attacco/settimana'],
+        2: ['2 contro-attacchi'],
+        3: ['Sblocca attacchi mirati alla fama'],
+        5: ['Attacchi illimitati'],
+    },
+    'pvp_legal': {
+        1: ['Cause legali — 1 attiva alla volta'],
+        2: ['2 cause legali parallele'],
+        3: ['Cause con multe maggiorate (+50%)'],
+        5: ['Cause illimitate'],
+    },
+}
+
+
+def _is_cinema_type(infra_type_data: dict) -> bool:
+    """True se l'infrastruttura genera ricavi da cinema (sale + posti + prodotti).
+    Studi/scout/PvP/scuole hanno screens=0 e revenue_multiplier=0."""
+    screens = int(infra_type_data.get('screens', 0) or 0)
+    rev_mult = float(infra_type_data.get('revenue_multiplier', 0) or 0)
+    return screens > 0 or rev_mult > 0
+
+
+def _collect_perks_up_to(infra_type_id: str, level: int) -> list[str]:
+    """Tutti i perks sbloccati fino al livello inclusivo."""
+    perks_map = INFRA_LEVEL_PERKS.get(infra_type_id, {})
+    out = []
+    for lvl in sorted(perks_map.keys()):
+        if lvl <= level:
+            out.extend(perks_map[lvl])
+    return out
+
+
+def _next_unlock_for(infra_type_id: str, current_level: int) -> tuple[int | None, list[str]]:
+    """Prossimo livello che sblocca qualcosa + lista perks. Ritorna (None, []) se nulla."""
+    perks_map = INFRA_LEVEL_PERKS.get(infra_type_id, {})
+    for lvl in sorted(perks_map.keys()):
+        if lvl > current_level:
+            return lvl, perks_map[lvl]
+    return None, []
+
 def calculate_upgrade_cost(base_cost: int, current_level: int) -> int:
     """Costo upgrade morbido: base * 0.3 * 1.55^(level-1). Più accessibile della curva originale."""
     return int(max(50_000, base_cost * 0.3 * (1.55 ** (current_level - 1))))
@@ -486,47 +603,88 @@ def get_player_level_required_for_upgrade(infra_type_id: str, infra_type_data: d
     return max(1, base_level_req + max(1, int(round(current_level * 1.5))))
 
 def calculate_upgrade_benefits(infra_type_data: dict, current_level: int, next_level: int):
-    """Calculate what benefits the next level gives."""
-    base_screens = infra_type_data.get('screens', 0)
-    base_seats = infra_type_data.get('seats_per_screen', 100)
-    
-    current_screens = base_screens + (current_level - 1) * 2 if base_screens > 0 else 0
-    next_screens = base_screens + (next_level - 1) * 2 if base_screens > 0 else 0
-    
-    current_seats = base_seats + (current_level - 1) * 25
-    next_seats = base_seats + (next_level - 1) * 25
-    
-    current_rev_mult = infra_type_data.get('revenue_multiplier', 1.0) * (1 + (current_level - 1) * 0.2)
-    next_rev_mult = infra_type_data.get('revenue_multiplier', 1.0) * (1 + (next_level - 1) * 0.2)
-    
-    # Collect all products unlocked up to each level
-    current_products = []
-    next_products = []
-    for lvl in range(1, current_level + 1):
-        current_products.extend(INFRA_PRODUCTS.get(lvl, []))
-    for lvl in range(1, next_level + 1):
-        next_products.extend(INFRA_PRODUCTS.get(lvl, []))
-    
-    new_products = [p for p in next_products if p not in current_products]
-    
+    """Calculate what benefits the next level gives.
+    - Cinema (screens>0): seats/screens/products
+    - Studio/Scout/PvP (screens=0): perks specifici per livello (Live Action, quote, slot, ecc.)
+    """
+    is_cinema = _is_cinema_type(infra_type_data)
+    infra_type_id = infra_type_data.get('id', '')
+
+    if is_cinema:
+        base_screens = infra_type_data.get('screens', 0)
+        base_seats = infra_type_data.get('seats_per_screen', 100)
+
+        current_screens = base_screens + (current_level - 1) * 2
+        next_screens = base_screens + (next_level - 1) * 2
+
+        current_seats = base_seats + (current_level - 1) * 25
+        next_seats = base_seats + (next_level - 1) * 25
+
+        current_rev_mult = infra_type_data.get('revenue_multiplier', 1.0) * (1 + (current_level - 1) * 0.2)
+        next_rev_mult = infra_type_data.get('revenue_multiplier', 1.0) * (1 + (next_level - 1) * 0.2)
+
+        # Prodotti SOLO per cinema
+        current_products = []
+        next_products = []
+        for lvl in range(1, current_level + 1):
+            current_products.extend(INFRA_PRODUCTS.get(lvl, []))
+        for lvl in range(1, next_level + 1):
+            next_products.extend(INFRA_PRODUCTS.get(lvl, []))
+        new_products = [p for p in next_products if p not in current_products]
+
+        return {
+            'category': 'cinema',
+            'current': {
+                'screens': current_screens,
+                'seats_per_screen': current_seats,
+                'total_capacity': current_screens * current_seats if current_screens > 0 else 0,
+                'revenue_multiplier': round(current_rev_mult, 2),
+                'products_count': len(current_products),
+            },
+            'next': {
+                'screens': next_screens,
+                'seats_per_screen': next_seats,
+                'total_capacity': next_screens * next_seats if next_screens > 0 else 0,
+                'revenue_multiplier': round(next_rev_mult, 2),
+                'products_count': len(next_products),
+            },
+            'new_products': new_products,
+            'screens_added': next_screens - current_screens,
+            'seats_added': next_seats - current_seats,
+        }
+
+    # ── Non-cinema: studio/scout/pvp ──
+    current_perks = _collect_perks_up_to(infra_type_id, current_level)
+    next_perks = _collect_perks_up_to(infra_type_id, next_level)
+    new_perks = [p for p in next_perks if p not in current_perks]
+    next_unlock_lvl, next_unlock_perks = _next_unlock_for(infra_type_id, next_level)
+
+    current_rev_mult = float(infra_type_data.get('revenue_multiplier', 0) or 0)
+
     return {
+        'category': 'studio',  # categoria generica per tutto ciò che non è cinema
         'current': {
-            'screens': current_screens,
-            'seats_per_screen': current_seats,
-            'total_capacity': current_screens * current_seats if current_screens > 0 else 0,
-            'revenue_multiplier': round(current_rev_mult, 2),
-            'products_count': len(current_products),
+            'screens': 0,
+            'seats_per_screen': 0,
+            'total_capacity': 0,
+            'revenue_multiplier': current_rev_mult,
+            'products_count': 0,
+            'unlocked_perks': current_perks,
         },
         'next': {
-            'screens': next_screens,
-            'seats_per_screen': next_seats,
-            'total_capacity': next_screens * next_seats if next_screens > 0 else 0,
-            'revenue_multiplier': round(next_rev_mult, 2),
-            'products_count': len(next_products),
+            'screens': 0,
+            'seats_per_screen': 0,
+            'total_capacity': 0,
+            'revenue_multiplier': current_rev_mult,
+            'products_count': 0,
+            'unlocked_perks': next_perks,
         },
-        'new_products': new_products,
-        'screens_added': next_screens - current_screens,
-        'seats_added': next_seats - current_seats,
+        'new_products': [],   # mai prodotti per studio
+        'new_perks': new_perks,
+        'next_milestone_level': next_unlock_lvl,
+        'next_milestone_perks': next_unlock_perks,
+        'screens_added': 0,
+        'seats_added': 0,
     }
 
 @router.get("/infrastructure/{infra_id}/upgrade-info")
@@ -554,7 +712,8 @@ async def get_infrastructure_upgrade_info(infra_id: str, user: dict = Depends(ge
     
     # Player level requirement: formula morbida (studi unici = current+1)
     player_level_required = get_player_level_required_for_upgrade(infra.get('type'), infra_type, current_level)
-    player_level = user.get('level_info', {}).get('level', user.get('level', 1))
+    # Use unified level source (same as /api/player/level-info and /infrastructure/types)
+    player_level = get_level_from_xp(user.get('total_xp', 0)).get('level', 0)
     
     upgrade_cost = calculate_upgrade_cost(infra_type.get('base_cost', 2000000), current_level)
     user_funds = user.get('funds', 0)
@@ -564,11 +723,12 @@ async def get_infrastructure_upgrade_info(infra_id: str, user: dict = Depends(ge
     user_cinepass = user.get('cinepass', 0)
     
     benefits = calculate_upgrade_benefits(infra_type, current_level, next_level)
-    
-    # All products for next level
+
+    # All products for next level (solo per cinema)
     all_products = []
-    for lvl in range(1, next_level + 1):
-        all_products.extend(INFRA_PRODUCTS.get(lvl, []))
+    if _is_cinema_type(infra_type):
+        for lvl in range(1, next_level + 1):
+            all_products.extend(INFRA_PRODUCTS.get(lvl, []))
     
     can_upgrade = player_level >= player_level_required and user_funds >= upgrade_cost and user_cinepass >= cinepass_cost
     reason = ''
@@ -614,7 +774,8 @@ async def upgrade_infrastructure(infra_id: str, user: dict = Depends(get_current
     
     # Check player level requirement (formula morbida)
     player_level_required = get_player_level_required_for_upgrade(infra.get('type'), infra_type, current_level)
-    player_level = user.get('level_info', {}).get('level', user.get('level', 1))
+    # Use unified level source (same as /api/player/level-info and /infrastructure/types)
+    player_level = get_level_from_xp(user.get('total_xp', 0)).get('level', 0)
     
     if player_level < player_level_required:
         raise HTTPException(status_code=400, detail=f"Richiesto livello giocatore {player_level_required}")

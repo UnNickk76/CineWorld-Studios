@@ -213,7 +213,7 @@ export function LaPrimaSection({ compact = false }) {
                 variant="top-right"
                 size="xs"
               />
-              <LampoLightning item={ev} variant="top-left" size="sm" />
+              <LampoLightning item={ev} variant="bottom-left" size="sm" />
             </div>
 
             {/* Info */}

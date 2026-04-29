@@ -3,13 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart, Image as ImageIcon, Video } from 'lucide-react';
+import { Shield, ShieldCheck, ShieldOff, Search, DollarSign, Coins, ChevronRight, Minus, Plus, Film, Users, Trash2, AlertTriangle, X, Loader2, Flag, Eye, CheckCircle, XCircle, Wrench, Crown, Star, UserCog, Clock, Ban, Upload, Download, RefreshCw, FlaskConical, Swords, Sparkles, Zap, Play, Trophy, Check, ArrowRightLeft, BookOpen, Lock, Heart, Image as ImageIcon, Video, RotateCcw } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { useConfirm } from '../components/ConfirmDialog';
 import { Dialog, DialogContent } from '../components/ui/dialog';
 import TrailerPlayerModal from '../components/TrailerPlayerModal';
 import { PlayerBadge } from '../components/PlayerBadge';
 import AdminFilmRecovery from '../components/AdminFilmRecovery';
+import AdminStatusEditor from '../components/AdminStatusEditor';
+import AdminAvatarsTab from '../components/AdminAvatarsTab';
+import AdminModerationPanel from '../components/moderation/AdminModerationPanel';
+import BanDurationModal from '../components/moderation/BanDurationModal';
+import CineConfirm from '../components/v3/CineConfirm';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
@@ -28,6 +33,7 @@ const ADMIN_TABS = [
   { id: 'promo-video', label: 'Promo Video', icon: Video },
   { id: 'testlab', label: 'Test Lab', icon: FlaskConical },
   { id: 'recovery', label: 'Anti-Limbo', icon: AlertTriangle },
+  { id: 'avatars', label: 'Gestione Avatar', icon: ImageIcon },
   { id: 'reset', label: 'Reset Gioco', icon: Trash2 },
 ];
 
@@ -367,6 +373,44 @@ function UsersTab({ api }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [confirmAction, setConfirmAction] = useState(null);
+  // Moderation state (Segnala/Ban)
+  const [banTarget, setBanTarget] = useState(null);
+  const [banBusy, setBanBusy] = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [unbanTarget, setUnbanTarget] = useState(null);
+
+  const handleManualReport = async () => {
+    if (!reportTarget) return;
+    try {
+      await api.post(`/admin/users/${reportTarget.id}/manual-report`, { category: 'inappropriato', notes: 'Segnalazione admin' });
+      toast.success(`Segnalazione inviata a @${reportTarget.nickname}`);
+      setReportTarget(null);
+      searchUsers(searchQuery);
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+  };
+
+  const handleConfirmBan = async ({ duration, reason }) => {
+    setBanBusy(true);
+    try {
+      await api.post(`/admin/users/${banTarget.id}/ban`, { duration, reason });
+      toast.success(`Ban applicato a @${banTarget.nickname}: ${duration}`);
+      setBanTarget(null);
+      searchUsers(searchQuery);
+      if (selectedUser?.id === banTarget.id) setSelectedUser(prev => ({ ...prev, is_banned: true }));
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+    finally { setBanBusy(false); }
+  };
+
+  const handleUnban = async () => {
+    if (!unbanTarget) return;
+    try {
+      await api.post(`/admin/users/${unbanTarget.id}/unban`, { reason: 'Sblocco admin' });
+      toast.success(`@${unbanTarget.nickname} sbloccato`);
+      setUnbanTarget(null);
+      searchUsers(searchQuery);
+      if (selectedUser?.id === unbanTarget.id) setSelectedUser(prev => ({ ...prev, is_banned: false }));
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+  };
 
   const searchUsers = useCallback(async (q) => {
     setLoading(true);
@@ -432,6 +476,37 @@ function UsersTab({ api }) {
         loading={deleteLoading}
       />
 
+      {/* Velion: Conferma Segnalazione */}
+      <CineConfirm
+        open={!!reportTarget}
+        title={`Segnalare @${reportTarget?.nickname}?`}
+        subtitle={`Verrà inviata una notifica al player con il messaggio standard. Segnalazione di tipo "Inappropriato".`}
+        confirmLabel="Conferma Segnalazione"
+        confirmTone="rose"
+        onConfirm={handleManualReport}
+        onCancel={() => setReportTarget(null)}
+      />
+
+      {/* Velion: Conferma Sblocco */}
+      <CineConfirm
+        open={!!unbanTarget}
+        title={`Sbloccare @${unbanTarget?.nickname}?`}
+        subtitle="Il counter dei ban totali resta invariato."
+        confirmLabel="Conferma Sblocco"
+        confirmTone="amber"
+        onConfirm={handleUnban}
+        onCancel={() => setUnbanTarget(null)}
+      />
+
+      {/* Ban: prompt durata + Velion-style design */}
+      <BanDurationModal
+        open={!!banTarget}
+        target={banTarget}
+        onCancel={() => setBanTarget(null)}
+        onConfirm={handleConfirmBan}
+        busy={banBusy}
+      />
+
       {/* Search */}
       <form onSubmit={handleSearch}>
         <div className="flex gap-2">
@@ -467,6 +542,9 @@ function UsersTab({ api }) {
                   {u.role && <Badge className="text-[7px] h-3.5 bg-purple-500/20 text-purple-400">{u.role}</Badge>}
                 </div>
                 <p className="text-[9px] text-gray-500 truncate">{u.production_house_name || u.email}</p>
+                <p className="text-[8px] text-gray-600 truncate">
+                  📅 {u.created_at ? `Reg. ${new Date(u.created_at).toLocaleDateString('it-IT')}` : 'Reg. non disponibile'}
+                </p>
               </div>
               <div className="text-right flex-shrink-0">
                 <p className="text-[10px] text-yellow-400 font-mono">${(u.funds || 0).toLocaleString()}</p>
@@ -490,6 +568,26 @@ function UsersTab({ api }) {
                 {selectedUser.nickname?.[0]?.toUpperCase()}
               </div>
               <span className="flex-1">{selectedUser.nickname}</span>
+              {selectedUser.is_banned && <Badge className="text-[8px] h-3.5 bg-rose-500/30 text-rose-200 border-rose-500/50">BAN</Badge>}
+              {selectedUser.is_chat_muted && <Badge className="text-[8px] h-3.5 bg-amber-500/30 text-amber-200 border-amber-500/50">MUTE</Badge>}
+              <Button size="sm" variant="ghost" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 h-7 px-2 text-[10px]"
+                onClick={(e) => { e.stopPropagation(); setReportTarget(selectedUser); }}
+                data-testid="admin-report-user-btn">
+                <AlertTriangle className="w-3 h-3 mr-1" /> Segnala
+              </Button>
+              {selectedUser.is_banned ? (
+                <Button size="sm" variant="ghost" className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 h-7 px-2 text-[10px]"
+                  onClick={(e) => { e.stopPropagation(); setUnbanTarget(selectedUser); }}
+                  data-testid="admin-unban-user-btn">
+                  <ShieldCheck className="w-3 h-3 mr-1" /> Sbanna
+                </Button>
+              ) : (
+                <Button size="sm" variant="ghost" className="text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 h-7 px-2 text-[10px]"
+                  onClick={(e) => { e.stopPropagation(); setBanTarget(selectedUser); }}
+                  data-testid="admin-ban-user-btn">
+                  <ShieldOff className="w-3 h-3 mr-1" /> Ban
+                </Button>
+              )}
               <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 px-2 text-[10px]"
                 onClick={(e) => { e.stopPropagation(); setDeleteTarget(selectedUser); }}
                 data-testid="admin-delete-user-btn">
@@ -652,6 +750,7 @@ function FilmsTab({ api }) {
   const [contentType, setContentType] = useState('film'); // film | tv_series | anime
   const [selected, setSelected] = useState(null);
   const [fixLoading, setFixLoading] = useState(false);
+  const [statusEditOpen, setStatusEditOpen] = useState(false);
 
   const loadFilms = useCallback(async (q = '', ct = contentType) => {
     setLoading(true);
@@ -682,11 +781,23 @@ function FilmsTab({ api }) {
   const handleFix = async (film) => {
     setFixLoading(true);
     try {
-      await api.post(`/admin-recovery/fix-one/${film.id}`);
+      await api.post(`/admin/recovery/fix-one/${film.id}`);
       toast.success(`"${film.title}" riparato`);
       setSelected(null);
       loadFilms(searchQuery, contentType);
     } catch (e) { toast.error(e.response?.data?.detail || 'Fix non applicabile'); }
+    finally { setFixLoading(false); }
+  };
+
+  const handleRestoreToDraft = async (film) => {
+    if (!window.confirm(`Riportare "${film.title}" in BOZZA? Tornerà in "Le Mie Bozze" e potrai riprenderlo da zero.`)) return;
+    setFixLoading(true);
+    try {
+      await api.post(`/admin/recovery/restore-to-draft/${film.id}`);
+      toast.success(`"${film.title}" riportato in bozza`);
+      setSelected(null);
+      loadFilms(searchQuery, contentType);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Errore riporto in bozza'); }
     finally { setFixLoading(false); }
   };
 
@@ -813,10 +924,18 @@ function FilmsTab({ api }) {
               </div>
               <div className="p-3 space-y-2">
                 <div className="grid grid-cols-2 gap-2 text-[10px]">
-                  <div className="bg-white/[0.03] rounded p-2">
-                    <p className="text-gray-500 uppercase text-[8px] font-bold">Stato</p>
-                    <p className="text-white font-bold">{selected.stage}</p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStatusEditOpen(true)}
+                    className="bg-white/[0.03] hover:bg-amber-500/10 active:bg-amber-500/15 rounded p-2 text-left transition-colors border border-transparent hover:border-amber-500/30 touch-manipulation"
+                    data-testid="admin-stato-edit-btn"
+                  >
+                    <p className="text-gray-500 uppercase text-[8px] font-bold flex items-center justify-between">
+                      <span>Stato</span>
+                      <span className="text-amber-400 text-[7px] tracking-wider">TAP per modificare ›</span>
+                    </p>
+                    <p className="text-white font-bold underline decoration-dotted decoration-amber-500/50 underline-offset-2">{selected.stage}</p>
+                  </button>
                   <div className="bg-white/[0.03] rounded p-2">
                     <p className="text-gray-500 uppercase text-[8px] font-bold">Collezione</p>
                     <p className="text-white font-bold text-[9px]">{selected.collection}</p>
@@ -839,7 +958,7 @@ function FilmsTab({ api }) {
                     <p className="text-[10px] text-amber-300 font-bold">{selected.reports_count} segnalazione(i) aperta(e)</p>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="grid grid-cols-3 gap-2 pt-1">
                   <button
                     onClick={() => handleFix(selected)}
                     disabled={fixLoading || !selected.needs_fix}
@@ -849,11 +968,19 @@ function FilmsTab({ api }) {
                     Fix {selected.needs_fix ? '' : '(ok)'}
                   </button>
                   <button
+                    onClick={() => handleRestoreToDraft(selected)}
+                    disabled={fixLoading}
+                    data-testid="admin-restore-draft-btn"
+                    className="py-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 text-[10px] font-bold hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-1 disabled:opacity-50"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Riporta in bozza
+                  </button>
+                  <button
                     onClick={() => setDeleteTarget(selected)}
                     data-testid="admin-detail-delete-btn"
                     className="py-2.5 rounded-lg border border-rose-500/40 bg-rose-500/10 text-rose-300 text-[10px] font-bold hover:bg-rose-500/20 transition-all flex items-center justify-center gap-1"
                   >
-                    <Trash2 className="w-3 h-3" /> Elimina definitivamente
+                    <Trash2 className="w-3 h-3" /> Elimina
                   </button>
                 </div>
               </div>
@@ -861,6 +988,22 @@ function FilmsTab({ api }) {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ⚙️ Editor cambio stato — riusabile e davanti al popup */}
+      <AdminStatusEditor
+        open={statusEditOpen}
+        onClose={() => setStatusEditOpen(false)}
+        item={selected}
+        api={api}
+        onUpdated={(updated) => {
+          // Aggiorna la card aperta e ricarica la lista
+          if (updated && selected) {
+            setSelected(prev => prev ? { ...prev, stage: updated.status, prossimamente_tv: updated.prossimamente_tv ?? prev.prossimamente_tv } : prev);
+          }
+          loadFilms(searchQuery, contentType);
+          toast.success('Stato aggiornato in DB');
+        }}
+      />
       </>
       )}
     </div>
@@ -1642,6 +1785,11 @@ function RolesTab({ api }) {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
+  // Moderation state
+  const [banTarget, setBanTarget] = useState(null);
+  const [banBusy, setBanBusy] = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
+  const [unbanTarget, setUnbanTarget] = useState(null);
 
   const searchUsers = useCallback(async (q) => {
     setLoading(true);
@@ -1664,6 +1812,37 @@ function RolesTab({ api }) {
     finally { setActionLoading(null); }
   };
 
+  const handleManualReport = async () => {
+    if (!reportTarget) return;
+    try {
+      await api.post(`/admin/users/${reportTarget.id}/manual-report`, { category: 'inappropriato', notes: 'Segnalazione admin' });
+      toast.success(`Segnalazione inviata a @${reportTarget.nickname}`);
+      setReportTarget(null);
+      searchUsers(searchQuery);
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+  };
+
+  const handleConfirmBan = async ({ duration, reason }) => {
+    setBanBusy(true);
+    try {
+      await api.post(`/admin/users/${banTarget.id}/ban`, { duration, reason });
+      toast.success(`Ban applicato a @${banTarget.nickname}: ${duration}`);
+      setBanTarget(null);
+      searchUsers(searchQuery);
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+    finally { setBanBusy(false); }
+  };
+
+  const handleUnban = async () => {
+    if (!unbanTarget) return;
+    try {
+      await api.post(`/admin/users/${unbanTarget.id}/unban`, { reason: 'Sblocco admin' });
+      toast.success(`@${unbanTarget.nickname} sbloccato`);
+      setUnbanTarget(null);
+      searchUsers(searchQuery);
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Errore'); }
+  };
+
   const ROLE_COLORS = {
     'ADMIN': 'bg-red-500/20 text-red-400 border-red-500/30',
     'CO_ADMIN': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
@@ -1673,6 +1852,31 @@ function RolesTab({ api }) {
 
   return (
     <div className="space-y-3" data-testid="admin-roles-tab">
+      <CineConfirm
+        open={!!reportTarget}
+        title={`Segnalare @${reportTarget?.nickname}?`}
+        subtitle="Verrà inviata una notifica al player con il messaggio standard."
+        confirmLabel="Conferma Segnalazione"
+        confirmTone="rose"
+        onConfirm={handleManualReport}
+        onCancel={() => setReportTarget(null)}
+      />
+      <CineConfirm
+        open={!!unbanTarget}
+        title={`Sbloccare @${unbanTarget?.nickname}?`}
+        subtitle="Il counter dei ban totali resta invariato."
+        confirmLabel="Conferma Sblocco"
+        confirmTone="amber"
+        onConfirm={handleUnban}
+        onCancel={() => setUnbanTarget(null)}
+      />
+      <BanDurationModal
+        open={!!banTarget}
+        target={banTarget}
+        onCancel={() => setBanTarget(null)}
+        onConfirm={handleConfirmBan}
+        busy={banBusy}
+      />
       <form onSubmit={(e) => { e.preventDefault(); searchUsers(searchQuery); }}>
         <div className="flex gap-2">
           <div className="flex-1 relative">
@@ -1702,8 +1906,12 @@ function RolesTab({ api }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-white truncate">{u.nickname}</p>
                   <p className="text-[9px] text-gray-500 truncate">{u.email}</p>
+                  <p className="text-[8px] text-gray-600 truncate">
+                    📅 {u.created_at ? `Reg. ${new Date(u.created_at).toLocaleDateString('it-IT')}` : 'Reg. non disponibile'}
+                  </p>
                 </div>
                 <Badge className={`text-[8px] h-5 px-2 ${ROLE_COLORS[role] || ROLE_COLORS.USER}`}>{role}</Badge>
+                {u.is_banned && <Badge className="text-[8px] h-5 px-2 bg-rose-500/30 text-rose-200 border-rose-500/50">BAN</Badge>}
                 {!isNeo && (
                   <div className="flex gap-1 flex-shrink-0">
                     {['CO_ADMIN', 'MOD', 'USER'].map(r => (
@@ -1717,6 +1925,33 @@ function RolesTab({ api }) {
                         {r === 'CO_ADMIN' ? 'Co-Admin' : r === 'MOD' ? 'Mod' : 'User'}
                       </button>
                     ))}
+                    <button
+                      onClick={() => setReportTarget(u)}
+                      data-testid={`role-report-${u.nickname}`}
+                      title="Segnala"
+                      className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                    </button>
+                    {u.is_banned ? (
+                      <button
+                        onClick={() => setUnbanTarget(u)}
+                        data-testid={`role-unban-${u.nickname}`}
+                        title="Sbanna"
+                        className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                      >
+                        <ShieldCheck className="w-2.5 h-2.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setBanTarget(u)}
+                        data-testid={`role-ban-${u.nickname}`}
+                        title="Banna"
+                        className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-orange-500/10 text-orange-400 hover:bg-orange-500/20"
+                      >
+                        <ShieldOff className="w-2.5 h-2.5" />
+                      </button>
+                    )}
                   </div>
                 )}
                 {isNeo && <span className="text-[8px] text-red-400 font-bold flex-shrink-0">PROTETTO</span>}
@@ -2893,7 +3128,7 @@ function PromoVideoTab({ api }) {
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3 text-[10px] text-amber-200 leading-relaxed" data-testid="promo-preview-notice">
           <div className="font-bold text-amber-300 mb-1">⚠️ Raccomandato: usa la Preview</div>
           Questa funzione richiede Chromium + FFmpeg e funziona in modo affidabile solo su preview. In produzione alcune dipendenze potrebbero non essere disponibili.
-          <a href="https://cinema-economics-v2.preview.emergentagent.com/admin" target="_blank" rel="noopener noreferrer"
+          <a href="https://level-bug-debug.preview.emergentagent.com/admin" target="_blank" rel="noopener noreferrer"
              className="block mt-1.5 text-amber-300 underline font-semibold break-all"
              data-testid="promo-preview-link">
             → Apri Admin su Preview
@@ -3241,6 +3476,21 @@ export default function AdminPage() {
   const hasAccess = isAdmin || isCoadmin;
   const tabs = isAdmin ? ADMIN_TABS : COADMIN_TABS;
   const [activeTab, setActiveTab] = useState(tabs[0]?.id || 'reports');
+  const [modSummary, setModSummary] = useState({ pending_reports: 0, active_bans: 0 });
+
+  useEffect(() => {
+    if (!hasAccess) return;
+    let mounted = true;
+    const fetchSum = async () => {
+      try {
+        const r = await api.get('/admin/moderation/summary');
+        if (mounted) setModSummary(r.data || {});
+      } catch { /* ignore */ }
+    };
+    fetchSum();
+    const t = setInterval(fetchSum, 30000);
+    return () => { mounted = false; clearInterval(t); };
+  }, [hasAccess, api]);
 
   if (!hasAccess) {
     return (
@@ -3285,7 +3535,7 @@ export default function AdminPage() {
             return (
               <button key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 sm:px-4 rounded-md text-xs font-semibold transition-all whitespace-nowrap flex-shrink-0 min-w-[44px] sm:min-w-0 sm:flex-1 ${
+                className={`relative flex items-center justify-center gap-1.5 py-2.5 px-3 sm:px-4 rounded-md text-xs font-semibold transition-all whitespace-nowrap flex-shrink-0 min-w-[44px] sm:min-w-0 sm:flex-1 ${
                   isActive
                     ? (isAdmin ? 'bg-red-600 text-white' : 'bg-amber-600 text-white')
                     : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
@@ -3293,6 +3543,11 @@ export default function AdminPage() {
                 data-testid={`admin-tab-${tab.id}`}>
                 <Icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 <span className="hidden sm:inline">{tab.label}</span>
+                {tab.id === 'reports' && modSummary.pending_reports > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center" data-testid="admin-reports-badge">
+                    {modSummary.pending_reports > 99 ? '99+' : modSummary.pending_reports}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -3302,7 +3557,7 @@ export default function AdminPage() {
         {activeTab === 'users' && isAdmin && <UsersTab api={api} />}
         {activeTab === 'films' && isAdmin && <FilmsTab api={api} />}
         {activeTab === 'roles' && isAdmin && <RolesTab api={api} />}
-        {activeTab === 'reports' && <ReportsTab api={api} />}
+        {activeTab === 'reports' && <AdminModerationPanel />}
         {activeTab === 'deletions' && isAdmin && <DeletionsTab api={api} />}
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
         {activeTab === 'donations' && isAdmin && <DonationsTab api={api} />}
@@ -3319,6 +3574,7 @@ export default function AdminPage() {
         {activeTab === 'ai-providers' && isAdmin && <AIProvidersTab api={api} />}
         {activeTab === 'promo-video' && isAdmin && <PromoVideoTab api={api} />}
         {activeTab === 'recovery' && isAdmin && <AdminFilmRecovery />}
+        {activeTab === 'avatars' && isAdmin && <AdminAvatarsTab api={api} />}
         {activeTab === 'reset' && isAdmin && <ResetGamePanel api={api} />}
         {activeTab === 'migration' && isAdmin && <MigrationTab api={api} />}
         {activeTab === 'tutorial' && isAdmin && <TutorialManagerTab api={api} />}

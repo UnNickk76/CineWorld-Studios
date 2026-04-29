@@ -49,10 +49,16 @@ class SetupStep1Request(BaseModel):
     infra_id: str
     station_name: str
     nation: str
+    style: Optional[str] = "default"  # netflix, disney, paramount, prime, apple, sky, rai, dazn, tim, default
 
 class SetupStep2Request(BaseModel):
     station_id: str
     ad_seconds: int = 30
+    style: Optional[str] = None  # allow updating style later
+
+class UpdateStationStyleRequest(BaseModel):
+    station_id: str
+    style: str
 
 class AddContentRequest(BaseModel):
     station_id: str
@@ -122,6 +128,10 @@ async def setup_step1(req: SetupStep1Request, user: dict = Depends(get_current_u
         raise HTTPException(400, "Nazione non valida")
     
     now = datetime.now(timezone.utc).isoformat()
+    valid_styles = {"default", "netflix", "disney", "paramount", "prime", "apple", "sky", "rai", "dazn", "tim"}
+    chosen_style = (req.style or "default").lower()
+    if chosen_style not in valid_styles:
+        chosen_style = "default"
     station = {
         'id': str(uuid.uuid4()),
         'infra_id': req.infra_id,
@@ -129,6 +139,7 @@ async def setup_step1(req: SetupStep1Request, user: dict = Depends(get_current_u
         'owner_nickname': user.get('nickname', 'Player'),
         'station_name': req.station_name.strip(),
         'nation': req.nation,
+        'style': chosen_style,
         'ad_seconds': 30,
         'setup_step': 2,
         'setup_complete': False,
@@ -147,16 +158,55 @@ async def setup_step1(req: SetupStep1Request, user: dict = Depends(get_current_u
             {'$set': {
                 'station_name': req.station_name.strip(),
                 'nation': req.nation,
+                'style': chosen_style,
                 'setup_step': 2,
                 'updated_at': now,
             }}
         )
-        station = {**existing_station, 'station_name': req.station_name.strip(), 'nation': req.nation, 'setup_step': 2}
+        station = {**existing_station, 'station_name': req.station_name.strip(), 'nation': req.nation, 'style': chosen_style, 'setup_step': 2}
     else:
         await db.tv_stations.insert_one(station)
         del station['_id']
     
-    return {"station": station, "nations": NATIONS}
+    return {"station": station, "nations": NATIONS, "available_styles": sorted(valid_styles)}
+
+
+@router.post("/tv-stations/update-style")
+async def update_station_style(req: UpdateStationStyleRequest, user: dict = Depends(get_current_user)):
+    """Cambia lo stile branding di un'emittente TV (font/colori del badge In TV)."""
+    valid_styles = {"default", "netflix", "disney", "paramount", "prime", "apple", "sky", "rai", "dazn", "tim"}
+    chosen = (req.style or "default").lower()
+    if chosen not in valid_styles:
+        raise HTTPException(400, f"Stile non valido. Disponibili: {sorted(valid_styles)}")
+    station = await db.tv_stations.find_one(
+        {"id": req.station_id, "user_id": user["id"]}, {"_id": 0}
+    )
+    if not station:
+        raise HTTPException(404, "Emittente TV non trovata")
+    await db.tv_stations.update_one(
+        {"id": req.station_id, "user_id": user["id"]},
+        {"$set": {"style": chosen, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": True, "style": chosen}
+
+
+@router.get("/tv-stations/available-styles")
+async def get_available_tv_styles():
+    """Lista degli stili branding disponibili per le emittenti TV (con copy non-copyright)."""
+    return {
+        "styles": [
+            {"key": "default", "label": "Generica", "color": "#06b6d4", "font_family": "Bebas Neue", "tagline": "Stile pulito CineWorld"},
+            {"key": "netflix", "label": "NetfleX", "color": "#E50914", "font_family": "Bebas Neue", "tagline": "Rosso intenso, look streaming dominante"},
+            {"key": "disney", "label": "Disnext+", "color": "#0066CC", "font_family": "Inter", "tagline": "Blu fiabesco, family-friendly"},
+            {"key": "paramount", "label": "Topmount+", "color": "#0064FF", "font_family": "Inter", "tagline": "Blu acceso, vibe cinematografico"},
+            {"key": "prime", "label": "PrimeFlix", "color": "#00A8E1", "font_family": "Inter", "tagline": "Ciano commerce-driven"},
+            {"key": "apple", "label": "AppleVue", "color": "#FFFFFF", "font_family": "SF Pro Display", "tagline": "Minimal premium, bianco/grigio"},
+            {"key": "sky", "label": "SkyView", "color": "#0072FF", "font_family": "Inter", "tagline": "Blu sportivo, ricercato"},
+            {"key": "rai", "label": "ItaliaPlay", "color": "#0046AD", "font_family": "Inter", "tagline": "Blu istituzionale italiano"},
+            {"key": "dazn", "label": "Dazz!", "color": "#F8FF13", "font_family": "Inter", "tagline": "Giallo neon, sport-energy"},
+            {"key": "tim", "label": "ItalVision", "color": "#0046AD", "font_family": "Inter", "tagline": "Blu telco, family content"},
+        ]
+    }
 
 
 @router.post("/tv-stations/setup-step2")
@@ -279,7 +329,9 @@ async def get_station(station_id: str, user: dict = Depends(get_current_user)):
     # Enrich content data
     enriched = {'films': [], 'tv_series': [], 'anime': []}
 
-    film_ids = [c['content_id'] for c in contents.get('films', [])]
+    # Backward-compat: alcuni entry (da TV Movies release) usano `id` invece di `content_id`.
+    film_ids = [c.get('content_id') or c.get('id') for c in contents.get('films', [])]
+    film_ids = [fid for fid in film_ids if fid]
     if film_ids:
         films = await db.films.find(
             {'id': {'$in': film_ids}},
@@ -1043,7 +1095,7 @@ async def remove_upcoming(req: RemoveContentRequest, user: dict = Depends(get_cu
 class CinemaToTVRequest(BaseModel):
     film_id: str
     station_id: str
-    mode: str  # 'subito' (immediate) | 'prossimamente' (scheduled)
+    mode: str  # 'subito' | 'prossimamente' | 'cinema_end'
     delay_hours: Optional[int] = 24  # only for 'prossimamente'
 
 
@@ -1164,15 +1216,34 @@ async def transfer_film_from_cinema(req: CinemaToTVRequest, user: dict = Depends
             "trend_at_transfer": trend,
         }
 
-    elif req.mode == 'prossimamente':
-        delay = int(req.delay_hours or 24)
-        if delay < 6 or delay > 168:
-            raise HTTPException(400, "Delay fuori intervallo (6h - 168h)")
+    elif req.mode in ('prossimamente', 'cinema_end'):
         upcoming = station.get('upcoming_content', []) or []
         if any(u.get('content_id') == req.film_id for u in upcoming):
             raise HTTPException(400, "Questo film e' gia' nei Prossimamente della stazione")
 
-        scheduled_at = now + timedelta(hours=delay)
+        if req.mode == 'cinema_end':
+            # Calcola fine periodo cinema
+            rel = film.get('released_at') or film.get('cinema_release_date')
+            if not rel:
+                raise HTTPException(400, "Il film non ha una data di uscita al cinema valida")
+            try:
+                rel_dt = datetime.fromisoformat(rel.replace('Z', '+00:00')) if isinstance(rel, str) else rel
+                if rel_dt.tzinfo is None:
+                    rel_dt = rel_dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                raise HTTPException(400, "Data uscita cinema non valida")
+            cin_days = int(film.get('cinema_duration_days') or 21)
+            scheduled_at = rel_dt + timedelta(days=cin_days)
+            if scheduled_at <= now:
+                # Cinema gia' finito → tratta come 'subito'
+                scheduled_at = now + timedelta(hours=1)
+            delay = max(1, int((scheduled_at - now).total_seconds() // 3600))
+        else:
+            delay = int(req.delay_hours or 24)
+            if delay < 6 or delay > 168:
+                raise HTTPException(400, "Delay fuori intervallo (6h - 168h)")
+            scheduled_at = now + timedelta(hours=delay)
+
         entry = {
             'id': str(uuid.uuid4()),
             'content_id': req.film_id,
@@ -1184,6 +1255,7 @@ async def transfer_film_from_cinema(req: CinemaToTVRequest, user: dict = Depends
             'added_at': now.isoformat(),
             'scheduled_air_at': scheduled_at.isoformat(),
             'delay_hours': delay,
+            'cinema_end_scheduled': req.mode == 'cinema_end',
             'schedule_config': None,
             'frozen': False,
             'from_cinema': True,
@@ -1436,25 +1508,34 @@ async def calculate_tv_station_revenues():
         )
 
 
+def _vm_audience_modifier(vm_rating):
+    """VM rating riduce il pubblico raggiungibile (esclusi minori).
+    null = 1.0 (pieno), vm14 = 0.90 (-10%), vm16 = 0.80 (-20%), vm18 = 0.65 (-35%).
+    Effetto reale su viewers e revenue TV/cinema."""
+    return {None: 1.0, '': 1.0, 'vm14': 0.90, 'vm16': 0.80, 'vm18': 0.65}.get(vm_rating, 1.0)
+
+
 def _calc_share_and_revenue(station, enriched):
     """Calculate current share and revenue estimates for display."""
     contents = station.get('contents', {})
     total_content = len(contents.get('films', [])) + len(contents.get('tv_series', [])) + len(contents.get('anime', []))
-    
+
     all_items = enriched.get('films', []) + enriched.get('tv_series', []) + enriched.get('anime', [])
     avg_quality = sum(i.get('quality_score', 50) for i in all_items) / max(1, len(all_items))
-    
+    # Audience VM modifier medio (ponderato sui contenuti)
+    vm_mod = sum(_vm_audience_modifier(i.get('vm_rating')) for i in all_items) / max(1, len(all_items)) if all_items else 1.0
+
     ad_seconds = station.get('ad_seconds', 30)
     share_base = (avg_quality / 100) * 20
     ad_penalty = ad_seconds * SHARE_PENALTY_PER_AD_SECOND * 0.1
     volume_bonus = min(5, total_content * 0.5)
-    estimated_share = max(0.5, min(30, share_base - ad_penalty + volume_bonus))
-    
-    viewers_per_content = int(BASE_HOURLY_VIEWERS * (avg_quality / 50))
+    estimated_share = max(0.5, min(30, (share_base - ad_penalty + volume_bonus) * vm_mod))
+
+    viewers_per_content = int(BASE_HOURLY_VIEWERS * (avg_quality / 50) * vm_mod)
     total_viewers = viewers_per_content * total_content
     ad_mult = 1.0 + (ad_seconds / 60)
     estimated_hourly = min(int((total_viewers / 1000) * AD_REVENUE_PER_1K * ad_mult), 50000)
-    
+
     return {
         'estimated_share': round(estimated_share, 1),
         'estimated_hourly_revenue': estimated_hourly,
@@ -1463,6 +1544,7 @@ def _calc_share_and_revenue(station, enriched):
         'avg_quality': round(avg_quality, 1),
         'total_content': total_content,
         'ad_seconds': ad_seconds,
+        'vm_audience_modifier': round(vm_mod, 2),
     }
 
 
@@ -1521,7 +1603,8 @@ async def _auto_advance_broadcasts(station):
             ct = item['content_type']
             key = 'films' if ct == 'film' else ('anime' if ct == 'anime' else 'tv_series')
             contents = station.get('contents', {'films': [], 'tv_series': [], 'anime': []})
-            existing_ids = [c['content_id'] for c in contents.get(key, [])]
+            existing_ids = [c.get('content_id') or c.get('id') for c in contents.get(key, [])]
+            existing_ids = [eid for eid in existing_ids if eid]
             if item['content_id'] not in existing_ids:
                 entry = {'content_id': item['content_id'], 'added_at': now_str}
                 if ct != 'film':
@@ -1977,6 +2060,67 @@ async def schedule_broadcast(req: ScheduleBroadcastRequest, user: dict = Depends
         "broadcast_state": entry['broadcast_state'],
         "schedule": ep_schedule[:3],
     }
+
+
+@router.get("/content/{content_id}/tv-airing-info")
+async def get_content_tv_airing_info(content_id: str):
+    """Public: ritorna info palinsesto TV per qualsiasi content_id.
+    Cerca tra tutte le emittenti TV la prima entry che lo contiene
+    (in qualunque stato: scheduled, airing, completed). Usato per il
+    badge "In TV dal {data} su {emittente}".
+    """
+    cursor = db.tv_stations.find(
+        {"$or": [
+            {"contents.tv_series.content_id": content_id},
+            {"contents.anime.content_id": content_id},
+            {"contents.films.content_id": content_id},
+        ]},
+        {"_id": 0, "id": 1, "user_id": 1, "station_name": 1, "name": 1,
+         "style": 1, "branding": 1, "primary_color": 1, "accent_color": 1,
+         "logo_url": 1, "schedule_active": 1, "contents": 1}
+    )
+
+    best = None
+    async for st in cursor:
+        for key in ("films", "tv_series", "anime"):
+            for entry in (st.get("contents", {}) or {}).get(key, []) or []:
+                if entry.get("content_id") != content_id:
+                    continue
+                state = entry.get("broadcast_state", "idle")
+                # First air time: min release_datetime among ep_schedule for series,
+                # otherwise start_datetime / broadcast_started_at.
+                first_air = entry.get("broadcast_started_at") or entry.get("start_datetime")
+                eps_sched = entry.get("ep_schedule") or []
+                if eps_sched:
+                    times = [e.get("release_datetime") for e in eps_sched if e.get("release_datetime")]
+                    if times:
+                        try:
+                            first_air = min(times)
+                        except Exception:
+                            pass
+                # Skip entries that are 'idle' with no scheduling
+                if state in ("idle", "retired") and not first_air:
+                    continue
+                candidate = {
+                    "station_id": st.get("id"),
+                    "station_name": st.get("station_name") or st.get("name") or "Emittente TV",
+                    "owner_user_id": st.get("user_id"),
+                    "style": st.get("style") or st.get("branding") or "default",
+                    "primary_color": st.get("primary_color") or st.get("accent_color"),
+                    "logo_url": st.get("logo_url"),
+                    "broadcast_state": state,
+                    "first_air_at": first_air,
+                    "next_air_at": entry.get("next_air_at"),
+                    "current_episode": entry.get("current_episode", 0),
+                    "total_episodes": entry.get("total_episodes", 0),
+                    "is_in_palinsesto": bool(first_air),
+                }
+                # Prefer entries with a real first_air_at; among those, the earliest
+                if best is None:
+                    best = candidate
+                elif (candidate["first_air_at"] or "") < (best.get("first_air_at") or "9999"):
+                    best = candidate
+    return {"info": best}
 
 
 @router.get("/tv-stations/{station_id}/broadcast/{content_id}")

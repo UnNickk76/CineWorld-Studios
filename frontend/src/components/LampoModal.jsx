@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import CiakIntroOverlay from './CiakIntroOverlay';
 import LampoReleaseOverlay from './LampoReleaseOverlay';
+import { SagaCheckbox } from './saga/SagaCheckbox';
 
 const GENRES = {
   film: [
@@ -197,9 +198,56 @@ function LampoForm({ contentType, onStart, onBack, onClose }) {
   const [budgetTier, setBudgetTier] = useState('mid');
   const [numEpisodes, setNumEpisodes] = useState(10);
   const [submitting, setSubmitting] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   const cost = BUDGET_COSTS[contentType][budgetTier];
   const cp = BUDGET_CP[contentType][budgetTier];
+
+  // Recover saved draft on mount
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const res = await api.get('/lampo/draft-form', { params: { content_type: contentType } });
+        const d = res.data?.draft;
+        if (!cancel && d) {
+          if (d.title) setTitle(d.title);
+          if (d.genre) setGenre(d.genre);
+          if (d.preplot) setPreplot(d.preplot);
+          if (d.budget_tier) setBudgetTier(d.budget_tier);
+          if (d.num_episodes) setNumEpisodes(d.num_episodes);
+          if (d.title || d.preplot) {
+            toast.info('Bozza ripristinata', { duration: 2000 });
+          }
+        }
+      } catch {}
+      if (!cancel) setDraftLoaded(true);
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentType]);
+
+  // Autosave draft (debounced) ogni volta che il titolo è ≥ 1 carattere
+  useEffect(() => {
+    if (!draftLoaded) return;
+    if (!title || title.trim().length < 1) return;
+    const tm = setTimeout(async () => {
+      setSavingDraft(true);
+      try {
+        await api.post('/lampo/draft-form', {
+          content_type: contentType,
+          title: title.trim(),
+          genre,
+          preplot: preplot.trim(),
+          budget_tier: budgetTier,
+          num_episodes: contentType !== 'film' ? numEpisodes : null,
+        });
+      } catch {}
+      setSavingDraft(false);
+    }, 1500);
+    return () => clearTimeout(tm);
+  }, [title, genre, preplot, budgetTier, numEpisodes, contentType, draftLoaded, api]);
 
   const canSubmit = title.trim().length >= 2 && preplot.trim().length >= 10 && !submitting;
 
@@ -216,6 +264,8 @@ function LampoForm({ contentType, onStart, onBack, onClose }) {
         num_episodes: contentType !== 'film' ? numEpisodes : undefined,
       });
       toast.success(`Produzione LAMPO avviata! Costo: $${(res.data.scaled_cost || 0).toLocaleString()}`);
+      // Pulisci la bozza ora che la produzione è partita
+      try { await api.delete('/lampo/draft-form', { params: { content_type: contentType } }); } catch {}
       onStart(res.data.project);
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Errore nell\'avvio');
@@ -229,6 +279,12 @@ function LampoForm({ contentType, onStart, onBack, onClose }) {
         <div className="flex items-center gap-2">
           <Zap className="w-5 h-5 text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.8)]" />
           <h2 className="text-xl font-['Bebas_Neue'] text-amber-200">Produzione LAMPO!</h2>
+          {savingDraft && (
+            <span className="text-[8px] text-amber-300/60 italic" data-testid="lampo-draft-saving">salvando...</span>
+          )}
+          {!savingDraft && draftLoaded && title.trim().length >= 1 && (
+            <span className="text-[8px] text-emerald-300/60 italic" data-testid="lampo-draft-saved">💾 bozza salvata</span>
+          )}
         </div>
         <button onClick={onClose} className="text-white/50 hover:text-white p-1"><X className="w-4 h-4" /></button>
       </div>
@@ -422,11 +478,94 @@ function CastRow({ member, contentType }) {
 }
 
 
+// ───── EpisodesList — Lista scrollabile + click per mini-trama ─────
+function EpisodesList({ episodes }) {
+  const [expanded, setExpanded] = useState(null);
+  const total = episodes.length;
+  return (
+    <div className="mb-3 p-3 rounded-lg bg-black/40 border border-white/5">
+      <div className="text-[9px] uppercase text-slate-400 font-semibold mb-2 flex items-center justify-between">
+        <span>Episodi ({total})</span>
+        <span className="text-[8px] text-amber-300/70 normal-case tracking-normal italic">tap per dettagli</span>
+      </div>
+      <div className="space-y-1 max-h-72 overflow-y-auto pr-1 -mr-1" data-testid="lampo-episodes-list">
+        {episodes.map((ep, i) => {
+          const isOpen = expanded === i;
+          const synopsis = ep.synopsis || `Episodio ${ep.episode_number || (i + 1)}`;
+          const epNum = ep.episode_number || (i + 1);
+          // Il titolo "Ep. N" o "Capitolo N" è generico → fallback al synopsis nella riga compatta
+          const rawTitle = (ep.title || '').trim();
+          const isGenericTitle = !rawTitle || /^(ep\.?|episodio|capitolo)\s*\d+$/i.test(rawTitle);
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setExpanded(isOpen ? null : i)}
+              className={`w-full text-left rounded-md px-2 py-1.5 transition-all touch-manipulation ${
+                isOpen
+                  ? 'bg-amber-500/10 border border-amber-500/30'
+                  : 'border border-transparent hover:bg-white/5 active:bg-amber-500/5'
+              }`}
+              data-testid={`lampo-episode-${epNum}`}
+            >
+              <div className="flex items-start gap-2">
+                <span className={`text-[11px] font-bold flex-shrink-0 ${isOpen ? 'text-amber-300' : 'text-amber-400'}`}>
+                  Ep.{epNum}
+                </span>
+                <div className="flex-1 min-w-0">
+                  {!isOpen ? (
+                    <div className="leading-snug">
+                      {!isGenericTitle ? (
+                        <>
+                          <span className="text-[10px] font-bold text-amber-200">{rawTitle}</span>
+                          <span className="text-[10px] text-slate-400 ml-1 line-clamp-1">— {synopsis}</span>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-slate-300 line-clamp-1">— {synopsis}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-amber-100 leading-relaxed">
+                      {!isGenericTitle && (
+                        <div className="font-bold text-amber-200 mb-1 text-[12px]">"{rawTitle}"</div>
+                      )}
+                      <div className="text-slate-200">{synopsis}</div>
+                      {ep.duration_minutes && (
+                        <div className="text-[9px] text-amber-300/60 mt-1.5 italic">
+                          Durata: ~{ep.duration_minutes} min
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <span className={`text-[10px] flex-shrink-0 transition-transform ${isOpen ? 'rotate-90 text-amber-300' : 'text-slate-500'}`}>
+                  ›
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 // ───── LampoResult ─────
 function LampoResult({ project, onReleased, onClose, api }) {
   const [releasing, setReleasing] = useState(false);
   const [timing, setTiming] = useState('immediate'); // immediate|6h|12h|18h|1d|2d|4d|6d|8d
   const [dayTime, setDayTime] = useState('20:00');   // HH:mm for "days" options
+
+  // ─── SAGA: Film a Capitoli (solo film/animation, no serie/anime) ───
+  const sagaAlreadyChapter = !!project.saga_id;
+  const lampoKind = (project.content_type === 'film' || project.content_type === 'animation')
+    ? project.content_type
+    : null;
+  const canShowSagaCheckbox = !!lampoKind && !sagaAlreadyChapter;
+  const [sagaEnabled, setSagaEnabled] = useState(false);
+  const [sagaChapters, setSagaChapters] = useState(3);
+  const [sagaCliffhanger, setSagaCliffhanger] = useState(false);
   // ⚡ Predicted theater days (computed locally, mirror del backend per dare anteprima)
   const predictedTheaterDays = useMemo(() => {
     if (project.content_type !== 'film') return null;
@@ -479,6 +618,24 @@ function LampoResult({ project, onReleased, onClose, api }) {
   const handleRelease = async () => {
     setReleasing(true);
     try {
+      // ─── SAGA: avvia la saga PRIMA del rilascio se attivata ───
+      if (canShowSagaCheckbox && sagaEnabled) {
+        try {
+          await api.post(`/sagas/start`, {
+            project_id: project.id,
+            pipeline: 'lampo',
+            total_planned_chapters: sagaChapters,
+            chapter1_subtitle: '',
+            cliffhanger: sagaCliffhanger,
+          });
+          toast.success(`Saga avviata: ${sagaChapters} capitoli pianificati! Trovala in "Saghe".`);
+        } catch (e) {
+          const detail = e?.response?.data?.detail || 'Impossibile avviare la saga. Continuo senza.';
+          toast.error(detail);
+          // eslint-disable-next-line no-console
+          console.warn('[saga.start] LAMPO error', e);
+        }
+      }
       const body = computeReleaseAt();
       const res = await api.post(`/lampo/${project.id}/release`, body);
       toast.success(res.data.message || 'Rilasciato!');
@@ -569,6 +726,49 @@ function LampoResult({ project, onReleased, onClose, api }) {
         </div>
       )}
 
+      {/* Personaggi della pretrama → cast assegnato (coerenza narrativa) */}
+      {Array.isArray(project.characters) && project.characters.length > 0 && (
+        <div className="mb-3 p-3 rounded-lg bg-purple-500/5 border border-purple-500/20" data-testid="lampo-characters-block">
+          <div className="text-[9px] uppercase text-purple-300 font-semibold mb-2 flex items-center gap-1">
+            <Sparkles className="w-3 h-3" /> Personaggi & Cast
+          </div>
+          <div className="space-y-1">
+            {project.characters
+              .slice()
+              .sort((a, b) => {
+                const ord = { protagonist: 0, antagonist: 1, coprotagonist: 2, supporting: 3, minor: 4 };
+                return (ord[a.role_type] ?? 9) - (ord[b.role_type] ?? 9);
+              })
+              .slice(0, 10)
+              .map((c, i) => {
+                const roleColor = {
+                  protagonist: 'text-amber-300',
+                  antagonist: 'text-red-300',
+                  coprotagonist: 'text-cyan-300',
+                  supporting: 'text-emerald-300',
+                  minor: 'text-slate-400',
+                }[c.role_type] || 'text-slate-300';
+                return (
+                  <div key={c.id || i} className="flex items-center justify-between gap-2 text-[10px]">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-bold text-white truncate">{c.name}</span>
+                      <span className={`ml-1 text-[8px] uppercase tracking-wider ${roleColor}`}>{c.role_type}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-200 truncate ml-2">
+                      {c.actor_name ? <span className="text-emerald-300">→ {c.actor_name}</span> : <span className="text-slate-500 italic">—</span>}
+                    </span>
+                  </div>
+                );
+              })}
+            {project.characters.length > 10 && (
+              <p className="text-[9px] text-slate-500 italic text-center pt-1">
+                e altri {project.characters.length - 10} personaggi…
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Sponsor */}
       {project.sponsors?.length > 0 && (
         <div className="mb-3 p-3 rounded-lg bg-black/40 border border-emerald-500/20">
@@ -607,19 +807,9 @@ function LampoResult({ project, onReleased, onClose, api }) {
         </div>
       )}
 
-      {/* Episodes (serie/anime) */}
+      {/* Episodes (serie/anime) — scrollabile + cliccabili per mini-trama */}
       {project.episodes?.length > 0 && (
-        <div className="mb-3 p-3 rounded-lg bg-black/40 border border-white/5">
-          <div className="text-[9px] uppercase text-slate-400 font-semibold mb-2">Episodi ({project.episodes.length})</div>
-          <div className="space-y-1 max-h-32 overflow-y-auto">
-            {project.episodes.slice(0, 5).map((ep, i) => (
-              <div key={i} className="text-[10px] leading-snug">
-                <span className="text-amber-400 font-bold">Ep.{ep.episode_number || (i + 1)}</span> <span className="text-slate-300">— {ep.synopsis}</span>
-              </div>
-            ))}
-            {project.episodes.length > 5 && <div className="text-[9px] text-slate-500 italic">…e altri {project.episodes.length - 5} episodi</div>}
-          </div>
-        </div>
+        <EpisodesList episodes={project.episodes} />
       )}
 
       {/* Marketing + sponsor */}
@@ -719,6 +909,28 @@ function LampoResult({ project, onReleased, onClose, api }) {
              : '📅 Pianifica uscita'}
         </Button>
       </div>
+
+      {/* ─── SAGA: Film a Capitoli (sotto i bottoni release) ─── */}
+      {canShowSagaCheckbox && (
+        <div className="mt-3">
+          <SagaCheckbox
+            enabled={sagaEnabled}
+            onToggle={setSagaEnabled}
+            totalChapters={sagaChapters}
+            onTotalChange={setSagaChapters}
+            cliffhanger={sagaCliffhanger}
+            onCliffhangerChange={setSagaCliffhanger}
+            contentKind={lampoKind}
+            disabled={releasing}
+          />
+        </div>
+      )}
+      {sagaAlreadyChapter && (
+        <div className="mt-3 p-2.5 rounded-xl bg-amber-950/30 border border-amber-700/40 text-[10px] text-amber-200 flex items-center gap-2" data-testid="lampo-saga-chapter-info">
+          📚 Capitolo <strong>{project.saga_chapter_number}</strong> della saga.
+        </div>
+      )}
+
       <p className="text-[9px] text-slate-500 text-center mt-2 italic">
         Il progetto resta salvato finché non lo rilasci o scarti — puoi chiudere e tornare.
       </p>

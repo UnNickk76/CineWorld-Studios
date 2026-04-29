@@ -9,12 +9,18 @@ import {
   Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye
 } from 'lucide-react';
 import LikeButton, { SystemLikeBadge, PreReleaseSnapshotBadge } from './LikeButton';
+import ReportContentButton from './moderation/ReportContentButton';
 import TrailerPlayerModal from './TrailerPlayerModal';
 import PStarBanner from './PStarBanner';
 import CineConfirm from './v3/CineConfirm';
 import { Trash2 } from 'lucide-react';
 import { LampoLightning } from './LampoLightning';
-import { getPreReleasePressReviews, getPreReleaseAudience } from '../utils/preReleasePhrases';
+import { SagaBadge } from './saga/SagaBadge';
+import { CinemaStatsModal } from './cinema/CinemaStatsModal';
+import { getPreReleasePressReviews, getPreReleaseAudience, getPreReleasePressLabel, isProjectNotYetReleased } from '../utils/preReleasePhrases';
+import DistributionPopup, { hasDistributionData, getDistributionLabel } from './DistributionPopup';
+import TvMarketModal from './TvMarketModal';
+import TvAiringBadge from './TvAiringBadge';
 import '../styles/content-template.css';
 
 // ═══ THEATER INFO BAR — expandable cinema stats + owner actions ═══
@@ -658,6 +664,8 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   const [likes, setLikes] = useState({ poster: { count: 0, liked_by_me: false, system_count: 0 }, screenplay: { count: 0, liked_by_me: false, system_count: 0 }, trailer: { count: 0, liked_by_me: false, system_count: 0 } });
   const [likesSnapshot, setLikesSnapshot] = useState(null);
   const [tvStationInfo, setTvStationInfo] = useState(null);  // {id, name, owner_id}
+  const [showDistribution, setShowDistribution] = useState(false);
+  const [showTvMarket, setShowTvMarket] = useState(false);
 
   const isSeries = contentType === 'series' || contentType === 'anime';
   const isAnime = contentType === 'anime' || film?.type === 'anime' || film?.content_type === 'anime';
@@ -767,8 +775,12 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
   }
 
   const statusInfo = getStatusInfo(film, contentType);
-  // ⏳ "Not yet released" detector: scheduled in future OR LAMPO unreleased
+  // ⏳ "Not yet released" detector — ESTESO per coprire TUTTE le fasi pipeline pre-release
+  // (idea, hype, cast, prep, ciak, finalcut, marketing, la_prima, distribution, release_pending)
+  // oltre a LAMPO scheduled e scheduled_release_at futuro.
   const _isNotReleasedYet = (() => {
+    if (isProjectNotYetReleased(film)) return true;
+    // Legacy fallback per compatibilità
     if (film?.status === 'lampo_ready' || film?.status === 'lampo_scheduled') return true;
     const sch = film?.scheduled_release_at;
     if (sch) { try { return new Date(sch).getTime() > Date.now(); } catch {} }
@@ -872,7 +884,8 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
           <div className="absolute right-2 bottom-2" data-testid="poster-like-system">
             <SystemLikeBadge count={likes.poster?.system_count || 0} variant="chip" />
           </div>
-          <LampoLightning item={film} variant="top-right" size="md" />
+          <LampoLightning item={film} variant="bottom-left" size="md" />
+          <SagaBadge chapterNumber={film.saga_chapter_number} totalChapters={film.saga_total_planned_chapters} cliffhanger={film.saga_cliffhanger} size="md" position="top-left" />
         </div>
         <div className="ct2-short-plot" data-testid="ct-short-plot">
           <div className="ct2-info-title">{film.title}</div>
@@ -891,12 +904,47 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
               {isAnime ? 'Disegnatori' : 'Cast'}: {castInfo.actors.map(a => a.name).join(', ')}
             </div>
           )}
-          {(film.is_lampo || film.mode === 'lampo') && film.distribution_scope && (
-            <div className="ct2-info-cast" style={{ color: '#fbbf24', fontWeight: 600 }} data-testid="ct-lampo-distribution">
-              <Zap size={10} style={{ display: 'inline', marginRight: 2, verticalAlign: 'middle' }} />
-              Distribuzione: {film.distribution_scope}
+          {hasDistributionData(film) && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setShowDistribution(true); }}
+              className="ct2-info-cast text-left w-full hover:opacity-80 active:opacity-60 transition-opacity touch-manipulation"
+              style={{
+                color: (film.is_lampo || film.mode === 'lampo') ? '#fbbf24' : '#67e8f9',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 4,
+              }}
+              data-testid="ct-distribution-row"
+              aria-label="Vedi dove viene trasmesso il film"
+            >
+              {(film.is_lampo || film.mode === 'lampo')
+                ? <Zap size={10} style={{ display: 'inline', verticalAlign: 'middle' }} />
+                : <span style={{ fontSize: 11, lineHeight: 1 }}>🎬</span>
+              }
+              <span style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }}>
+                Distribuzione: {getDistributionLabel(film) || '—'}
+              </span>
               {film.worldwide && ' 🌍'}
-            </div>
+              <span style={{
+                fontSize: 9,
+                opacity: 0.7,
+                background: 'rgba(255,255,255,0.08)',
+                padding: '1px 6px',
+                borderRadius: 6,
+                marginLeft: 2,
+                fontWeight: 700,
+                letterSpacing: 0.5,
+              }}>
+                VEDI DOVE
+              </span>
+            </button>
           )}
           {shortPlot ? (
             <div className="ct2-info-plot">{shortPlot}</div>
@@ -922,14 +970,99 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       <div className="ct2-title-row" data-testid="ct-title">
         <h1 className="ct2-title">{film.title}</h1>
       </div>
+      {/* TV Airing badge — visible only if content is in palinsesto */}
+      <div className="px-4 mt-1 flex items-center">
+        <TvAiringBadge contentId={filmId} onClick={(info) => navigate(`/tv-station/${info.station_id}`)} />
+      </div>
       {/* Production House — clickable */}
       {(film.production_house_name || film.producer_nickname || film.user_id) && (
-        <div className="px-4 -mt-1 mb-1">
+        <div className="px-4 -mt-1 mb-1 flex items-center justify-between gap-2 flex-wrap">
           <button className="text-[10px] text-amber-400/70 italic hover:text-amber-300 transition-colors"
             onClick={(e) => { e.stopPropagation(); if (film.producer_nickname) window.dispatchEvent(new CustomEvent('open-player-popup', { detail: { nickname: film.producer_nickname } })); }}
             data-testid="ct-production-house-title">
             una produzione {film.logo_url && <img src={film.logo_url} alt="" className="inline w-3 h-3 rounded-sm object-contain mx-0.5" />}<span className="font-bold not-italic">{film.production_house_name || film.producer_nickname || 'Indipendente'}</span>
           </button>
+          <div className="flex items-center gap-1.5">
+            {/* FASE 2: Bottoni TV-specifici */}
+            {film.is_tv_movie && film.status !== 'released' && !film.tv_anteprima_active && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const token = localStorage.getItem('cineworld_token');
+                    const r = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/tv-movies/${film.id}/anteprima-tv`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+                    const d = await r.json();
+                    if (r.ok) { window.toast?.success?.(`Anteprima attivata! +${d.hype_boost} hype`); }
+                    else throw new Error(d.detail);
+                  } catch (err) { window.toast?.error?.(err.message); }
+                }}
+                data-testid="ct-tv-anteprima-btn"
+                className="px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/80 hover:bg-rose-500 text-white active:scale-95 transition-all touch-manipulation flex items-center gap-1"
+                aria-label="Attiva Anteprima TV"
+              >
+                ✨ Anteprima
+              </button>
+            )}
+            {film.is_tv_movie && (film.status === 'in_tv_programming' || film.status === 'completed') && (film.tv_replays_count ?? 0) < (film.tv_replays_max ?? 3) && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  if (!window.confirm('Trasmettere una nuova replica? Spettatori previsti -30%.')) return;
+                  try {
+                    const token = localStorage.getItem('cineworld_token');
+                    const r = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/tv-movies/${film.id}/rerun`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+                    const d = await r.json();
+                    if (r.ok) { window.toast?.success?.(`Replica #${d.replay_number} programmata · ${d.expected_viewers.toLocaleString()} spettatori attesi`); }
+                    else throw new Error(d.detail);
+                  } catch (err) { window.toast?.error?.(err.message); }
+                }}
+                data-testid="ct-tv-rerun-btn"
+                className="px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-cyan-500/80 hover:bg-cyan-500 text-white active:scale-95 transition-all touch-manipulation flex items-center gap-1"
+                aria-label="Replica TV"
+              >
+                🔁 Replica
+              </button>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowTvMarket(true); }}
+              data-testid="ct-tv-market-btn"
+              className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black active:scale-95 transition-all touch-manipulation flex items-center gap-1 shadow-[0_0_8px_rgba(251,191,36,0.3)]"
+              aria-label="Apri mercato diritti TV"
+            >
+              <Tv size={10} /> Mercato TV
+            </button>
+            {/* ═══ AZIONI PROPRIETARIO: Saga / Sequel / Live Action ═══ */}
+            {isOwner && film?.saga_id && (
+              <button
+                onClick={(e) => { e.stopPropagation(); navigate(`/saghe?saga_id=${film.saga_id}`); }}
+                data-testid="ct-saga-btn"
+                className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white active:scale-95 transition-all touch-manipulation flex items-center gap-1 shadow-[0_0_8px_rgba(167,139,250,0.4)]"
+                aria-label="Saghe e Capitoli"
+              >
+                <BookOpen size={10} /> Saga · Cap.{film?.saga_chapter_number || 1}
+              </button>
+            )}
+            {isOwner && !isSeries && !isAnime && (film?.kind || 'film') === 'film' && (
+              <button
+                onClick={(e) => { e.stopPropagation(); navigate(`/create-sequel?from=${film.id}`); }}
+                data-testid="ct-create-sequel-btn"
+                className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white active:scale-95 transition-all touch-manipulation flex items-center gap-1 shadow-[0_0_8px_rgba(249,115,22,0.35)]"
+                aria-label="Crea Sequel"
+              >
+                <Film size={10} /> Crea Sequel
+              </button>
+            )}
+            {isOwner && (isSeries || isAnime || (film?.kind === 'animation' || film?.genre === 'animation')) && (
+              <button
+                onClick={(e) => { e.stopPropagation(); navigate(`/create-live-action?from=${film.id}`); }}
+                data-testid="ct-create-live-action-btn"
+                className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white active:scale-95 transition-all touch-manipulation flex items-center gap-1 shadow-[0_0_8px_rgba(236,72,153,0.35)]"
+                aria-label="Crea Live Action"
+              >
+                <Clapperboard size={10} /> Live Action
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -1074,9 +1207,9 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       </div>
       <PStarBanner film={film} />
 
-      {/* 6. JOURNALIST REVIEWS (green boxes) — pre-release: aspettative dei giornali */}
+      {/* 6. JOURNALIST REVIEWS (green boxes) — pre-release: aspettative dei giornali, coerenti con la fase pipeline */}
       <div className="ct2-section-label" data-testid="ct-reviews-label">
-        {isNotReleasedYet ? 'Le aspettative della stampa' : 'Cosa ne pensano i giornali'}
+        {isNotReleasedYet ? getPreReleasePressLabel(film) : 'Cosa ne pensano i giornali'}
       </div>
       <div className="ct2-reviews-row" data-testid="ct-reviews">
         {reviews.map((r, i) => (
@@ -1161,8 +1294,34 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         <TrailerPlayerModal trailer={trailer} contentTitle={film?.title} contentGenre={film?.genre || ''} contentId={filmId} contentOwnerId={film?.user_id} currentUserId={user?.id} api={api} onClose={() => setShowTrailer(false)} />
       )}
 
+      {/* ─── Segnalazione (subito dopo il trailer) ─── */}
+      {filmId && !isOwner && (
+        <div className="px-4">
+          <ReportContentButton
+            contentType={isSeries ? (isAnime ? 'anime' : 'series') : (film?.is_lampo || film?.lampo_id ? 'lampo' : 'film')}
+            contentId={filmId}
+            contentTitle={film?.title}
+            ownerUserId={film?.user_id}
+          />
+        </div>
+      )}
+
       {/* Cast Popup */}
       <CastPopup open={showCast} onClose={setShowCast} cast={film?.cast} />
+
+      {/* Distribution Popup — dove viene trasmesso il film */}
+      <DistributionPopup
+        open={showDistribution}
+        onClose={() => setShowDistribution(false)}
+        film={film}
+      />
+
+      {/* Mercato Diritti TV */}
+      <TvMarketModal
+        open={showTvMarket}
+        onClose={() => setShowTvMarket(false)}
+        content={film}
+      />
 
       {/* Episodes modal — series/anime only */}
       {showEpisodes && isSeries && (
@@ -1207,37 +1366,12 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
         onCancel={() => !deleting && setShowDeleteConfirm(false)}
       />
 
-      {/* Cinema Stats Modal */}
-      {showCinemaModal && (
-        <div style={{position:"fixed",top:0,left:0,width:"100%",height:"100%",background:"rgba(0,0,0,0.8)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={() => setShowCinemaModal(false)}>
-          <div style={{background:"#111",borderRadius:"12px",padding:"20px",width:"85%",maxWidth:"400px",color:"#fff",textAlign:"center"}} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{marginBottom:"12px",color:"#00ffff",fontSize:"16px"}}>Dati Cinema</h3>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"12px"}}>
-              <div style={{background:"rgba(255,255,255,0.05)",borderRadius:"8px",padding:"8px"}}>
-                <div style={{fontSize:"9px",color:"#6b7280"}}>Giorni in sala</div>
-                <div style={{fontSize:"18px",fontWeight:"bold",color:"#facc15"}}>{hasCinemaDays ? '' + cinemaDays : 'N/D'}</div>
-              </div>
-              <div style={{background:"rgba(255,255,255,0.05)",borderRadius:"8px",padding:"8px"}}>
-                <div style={{fontSize:"9px",color:"#6b7280"}}>Giorni rimasti</div>
-                <div style={{fontSize:"18px",fontWeight:"bold",color:"#38bdf8"}}>{hasCinemaRemain ? '' + cinemaRemain : 'N/D'}</div>
-              </div>
-            </div>
-            {(cinemaExt > 0 || cinemaRed > 0) && (
-              <div style={{display:"flex",justifyContent:"center",gap:"12px",marginBottom:"10px",fontSize:"12px"}}>
-                {cinemaExt > 0 && <span style={{color:"#4ade80",fontWeight:"bold"}}>{'+' + cinemaExt + ' giorni estesi'}</span>}
-                {cinemaRed > 0 && <span style={{color:"#f87171",fontWeight:"bold"}}>{'-' + cinemaRed + ' giorni ridotti'}</span>}
-              </div>
-            )}
-            <div style={{borderTop:"1px solid rgba(255,255,255,0.1)",paddingTop:"10px",marginBottom:"10px"}}>
-              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Cinema attivi: ' + (cinemaCount !== null ? '' + cinemaCount : 'non disponibile')}</p>
-              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Affluenza giornaliera: ' + (specDaily !== null ? '' + specDaily.toLocaleString() : 'non disponibile')}</p>
-              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Affluenza totale: ' + (specTotal !== null ? '' + specTotal.toLocaleString() : 'non disponibile')}</p>
-              <p style={{margin:"5px 0",fontSize:"13px"}}>{'Incassi sala: ' + (cinemaRev !== null ? '$' + cinemaRev.toLocaleString() : 'non disponibile')}</p>
-              {cinemaPerf && <p style={{margin:"8px 0",fontSize:"12px",color: cinemaPerf === 'great' ? '#4ade80' : cinemaPerf === 'good' ? '#34d399' : cinemaPerf === 'declining' ? '#fb923c' : cinemaPerf === 'bad' || cinemaPerf === 'flop' ? '#f87171' : '#facc15'}}>{'Andamento: ' + (cinemaPerf === 'great' ? 'Straordinario' : cinemaPerf === 'good' ? 'Ottimo' : cinemaPerf === 'ok' ? 'Discreto' : cinemaPerf === 'declining' ? 'In calo' : cinemaPerf === 'bad' ? 'Scarso' : cinemaPerf === 'flop' ? 'Flop' : cinemaPerf)}</p>}
-            </div>
-            <button style={{marginTop:"5px",padding:"8px 15px",borderRadius:"8px",border:"none",background:"#00ffff",color:"#000",fontWeight:"bold",cursor:"pointer"}} onClick={() => setShowCinemaModal(false)}>Chiudi</button>
-          </div>
-        </div>
+      {/* Cinema Stats Modal — nuovo dashboard "Al Cinema" */}
+      {showCinemaModal && film?.id && (
+        <CinemaStatsModal
+          contentId={film.id}
+          onClose={() => setShowCinemaModal(false)}
+        />
       )}
     </div>
   );

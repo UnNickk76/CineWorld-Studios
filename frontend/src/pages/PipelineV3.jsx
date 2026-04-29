@@ -1,12 +1,13 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Film, ChevronLeft, Save, X, Eye } from 'lucide-react';
+import { Plus, Film, ChevronLeft, Save, X, Eye, AlertTriangle } from 'lucide-react';
 import CinematicReleaseOverlay from '../components/CinematicReleaseOverlay';
 import { FilmRollAnimation, CrowdRushAnimation, MontageRollAnimation, LaPrimaAnimation } from '../components/v3/PipelineAnimations';
 import { V3_STEPS, StepperBar, GENRE_LABELS, v3api } from '../components/v3/V3Shared';
 import { IdeaPhase } from '../components/v3/IdeaPhase';
 import { CastPhase } from '../components/v3/CastPhase';
 import { HypePhase, PrepPhase, CiakPhase, FinalCutPhase, MarketingPhase, LaPrimaPhase, DistributionPhase, StepFinale, DiscardFilmButton } from '../components/v3/Phases';
+import TvMovieSchedulePhase from '../components/v3/TvMovieSchedulePhase';
 import TrailerGeneratorCard from '../components/TrailerGeneratorCard';
 import LampoModal from '../components/LampoModal';
 import { AuthContext } from '../contexts';
@@ -35,9 +36,14 @@ export default function PipelineV3() {
   const [wowAnimation, setWowAnimation] = useState(null); // 'film_roll' | 'crowd_rush' | 'montage_roll' | 'la_prima' | null
   const pendingAdvanceRef = useRef(null);
 
-  // Tick every 5s for real-time checks (CIAK timer)
+  // Quota state (production_studio)
+  const [quotaInfo, setQuotaInfo] = useState(null);       // classic
+  const [quotaLampoInfo, setQuotaLampoInfo] = useState(null);
+  const [errorModal, setErrorModal] = useState(null);     // { title, message }
+
+  // Tick ogni 1s: alimenta i countdown del cooldown e i timer CIAK
   useEffect(() => {
-    const t = setInterval(() => setClockTick(c => c + 1), 5000);
+    const t = setInterval(() => setClockTick(c => c + 1), 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -52,6 +58,17 @@ export default function PipelineV3() {
       const drafts = (r?.projects || []).filter(p => !p.released && p.content_type === 'film');
       setLampoDrafts(drafts);
     } catch { setLampoDrafts([]); }
+  }, []);
+
+  const loadQuota = useCallback(async () => {
+    try {
+      const [c, l] = await Promise.all([
+        v3api('/quota-info?studio_type=production_studio&mode=classic'),
+        v3api('/quota-info?studio_type=production_studio&mode=lampo'),
+      ]);
+      setQuotaInfo(c);
+      setQuotaLampoInfo(l);
+    } catch {}
   }, []);
 
   const refreshSelected = useCallback(async () => {
@@ -69,8 +86,8 @@ export default function PipelineV3() {
     } catch (e) { showToast(e.message, 'error'); }
   }, []);
 
-  useEffect(() => { loadProjects(); }, [loadProjects]);
-  useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); } }, [toast]);
+  useEffect(() => { loadProjects(); loadQuota(); }, [loadProjects, loadQuota]);
+  useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), toast.type === 'error' ? 8000 : 3500); return () => clearTimeout(t); } }, [toast]);
   useEffect(() => { return () => { if (progressRef.current) clearInterval(progressRef.current); }; }, []);
 
   // Auto-select a project when ?p=<project_id> is passed in URL (used by "Genera Trailer"
@@ -93,6 +110,25 @@ export default function PipelineV3() {
       } catch (_) { /* ignore */ }
     })();
   }, [searchParams, selected, setSearchParams]);
+
+  // Auto-open LAMPO modal when ?lampo=<id> is passed (used by MyDraftsWidget to resume LAMPO drafts).
+  const autoLampoRef = useRef(false);
+  useEffect(() => {
+    const lid = searchParams.get('lampo');
+    if (!lid || autoLampoRef.current) return;
+    autoLampoRef.current = true;
+    (async () => {
+      try {
+        const r = await v3api('/lampo/mine');
+        const draft = (r?.projects || []).find(p => p.id === lid);
+        if (draft) {
+          setLampoExisting(draft);
+          setShowLampoModal(true);
+          setSearchParams({}, { replace: true });
+        }
+      } catch (_) { /* ignore */ }
+    })();
+  }, [searchParams, setSearchParams]);
 
   const currentStep = selected?.pipeline_state || 'idea';
   const stepIndex = V3_STEPS.findIndex(s => s.id === currentStep);
@@ -119,10 +155,16 @@ export default function PipelineV3() {
     setLoading(true);
     try {
       const res = await v3api('/films/create', 'POST', { title: 'Nuovo Film', genre: 'comedy', preplot: '' });
-      setSelected(res.project); setDirty(false); await loadProjects(); showToast('Progetto V3 creato!');
+      setSelected(res.project); setDirty(false); await loadProjects(); await loadQuota(); showToast('Progetto V3 creato!');
     } catch (e) {
-      const msg = e?.response?.data?.detail || e?.message || 'Errore';
-      showToast(msg, 'error');
+      const msg = e?.message || 'Errore';
+      // Quota / cooldown / level errors → modale chiara invece di toast volatile
+      if (e?.status === 400 && (/limite progetti|cooldown|studio/i.test(msg))) {
+        setErrorModal({ title: 'Quota studio raggiunta', message: msg });
+        await loadQuota();
+      } else {
+        showToast(msg, 'error');
+      }
     }
     setLoading(false);
   };
@@ -221,7 +263,7 @@ export default function PipelineV3() {
   const discard = async () => {
     if (!selected?.id) return;
     setLoading(true);
-    try { await v3api(`/films/${selected.id}/discard`, 'POST'); setSelected(null); await loadProjects(); showToast('Film scartato'); }
+    try { await v3api(`/films/${selected.id}/discard`, 'POST'); setSelected(null); await loadProjects(); await loadQuota(); showToast('Film scartato'); }
     catch (e) { showToast(e.message, 'error'); }
     setLoading(false);
   };
@@ -316,6 +358,117 @@ export default function PipelineV3() {
     }`} onClick={() => setToast(null)}>{toast.msg}<button className="absolute top-1.5 right-2"><X className="w-3 h-3 text-gray-500" /></button></div>
   ) : null;
 
+  // ═══ ERROR MODAL (quota / cooldown) ═══
+  const errorModalEl = errorModal ? (
+    <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" data-testid="quota-error-modal">
+      <div className="w-full max-w-sm rounded-2xl border border-red-500/40 bg-gradient-to-br from-red-950/70 to-gray-900/95 shadow-2xl p-5">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5 text-red-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-red-200">{errorModal.title}</h3>
+            <p className="text-[10px] text-gray-400 mt-0.5">Impossibile avviare un nuovo progetto adesso.</p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-200 leading-relaxed bg-black/40 rounded-lg p-3 border border-red-500/20">
+          {errorModal.message}
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button onClick={() => { setErrorModal(null); navigate('/infrastructure'); }}
+            className="px-3 py-2 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold active:scale-95 transition-all"
+            data-testid="quota-modal-upgrade-btn">
+            Potenzia Studio
+          </button>
+          <button onClick={() => setErrorModal(null)}
+            className="px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 text-[11px] font-bold active:scale-95 transition-all"
+            data-testid="quota-modal-close-btn">
+            Chiudi
+          </button>
+        </div>
+        <p className="text-[9px] text-gray-500 mt-3 text-center">
+          Suggerimento: scarta o completa i progetti aperti per liberare slot.
+        </p>
+      </div>
+    </div>
+  ) : null;
+
+  // ═══ QUOTA BADGE (board view) ═══
+  // helper per mostrare il countdown del cooldown
+  const formatCountdown = (isoStr) => {
+    if (!isoStr) return null;
+    const target = new Date(isoStr).getTime();
+    const now = Date.now();
+    let diff = Math.max(0, target - now);
+    const d = Math.floor(diff / 86400000); diff -= d * 86400000;
+    const h = Math.floor(diff / 3600000);  diff -= h * 3600000;
+    const m = Math.floor(diff / 60000);    diff -= m * 60000;
+    const s = Math.floor(diff / 1000);
+    if (d > 0) return `${d}g ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
+
+  const renderQuotaBadge = () => {
+    const fmtQ = (info, label) => {
+      if (!info) return null;
+      const pUsed = info.parallel_used ?? 0;
+      const pMax = info.max_parallel;
+      const dUsed = info.daily_used ?? 0;
+      const dMax = info.max_daily;
+      const unlimited = info.unlimited;
+      const parallelFull = info.parallel_full;
+      const dailyFull = info.daily_full;
+      const showDual = info.show_dual_quota;
+      const blocked = parallelFull || dailyFull;
+      const dailyCountdown = dailyFull ? formatCountdown(info.daily_window_resets_at) : null;
+
+      return (
+        <div className={`flex-1 px-2 py-1.5 rounded-lg border text-[9px] ${
+          blocked ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+        }`} data-testid={`quota-badge-${label.toLowerCase()}`}>
+          <div className="flex items-center justify-between gap-1">
+            <span className="font-bold uppercase tracking-wider">{label}</span>
+            <span className="text-[8px] text-gray-400">Lv {info.level || 0}</span>
+          </div>
+          {/* Riga TOTALI */}
+          <div className={`flex items-center justify-between mt-1 ${parallelFull ? 'text-red-300' : ''}`}>
+            <span className="opacity-80">Totali aperti</span>
+            <span className="font-mono font-bold">{unlimited ? `${pUsed}/∞` : `${pUsed}/${pMax}`}</span>
+          </div>
+          {/* Riga GIORNALIERI — solo quando ha senso (max_parallel > 1) */}
+          {showDual && (
+            <>
+              <div className={`flex items-center justify-between ${dailyFull ? 'text-red-300' : ''}`}>
+                <span className="opacity-80">Oggi (24h)</span>
+                <span className="font-mono font-bold">{dMax == null ? `${dUsed}/∞` : `${dUsed}/${dMax}`}</span>
+              </div>
+              {dailyFull && dailyCountdown && (
+                <div className="text-[8px] mt-0.5 text-red-300 font-mono">
+                  ⏱️ Slot tra {dailyCountdown}
+                </div>
+              )}
+            </>
+          )}
+          {parallelFull && !dailyFull && (
+            <div className="text-[8px] mt-0.5 text-red-300">
+              ⚠️ Completa o scarta un progetto
+            </div>
+          )}
+        </div>
+      );
+    };
+    if (!quotaInfo && !quotaLampoInfo) return null;
+    return (
+      <div className="flex gap-2 mb-3" data-testid="quota-board-strip">
+        {fmtQ(quotaInfo, 'V3 Classico')}
+        {fmtQ(quotaLampoInfo, '⚡ LAMPO')}
+      </div>
+    );
+  };
+
   // ═══ BOARD VIEW ═══
   if (!selected) {
     // Studio logo fallback per locandine mancanti (proprio + altri produttori)
@@ -324,8 +477,10 @@ export default function PipelineV3() {
     return (
       <div className="min-h-screen bg-black text-white pb-28" data-testid="v3-board">
         {toastEl}
+        {errorModalEl}
         <div className="px-3 pt-24">
           <p className="text-[10px] text-gray-500 mb-3">Inizia un nuovo film o continua quelli in lavorazione</p>
+          {renderQuotaBadge()}
           <div className="grid grid-cols-3 gap-2">
             <button onClick={() => { setLampoExisting(null); setShowLampoModal(true); }} disabled={loading}
               className="aspect-[2/3] rounded-xl border-2 border-dashed border-gray-700 hover:border-emerald-500/50 bg-gray-900/30 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
@@ -414,6 +569,11 @@ export default function PipelineV3() {
   // ═══ PHASE CONTENT ═══
   const phaseProps = { film: selected, onRefresh: refreshSelected, toast: showToast, onDirty: markDirty, readOnly: isReadOnly };
   const renderPhase = () => {
+    const isTvMovie = !!selected?.is_tv_movie;
+    // Per i film TV, La Prima e Distribution sono sostituiti dallo step "Programmazione TV"
+    if (isTvMovie && (viewStep === 'la_prima' || viewStep === 'distribution')) {
+      return <TvMovieSchedulePhase selected={selected} onAdvance={advance} loading={loading} currentStep={viewStep} />;
+    }
     switch (viewStep) {
       case 'idea': return <IdeaPhase {...phaseProps} />;
       case 'hype': return <HypePhase {...phaseProps} />;
@@ -433,6 +593,7 @@ export default function PipelineV3() {
   return (
     <div className="min-h-screen bg-black text-white pb-28" style={{ overscrollBehavior: 'none' }}>
       {toastEl}
+      {errorModalEl}
       <div className="pt-20">
         {/* Header */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800/50">
@@ -445,6 +606,11 @@ export default function PipelineV3() {
             <h2 className="text-xs font-bold text-white truncate">{selected.title || 'Nuovo Progetto'}</h2>
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
               <span className="text-[7px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium uppercase">{GENRE_LABELS[selected.genre] || selected.genre}</span>
+              {selected.is_tv_movie && (
+                <span className="text-[7px] px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30 font-bold uppercase inline-flex items-center gap-0.5" data-testid="tv-movie-badge">
+                  📺 TV: {selected.target_station_name || 'TV'}
+                </span>
+              )}
               {prevoto?.prevoto ? (
                 <span className={`text-[7px] px-1.5 py-0.5 rounded font-black border ${
                   prevoto.prevoto >= 8 ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25' :
@@ -549,7 +715,7 @@ export default function PipelineV3() {
           </div>
         )}
 
-        <StepperBar current={viewStep} onSelect={(sid, idx) => {
+        <StepperBar current={viewStep} isTvMovie={!!selected.is_tv_movie} onSelect={(sid, idx) => {
           // Allow clicking to preview any step; if user picks current step → clear override
           if (sid === currentStep) setViewStepOverride(null);
           else setViewStepOverride(sid);
@@ -578,6 +744,7 @@ export default function PipelineV3() {
               canGenerate={true}
               isGuest={!!user?.is_guest}
               onGenerated={refreshSelected}
+              sagaInheritance={(selected.saga_id && (selected.saga_chapter_number || 0) > 1) ? { active: true, sagaId: selected.saga_id, chapterNumber: selected.saga_chapter_number } : null}
             />
           </div>
         )}
@@ -605,7 +772,7 @@ export default function PipelineV3() {
         {/* Scarta Film — in every step except idea */}
         {currentStep !== 'idea' && currentStep !== 'release_pending' && (
           <div className="px-3 pb-4">
-            <DiscardFilmButton filmId={selected.id} onDiscard={() => { setSelected(null); loadProjects(); showToast('Film scartato'); }} />
+            <DiscardFilmButton filmId={selected.id} film={selected} onDiscard={() => { setSelected(null); loadProjects(); showToast('Film scartato'); }} />
           </div>
         )}
       </div>

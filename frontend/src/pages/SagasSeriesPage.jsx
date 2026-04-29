@@ -50,6 +50,7 @@ const SagasSeriesPage = () => {
   const { language } = useTranslations();
   const [searchParams] = useSearchParams();
   const typeParam = searchParams.get('type');
+  const sagaIdParam = searchParams.get('saga_id');
   const [activeTab, setActiveTab] = useState(typeParam === 'tv_series' ? 'series' : typeParam === 'anime' ? 'anime' : 'sagas');
   const [myFilms, setMyFilms] = useState([]);
   const [mySagas, setMySagas] = useState([]);
@@ -81,6 +82,21 @@ const SagasSeriesPage = () => {
     loadData();
   }, []);
 
+  // Scroll automatico alla saga indicata via ?saga_id=
+  useEffect(() => {
+    if (!sagaIdParam || mySagas.length === 0) return;
+    setActiveTab('sagas');
+    const t = setTimeout(() => {
+      const el = document.getElementById(`saga-${sagaIdParam}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('saga-highlight');
+        setTimeout(() => el.classList.remove('saga-highlight'), 2200);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [sagaIdParam, mySagas]);
+
   const loadData = async () => {
     try {
       const [filmsRes, seriesRes, sequelCheck, tvCheck, animeCheck] = await Promise.all([
@@ -104,7 +120,13 @@ const SagasSeriesPage = () => {
           sagas[film.saga_id].push(film);
         }
       });
-      setMySagas(Object.values(sagas));
+      // Convert to array preserving saga_id
+      const sagasArr = Object.entries(sagas).map(([sid, chapters]) => ({
+        saga_id: sid,
+        saga_name: chapters[0]?.saga_name || chapters[0]?.title || `Saga`,
+        chapters: chapters.sort((a, b) => (a.saga_chapter_number || 0) - (b.saga_chapter_number || 0)),
+      }));
+      setMySagas(sagasArr);
     } catch (e) {
       console.error(e);
     }
@@ -168,6 +190,9 @@ const SagasSeriesPage = () => {
 
   return (
     <div className="pt-16 pb-20 px-3 max-w-6xl mx-auto" data-testid="sagas-series-page">
+      <style>{`
+        .saga-highlight { box-shadow: 0 0 0 2px rgba(167,139,250,0.7), 0 0 24px rgba(167,139,250,0.45); background: rgba(167,139,250,0.10) !important; }
+      `}</style>
       <div className="text-center mb-6">
         <BookOpen className="w-12 h-12 text-purple-500 mx-auto mb-2" />
         <h1 className="font-['Bebas_Neue'] text-3xl">{language === 'it' ? 'Saghe e Serie' : 'Sagas & Series'}</h1>
@@ -256,13 +281,18 @@ const SagasSeriesPage = () => {
               </CardHeader>
               <CardContent>
                 {mySagas.map((saga, i) => (
-                  <div key={i} className="p-3 bg-white/5 rounded mb-2">
-                    <p className="font-semibold mb-2">{saga[0]?.saga_name || `Saga ${i+1}`}</p>
+                  <div key={saga.saga_id} id={`saga-${saga.saga_id}`} className="p-3 bg-white/5 rounded mb-2 transition-all">
+                    <p className="font-semibold mb-2">{saga.saga_name}</p>
                     <div className="flex gap-2 overflow-x-auto pb-2">
-                      {saga.map((film, j) => (
+                      {saga.chapters.map((film, j) => (
                         <div key={film.id} className="flex-shrink-0 w-20 text-center">
-                          <div className="w-20 h-28 bg-white/10 rounded mb-1 flex items-center justify-center text-xs">#{j+1}</div>
+                          {film.poster_url ? (
+                            <img src={posterSrc(film.poster_url)} alt={film.title} className="w-20 h-28 object-cover rounded mb-1" />
+                          ) : (
+                            <div className="w-20 h-28 bg-white/10 rounded mb-1 flex items-center justify-center text-xs">#{film.saga_chapter_number || j+1}</div>
+                          )}
                           <p className="text-xs truncate">{film.title}</p>
+                          <p className="text-[9px] text-purple-400">Cap. {film.saga_chapter_number || j+1}</p>
                         </div>
                       ))}
                     </div>

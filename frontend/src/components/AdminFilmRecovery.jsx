@@ -137,6 +137,19 @@ export default function AdminFilmRecovery() {
     } catch (e) { toast.error(e.response?.data?.detail || 'Errore'); }
   };
 
+  const restoreToDraft = async (id, title) => {
+    if (!window.confirm(`Riportare "${title}" in stato bozza? Sarà visibile in "I Miei Progetti".`)) return;
+    setFixing(id);
+    try {
+      await api.post(`/admin/recovery/restore-to-draft/${id}`);
+      toast.success('Riportato in bozza! Lo trovi in "I Miei Progetti".');
+      await loadFilms();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Errore');
+    }
+    setFixing(null);
+  };
+
   return (
     <div className="space-y-5">
       {/* ═══ STUCK CONTENT (anime/serie senza poster) ═══ */}
@@ -285,10 +298,13 @@ export default function AdminFilmRecovery() {
                 <p className="text-[8px] text-gray-500">{f.pipeline_state || f.status || '?'} | {f.owner_nickname}</p>
               </div>
               <div className="flex gap-1 flex-shrink-0">
-                <Button size="sm" className="h-6 px-2 text-[8px] bg-yellow-600 hover:bg-yellow-700" onClick={() => fixOne(f.id)} disabled={!!fixing}>
+                <Button size="sm" className="h-6 px-2 text-[8px] bg-yellow-600 hover:bg-yellow-700" onClick={() => fixOne(f.id)} disabled={!!fixing} title="Fix (forza completion)">
                   <Wrench className="w-2.5 h-2.5" />
                 </Button>
-                <Button size="sm" variant="destructive" className="h-6 px-2 text-[8px]" onClick={() => deleteFilm(f.id, f.title)} disabled={!!fixing}>
+                <Button size="sm" className="h-6 px-2 text-[8px] bg-blue-600 hover:bg-blue-700" onClick={() => restoreToDraft(f.id, f.title || 'Senza titolo')} disabled={!!fixing} title="Riporta in Bozza" data-testid={`restore-draft-${f.id}`}>
+                  📝
+                </Button>
+                <Button size="sm" variant="destructive" className="h-6 px-2 text-[8px]" onClick={() => deleteFilm(f.id, f.title)} disabled={!!fixing} title="Elimina definitivamente">
                   <Trash2 className="w-2.5 h-2.5" />
                 </Button>
               </div>

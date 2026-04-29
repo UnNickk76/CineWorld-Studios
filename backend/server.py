@@ -79,12 +79,25 @@ from routes.infrastructure import router as infrastructure_router
 from routes.radio import router as radio_router
 from routes.acting_school import router as acting_school_router
 from routes.casting_agency import router as casting_agency_router
+from routes.agency_contracts import router as agency_contracts_router
+from routes.talent_market import router as talent_market_router
 from routes.film_pipeline import router as film_pipeline_router
 from routes.pipeline_v2 import router as pipeline_v2_router
 from routes.pipeline_v3 import router as pipeline_v3_router
+from routes.characters import router as characters_router
+from routes.live_action import router as live_action_router
+from routes.live_action_market import router as live_action_market_router
+from routes.sagas import router as sagas_router
+from routes.cinema_stats import router as cinema_stats_router
+from routes.cineboard_unified import router as cineboard_unified_router
+from routes.location_coherence import router as location_coherence_router
 from routes.series_pipeline import router as series_pipeline_router
 from routes.pipeline_series_v3 import router as pipeline_series_v3_router
 from routes.admin_recovery import router as admin_recovery_router
+from routes.admin_avatars import router as admin_avatars_router
+from routes.tv_movies import router as tv_movies_router
+from routes.tv_movies import awards_router as tv_awards_router
+from routes.my_drafts import router as my_drafts_router
 from routes.city_tastes import router as city_tastes_router
 from routes.ri_cinema import router as ri_cinema_router
 from routes.sequel_pipeline import router as sequel_pipeline_router
@@ -2677,7 +2690,7 @@ async def release_film(film_id: str, release_data: FilmReleaseRequest, user: dic
     # Calculate fame change
     current_fame = user.get('fame', 50)
     fame_change = calculate_fame_change(quality_score, final_opening_revenue, current_fame)
-    new_fame = max(0, min(100, current_fame + fame_change))
+    new_fame = max(0, min(500, current_fame + fame_change))
     
     # Update user: deduct costs, add revenue, update stats
     new_funds = user['funds'] - distribution_cost + final_opening_revenue
@@ -5589,7 +5602,7 @@ async def admin_search_users(q: str = '', user: dict = Depends(get_current_user)
         query = {'nickname': {'$regex': q, '$options': 'i'}}
     users = await db.users.find(
         query,
-        {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1, 'funds': 1, 'cinepass': 1, 'xp': 1, 'fame': 1, 'role': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1}
+        {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1, 'funds': 1, 'cinepass': 1, 'xp': 1, 'fame': 1, 'role': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1, 'is_banned': 1, 'is_chat_muted': 1, 'ban_expires_at': 1, 'report_count_active': 1, 'ban_count_total': 1, 'is_deleted': 1, 'created_at': 1}
     ).sort('nickname', 1).limit(20).to_list(20)
     return {'users': users, 'count': len(users)}
 
@@ -5736,6 +5749,57 @@ async def admin_get_all_films(q: str = '', content_type: str = 'film', user: dic
         f['needs_fix'] = not f.get('poster_url') or (f.get('quality_score') is None)
 
     return {'films': results, 'count': len(results)}
+
+
+@api_router.post("/admin/set-content-status")
+async def admin_set_content_status(payload: dict, user: dict = Depends(get_current_user)):
+    """Aggiorna lo `status` (e opzionalmente `prossimamente_tv`/`pipeline_state`) di un contenuto.
+
+    Body atteso:
+      - item_id: str (id del contenuto)
+      - collection: str ∈ {'films','film_projects','tv_series','series_projects_v3'}
+      - status: str (nuovo stato)
+      - prossimamente_tv: bool (opzionale, solo per tv_series)
+      - sync_pipeline_state: bool (opzionale, copia status anche in pipeline_state per V3 projects)
+
+    Solo admin. Modifica reale e immediata in DB.
+    """
+    if user.get('nickname') != ADMIN_NICKNAME:
+        raise HTTPException(status_code=403, detail="Solo l'admin")
+
+    item_id = (payload or {}).get('item_id')
+    collection = (payload or {}).get('collection')
+    new_status = (payload or {}).get('status')
+    prossimamente_tv = (payload or {}).get('prossimamente_tv')
+    sync_pipeline_state = bool((payload or {}).get('sync_pipeline_state'))
+
+    if not item_id or not collection or not new_status:
+        raise HTTPException(status_code=400, detail="item_id, collection, status sono obbligatori")
+    if collection not in ('films', 'film_projects', 'tv_series', 'series_projects_v3'):
+        raise HTTPException(status_code=400, detail="collection non valida")
+
+    update_set = {
+        'status': new_status,
+        'updated_at': datetime.now(timezone.utc).isoformat(),
+        'admin_status_override_at': datetime.now(timezone.utc).isoformat(),
+        'admin_status_override_by': user.get('nickname'),
+    }
+    if prossimamente_tv is not None and collection == 'tv_series':
+        update_set['prossimamente_tv'] = bool(prossimamente_tv)
+    if sync_pipeline_state and collection in ('film_projects', 'series_projects_v3'):
+        update_set['pipeline_state'] = new_status
+
+    res = await db[collection].update_one({'id': item_id}, {'$set': update_set})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Contenuto non trovato nella collection indicata")
+
+    # Restituisce il nuovo documento (light) per UI refresh
+    doc = await db[collection].find_one(
+        {'id': item_id},
+        {'_id': 0, 'id': 1, 'title': 1, 'status': 1, 'pipeline_state': 1,
+         'prossimamente_tv': 1, 'type': 1, 'is_lampo': 1}
+    )
+    return {'success': True, 'updated': res.modified_count, 'item': doc}
 
 
 @api_router.delete("/admin/delete-film/{film_id}")
@@ -7880,6 +7944,125 @@ async def startup_event():
         id='update_cinema_revenue',
         replace_existing=True
     )
+
+    # Every 30 minutes: Expire LA rights contracts after 30 days
+    async def expire_la_contracts():
+        try:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            expired = await db.la_rights_contracts.find(
+                {"status": "pending_production", "expires_at": {"$lt": now_iso}},
+                {"_id": 0, "id": 1, "owner_id": 1, "buyer_id": 1, "origin_id": 1, "origin_kind": 1, "origin_title": 1, "exclusive": 1},
+            ).to_list(200)
+            for c in expired:
+                await db.la_rights_contracts.update_one({"id": c["id"]}, {"$set": {"status": "expired"}})
+                # Sblocca l'origine se era esclusiva
+                if c.get("exclusive"):
+                    coll = db.films if c["origin_kind"] == "animation" else db.tv_series
+                    await coll.update_one({"id": c["origin_id"]}, {"$set": {"live_action_id": None}})
+                # Notifiche
+                for uid, kind, msg in (
+                    (c["buyer_id"], "la_contract_expired",
+                     f"Contratto {c['origin_title']} SCADUTO: i diritti tornano al proprietario"),
+                    (c["owner_id"], "la_contract_returned",
+                     f"I diritti di {c['origin_title']} sono tornati a te (contratto scaduto)"),
+                ):
+                    await db.notifications.insert_one({
+                        "id": str(uuid.uuid4()), "user_id": uid, "type": kind,
+                        "title": "Contratto LA scaduto", "message": msg,
+                        "url": "/live-action-market", "read": False,
+                        "created_at": now_iso,
+                    })
+        except Exception as e:
+            logger.warning(f"expire_la_contracts failed: {e}")
+
+    scheduler.add_job(
+        expire_la_contracts,
+        IntervalTrigger(minutes=30),
+        id='expire_la_contracts',
+        replace_existing=True
+    )
+
+    # Every hour: SAGA pre-end advisor (5 days before chapter 3 exits theaters)
+    async def saga_advisor_check():
+        try:
+            from utils import saga_logic as SL
+            from routes.notification_helper import push_notification
+            now = datetime.now(timezone.utc)
+            cursor = db.sagas.find(
+                {"status": "active", "saga_advisor_sent": {"$ne": True}},
+                {"_id": 0, "id": 1, "user_id": 1, "title": 1, "released_count": 1, "total_planned_chapters": 1},
+            )
+            async for s in cursor:
+                if int(s.get("released_count", 0)) < 3:
+                    continue
+                # Trova il cap 3
+                chap3 = await db.films.find_one(
+                    {"saga_id": s["id"], "saga_chapter_number": 3, "user_id": s["user_id"]},
+                    {"_id": 0, "theater_start": 1, "released_at": 1, "theater_days": 1,
+                     "quality_score": 1, "total_revenue": 1, "title": 1},
+                )
+                if not chap3:
+                    continue
+                start_raw = chap3.get("theater_start") or chap3.get("released_at")
+                if not start_raw:
+                    continue
+                try:
+                    start = datetime.fromisoformat(str(start_raw).replace("Z", "+00:00"))
+                    if start.tzinfo is None:
+                        start = start.replace(tzinfo=timezone.utc)
+                except Exception:
+                    continue
+                days = int(chap3.get("theater_days") or 21)
+                end = start + timedelta(days=days)
+                delta = (end - now).total_seconds()
+                if 0 < delta < 5 * 86400:  # 5 giorni
+                    # Fetch chap1
+                    chap1 = await db.films.find_one(
+                        {"saga_id": s["id"], "saga_chapter_number": 1, "user_id": s["user_id"]},
+                        {"_id": 0, "quality_score": 1, "total_revenue": 1},
+                    )
+                    chapters_data = [
+                        {"chapter_number": 1, "cwsv": float((chap1 or {}).get("quality_score") or 0),
+                         "total_revenue": float((chap1 or {}).get("total_revenue") or 0)},
+                        {"chapter_number": 3, "cwsv": float(chap3.get("quality_score") or 0),
+                         "total_revenue": float(chap3.get("total_revenue") or 0)},
+                    ]
+                    advise_stop, msg = SL.should_advise_stop_saga(s, chapters_data)
+                    can_extend = SL.can_extend_beyond_planned(s, chapters_data)
+                    if advise_stop or can_extend:
+                        body = msg if msg else (
+                            f"🌟 La saga «{s.get('title')}» sta andando alla grande! "
+                            f"Puoi anche superare il numero di capitoli pianificato."
+                        )
+                        try:
+                            await push_notification(
+                                s["user_id"],
+                                title=f"📚 Saga «{s.get('title')}» — Aggiornamento",
+                                body=body,
+                                category="saga",
+                                url="/sagas",
+                            )
+                        except Exception:
+                            pass
+                        await db.sagas.update_one(
+                            {"id": s["id"]},
+                            {"$set": {
+                                "saga_advisor_sent": True,
+                                "saga_advise_stop": advise_stop,
+                                "saga_advise_message": msg if advise_stop else "",
+                                "can_continue_beyond": bool(can_extend),
+                                "updated_at": now.isoformat(),
+                            }}
+                        )
+        except Exception as e:
+            logger.warning(f"saga_advisor_check failed: {e}")
+
+    scheduler.add_job(
+        saga_advisor_check,
+        IntervalTrigger(hours=1),
+        id='saga_advisor_check',
+        replace_existing=True
+    )
     
     # Every hour: Update TV station revenues
     from routes.tv_stations import calculate_tv_station_revenues
@@ -7921,6 +8104,22 @@ async def startup_event():
         id='cleanup_hired_stars',
         replace_existing=True
     )
+
+    # Every 6 hours: decay segnalazioni + auto-lift ban scaduti
+    async def _moderation_periodic_job():
+        try:
+            from routes.reports import decay_active_reports, auto_lift_expired_bans
+            await decay_active_reports()
+            await auto_lift_expired_bans()
+        except Exception as _e:
+            logger.error(f"[MODERATION_DECAY] error: {_e}")
+
+    scheduler.add_job(
+        _moderation_periodic_job,
+        IntervalTrigger(hours=6),
+        id='moderation_decay_and_unban',
+        replace_existing=True,
+    )
     
     # Every Monday at 00:00 UTC: Reset weekly challenges
     scheduler.add_job(
@@ -7957,6 +8156,49 @@ async def startup_event():
         )
     except Exception as _le:
         print(f"[scheduler] Could not register LAMPO finalizer: {_le}")
+
+    # Every 10 minutes: Auto-close expired TV market contracts
+    try:
+        from routes.tv_market import auto_close_expired_contracts, auto_activate_pending_cinema_contracts
+        scheduler.add_job(
+            auto_close_expired_contracts,
+            IntervalTrigger(minutes=10),
+            id='tv_market_close_expired',
+            replace_existing=True,
+        )
+        # Every 5 minutes: attiva i contratti pending_cinema quando il film esce dal cinema
+        scheduler.add_job(
+            auto_activate_pending_cinema_contracts,
+            IntervalTrigger(minutes=5),
+            id='tv_market_activate_pending_cinema',
+            replace_existing=True,
+        )
+    except Exception as _tme:
+        print(f"[scheduler] Could not register tv_market closer: {_tme}")
+
+    # Every 6 hours: Talent happiness decay + auto-rescissione (Step 4 Living Talents)
+    try:
+        from routes.talent_market import apply_happiness_decay
+        scheduler.add_job(
+            apply_happiness_decay,
+            IntervalTrigger(hours=6),
+            id='talent_happiness_decay',
+            replace_existing=True,
+        )
+    except Exception as _the:
+        print(f"[scheduler] Could not register talent happiness decay: {_the}")
+
+    # Every 30 minutes: Process expired buyout transfers (Step 5)
+    try:
+        from routes.talent_market import process_expired_transfers
+        scheduler.add_job(
+            process_expired_transfers,
+            IntervalTrigger(minutes=30),
+            id='talent_buyout_transfers',
+            replace_existing=True,
+        )
+    except Exception as _tt:
+        print(f"[scheduler] Could not register talent buyout transfers: {_tt}")
     
     # Every 20 minutes: Dynamic events for Coming Soon content
     scheduler.add_job(
@@ -7965,6 +8207,18 @@ async def startup_event():
         id='coming_soon_dynamic_events',
         replace_existing=True
     )
+
+    # Every 15 minutes: Hype drift dinamico per progetti in Prossimamente
+    try:
+        from scheduler_tasks import process_prossimamente_hype_drift
+        scheduler.add_job(
+            process_prossimamente_hype_drift,
+            IntervalTrigger(minutes=15),
+            id='prossimamente_hype_drift',
+            replace_existing=True
+        )
+    except Exception as _phd:
+        print(f"[scheduler] Could not register prossimamente_hype_drift: {_phd}")
 
     # Every 30 minutes: La Prima pre-event hype buildup + auto news
     scheduler.add_job(
@@ -8246,6 +8500,68 @@ async def startup_event():
     import asyncio
     asyncio.create_task(seed_city_tastes_if_needed())
     asyncio.create_task(migrate_theater_films())
+    # Seed anime_director (300) e anime_illustrator (2000) se mancanti — idempotente
+    async def _seed_anime_crew_safe():
+        try:
+            from scripts.seed_anime_crew import main as _seed_anime_main
+            await _seed_anime_main()
+        except Exception as e:
+            logging.warning(f"[startup] seed_anime_crew failed: {e}")
+    asyncio.create_task(_seed_anime_crew_safe())
+
+    # One-shot: riallinea contratti TV active firmati su film ancora al cinema
+    async def _migrate_pending_cinema_contracts():
+        try:
+            from datetime import timedelta as _td
+            fixed = 0
+            async for c in db.tv_market_contracts.find({"status": "active", "content_collection": "films"}, {"_id": 0}):
+                film = await db.films.find_one({"id": c["content_id"]}, {"_id": 0, "status": 1, "released_at": 1, "cinema_duration_days": 1})
+                if not film:
+                    continue
+                if (film.get("status") or "").lower() not in ("in_theaters", "premiere"):
+                    continue
+                rel = film.get("released_at")
+                if not rel:
+                    continue
+                try:
+                    rel_dt = datetime.fromisoformat(rel.replace("Z", "+00:00")) if isinstance(rel, str) else rel
+                    if rel_dt.tzinfo is None:
+                        rel_dt = rel_dt.replace(tzinfo=timezone.utc)
+                except Exception:
+                    continue
+                days = int(film.get("cinema_duration_days") or 21)
+                cinema_end = rel_dt + _td(days=days)
+                if cinema_end <= datetime.now(timezone.utc):
+                    continue
+                new_end = cinema_end + _td(days=int(c.get("duration_days") or 7))
+                await db.tv_market_contracts.update_one(
+                    {"id": c["id"]},
+                    {"$set": {
+                        "status": "pending_cinema",
+                        "start_at": cinema_end.isoformat(),
+                        "end_at": new_end.isoformat(),
+                        "deferred_from_cinema": True,
+                        "cinema_end_planned_at": cinema_end.isoformat(),
+                    }}
+                )
+                await db.films.update_one(
+                    {"id": c["content_id"]},
+                    {"$set": {
+                        "tv_rights_start_at": cinema_end.isoformat(),
+                        "tv_rights_end_at": new_end.isoformat(),
+                        "tv_rights_pending_cinema": True,
+                    }}
+                )
+                await db.tv_stations.update_one(
+                    {"id": c["station_id"]},
+                    {"$pull": {"contents.films": {"contract_id": c["id"]}}}
+                )
+                fixed += 1
+            if fixed:
+                logging.info(f"[startup] Riallineati {fixed} contratti TV pending_cinema su film al cinema")
+        except Exception as e:
+            logging.warning(f"[startup] migrate_pending_cinema failed: {e}")
+    asyncio.create_task(_migrate_pending_cinema_contracts())
 
 async def fix_decimal_skills_in_db():
     """Fix any existing cast members that have decimal skill values."""
@@ -8387,10 +8703,10 @@ async def recalculate_player_fame(user: dict = Depends(get_current_user)):
         quality = film.get('quality_score', 50)
         revenue = film.get('opening_day_revenue', 0)
         fame_change = calculate_fame_change(quality, revenue, fame)
-        fame = max(0, min(100, fame + fame_change))
+        fame = max(0, min(500, fame + fame_change))
     
     # Ensure minimum fame based on career
-    min_fame = min(100, 10 + len(completed_films) * 0.3)
+    min_fame = min(500, 10 + len(completed_films) * 0.3)
     fame = int(max(min_fame, fame))
     
     await db.users.update_one({'id': user['id']}, {'$set': {'fame': fame}})
@@ -8462,7 +8778,7 @@ async def get_player_fame(user: dict = Depends(get_current_user)):
     return {
         'fame': fame,
         'tier': tier,
-        'next_tier': get_fame_tier(min(fame + 20, 100)) if fame < 90 else None
+        'next_tier': get_fame_tier(min(fame + 50, 500)) if fame < 480 else None
     }
 
 # Infrastructure & Marketplace routes moved to routes/infrastructure.py
@@ -10642,9 +10958,18 @@ app.include_router(infrastructure_router, prefix="/api")
 app.include_router(radio_router, prefix="/api")
 app.include_router(acting_school_router, prefix="/api")
 app.include_router(casting_agency_router)
+app.include_router(agency_contracts_router)
+app.include_router(talent_market_router)
 app.include_router(film_pipeline_router, prefix="/api")
 app.include_router(pipeline_v2_router)
 app.include_router(pipeline_v3_router)
+app.include_router(characters_router)
+app.include_router(live_action_router)
+app.include_router(live_action_market_router)
+app.include_router(sagas_router)
+app.include_router(cinema_stats_router)
+app.include_router(cineboard_unified_router)
+app.include_router(location_coherence_router)
 app.include_router(series_pipeline_router, prefix="/api")
 app.include_router(pipeline_series_v3_router)
 app.include_router(sequel_pipeline_router, prefix="/api")
@@ -10675,11 +11000,34 @@ try:
 except Exception as _e:
     logger.error(f"Failed to load lampo router: {_e}")
 
+# TV Market — vendita/affitto diritti TV
+try:
+    from routes.tv_market import router as tv_market_router
+    app.include_router(tv_market_router)
+except Exception as _e:
+    print(f"Failed to load tv_market router: {_e}")
+    import traceback
+    traceback.print_exc()
+
+# Sistema Segnalazioni & Moderazione
+try:
+    from routes.reports import router as reports_router
+    app.include_router(reports_router)
+    logging.info("Reports/Moderation router loaded")
+except Exception as _e:
+    logging.error(f"Failed to load reports router: {_e}")
+    import traceback
+    traceback.print_exc()
+
 # Initialize Velion routes with db and JWT secret
 velion_init(db, JWT_SECRET)
 app.include_router(velion_router)
 app.include_router(cast_router, prefix="/api")
 app.include_router(admin_recovery_router)
+app.include_router(admin_avatars_router)
+app.include_router(tv_movies_router)
+app.include_router(tv_awards_router)
+app.include_router(my_drafts_router)
 app.include_router(city_tastes_router)
 app.include_router(ri_cinema_router)
 app.include_router(admin_migration_router)
@@ -10922,6 +11270,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/api/static", StaticFiles(directory="/app/backend/static"), name="static")
 # Poster serving handled by @app.get("/api/posters/{filename}") endpoint in server.py
 app.mount("/api/backgrounds", StaticFiles(directory="/app/backend/assets/backgrounds"), name="backgrounds")
+app.mount("/api/saga-reunions", StaticFiles(directory="/app/backend/assets/saga_reunions"), name="saga_reunions")
 
 app.add_middleware(
     CORSMiddleware,
@@ -10930,6 +11279,97 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# === PIPELINE V1 / V2: SOLA LETTURA ===
+# Le pipeline legacy (V1: /api/film-pipeline, /api/series-pipeline, /api/sequel-pipeline
+# e V2: /api/pipeline-v2) sono dismesse. Solo GET/HEAD/OPTIONS sono permessi (per
+# retro-compatibilita' visualizzazione progetti esistenti). Qualsiasi mutazione viene
+# bloccata con 410 Gone.
+_LEGACY_READONLY_PREFIXES = (
+    "/api/pipeline-v2/",
+    "/api/film-pipeline/",
+    "/api/series-pipeline/",
+    "/api/sequel-pipeline/",
+)
+_WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+@app.middleware("http")
+async def legacy_pipeline_readonly_guard(request, call_next):
+    if request.method in _WRITE_METHODS:
+        path = request.url.path or ""
+        if any(path.startswith(p) for p in _LEGACY_READONLY_PREFIXES):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=410,
+                content={
+                    "detail": "Pipeline dismessa (sola lettura). Usa la Pipeline V3 / LAMPO per nuove produzioni.",
+                    "deprecated_endpoint": True,
+                }
+            )
+    return await call_next(request)
+
+
+# ─── MIDDLEWARE BAN: blocca tutte le mutazioni se utente bannato ───
+# Eccezioni: /api/auth/*, GET, /api/me/ban-status, /api/notifications, /api/chat (se non chat-mutato)
+_BAN_ALLOWED_PATH_PREFIXES = (
+    "/api/auth/",
+    "/api/me/ban-status",
+    "/api/notifications/read",  # solo lettura notifiche
+)
+_BAN_ALLOWED_CHAT_PREFIXES = ("/api/chat/", "/api/social/chat/")
+
+@app.middleware("http")
+async def banned_user_guard(request, call_next):
+    if request.method == "GET" or request.method == "OPTIONS":
+        return await call_next(request)
+    path = request.url.path or ""
+    # Permetti sempre auth + ban-status check
+    if any(path.startswith(p) for p in _BAN_ALLOWED_PATH_PREFIXES):
+        return await call_next(request)
+    # Verifica token (best-effort, no exception)
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        return await call_next(request)
+    try:
+        import jwt as _jwt
+        token = auth.split(" ", 1)[1]
+        payload = _jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        uid = payload.get("user_id")
+        if not uid:
+            return await call_next(request)
+        u = await db.users.find_one({"id": uid}, {"_id": 0, "is_banned": 1, "ban_expires_at": 1, "is_chat_muted": 1, "nickname": 1, "role": 1})
+        if not u or not u.get("is_banned"):
+            return await call_next(request)
+        # Auto-lift se ban scaduto
+        from datetime import datetime as _dt, timezone as _tz
+        if u.get("ban_expires_at"):
+            try:
+                exp = _dt.fromisoformat(u["ban_expires_at"].replace("Z", "+00:00"))
+                if exp <= _dt.now(_tz.utc):
+                    await db.users.update_one({"id": uid}, {"$set": {"is_banned": False, "ban_expires_at": None, "current_ban_id": None}})
+                    return await call_next(request)
+            except Exception:
+                pass
+        # Permetti chat solo se non mutato
+        if any(path.startswith(p) for p in _BAN_ALLOWED_CHAT_PREFIXES):
+            if not u.get("is_chat_muted"):
+                return await call_next(request)
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=403, content={"detail": "Chat bloccata per moderazione."})
+        # Tutto il resto: blocca
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": "Account sospeso. Puoi solo navigare in sola lettura.",
+                "is_banned": True,
+                "ban_expires_at": u.get("ban_expires_at"),
+            },
+        )
+    except Exception:
+        # Se il token non è valido, lascia che la rotta gestisca
+        return await call_next(request)
 
 logging.basicConfig(
     level=logging.INFO,

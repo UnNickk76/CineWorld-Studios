@@ -1,3 +1,59 @@
+## FASE: Sistema Segnalazioni & Moderazione (Apr 29, 2026)
+
+**Obiettivo**: introdurre un sistema completo di moderazione comunitaria con segnalazioni, ban scaling automatico, decay temporale e ban banner globale.
+
+### Funzionalità implementate
+- **Bottone "Segnala"** su ogni locandina (in `ContentTemplate`, dopo il trailer). Visibile a tutti tranne al proprietario. Modal con 5 categorie + note opzionali (max 500 char).
+- **Anti-abuso**: max 5 segnalazioni/ora per reporter, no duplicati su stesso content entro 24h.
+- **Counter segnalazioni** (`report_count_active`) con soglia 5 → ban automatico.
+- **Decay automatico**: -1 ogni 15gg senza nuove segnalazioni (job APScheduler ogni 6h).
+- **Ban scaling automatico**: 1°=1g, 2°=3g, 3°=7g, 4°=30g, 5°=eliminazione + blocco email 60gg.
+- **Ban manuale modificabile** dall'admin con parser flessibile (`3 ore`, `1 GIORNO`, `permanente`, `30 minuti`, etc.).
+- **Sblocco ban** sempre disponibile via Admin Panel (counter ban non si resetta).
+- **Auto-lift ban scaduti** ogni 6h.
+- **Blocco email** per 60gg post-eliminazione (controllato in `/auth/register`).
+- **Esenzione admin/MOD**: possono essere segnalati ma il counter non aumenta + sistema avverte che è admin.
+- **Auto-segnalazione su elimina contenuto admin**: motivo "Contenuto eliminato per violazione delle regole interne" + notifica al player.
+- **Manual report** admin → notifica standard al player ("Hai ricevuto una segnalazione… al 5° rischi il ban").
+- **Chat mute/unmute** indipendente dal ban (gestibile anche da co-admin/MOD).
+
+### Backend (`/app/backend/routes/reports.py`)
+Endpoints nuovi:
+- `POST /api/reports` (player)
+- `GET /api/admin/reports` (lista raggruppata)
+- `GET /api/admin/reports/user/{id}` (storico utente)
+- `POST /api/admin/reports/{id}/dismiss`
+- `DELETE /api/admin/content/{type}/{id}` (elimina + auto-report)
+- `POST /api/admin/users/{id}/ban|unban|manual-report|chat-mute|chat-unmute`
+- `GET /api/admin/moderation/summary` (per badge counter)
+- `GET /api/me/ban-status` (banner UI)
+
+Collezioni nuove: `mod_reports`, `bans`, `email_blocks` (rinominata da `reports` per evitare conflitti con collezione esistente).
+
+User schema additions: `report_count_active`, `ban_count_total`, `is_banned`, `ban_expires_at`, `current_ban_id`, `is_chat_muted`, `last_report_at`, `is_deleted`.
+
+### Frontend (`/app/frontend/src/components/moderation/`)
+- `ReportContentButton.jsx` — modal 5 categorie + note
+- `BanBanner.jsx` — banner fixed bottom con glow animato + timer countdown 1s + messaggio "Al 5° ban verrai eliminato!" (renderizzato globalmente in `App.js`)
+- `BanDurationModal.jsx` — input duration + 8 preset chip + textarea motivo
+- `AdminModerationPanel.jsx` — tab Locandine + tab Utenti con search, storico ban/segnalazioni, bottoni Segnala/Ban/Sblocca/Muta chat
+- Badge counter sul tab "Segnalazioni" del menu Admin (refresh ogni 30s)
+
+### Middleware ban (`server.py`)
+Intercetta tutte le request mutating (POST/PUT/DELETE/PATCH) e blocca se utente bannato. Eccezioni: `/api/auth/*`, `/api/me/ban-status`, GET, e `/api/chat/*` se non chat-muted. Auto-lift se ban scaduto.
+
+### Verifiche
+- Lint pulito (Python + JS).
+- Backend riavviato senza errori, endpoint `/api/admin/moderation/summary` ritorna dati corretti, parser duration testato (8 casi diversi tutti OK).
+- Screenshot pannello Admin → tab Segnalazioni → "Nessuna locandina segnalata" + 2 sub-tab funzionanti.
+
+---
+
+## ⚠️ TODO: Bug capitoli da sistemare
+
+L'utente ha segnalato che ci sono cose sui capitoli (Saghe / Film a Capitoli) che non funzionano come dovrebbero. **Da investigare nel prossimo ciclo** — chiedere all'utente esempi concreti per riprodurre.
+
+
 ## FASE: Bug Capitoli Saga + Migliorie Saga (Apr 29, 2026)
 
 **Problemi riportati dall'utente** (durante creazione del cap.2 di un film a capitoli):

@@ -52,6 +52,7 @@ import { RadioProvider, useRadio } from './contexts/RadioContext';
 import { RadioPromoBanner } from './components/RadioPromoBanner';
 import { RadioFloatingPlayer } from './components/RadioFloatingPlayer';
 import { NowPlayingBanner } from './components/NowPlayingBanner';
+import BanBanner from './components/moderation/BanBanner';
 import { RadioStationsPopup } from './components/RadioStationsPopup';
 import { CompareProducersModal } from './components/CompareProducersModal';
 import { AvatarWithLogo } from './components/StudioName';
@@ -2189,6 +2190,7 @@ function App() {
               <RadioPromoBanner />
               <RadioFloatingPlayer />
               <NowPlayingBanner />
+              <BanBanner />
               <Routes>
                 <Route path="/auth" element={<AuthPage />} />
                 <Route path="/recovery/password" element={<PasswordRecoveryPage />} />

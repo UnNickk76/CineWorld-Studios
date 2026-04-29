@@ -9,6 +9,7 @@ import {
   Newspaper, Crown, Award, Pen, Clock, Tv, Popcorn, Eye
 } from 'lucide-react';
 import LikeButton, { SystemLikeBadge, PreReleaseSnapshotBadge } from './LikeButton';
+import ReportContentButton from './moderation/ReportContentButton';
 import TrailerPlayerModal from './TrailerPlayerModal';
 import PStarBanner from './PStarBanner';
 import CineConfirm from './v3/CineConfirm';
@@ -1291,6 +1292,18 @@ export function ContentTemplate({ filmId, contentType = 'film' }) {
       )}
       {showTrailer && trailer && (
         <TrailerPlayerModal trailer={trailer} contentTitle={film?.title} contentGenre={film?.genre || ''} contentId={filmId} contentOwnerId={film?.user_id} currentUserId={user?.id} api={api} onClose={() => setShowTrailer(false)} />
+      )}
+
+      {/* ─── Segnalazione (subito dopo il trailer) ─── */}
+      {filmId && !isOwner && (
+        <div className="px-4">
+          <ReportContentButton
+            contentType={isSeries ? (isAnime ? 'anime' : 'series') : (film?.is_lampo || film?.lampo_id ? 'lampo' : 'film')}
+            contentId={filmId}
+            contentTitle={film?.title}
+            ownerUserId={film?.user_id}
+          />
+        </div>
       )}
 
       {/* Cast Popup */}

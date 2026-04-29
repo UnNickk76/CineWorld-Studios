@@ -12,6 +12,7 @@ import { PlayerBadge } from '../components/PlayerBadge';
 import AdminFilmRecovery from '../components/AdminFilmRecovery';
 import AdminStatusEditor from '../components/AdminStatusEditor';
 import AdminAvatarsTab from '../components/AdminAvatarsTab';
+import AdminModerationPanel from '../components/moderation/AdminModerationPanel';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
@@ -3289,6 +3290,21 @@ export default function AdminPage() {
   const hasAccess = isAdmin || isCoadmin;
   const tabs = isAdmin ? ADMIN_TABS : COADMIN_TABS;
   const [activeTab, setActiveTab] = useState(tabs[0]?.id || 'reports');
+  const [modSummary, setModSummary] = useState({ pending_reports: 0, active_bans: 0 });
+
+  useEffect(() => {
+    if (!hasAccess) return;
+    let mounted = true;
+    const fetchSum = async () => {
+      try {
+        const r = await api.get('/admin/moderation/summary');
+        if (mounted) setModSummary(r.data || {});
+      } catch { /* ignore */ }
+    };
+    fetchSum();
+    const t = setInterval(fetchSum, 30000);
+    return () => { mounted = false; clearInterval(t); };
+  }, [hasAccess, api]);
 
   if (!hasAccess) {
     return (
@@ -3333,7 +3349,7 @@ export default function AdminPage() {
             return (
               <button key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 sm:px-4 rounded-md text-xs font-semibold transition-all whitespace-nowrap flex-shrink-0 min-w-[44px] sm:min-w-0 sm:flex-1 ${
+                className={`relative flex items-center justify-center gap-1.5 py-2.5 px-3 sm:px-4 rounded-md text-xs font-semibold transition-all whitespace-nowrap flex-shrink-0 min-w-[44px] sm:min-w-0 sm:flex-1 ${
                   isActive
                     ? (isAdmin ? 'bg-red-600 text-white' : 'bg-amber-600 text-white')
                     : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
@@ -3341,6 +3357,11 @@ export default function AdminPage() {
                 data-testid={`admin-tab-${tab.id}`}>
                 <Icon className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 <span className="hidden sm:inline">{tab.label}</span>
+                {tab.id === 'reports' && modSummary.pending_reports > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center" data-testid="admin-reports-badge">
+                    {modSummary.pending_reports > 99 ? '99+' : modSummary.pending_reports}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -3350,7 +3371,7 @@ export default function AdminPage() {
         {activeTab === 'users' && isAdmin && <UsersTab api={api} />}
         {activeTab === 'films' && isAdmin && <FilmsTab api={api} />}
         {activeTab === 'roles' && isAdmin && <RolesTab api={api} />}
-        {activeTab === 'reports' && <ReportsTab api={api} />}
+        {activeTab === 'reports' && <AdminModerationPanel />}
         {activeTab === 'deletions' && isAdmin && <DeletionsTab api={api} />}
         {activeTab === 'maintenance' && <MaintenanceTab api={api} />}
         {activeTab === 'donations' && isAdmin && <DonationsTab api={api} />}

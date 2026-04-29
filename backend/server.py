@@ -5602,7 +5602,7 @@ async def admin_search_users(q: str = '', user: dict = Depends(get_current_user)
         query = {'nickname': {'$regex': q, '$options': 'i'}}
     users = await db.users.find(
         query,
-        {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1, 'funds': 1, 'cinepass': 1, 'xp': 1, 'fame': 1, 'role': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1}
+        {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1, 'funds': 1, 'cinepass': 1, 'xp': 1, 'fame': 1, 'role': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1, 'is_banned': 1, 'is_chat_muted': 1, 'ban_expires_at': 1, 'report_count_active': 1, 'ban_count_total': 1, 'is_deleted': 1}
     ).sort('nickname', 1).limit(20).to_list(20)
     return {'users': users, 'count': len(users)}
 
@@ -8103,6 +8103,22 @@ async def startup_event():
         CronTrigger(hour=3, minute=0),
         id='cleanup_hired_stars',
         replace_existing=True
+    )
+
+    # Every 6 hours: decay segnalazioni + auto-lift ban scaduti
+    async def _moderation_periodic_job():
+        try:
+            from routes.reports import decay_active_reports, auto_lift_expired_bans
+            await decay_active_reports()
+            await auto_lift_expired_bans()
+        except Exception as _e:
+            logger.error(f"[MODERATION_DECAY] error: {_e}")
+
+    scheduler.add_job(
+        _moderation_periodic_job,
+        IntervalTrigger(hours=6),
+        id='moderation_decay_and_unban',
+        replace_existing=True,
     )
     
     # Every Monday at 00:00 UTC: Reset weekly challenges
@@ -10993,6 +11009,16 @@ except Exception as _e:
     import traceback
     traceback.print_exc()
 
+# Sistema Segnalazioni & Moderazione
+try:
+    from routes.reports import router as reports_router
+    app.include_router(reports_router)
+    logging.info("Reports/Moderation router loaded")
+except Exception as _e:
+    logging.error(f"Failed to load reports router: {_e}")
+    import traceback
+    traceback.print_exc()
+
 # Initialize Velion routes with db and JWT secret
 velion_init(db, JWT_SECRET)
 app.include_router(velion_router)
@@ -11281,6 +11307,68 @@ async def legacy_pipeline_readonly_guard(request, call_next):
                 }
             )
     return await call_next(request)
+
+
+# ─── MIDDLEWARE BAN: blocca tutte le mutazioni se utente bannato ───
+# Eccezioni: /api/auth/*, GET, /api/me/ban-status, /api/notifications, /api/chat (se non chat-mutato)
+_BAN_ALLOWED_PATH_PREFIXES = (
+    "/api/auth/",
+    "/api/me/ban-status",
+    "/api/notifications/read",  # solo lettura notifiche
+)
+_BAN_ALLOWED_CHAT_PREFIXES = ("/api/chat/", "/api/social/chat/")
+
+@app.middleware("http")
+async def banned_user_guard(request, call_next):
+    if request.method == "GET" or request.method == "OPTIONS":
+        return await call_next(request)
+    path = request.url.path or ""
+    # Permetti sempre auth + ban-status check
+    if any(path.startswith(p) for p in _BAN_ALLOWED_PATH_PREFIXES):
+        return await call_next(request)
+    # Verifica token (best-effort, no exception)
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        return await call_next(request)
+    try:
+        import jwt as _jwt
+        token = auth.split(" ", 1)[1]
+        payload = _jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        uid = payload.get("user_id")
+        if not uid:
+            return await call_next(request)
+        u = await db.users.find_one({"id": uid}, {"_id": 0, "is_banned": 1, "ban_expires_at": 1, "is_chat_muted": 1, "nickname": 1, "role": 1})
+        if not u or not u.get("is_banned"):
+            return await call_next(request)
+        # Auto-lift se ban scaduto
+        from datetime import datetime as _dt, timezone as _tz
+        if u.get("ban_expires_at"):
+            try:
+                exp = _dt.fromisoformat(u["ban_expires_at"].replace("Z", "+00:00"))
+                if exp <= _dt.now(_tz.utc):
+                    await db.users.update_one({"id": uid}, {"$set": {"is_banned": False, "ban_expires_at": None, "current_ban_id": None}})
+                    return await call_next(request)
+            except Exception:
+                pass
+        # Permetti chat solo se non mutato
+        if any(path.startswith(p) for p in _BAN_ALLOWED_CHAT_PREFIXES):
+            if not u.get("is_chat_muted"):
+                return await call_next(request)
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=403, content={"detail": "Chat bloccata per moderazione."})
+        # Tutto il resto: blocca
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=403,
+            content={
+                "detail": "Account sospeso. Puoi solo navigare in sola lettura.",
+                "is_banned": True,
+                "ban_expires_at": u.get("ban_expires_at"),
+            },
+        )
+    except Exception:
+        # Se il token non è valido, lascia che la rotta gestisca
+        return await call_next(request)
 
 logging.basicConfig(
     level=logging.INFO,

@@ -556,3 +556,258 @@ async def conclude_saga(req: ConcludeSagaRequest, user: dict = Depends(get_curre
         "fame_penalty": penalty["fame_penalty"],
         "reason": penalty["reason"],
     }
+
+
+
+# ════════════════════════════════════════════════════════════════════
+# MATCH ATTORI per personaggi nuovi (Foto 1)
+# ════════════════════════════════════════════════════════════════════
+
+def _parse_age_range(age_str: str) -> tuple[int, int]:
+    if not age_str:
+        return (25, 45)
+    s = str(age_str)
+    if "-" in s:
+        try:
+            a, b = s.split("-")[:2]
+            return (int(''.join(c for c in a if c.isdigit())), int(''.join(c for c in b if c.isdigit())))
+        except Exception:
+            return (25, 45)
+    digits = ''.join(c for c in s if c.isdigit())
+    n = int(digits) if digits else 30
+    return (n, n)
+
+
+def _actor_match_score(character: dict, actor: dict, *, saga_actor_ids=None, my_agency_actor_ids=None) -> dict:
+    saga_actor_ids = saga_actor_ids or set()
+    my_agency_actor_ids = my_agency_actor_ids or set()
+    score = 0.0
+    reasons: list[str] = []
+    char_gender = (character.get("gender") or "").upper()[:1]
+    age_str = str(character.get("age") or "")
+    if not char_gender and age_str:
+        for c in age_str:
+            if c.upper() in ("M", "F"):
+                char_gender = c.upper()
+                break
+    actor_gender = (actor.get("gender") or "").upper()[:1]
+    if char_gender and actor_gender and char_gender == actor_gender:
+        score += 30; reasons.append("Genere ✓")
+    elif char_gender and actor_gender:
+        score += 5; reasons.append("Genere ✗")
+    else:
+        score += 15
+    age_min, age_max = _parse_age_range(age_str)
+    actor_age = int(actor.get("age") or actor.get("age_years") or 30)
+    if age_min <= actor_age <= age_max:
+        score += 30; reasons.append(f"Età {actor_age} ✓")
+    else:
+        diff = min(abs(actor_age - age_min), abs(actor_age - age_max))
+        if diff <= 5:
+            score += 20; reasons.append(f"Età ±{diff}")
+        elif diff <= 10:
+            score += 10; reasons.append(f"Età ±{diff}")
+        else:
+            reasons.append(f"Età {actor_age} ✗")
+    char_desc = (character.get("description") or "").lower()
+    actor_country = (actor.get("country") or actor.get("nationality") or "").lower()
+    nat_keywords = {"italian": ["italian","italia","rom"], "french": ["franc","parig"], "british": ["british","ingles","uk","london"], "american": ["americ","ny","los angel"], "german": ["german","tedesc","berlin"], "spanish": ["span","spagn","madrid"], "japanese": ["japan","giappon","tokyo"], "russian": ["russ","mosc"]}
+    for nation, keys in nat_keywords.items():
+        if actor_country.startswith(nation[:4]) or any(k in actor_country for k in keys):
+            if any(k in char_desc for k in keys):
+                score += 15; reasons.append(f"Naz. {nation}"); break
+    actor_categories = actor.get("categories") or actor.get("archetypes") or []
+    if isinstance(actor_categories, str):
+        actor_categories = [actor_categories]
+    arch_keywords = {"drama": ["drammat","intens","tormentat"], "charme": ["fascin","elegan","seducen"], "thriller": ["mister","ambig","oscur"], "comedy": ["spirito","diverten","comico"], "action": ["coraggio","azion","combatt"]}
+    for cat, keys in arch_keywords.items():
+        if any(k in char_desc for k in keys) and cat in [str(c).lower() for c in actor_categories]:
+            score += 15; reasons.append(cat.title()); break
+    actor_id = actor.get("id")
+    if actor_id and actor_id in saga_actor_ids:
+        score += 15; reasons.append("Saga Vet. ✦")
+    if actor_id and actor_id in my_agency_actor_ids:
+        score += 10; reasons.append("Mia Agenzia")
+    return {"score": min(100, round(score)), "reason": " · ".join(reasons[:4])}
+
+
+@router.get("/{saga_id}/actor-matches")
+async def saga_actor_matches(saga_id: str, character_id: str, project_id: Optional[str] = None, user: dict = Depends(get_current_user)):
+    await _get_saga(saga_id, user["id"])
+    character = None
+    if project_id:
+        for coll in ("film_projects", "lampo_projects"):
+            doc = await db[coll].find_one({"id": project_id, "user_id": user["id"]}, {"_id": 0, "characters": 1})
+            if doc:
+                for c in (doc.get("characters") or []):
+                    if c.get("id") == character_id:
+                        character = c; break
+                if character: break
+    if not character:
+        raise HTTPException(404, "Personaggio non trovato")
+    saga_actor_ids: set[str] = set()
+    async for f in db.films.find({"saga_id": saga_id, "user_id": user["id"]}, {"_id": 0, "cast": 1, "characters": 1}):
+        for a in (f.get("cast", {}) or {}).get("actors", []):
+            if a.get("id"): saga_actor_ids.add(a["id"])
+        for c in (f.get("characters") or []):
+            if c.get("actor_id"): saga_actor_ids.add(c["actor_id"])
+    my_agency_actor_ids: set[str] = set()
+    async for a in db.actors.find({"owner_user_id": user["id"]}, {"_id": 0, "id": 1}):
+        if a.get("id"): my_agency_actor_ids.add(a["id"])
+    matches: list[dict] = []
+    cursor = db.actors.find(
+        {"$or": [{"market_available": True}, {"owner_user_id": user["id"]}, {"in_acting_school": True}]},
+        {"_id": 0, "id": 1, "name": 1, "gender": 1, "age": 1, "age_years": 1, "country": 1, "nationality": 1, "categories": 1, "archetypes": 1},
+    ).limit(300)
+    async for actor in cursor:
+        m = _actor_match_score(character, actor, saga_actor_ids=saga_actor_ids, my_agency_actor_ids=my_agency_actor_ids)
+        matches.append({"actor_id": actor["id"], "actor_name": actor.get("name"), "match_score": m["score"], "reason": m["reason"], "is_saga_vet": actor["id"] in saga_actor_ids, "is_my_agency": actor["id"] in my_agency_actor_ids})
+    matches.sort(key=lambda x: -x["match_score"])
+    return {"character_id": character_id, "character_name": character.get("name"), "matches": matches[:50], "saga_actor_ids": list(saga_actor_ids)}
+
+
+# ════════════════════════════════════════════════════════════════════
+# RE-HYPE WINDOW (Foto 2-3)
+# ════════════════════════════════════════════════════════════════════
+
+def _re_hype_config(prev_cwsv: float) -> dict:
+    cwsv = float(prev_cwsv or 0)
+    if cwsv >= 8.0: return {"hours": 48, "bonus_pct": 30}
+    if cwsv >= 6.5: return {"hours": 48, "bonus_pct": 20}
+    if cwsv >= 5.0: return {"hours": 24, "bonus_pct": 12}
+    return {"hours": 24, "bonus_pct": 5}
+
+
+async def _check_sold_out_streak(film_id: str, user_id: str) -> int:
+    f = await db.films.find_one({"id": film_id, "user_id": user_id}, {"_id": 0, "daily_breakdown": 1})
+    if not f: return 0
+    streak = 0
+    for d in reversed(f.get("daily_breakdown") or []):
+        if d.get("sold_out") or d.get("occupancy_rate", 0) >= 0.95:
+            streak += 1
+        else:
+            break
+    return streak
+
+
+@router.get("/{saga_id}/re-hype/status/{project_id}")
+async def re_hype_status(saga_id: str, project_id: str, user: dict = Depends(get_current_user)):
+    await _get_saga(saga_id, user["id"])
+    proj = None
+    for coll in ("film_projects", "lampo_projects"):
+        proj = await db[coll].find_one({"id": project_id, "user_id": user["id"]}, {"_id": 0})
+        if proj: break
+    if not proj: raise HTTPException(404, "Capitolo non trovato")
+    chap_n = int(proj.get("saga_chapter_number") or 0)
+    if chap_n <= 1: return {"applicable": False, "reason": "Cap.1 non ha Re-Hype"}
+    prev_film = await db.films.find_one(
+        {"saga_id": saga_id, "saga_chapter_number": chap_n - 1, "user_id": user["id"]},
+        {"_id": 0, "id": 1, "title": 1, "quality_score": 1, "theater_start": 1, "theater_days": 1, "released_at": 1, "saga_cliffhanger": 1, "trailer": 1},
+    )
+    if not prev_film:
+        return {"applicable": False, "reason": "Capitolo precedente non rilasciato"}
+    prev_cwsv = float(prev_film.get("quality_score") or 0)
+    cfg = _re_hype_config(prev_cwsv)
+    streak = await _check_sold_out_streak(prev_film["id"], user["id"])
+    if streak >= 3:
+        cfg["hours"] += 12
+        cfg["sold_out_bonus"] = True
+    if prev_film.get("saga_cliffhanger"):
+        cfg["bonus_pct"] += 5
+        cfg["cliffhanger_bonus"] = True
+    end_dt_field = prev_film.get("theater_start") or prev_film.get("released_at")
+    theater_days = int(prev_film.get("theater_days") or 21)
+    start_dt = end_dt = None
+    if end_dt_field:
+        try:
+            end_dt = datetime.fromisoformat(str(end_dt_field).replace("Z", "+00:00")) + timedelta(days=theater_days)
+            start_dt = end_dt - timedelta(hours=cfg["hours"])
+        except Exception:
+            pass
+    re_hype_doc = await db.saga_re_hype.find_one({"project_id": project_id, "user_id": user["id"]}, {"_id": 0})
+    used_already = bool(re_hype_doc)
+    activated = bool(re_hype_doc and not re_hype_doc.get("expired"))
+    now = datetime.now(timezone.utc)
+    open_window = bool(start_dt and end_dt and start_dt <= now <= end_dt)
+    return {
+        "applicable": True, "open_window": open_window, "activated": activated, "used_already": used_already,
+        "window_start": start_dt.isoformat() if start_dt else None,
+        "window_end": end_dt.isoformat() if end_dt else None,
+        "duration_hours": cfg["hours"], "bonus_pct": cfg["bonus_pct"],
+        "sold_out_bonus": cfg.get("sold_out_bonus", False),
+        "cliffhanger_bonus": cfg.get("cliffhanger_bonus", False),
+        "prev_film": {"id": prev_film["id"], "title": prev_film["title"], "cwsv": prev_cwsv, "trailer": prev_film.get("trailer")},
+    }
+
+
+@router.post("/{saga_id}/re-hype/activate/{project_id}")
+async def activate_re_hype(saga_id: str, project_id: str, user: dict = Depends(get_current_user)):
+    status = await re_hype_status(saga_id, project_id, user)
+    if not status.get("applicable"):
+        raise HTTPException(400, status.get("reason") or "Re-Hype non applicabile")
+    if status.get("used_already"):
+        raise HTTPException(400, "Re-Hype già attivata per questo capitolo")
+    if not status.get("open_window"):
+        raise HTTPException(400, "Finestra Re-Hype non ancora aperta o già chiusa")
+    now = datetime.now(timezone.utc)
+    await db.saga_re_hype.insert_one({
+        "id": str(uuid.uuid4()), "saga_id": saga_id, "project_id": project_id, "user_id": user["id"],
+        "activated_at": now.isoformat(), "window_end": status.get("window_end"),
+        "bonus_pct": status.get("bonus_pct", 0), "duration_hours": status.get("duration_hours", 24),
+        "expired": False,
+    })
+    boost_pct = status.get("bonus_pct", 0)
+    for coll in ("film_projects", "lampo_projects"):
+        proj_existing = await db[coll].find_one({"id": project_id, "user_id": user["id"]}, {"_id": 0, "pre_release_hype": 1})
+        if proj_existing:
+            current = float(proj_existing.get("pre_release_hype") or 0)
+            new_hype = min(100.0, current * (1 + boost_pct / 100.0) + boost_pct * 0.5)
+            await db[coll].update_one(
+                {"id": project_id, "user_id": user["id"]},
+                {"$set": {"pre_release_hype": new_hype, "re_hype_active": True, "re_hype_window_end": status.get("window_end"), "re_hype_bonus_pct": boost_pct}},
+            )
+            break
+    # Notifica follower
+    try:
+        producer_nick = user.get("nickname", "Un produttore")
+        prev_title = (status.get("prev_film") or {}).get("title", "")
+        msg = f"@{producer_nick} sta per rilasciare il prossimo capitolo della saga di «{prev_title}»! Riguarda il capitolo precedente."
+        async for f in db.user_follows.find({"target_user_id": user["id"]}, {"_id": 0, "follower_id": 1}):
+            if f.get("follower_id"):
+                await db.notifications.insert_one({
+                    "id": str(uuid.uuid4()), "user_id": f["follower_id"], "type": "saga_re_hype",
+                    "title": "🔥 Nuovo capitolo in arrivo", "message": msg, "read": False,
+                    "created_at": now.isoformat(), "saga_id": saga_id,
+                })
+    except Exception as e:
+        log.warning(f"[RE_HYPE] follower notification failed: {e}")
+    return {"success": True, "bonus_pct": boost_pct, "duration_hours": status.get("duration_hours"), "window_end": status.get("window_end")}
+
+
+@router.get("/{saga_id}/historic-actor-ids")
+async def saga_historic_actor_ids(saga_id: str, user: dict = Depends(get_current_user)):
+    await _get_saga(saga_id, user["id"])
+    ids: set[str] = set()
+    async for f in db.films.find({"saga_id": saga_id, "user_id": user["id"]}, {"_id": 0, "cast": 1, "characters": 1}):
+        for a in (f.get("cast", {}) or {}).get("actors", []):
+            if a.get("id"): ids.add(a["id"])
+        for c in (f.get("characters") or []):
+            if c.get("actor_id"): ids.add(c["actor_id"])
+    return {"actor_ids": list(ids)}
+
+
+async def maybe_unlock_trilogy_achievement(user_id: str, saga_id: str):
+    try:
+        n = await db.films.count_documents({"saga_id": saga_id, "user_id": user_id})
+        if n >= 3:
+            saga = await db.sagas.find_one({"id": saga_id, "user_id": user_id}, {"_id": 0, "trilogy_unlocked": 1})
+            if saga and not saga.get("trilogy_unlocked"):
+                await db.sagas.update_one({"id": saga_id, "user_id": user_id}, {"$set": {"trilogy_unlocked": True, "trilogy_unlocked_at": datetime.now(timezone.utc).isoformat()}})
+                await db.users.update_one({"id": user_id}, {"$inc": {"fame": 500}, "$addToSet": {"achievements": "saga_master"}})
+                await db.notifications.insert_one({
+                    "id": str(uuid.uuid4()), "user_id": user_id, "type": "achievement",
+                    "title": "🏅 Maestro della Saga!", "message": "Hai rilasciato 3 capitoli! Sblocchi il badge 'Maestro della Saga' + 500 fama.",
+                    "read": False, "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+    except Exception as e:
+        log.warning(f"[TRILOGY] achievement check failed: {e}")

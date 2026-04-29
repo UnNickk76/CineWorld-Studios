@@ -16,8 +16,9 @@
  * Logica età: importata da `characterAgeUtils.js`.
  */
 import React, { useEffect, useState, useMemo } from 'react';
-import { Users, Sparkles, RefreshCw, Loader2, CheckCircle2, Wand2, Zap, X } from 'lucide-react';
+import { Users, Sparkles, RefreshCw, Loader2, CheckCircle2, Wand2, Zap, X, Award } from 'lucide-react';
 import { isActorCompatible, roleLabel, roleColor } from '../utils/characterAgeUtils';
+import { useActorMatchScores, ActorMatchBadge, ActorPulseWrapper } from './saga/SagaActorMatch';
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
@@ -40,7 +41,7 @@ async function apiCall(path, method = 'GET', body = null) {
   return data;
 }
 
-export default function CharactersPanel({ kind, projectId, actors = null, onToast, onChange, readOnly = false }) {
+export default function CharactersPanel({ kind, projectId, actors = null, onToast, onChange, readOnly = false, sagaId = null }) {
   const [chars, setChars] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -256,6 +257,8 @@ export default function CharactersPanel({ kind, projectId, actors = null, onToas
             readOnly={readOnly}
             assigning={assigningId === c.id}
             onAssign={(actorId, actorName) => assignActor(c, actorId, actorName)}
+            sagaId={sagaId}
+            projectId={projectId}
           />
         ))}
       </ul>
@@ -319,10 +322,12 @@ export default function CharactersPanel({ kind, projectId, actors = null, onToas
   );
 }
 
-function CharacterRow({ char, actors, readOnly, assigning, onAssign }) {
+function CharacterRow({ char, actors, readOnly, assigning, onAssign, sagaId, projectId }) {
   const [open, setOpen] = useState(false);
   const assigned = char.assigned_actor_id;
   const color = roleColor(char.role_type);
+  const matchData = useActorMatchScores({ sagaId, characterId: char.id, projectId });
+  const top3 = (matchData.matches || []).slice(0, 3);
 
   // Filtra attori compatibili per età; incompatibili compaiono DISABILITATI
   const actorOptions = useMemo(() => {
@@ -352,6 +357,31 @@ function CharacterRow({ char, actors, readOnly, assigning, onAssign }) {
         </div>
         {char.description && (
           <p className="text-[9px] text-gray-400 mt-0.5 leading-tight line-clamp-2">{char.description}</p>
+        )}
+        {/* Top 3 chip suggerimenti attori (saga capitoli successivi) */}
+        {!assigned && !readOnly && actors !== null && top3.length > 0 && (
+          <div className="mt-1.5 flex items-center gap-1 flex-wrap" data-testid={`saga-top3-${char.id}`}>
+            <span className="text-[8px] uppercase tracking-wider text-amber-400 font-bold">✨ Top match:</span>
+            {top3.map((m, i) => {
+              const a = (actors || []).find(x => x.id === m.actor_id);
+              if (!a) return null;
+              const compat = isActorCompatible(char.age, a.age);
+              return (
+                <ActorPulseWrapper key={m.actor_id} active={i === 0}>
+                  <button
+                    onClick={() => compat && onAssign(a.id, a.name)}
+                    disabled={!compat}
+                    title={m.reason}
+                    data-testid={`saga-top-${char.id}-${m.actor_id}`}
+                    className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap border ${i === 0 ? 'bg-amber-500/20 border-amber-400/60 text-amber-200' : 'bg-zinc-800 border-zinc-700 text-zinc-200'} ${!compat ? 'opacity-40 cursor-not-allowed' : 'hover:scale-105'} transition-transform`}
+                  >
+                    {m.actor_name} <span className="opacity-60">{m.match_score}%</span>
+                    {m.is_saga_vet && <Award className="w-2.5 h-2.5 inline ml-0.5" />}
+                  </button>
+                </ActorPulseWrapper>
+              );
+            })}
+          </div>
         )}
         {/* Menu a tendina attore (solo se actors presente) */}
         {actors !== null && (

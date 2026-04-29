@@ -1,3 +1,66 @@
+## FASE: Re-Hype Window + Match Attori AI + Idee A-M Saga (Apr 29, 2026)
+
+**Richieste utente** (tutte confermate):
+- **Foto 1**: nei capitoli successivi, gli attori che meglio rispecchiano le caratteristiche dei nuovi personaggi devono "lampeggiare" o avere un highlight visivo.
+- **Foto 2-3**: hype iniziale del cap.successivo prosegue regolarmente, MA X giorni prima della fine cinema del cap.precedente Hype si ripresenta per 1-2 giorni come "Re-Hype Window" che genera bonus extra.
+- **Idee aggiuntive A-M**: tutte confermate.
+
+### Match Attori (Foto 1)
+- **Backend**: nuovo endpoint `GET /api/sagas/{saga_id}/actor-matches?character_id=X&project_id=Y` ritorna lista attori ordinata per match score 0-100.
+- **Algoritmo match score** (peso totale 100):
+  - Genere (30 pt), Età ±5 (30 pt), Nazionalità keyword match (15 pt), Archetipo/categoria (15 pt)
+  - Bonus continuità saga (+15 pt) — attore già usato in cap. precedenti
+  - Bonus mia agenzia (+10 pt)
+- **Frontend** (`SagaActorMatch.jsx`):
+  - Hook `useActorMatchScores` che ottiene top match
+  - Componente `ActorPulseWrapper` con animazione **gold pulse ring** (1.8s) per Top 1
+  - Componente `ActorMatchBadge` con percentuale + reason
+  - Badge `🏆 Saga Vet.` su attori storici
+- **CharactersPanel**: prop `sagaId` + chip Top 3 attori sotto ogni nuovo personaggio (click per assegnare diretto, tooltip "Perché matcha?").
+- Endpoint `GET /api/sagas/{saga_id}/historic-actor-ids` per badge "Saga Vet." UI.
+
+### Re-Hype Window (Foto 2-3)
+- **Concept**: la finestra Re-Hype si apre X ore prima della fine cinema del cap precedente. Gratis, attivabile UNA sola volta per capitolo.
+- **Tabella user-approved**:
+  - CWSv >= 8.0 → 48h, +30%
+  - CWSv >= 6.5 → 48h, +20%
+  - CWSv >= 5.0 → 24h, +12%
+  - CWSv < 5.0 → 24h, +5%
+- **Bonus aggiuntivi**:
+  - 💥 Cliffhanger Cap.1 → +5% extra (idea D)
+  - 🎟 Sold-out 3+ giorni consecutivi → +12h (idea E)
+- **Backend**:
+  - `GET /api/sagas/{saga_id}/re-hype/status/{project_id}` → stato finestra (open, used, durata, bonus)
+  - `POST /api/sagas/{saga_id}/re-hype/activate/{project_id}` → attiva (gratis, una volta), boosta `pre_release_hype` del cap.successivo, invia notifiche ai follower del produttore (idea C)
+  - Nuova collection: `saga_re_hype` (tracciamento attivazioni per capitolo)
+- **Frontend** (`ReHypeWindow.jsx`): banner orange-glow nella pipeline V3 (sopra IdeaPhase) con:
+  - Mini-card trailer Cap.1 cliccabile (idea A — FOMO)
+  - Timer countdown alla finestra (apre/chiude)
+  - Bottone "Attiva Re-Hype · GRATIS"
+  - Badge bonus visibili (+%, cliffhanger, sold-out)
+
+### Achievement Trilogia (idea K)
+- `maybe_unlock_trilogy_achievement(user_id, saga_id)` helper in `sagas.py`: al 3° capitolo rilasciato → unlock badge `saga_master` + 500 fama + notifica `🏅 Maestro della Saga!`
+- Hook to be wired to release_engine when a saga chapter is released (TODO: integrare nella `apply_saga_release_hook` di `saga_release_hook.py`)
+
+### Idee aggiuntive (A-M) — Status implementazione
+- ✅ A) Mini-card Trailer Cap.1 in Re-Hype banner (FOMO)
+- ⏭ B) Views Doppie del Cap.1 — TODO: hook in cinema engine
+- ✅ C) Notifica follower al trigger Re-Hype
+- ✅ D) Cliffhanger boost +5% durante Re-Hype
+- ✅ E) Sold-out streak +12h Re-Hype
+- ⏭ F) "No Scarta" durante Re-Hype — TODO: gating frontend
+- ✅ G) Badge "Saga Vet." sugli attori storici
+- ⏭ H) Bonus continuity +5% qualità — TODO: hook in scoring engine
+- ✅ I) Tooltip "Perché matcha?" — già nel chip Top 3
+- ⏭ J) Recap AI mini-trailer 8s — TODO: richiede image-gen pipeline
+- ✅ K) Achievement Trilogia (helper pronto, da wirare al release)
+- ⏭ L) Talk Show Saga in Le Mie TV — TODO: integrazione TV stations
+- ⏭ M) Cast Reunion Foto AI — TODO: richiede image-gen pipeline
+
+**Verificato**: lint pulito (errori solo stilistici Python E701/E702 non funzionali). Backend riavviato OK. Curl `/api/sagas/list` 200 + `/api/sagas/fake/actor-matches` 404 (corretto). Frontend build OK.
+
+
 ## FASE: Badge Veterano (Apr 29, 2026)
 
 **Richiesta utente**: badge "Veterano" basato su anzianità di iscrizione, visibile a tutti cliccando sul nickname (ovunque).

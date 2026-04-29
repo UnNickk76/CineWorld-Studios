@@ -5,6 +5,7 @@ import { AuthContext } from '../../contexts';
 import TrailerGeneratorCard from '../TrailerGeneratorCard';
 import CineConfirm from './CineConfirm';
 import { LocationCoherenceBar } from './LocationCoherenceBar';
+import ReHypeWindow from '../saga/ReHypeWindow';
 
 /*
   Flusso sequenziale:
@@ -222,6 +223,11 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
         {/* ═══ SAGA HEADER — mini-timeline + fan base bonus + cliffhanger reminder ═══ */}
         {film.saga_id && (film.saga_chapter_number || 0) >= 1 && (
           <SagaPipelineHeader film={film} api={api} />
+        )}
+
+        {/* ═══ RE-HYPE WINDOW (cap. successivi) ═══ */}
+        {film.saga_id && (film.saga_chapter_number || 0) > 1 && (
+          <ReHypeWindow sagaId={film.saga_id} projectId={film.id} onActivated={onRefresh} />
         )}
 
         {/* ═══ SEMPRE VISIBILE: Titolo + Genere + Sottogeneri + Pretrama + Ambientazione ═══ */}

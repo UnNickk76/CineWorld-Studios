@@ -813,6 +813,7 @@ export const MarketingPhase = ({ film, onRefresh, toast, onDirty }) => {
             actors={null}
             onToast={toast}
             readOnly={!!film.marketing_completed}
+            sagaId={film.saga_id || null}
           />
         )}
 

@@ -119,11 +119,25 @@ const MySagasPage = () => {
       });
       toast.success('Capitolo creato! Apri Pipeline V3 per completarlo.');
       const newProj = res.data.project;
+      const prevCliff = !!res.data.previous_cliffhanger;
+      const inhDir = res.data.inherited_director?.name;
+      const inhComp = res.data.inherited_composer?.name;
+      // (e) Cliffhanger payoff
+      if (prevCliff) {
+        setTimeout(() => toast.info('💥 Riprendi il cliffhanger del capitolo precedente! Hype +5%.', { duration: 6000 }), 600);
+      }
+      // (a) Eredita regista/compositore
+      if (inhDir || inhComp) {
+        const parts = [];
+        if (inhDir) parts.push(`regista ${inhDir}`);
+        if (inhComp) parts.push(`compositore ${inhComp}`);
+        setTimeout(() => toast.success(`🎬 Continuità saga: ereditati ${parts.join(' e ')}.`, { duration: 5000 }), 1200);
+      }
       setShowCreateModal(false);
       setNewSubtitle('');
       // Vai alla pipeline V3 con il nuovo progetto
       if (newProj?.id) {
-        navigate(`/pipeline-v3?project_id=${newProj.id}&saga=1`);
+        navigate(`/pipeline-v3?project_id=${newProj.id}&saga=1${prevCliff ? '&cliff=1' : ''}`);
       }
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Errore creazione capitolo');

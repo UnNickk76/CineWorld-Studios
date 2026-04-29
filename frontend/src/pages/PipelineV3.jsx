@@ -744,6 +744,7 @@ export default function PipelineV3() {
               canGenerate={true}
               isGuest={!!user?.is_guest}
               onGenerated={refreshSelected}
+              sagaInheritance={(selected.saga_id && (selected.saga_chapter_number || 0) > 1) ? { active: true, sagaId: selected.saga_id, chapterNumber: selected.saga_chapter_number } : null}
             />
           </div>
         )}

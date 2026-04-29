@@ -32,7 +32,7 @@ router = APIRouter(prefix="/api/characters", tags=["characters"])
 # ---- collezioni per content-kind ----
 _COLL_MAP = {
     "film_v3": "film_projects",         # V3 classic film
-    "series_v3": "tv_series",           # V3 classic serie/anime
+    "series_v3": "series_projects_v3",  # V3 classic serie/anime
     "lampo": "lampo_projects",          # LAMPO film/serie/anime
 }
 

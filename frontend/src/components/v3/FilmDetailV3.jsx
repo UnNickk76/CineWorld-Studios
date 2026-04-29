@@ -697,6 +697,7 @@ function FilmContent({ film, filmId, onClose, user, api, showAdv, setShowAdv, sh
             canGenerate={true}
             isGuest={!!user?.is_guest}
             onGenerated={onRefresh}
+            sagaInheritance={(film.saga_id && (film.saga_chapter_number || 0) > 1) ? { active: true, sagaId: film.saga_id, chapterNumber: film.saga_chapter_number } : null}
           />
         </div>
       )}

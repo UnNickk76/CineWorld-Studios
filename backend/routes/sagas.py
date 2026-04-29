@@ -240,11 +240,16 @@ async def get_saga_detail(saga_id: str, user: dict = Depends(get_current_user)):
 
     # Verifica se il capitolo precedente è uscito dai cinema (per uscita capitolo successivo)
     next_release_blocked_until: Optional[str] = None
+    next_release_early_offset: int = 0
     if chapters:
         last = chapters[-1]
         end = _theater_end_dt(last)
-        if end and end > datetime.now(timezone.utc):
-            next_release_blocked_until = end.isoformat()
+        if end:
+            offset = _early_release_offset_days(last.get("cwsv") or 0)
+            effective_block_until = end - timedelta(days=offset)
+            if effective_block_until > datetime.now(timezone.utc):
+                next_release_blocked_until = effective_block_until.isoformat()
+                next_release_early_offset = offset
 
     return {
         "saga": saga,
@@ -256,6 +261,7 @@ async def get_saga_detail(saga_id: str, user: dict = Depends(get_current_user)):
         "advise_message": advise_msg,
         "can_continue_beyond_planned": can_extend,
         "next_release_blocked_until": next_release_blocked_until,
+        "next_release_early_offset_days": next_release_early_offset,
     }
 
 
@@ -300,6 +306,38 @@ async def create_next_chapter(req: CreateNextChapterRequest, user: dict = Depend
     )
     new_chars = evo["kept"] + evo["added"]
 
+    # ─── (a) Eredita Regista/Compositore dal cap. 1 (continuità artistica) ───
+    inherited_cast = {}
+    first_pid = saga.get("source_first_project_id")
+    if first_pid:
+        for coll in ("film_projects", "lampo_projects"):
+            first_doc = await db[coll].find_one(
+                {"id": first_pid, "user_id": user["id"]},
+                {"_id": 0, "cast": 1},
+            )
+            if first_doc and first_doc.get("cast"):
+                fc = first_doc["cast"]
+                if fc.get("director"):
+                    inherited_cast["director"] = fc["director"]
+                if fc.get("composer"):
+                    inherited_cast["composer"] = fc["composer"]
+                break
+        # Fallback: cap.1 già rilasciato → guarda films
+        if not inherited_cast:
+            first_film = await db.films.find_one(
+                {"saga_id": saga["id"], "saga_chapter_number": 1, "user_id": user["id"]},
+                {"_id": 0, "cast": 1, "director": 1, "composer": 1},
+            )
+            if first_film:
+                if first_film.get("cast", {}).get("director"):
+                    inherited_cast["director"] = first_film["cast"]["director"]
+                elif first_film.get("director"):
+                    inherited_cast["director"] = first_film["director"]
+                if first_film.get("cast", {}).get("composer"):
+                    inherited_cast["composer"] = first_film["cast"]["composer"]
+                elif first_film.get("composer"):
+                    inherited_cast["composer"] = first_film["composer"]
+
     # Pre-compila il progetto V3 (sempre V3 per i capitoli successivi — pipeline completa)
     now = SL.now_iso()
     new_pid = str(uuid.uuid4())
@@ -317,7 +355,7 @@ async def create_next_chapter(req: CreateNextChapterRequest, user: dict = Depend
         "poster_url": saga.get("base_poster_url") or "",
         "trailer_url": saga.get("base_trailer_url") or "",
         "characters": new_chars,
-        "cast": {},
+        "cast": inherited_cast,
         "pipeline_state": "idea",
         "pipeline_version": 3,
         "kind": saga.get("kind", "film"),
@@ -357,6 +395,9 @@ async def create_next_chapter(req: CreateNextChapterRequest, user: dict = Depend
         "ai_pretrama": ai_pretrama,
         "characters_added": evo["added"],
         "characters_removed": evo["removed"],
+        "inherited_director": inherited_cast.get("director"),
+        "inherited_composer": inherited_cast.get("composer"),
+        "previous_cliffhanger": prev_cliff,
         "fan_base_hype_modifier": SL.fan_base_hype_modifier(
             float(chapters[-1].get("cwsv") or 5.0) if chapters else 5.0,
             prev_cliff,
@@ -364,11 +405,68 @@ async def create_next_chapter(req: CreateNextChapterRequest, user: dict = Depend
     }
 
 
+@router.get("/{saga_id}/inherited-trailer")
+async def get_inherited_trailer(saga_id: str, user: dict = Depends(get_current_user)):
+    """
+    Ritorna il trailer del Capitolo 1 della saga, da ereditare nei capitoli successivi.
+    Cerca nel doc del cap.1 (film_projects, lampo_projects, o films se rilasciato).
+    """
+    saga = await _get_saga(saga_id, user["id"])
+    first_pid = saga.get("source_first_project_id")
+    if not first_pid:
+        return {"trailer": None}
+
+    tr = None
+    # Cerca prima nel film_projects (V3) o lampo_projects (LAMPO)
+    for coll in ("film_projects", "lampo_projects"):
+        doc = await db[coll].find_one(
+            {"id": first_pid, "user_id": user["id"]},
+            {"_id": 0, "trailer": 1},
+        )
+        if doc and doc.get("trailer"):
+            tr = doc["trailer"]
+            break
+
+    # Fallback: cap.1 già rilasciato → cerca su `films`
+    if not tr:
+        film = await db.films.find_one(
+            {"saga_id": saga_id, "saga_chapter_number": 1, "user_id": user["id"]},
+            {"_id": 0, "trailer": 1},
+        )
+        if film and film.get("trailer"):
+            tr = film["trailer"]
+
+    return {"trailer": tr}
+
+
+def _early_release_offset_days(prev_cwsv: float) -> int:
+    """
+    Sblocco anticipato del rilascio del capitolo successivo basato sul CWSv del cap precedente.
+    Più alto è il successo, più ampia è la finestra di hype anticipato.
+        CWSv >= 8.0   → 6 giorni  (cap successo)
+        CWSv >= 6.5   → 5 giorni
+        CWSv >= 5.0   → 4 giorni
+        CWSv >= 3.5   → 3 giorni
+        CWSv <  3.5   → 2 giorni  (cap flop, finestra minima)
+    """
+    cwsv = float(prev_cwsv or 0.0)
+    if cwsv >= 8.0:
+        return 6
+    if cwsv >= 6.5:
+        return 5
+    if cwsv >= 5.0:
+        return 4
+    if cwsv >= 3.5:
+        return 3
+    return 2
+
+
 @router.get("/{saga_id}/release-gate/{project_id}")
 async def check_release_gate(saga_id: str, project_id: str, user: dict = Depends(get_current_user)):
     """
     Verifica se un capitolo successivo può essere RILASCIATO ora.
-    Regola: tutti i capitoli precedenti devono essere usciti dalle sale.
+    Regola: tutti i capitoli precedenti devono essere usciti dalle sale,
+    MA è ammesso un anticipo di N giorni in base al CWSv del cap precedente.
     """
     await _get_saga(saga_id, user["id"])
     chapters = await _saga_chapters_data(saga_id, user["id"])
@@ -383,26 +481,41 @@ async def check_release_gate(saga_id: str, project_id: str, user: dict = Depends
     if chap_n <= 1:
         return {"allowed": True, "reason": ""}
 
-    # Per essere rilasciato, tutti i capitoli con n < chap_n devono essere out of theaters
+    now = datetime.now(timezone.utc)
     blockers = []
+    early_window_days = 2  # default minimo
     for c in chapters:
         if int(c.get("chapter_number") or 0) < chap_n:
             end = _theater_end_dt(c)
-            if end and end > datetime.now(timezone.utc):
-                blockers.append({
-                    "chapter_number": c.get("chapter_number"),
-                    "title": c.get("title"),
-                    "exit_at": end.isoformat(),
-                })
+            if end:
+                # Calcola finestra anticipata in base al CWSv del cap precedente
+                offset = _early_release_offset_days(c.get("cwsv") or 0)
+                early_window_days = max(early_window_days, offset)
+                effective_block_until = end - timedelta(days=offset)
+                if effective_block_until > now:
+                    blockers.append({
+                        "chapter_number": c.get("chapter_number"),
+                        "title": c.get("title"),
+                        "exit_at": end.isoformat(),
+                        "early_unlock_at": effective_block_until.isoformat(),
+                        "early_offset_days": offset,
+                        "prev_cwsv": float(c.get("cwsv") or 0),
+                    })
 
     if blockers:
+        first = blockers[0]
         return {
             "allowed": False,
-            "reason": f"Il capitolo precedente è ancora in sala fino al {blockers[0]['exit_at'][:10]}.",
+            "reason": (
+                f"Il capitolo precedente è in sala fino al {first['exit_at'][:10]}. "
+                f"Sblocco anticipato (CWSv {first['prev_cwsv']:.1f} → {first['early_offset_days']}gg prima) "
+                f"il {first['early_unlock_at'][:10]}."
+            ),
             "blockers": blockers,
+            "early_window_days": early_window_days,
         }
 
-    return {"allowed": True, "reason": ""}
+    return {"allowed": True, "reason": "", "early_window_days": early_window_days}
 
 
 @router.post("/conclude")

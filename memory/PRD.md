@@ -1,3 +1,37 @@
+## FASE: Bug Capitoli Saga + Migliorie Saga (Apr 29, 2026)
+
+**Problemi riportati dall'utente** (durante creazione del cap.2 di un film a capitoli):
+- Foto 1: il trailer ricompare nel cap.2 (deve essere ereditato dal cap.1).
+- Foto 2: l'hype del cap.2 dovrebbe sbloccarsi 4-6 giorni prima della fine cinema del cap.1.
+- Foto 3: al rilascio non compaiono i personaggi della pretrama abbinati agli attori.
+- Foto 4: errore "Body is disturbed or locked" cliccando "Genera personaggi (AI)" in una serie TV.
+
+**Bug critici risolti**:
+1. **`series_v3` mappato sulla collection sbagliata** (`tv_series` invece di `series_projects_v3`) in `/app/backend/routes/characters.py`. Il backend ritornava sempre 404 → il frontend mostrava un errore generico browser-level. Adesso la generazione personaggi nelle serie TV V3 funziona (verificato con curl 200 OK + 8 personaggi generati).
+2. **Trailer ereditato Cap.1** in `TrailerGeneratorCard`: nuova prop `sagaInheritance`. Se cap.>1, render speciale con bottone "Guarda Trailer del Cap.1" + bottone "Sequel del trailer · in arrivo" (disabilitato). Aggiunto endpoint backend `GET /api/sagas/{saga_id}/inherited-trailer`.
+3. **Riepilogo Personaggi & Cast** allo step finale (V3 `Phases.jsx` STEP FINALE) e nel modale LAMPO release: lista personaggi (ordinata per ruolo) con `actor_name` abbinato. Massimo 8/10 visibili.
+4. **Sblocco anticipato hype configurabile** in base al CWSv del cap precedente (`utils/saga_release_hook.py` + `routes/sagas.py`):
+   - CWSv >= 8.0 → 6gg | >= 6.5 → 5gg | >= 5.0 → 4gg | >= 3.5 → 3gg | < 3.5 → 2gg.
+   - Sia `check_release_gate` (endpoint) sia `check_saga_release_gate` (hook usato da V3+LAMPO) usano la stessa formula.
+
+**Migliorie aggiuntive saga implementate**:
+- (a) Eredità Regista/Compositore dal Cap.1 nel `create_next_chapter` (continuità artistica). Risposta backend ora include `inherited_director` e `inherited_composer`.
+- (d) Badge "Fan Base Bonus ±X%" visibile in cima alla pipeline cap.>1 (CWSv-based).
+- (e) Cliffhanger payoff: toast `💥 Riprendi il cliffhanger del capitolo precedente! Hype +5%` quando si crea il cap. successivo.
+- (f) Mini-timeline capitoli (`SagaPipelineHeader`) in cima alla pipeline V3: barre verdi (rilasciati) / viola (corrente) / grigie (futuri).
+
+**Migliorie rimandate** (richiedono integrazioni più pesanti):
+- (b) Locandina-variante automatica dal poster cap.1 (richiede image-gen pipeline).
+- (c) Notifica push allo sblocco hype/rilascio (richiede APScheduler + push notification).
+
+**Endpoint nuovi**:
+- `GET /api/sagas/{saga_id}/inherited-trailer` → ritorna il trailer del cap.1 (cerca in `film_projects`, `lampo_projects`, fallback `films`).
+
+**Files toccati**:
+- Backend: `routes/characters.py`, `routes/sagas.py`, `utils/saga_release_hook.py`.
+- Frontend: `components/TrailerGeneratorCard.jsx`, `components/v3/IdeaPhase.jsx`, `components/v3/Phases.jsx`, `components/v3/FilmDetailV3.jsx`, `components/LampoModal.jsx`, `pages/PipelineV3.jsx`, `pages/MySagasPage.jsx`.
+
+
 ## FASE: Sezione Saghe e Capitoli + Azioni Film/Serie (Apr 28, 2026)
 
 **Problema riportato dall'utente**: 

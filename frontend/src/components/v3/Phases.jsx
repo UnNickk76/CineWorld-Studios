@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check, Coins, Trash2, AlertTriangle, Handshake } from 'lucide-react';
+import { TrendingUp, Camera, Clapperboard, Scissors, Megaphone, Globe, Ticket, Film, Award, Zap, Clock, Check, Coins, Trash2, AlertTriangle, Handshake, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { PhaseWrapper, ProgressCircle, v3api } from './V3Shared';
 import { AuthContext } from '../../contexts';
@@ -1595,6 +1595,49 @@ export const StepFinale = ({ film, onConfirm, onDiscard, loading, releaseType })
           <p className="text-[9px] text-gray-400">{releaseType === 'premiere' ? 'La Prima' : 'Rilascio Diretto'}</p>
           {film.film_duration_label && <p className="text-[8px] text-emerald-400">{film.film_duration_label}</p>}
         </div>
+
+        {/* Personaggi & Cast — coerenza pretrama/sceneggiatura */}
+        {Array.isArray(film.characters) && film.characters.length > 0 && (
+          <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 space-y-1.5" data-testid="release-cast-block">
+            <p className="text-[8px] text-purple-400 uppercase font-bold flex items-center gap-1.5">
+              <Users className="w-3 h-3" /> Personaggi & Cast
+            </p>
+            <div className="space-y-1">
+              {film.characters
+                .slice()
+                .sort((a, b) => {
+                  const ord = { protagonist: 0, antagonist: 1, coprotagonist: 2, supporting: 3, minor: 4 };
+                  return (ord[a.role_type] ?? 9) - (ord[b.role_type] ?? 9);
+                })
+                .slice(0, 8)
+                .map((c, i) => {
+                  const roleColor = {
+                    protagonist: 'text-amber-300',
+                    antagonist: 'text-red-300',
+                    coprotagonist: 'text-cyan-300',
+                    supporting: 'text-emerald-300',
+                    minor: 'text-gray-400',
+                  }[c.role_type] || 'text-gray-300';
+                  return (
+                    <div key={c.id || i} className="flex items-center justify-between gap-2 text-[9px]">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-bold text-white truncate">{c.name}</span>
+                        <span className={`ml-1 text-[7px] uppercase tracking-wider ${roleColor}`}>{c.role_type}</span>
+                      </div>
+                      <span className="text-[9px] text-gray-300 truncate ml-2">
+                        {c.actor_name ? <span className="text-emerald-300">→ {c.actor_name}</span> : <span className="text-gray-500 italic">— non assegnato</span>}
+                      </span>
+                    </div>
+                  );
+                })}
+              {film.characters.length > 8 && (
+                <p className="text-[8px] text-gray-500 italic text-center pt-1">
+                  e altri {film.characters.length - 8} personaggi…
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Cost Breakdown */}
         {cost && (

@@ -726,6 +726,49 @@ function LampoResult({ project, onReleased, onClose, api }) {
         </div>
       )}
 
+      {/* Personaggi della pretrama → cast assegnato (coerenza narrativa) */}
+      {Array.isArray(project.characters) && project.characters.length > 0 && (
+        <div className="mb-3 p-3 rounded-lg bg-purple-500/5 border border-purple-500/20" data-testid="lampo-characters-block">
+          <div className="text-[9px] uppercase text-purple-300 font-semibold mb-2 flex items-center gap-1">
+            <Sparkles className="w-3 h-3" /> Personaggi & Cast
+          </div>
+          <div className="space-y-1">
+            {project.characters
+              .slice()
+              .sort((a, b) => {
+                const ord = { protagonist: 0, antagonist: 1, coprotagonist: 2, supporting: 3, minor: 4 };
+                return (ord[a.role_type] ?? 9) - (ord[b.role_type] ?? 9);
+              })
+              .slice(0, 10)
+              .map((c, i) => {
+                const roleColor = {
+                  protagonist: 'text-amber-300',
+                  antagonist: 'text-red-300',
+                  coprotagonist: 'text-cyan-300',
+                  supporting: 'text-emerald-300',
+                  minor: 'text-slate-400',
+                }[c.role_type] || 'text-slate-300';
+                return (
+                  <div key={c.id || i} className="flex items-center justify-between gap-2 text-[10px]">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-bold text-white truncate">{c.name}</span>
+                      <span className={`ml-1 text-[8px] uppercase tracking-wider ${roleColor}`}>{c.role_type}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-200 truncate ml-2">
+                      {c.actor_name ? <span className="text-emerald-300">→ {c.actor_name}</span> : <span className="text-slate-500 italic">—</span>}
+                    </span>
+                  </div>
+                );
+              })}
+            {project.characters.length > 10 && (
+              <p className="text-[9px] text-slate-500 italic text-center pt-1">
+                e altri {project.characters.length - 10} personaggi…
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Sponsor */}
       {project.sponsors?.length > 0 && (
         <div className="mb-3 p-3 rounded-lg bg-black/40 border border-emerald-500/20">

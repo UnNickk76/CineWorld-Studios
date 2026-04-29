@@ -37,11 +37,29 @@ def _parse_dt(raw) -> Optional[datetime]:
         return None
 
 
+def _early_release_offset_days(prev_cwsv: float) -> int:
+    """
+    Sblocco anticipato del rilascio del cap successivo basato sul CWSv del cap precedente.
+        CWSv >= 8.0 → 6gg | >= 6.5 → 5gg | >= 5.0 → 4gg | >= 3.5 → 3gg | < 3.5 → 2gg
+    """
+    cwsv = float(prev_cwsv or 0.0)
+    if cwsv >= 8.0:
+        return 6
+    if cwsv >= 6.5:
+        return 5
+    if cwsv >= 5.0:
+        return 4
+    if cwsv >= 3.5:
+        return 3
+    return 2
+
+
 async def check_saga_release_gate(project: dict, user_id: str) -> tuple[bool, str]:
     """
     Verifica se questo capitolo della saga può essere rilasciato.
-    Regola: tutti i capitoli con saga_chapter_number minore devono essere
-    usciti dalle sale (theater_start + theater_days < now) o non in_theaters.
+    Regola: tutti i capitoli con saga_chapter_number minore devono essere usciti
+    dalle sale, MA con un anticipo di N giorni in base al CWSv del cap precedente
+    (cap successo → 6gg, cap flop → 2gg).
 
     Ritorna (True, "") se OK, altrimenti (False, motivo).
     """
@@ -59,7 +77,7 @@ async def check_saga_release_gate(project: dict, user_id: str) -> tuple[bool, st
             "saga_chapter_number": {"$lt": chap_n},
         },
         {"_id": 0, "id": 1, "title": 1, "saga_chapter_number": 1, "status": 1,
-         "theater_start": 1, "released_at": 1, "theater_days": 1},
+         "theater_start": 1, "released_at": 1, "theater_days": 1, "quality_score": 1},
     )
     now = datetime.now(timezone.utc)
     blockers = []
@@ -68,18 +86,26 @@ async def check_saga_release_gate(project: dict, user_id: str) -> tuple[bool, st
             continue
         start = _parse_dt(f.get("theater_start") or f.get("released_at"))
         days = int(f.get("theater_days") or 21)
-        if start and (start + timedelta(days=days)) > now:
+        if not start:
+            continue
+        cinema_end = start + timedelta(days=days)
+        offset = _early_release_offset_days(f.get("quality_score") or 0)
+        effective_unlock = cinema_end - timedelta(days=offset)
+        if effective_unlock > now:
             blockers.append({
                 "chapter_number": f.get("saga_chapter_number"),
                 "title": f.get("title"),
-                "exit_at": (start + timedelta(days=days)).isoformat(),
+                "exit_at": cinema_end.isoformat(),
+                "early_unlock_at": effective_unlock.isoformat(),
+                "early_offset_days": offset,
             })
 
     if blockers:
         b = blockers[0]
         return False, (
             f"⏳ Il capitolo {b['chapter_number']} «{b['title']}» è ancora in sala. "
-            f"Il nuovo capitolo potrà uscire dopo il {b['exit_at'][:10]}."
+            f"Hype anticipato (-{b['early_offset_days']}gg) sbloccato dal {b['early_unlock_at'][:10]}; "
+            f"fine sala il {b['exit_at'][:10]}."
         )
     return True, ""
 

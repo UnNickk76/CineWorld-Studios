@@ -219,6 +219,11 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
     <PhaseWrapper title="L'Idea" subtitle="Dai forma al tuo progetto cinematografico" icon={Sparkles} color="amber">
       <div className="space-y-3">
 
+        {/* ═══ SAGA HEADER — mini-timeline + fan base bonus + cliffhanger reminder ═══ */}
+        {film.saga_id && (film.saga_chapter_number || 0) >= 1 && (
+          <SagaPipelineHeader film={film} api={api} />
+        )}
+
         {/* ═══ SEMPRE VISIBILE: Titolo + Genere + Sottogeneri + Pretrama + Ambientazione ═══ */}
         <input value={title} onChange={e => { setTitle(e.target.value); mark(); }}
           placeholder="Titolo del film" className="w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm text-white placeholder-gray-600"
@@ -599,6 +604,7 @@ export const IdeaPhase = ({ film, onRefresh, toast, onDirty, readOnly = false })
                   onGenerated={onRefresh}
                   onSkip={skipTrailer}
                   onConfirm={confirmTrailerAndProceed}
+                  sagaInheritance={(film.saga_id && (film.saga_chapter_number || 0) > 1) ? { active: true, sagaId: film.saga_id, chapterNumber: film.saga_chapter_number } : null}
                 />
               </>
             )}
@@ -703,6 +709,87 @@ const DangerZoneFilm = ({ film, onRefresh, toast, api }) => {
         onConfirm={onRestart}
         onCancel={() => !busy && setShowRestart(false)}
       />
+    </div>
+  );
+};
+
+
+/**
+ * SagaPipelineHeader — mini-timeline + fan base bonus + cliffhanger reminder
+ * Visibile in cima alla pipeline V3 quando il film è parte di una saga.
+ */
+const SagaPipelineHeader = ({ film, api }) => {
+  const [saga, setSaga] = useState(null);
+
+  useEffect(() => {
+    if (!film?.saga_id || !api) return;
+    api.get(`/sagas/${film.saga_id}`).then(r => setSaga(r.data || null)).catch(() => setSaga(null));
+  }, [film?.saga_id, api]);
+
+  if (!saga) return null;
+
+  const total = saga.saga?.total_planned_chapters || 0;
+  const released = saga.chapters?.length || 0;
+  const currentN = film.saga_chapter_number || 1;
+  const prevChapter = (saga.chapters || []).find(c => (c.chapter_number || 0) === currentN - 1);
+  const prevCwsv = prevChapter?.cwsv || 0;
+  const prevCliff = !!prevChapter?.saga_cliffhanger;
+
+  // Calcolo fan base bonus modifier (replica logica backend)
+  const fanBaseBonusPct = currentN >= 2 ? Math.round(((prevCwsv >= 8 ? 1.25 : prevCwsv >= 6.5 ? 1.15 : prevCwsv >= 5 ? 1.05 : 0.95) - 1) * 100) : 0;
+  const earlyOffset = prevCwsv >= 8 ? 6 : prevCwsv >= 6.5 ? 5 : prevCwsv >= 5 ? 4 : prevCwsv >= 3.5 ? 3 : 2;
+
+  return (
+    <div className="rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-950/40 via-fuchsia-950/30 to-zinc-900/40 p-3 space-y-2.5" data-testid="saga-pipeline-header">
+      {/* Title + chapter info */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[10px] uppercase tracking-wider text-violet-300 font-bold">SAGA</span>
+          <span className="text-[11px] font-bold text-white truncate">{saga.saga?.title || 'Saga'}</span>
+        </div>
+        <span className="text-[9px] text-violet-200 font-bold whitespace-nowrap">Cap. {currentN}/{total}</span>
+      </div>
+
+      {/* Mini-timeline */}
+      {total > 0 && (
+        <div className="flex items-center gap-1" data-testid="saga-timeline">
+          {Array.from({ length: total }, (_, i) => {
+            const n = i + 1;
+            const isReleased = n <= released;
+            const isCurrent = n === currentN;
+            return (
+              <div key={n} className="flex-1 flex flex-col items-center">
+                <div className={`w-full h-1.5 rounded-full ${isCurrent ? 'bg-violet-400' : isReleased ? 'bg-emerald-500' : 'bg-zinc-700'}`} />
+                <span className={`text-[7px] mt-0.5 font-bold ${isCurrent ? 'text-violet-300' : isReleased ? 'text-emerald-300' : 'text-zinc-500'}`}>
+                  {isCurrent ? '◉' : isReleased ? '✓' : n}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* (d) Fan Base Bonus + (e) Cliffhanger reminder */}
+      {currentN >= 2 && (
+        <div className="grid grid-cols-2 gap-2">
+          {fanBaseBonusPct !== 0 && (
+            <div className={`px-2 py-1.5 rounded-lg border text-[9px] font-bold ${fanBaseBonusPct > 0 ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-rose-500/40 bg-rose-500/10 text-rose-300'}`} data-testid="saga-fanbase-badge">
+              Fan Base {fanBaseBonusPct > 0 ? `+${fanBaseBonusPct}%` : `${fanBaseBonusPct}%`}
+              <div className="text-[7px] opacity-80 font-normal">CWSv prec. {prevCwsv.toFixed(1)}</div>
+            </div>
+          )}
+          {prevCliff && (
+            <div className="px-2 py-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[9px] font-bold" data-testid="saga-cliffhanger-reminder">
+              💥 Cliffhanger attivo
+              <div className="text-[7px] opacity-80 font-normal">+5% hype iniziale</div>
+            </div>
+          )}
+          <div className="px-2 py-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 text-[9px] font-bold col-span-2 sm:col-span-1">
+            ⏱ Hype anticipato {earlyOffset}gg
+            <div className="text-[7px] opacity-80 font-normal">prima della fine cinema cap. precedente</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

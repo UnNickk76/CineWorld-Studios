@@ -5602,7 +5602,7 @@ async def admin_search_users(q: str = '', user: dict = Depends(get_current_user)
         query = {'nickname': {'$regex': q, '$options': 'i'}}
     users = await db.users.find(
         query,
-        {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1, 'funds': 1, 'cinepass': 1, 'xp': 1, 'fame': 1, 'role': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1, 'is_banned': 1, 'is_chat_muted': 1, 'ban_expires_at': 1, 'report_count_active': 1, 'ban_count_total': 1, 'is_deleted': 1}
+        {'_id': 0, 'id': 1, 'nickname': 1, 'email': 1, 'funds': 1, 'cinepass': 1, 'xp': 1, 'fame': 1, 'role': 1, 'production_house_name': 1, 'badge': 1, 'badge_expiry': 1, 'badges': 1, 'is_banned': 1, 'is_chat_muted': 1, 'ban_expires_at': 1, 'report_count_active': 1, 'ban_count_total': 1, 'is_deleted': 1, 'created_at': 1}
     ).sort('nickname', 1).limit(20).to_list(20)
     return {'users': users, 'count': len(users)}
 

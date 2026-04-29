@@ -542,6 +542,9 @@ function UsersTab({ api }) {
                   {u.role && <Badge className="text-[7px] h-3.5 bg-purple-500/20 text-purple-400">{u.role}</Badge>}
                 </div>
                 <p className="text-[9px] text-gray-500 truncate">{u.production_house_name || u.email}</p>
+                <p className="text-[8px] text-gray-600 truncate">
+                  📅 {u.created_at ? `Reg. ${new Date(u.created_at).toLocaleDateString('it-IT')}` : 'Reg. non disponibile'}
+                </p>
               </div>
               <div className="text-right flex-shrink-0">
                 <p className="text-[10px] text-yellow-400 font-mono">${(u.funds || 0).toLocaleString()}</p>
@@ -1903,6 +1906,9 @@ function RolesTab({ api }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-white truncate">{u.nickname}</p>
                   <p className="text-[9px] text-gray-500 truncate">{u.email}</p>
+                  <p className="text-[8px] text-gray-600 truncate">
+                    📅 {u.created_at ? `Reg. ${new Date(u.created_at).toLocaleDateString('it-IT')}` : 'Reg. non disponibile'}
+                  </p>
                 </div>
                 <Badge className={`text-[8px] h-5 px-2 ${ROLE_COLORS[role] || ROLE_COLORS.USER}`}>{role}</Badge>
                 {u.is_banned && <Badge className="text-[8px] h-5 px-2 bg-rose-500/30 text-rose-200 border-rose-500/50">BAN</Badge>}

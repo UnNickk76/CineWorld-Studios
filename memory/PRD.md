@@ -1,3 +1,21 @@
+## FASE: Data registrazione + Co-Admin permissions (Apr 29, 2026)
+
+**Richieste utente**:
+1. Aggiungere la data di registrazione utente sotto email/nickname in entrambe le tab Admin (Gestione Utenti + Gestione Ruoli). Per i vecchi utenti senza `created_at`: mostrare "non disponibile".
+2. I CO_ADMIN devono poter gestire segnalazioni utenti, locandine e ban al pari degli ADMIN.
+
+**Modifiche**:
+1. **Backend (`server.py`)**: aggiunto `created_at` alla projection di `/api/admin/search-users`.
+2. **Frontend `AdminPage.jsx`**:
+   - **UsersTab card list**: aggiunta riga `📅 Reg. gg/mm/yyyy` (o "Reg. non disponibile") sotto email/production_house_name.
+   - **RolesTab card list**: stessa riga sotto email.
+3. **Co-Admin permissions** — già coperto:
+   - `auth_utils.require_mod` accetta già `("ADMIN", "CO_ADMIN", "MOD")`. Tutti gli endpoint moderazione (`/admin/reports/*`, `/admin/users/*/ban|unban|manual-report|chat-mute|chat-unmute`, `/admin/content/*`) usano `require_mod` quindi CO_ADMIN può già fare tutto.
+   - `COADMIN_TABS` espone già `reports` (Segnalazioni) come prima tab → co-admin ha accesso pieno al pannello moderazione tramite `AdminModerationPanel`.
+
+**Verificato**: lint pulito, screenshot Gestione Ruoli mostra ogni utente con `📅 Reg. gg/mm/yyyy` + icone Segnala/Ban presenti.
+
+
 ## FASE: Estensione Moderazione — Bottoni Segnala/Ban in tutto Admin Panel + CineConfirm Velion (Apr 29, 2026)
 
 **Problema**: l'utente ha segnalato che i bottoni "Segnala sempre" e "Banna sempre" (con prompt durata) non erano visibili nelle tab principali (Gestione Utenti, Gestione Ruoli) — erano disponibili SOLO nel tab Segnalazioni. Inoltre le conferme usavano `window.confirm` browser-default invece del CineConfirm Velion-style.

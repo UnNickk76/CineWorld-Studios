@@ -53,6 +53,7 @@ import { RadioPromoBanner } from './components/RadioPromoBanner';
 import { RadioFloatingPlayer } from './components/RadioFloatingPlayer';
 import { NowPlayingBanner } from './components/NowPlayingBanner';
 import BanBanner from './components/moderation/BanBanner';
+import VeteranBadge from './components/VeteranBadge';
 import { RadioStationsPopup } from './components/RadioStationsPopup';
 import { CompareProducersModal } from './components/CompareProducersModal';
 import { AvatarWithLogo } from './components/StudioName';
@@ -1652,6 +1653,7 @@ const PlayerProfilePopup = ({ data, onClose, navigate, api, user, onCompare }) =
               <div className="flex items-center gap-2 mt-0.5">
                 {p.level && <span className="text-[8px] font-bold text-yellow-500/80 bg-yellow-500/10 border border-yellow-500/20 rounded px-1 py-0.5">LV {p.level}</span>}
                 {p.fame != null && <span className="text-[8px] text-amber-400/70 bg-amber-500/10 border border-amber-500/15 rounded px-1 py-0.5">Fama {p.fame?.toLocaleString()}</span>}
+                <VeteranBadge createdAt={p.created_at} size="sm" />
                 <span className={`w-2 h-2 rounded-full ${p.is_online ? 'bg-green-400' : 'bg-gray-600'}`} />
               </div>
             </div>

@@ -1053,4 +1053,6 @@ async def get_player_profile(nickname: str, user: dict = Depends(get_current_use
         'best_film': best_film,
         'best_cwsv_display': best_display,
         'challenge_stats': {'wins': wins, 'losses': losses},
+        'created_at': target.get('created_at'),
+        'logo_url': target.get('logo_url', ''),
     }

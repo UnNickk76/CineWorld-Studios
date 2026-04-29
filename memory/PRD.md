@@ -1,3 +1,22 @@
+## FASE: Badge Veterano (Apr 29, 2026)
+
+**Richiesta utente**: badge "Veterano" basato su anzianità di iscrizione, visibile a tutti cliccando sul nickname (ovunque).
+
+**Tier (calcolati dal `created_at`)**:
+- `>= 365gg` → 🏆 **Veterano Leggendario** (gold #facc15, glow)
+- `>= 180gg` → 🥈 **Veterano** (silver #cbd5e1, glow)
+- `>= 90gg` → 🥉 **Veterano in Erba** (bronze #fb923c, glow)
+- `< 90gg` → nessun badge
+
+**Modifiche**:
+- **Componente nuovo**: `/app/frontend/src/components/VeteranBadge.jsx` — utility `getVeteranTier(created_at)` + componente con 3 size (sm/md/lg).
+- **PlayerProfilePopup** (in `App.js`) — popup principale aperto da tutti i nickname cliccabili: aggiunto `<VeteranBadge createdAt={p.created_at} size="sm" />` accanto a LV/Fama/online dot.
+- **ProducerProfileModal** — popup secondario usato da `FilmDetailV3`: aggiunto badge accanto al label di livello.
+- **Backend**: aggiunto `created_at` (e `logo_url`) al response di `/api/auth/player-profile/{nickname}` (mancava). `/api/players/{id}/profile` lo aveva già.
+
+**Verificato**: lint pulito, curl `/api/auth/player-profile/NeoMorpheus` ritorna `created_at` correttamente.
+
+
 ## FASE: Data registrazione + Co-Admin permissions (Apr 29, 2026)
 
 **Richieste utente**:

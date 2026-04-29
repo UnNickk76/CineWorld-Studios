@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { X, Star, Film, Tv, Sparkles, TrendingUp, Award, MessageCircle, Swords, Crown, UserPlus, UserCheck, BarChart3 } from 'lucide-react';
 import { AuthContext } from '../contexts';
 import { toast } from 'sonner';
+import VeteranBadge from './VeteranBadge';
 
 const LEVEL_BADGES = [
   { min: 0, label: 'Esordiente', color: '#6b7280', bg: 'rgba(107,114,128,0.12)', border: 'rgba(107,114,128,0.2)', glow: '' },
@@ -114,9 +115,12 @@ export default function ProducerProfileModal({ producerId, producerData, isOpen,
                   )}
                 </div>
                 <div style={{ fontSize: '10px', color: '#555' }}>{s.production_house_name || 'Studio indipendente'}</div>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '3px', padding: '2px 10px', borderRadius: '12px',
-                  background: badge.bg, border: `1px solid ${badge.border}`, fontSize: '9px', fontWeight: 'bold', color: badge.color }}>
-                  <Crown size={9} /> {badge.label}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '3px', alignItems: 'center' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 10px', borderRadius: '12px',
+                    background: badge.bg, border: `1px solid ${badge.border}`, fontSize: '9px', fontWeight: 'bold', color: badge.color }}>
+                    <Crown size={9} /> {badge.label}
+                  </div>
+                  <VeteranBadge createdAt={s.created_at} size="sm" />
                 </div>
               </div>
             </div>

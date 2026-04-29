@@ -757,6 +757,24 @@ async def activate_re_hype(saga_id: str, project_id: str, user: dict = Depends(g
         "expired": False,
     })
     boost_pct = status.get("bonus_pct", 0)
+    # (B) Views doppie Cap.1 → hype Cap.2: bonus extra in base a views/likes recenti del cap.prec
+    try:
+        prev_id = (status.get("prev_film") or {}).get("id")
+        if prev_id:
+            pf_full = await db.films.find_one({"id": prev_id, "user_id": user["id"]}, {"_id": 0, "total_spectators": 1, "likes_count": 1})
+            if pf_full:
+                views = int(pf_full.get("total_spectators") or 0)
+                likes = int(pf_full.get("likes_count") or 0)
+                # Formula: +1% per ogni 500k spettatori, +1% per ogni 50 likes, cap 15%
+                views_bonus = min(15, int(views / 500_000) + int(likes / 50))
+                if views_bonus > 0:
+                    boost_pct += views_bonus
+                    await db.saga_re_hype.update_one(
+                        {"id": re_hype_id if 're_hype_id' in dir() else None},
+                        {"$set": {"views_bonus_pct": views_bonus}},
+                    )
+    except Exception as e:
+        log.warning(f"[RE_HYPE] views bonus failed: {e}")
     for coll in ("film_projects", "lampo_projects"):
         proj_existing = await db[coll].find_one({"id": project_id, "user_id": user["id"]}, {"_id": 0, "pre_release_hype": 1})
         if proj_existing:
